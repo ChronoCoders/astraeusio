@@ -1,14 +1,18 @@
+import { useTranslation } from 'react-i18next'
+
 export default function ApodCard({ data }) {
+  const { t } = useTranslation()
+
   if (!data) return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex items-center justify-center">
-      <p className="text-zinc-600 text-sm">No data</p>
+      <p className="text-zinc-600 text-sm">{t('common.noData')}</p>
     </div>
   )
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-widest">Astronomy Picture of the Day</span>
+        <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('apod.title')}</span>
         <span className="text-zinc-500 text-xs font-mono">{data.date}</span>
       </div>
 
@@ -23,7 +27,7 @@ export default function ApodCard({ data }) {
       ) : (
         <div className="w-full bg-zinc-800 rounded flex items-center justify-center" style={{ height: '180px' }}>
           <a href={data.url} target="_blank" rel="noreferrer" className="text-blue-400 text-sm underline">
-            View media ↗
+            {t('apod.viewMedia')}
           </a>
         </div>
       )}

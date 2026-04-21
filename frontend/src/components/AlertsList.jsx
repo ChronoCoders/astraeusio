@@ -1,12 +1,13 @@
+import { useTranslation } from 'react-i18next'
+
 function severity(productId) {
-  if (/WAR/.test(productId)) return { dot: 'bg-red-400',    label: 'WARNING' }
-  if (/ALT/.test(productId)) return { dot: 'bg-orange-400', label: 'ALERT' }
-  if (/SUM/.test(productId)) return { dot: 'bg-yellow-400', label: 'SUMMARY' }
-  return                            { dot: 'bg-zinc-500',   label: 'INFO' }
+  if (/WAR/.test(productId)) return { dot: 'bg-red-400',    key: 'alerts.warning' }
+  if (/ALT/.test(productId)) return { dot: 'bg-orange-400', key: 'alerts.alert' }
+  if (/SUM/.test(productId)) return { dot: 'bg-yellow-400', key: 'alerts.summary' }
+  return                            { dot: 'bg-zinc-500',   key: 'alerts.info' }
 }
 
 function firstLine(msg) {
-  // Extract the message code line from the NOAA alert text
   const m = msg.match(/Space Weather Message Code:\s*(\S+)/i)
   if (m) return m[1].replace(/_/g, ' ')
   return msg.split('\n').find(l => l.trim()) ?? msg.slice(0, 60)
@@ -18,17 +19,18 @@ function parseDate(dt) {
 }
 
 export default function AlertsList({ data }) {
+  const { t } = useTranslation()
   const alerts = (data ?? []).slice(0, 8)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-widest">Space Weather Alerts</span>
+        <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('alerts.title')}</span>
         <span className="text-zinc-500 text-xs font-mono">{alerts.length}</span>
       </div>
 
       {alerts.length === 0 ? (
-        <p className="text-zinc-600 text-sm">No active alerts</p>
+        <p className="text-zinc-600 text-sm">{t('alerts.noAlerts')}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {alerts.map((a, i) => {
@@ -38,7 +40,7 @@ export default function AlertsList({ data }) {
                 <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${sev.dot}`} />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs text-zinc-500 font-mono">{sev.label}</span>
+                    <span className="text-xs text-zinc-500 font-mono">{t(sev.key)}</span>
                     <span className="text-xs text-zinc-600 font-mono">{a.product_id}</span>
                   </div>
                   <p className="text-zinc-300 text-xs leading-relaxed line-clamp-2">{firstLine(a.message)}</p>

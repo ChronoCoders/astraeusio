@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
 import MetricCard     from './components/MetricCard'
@@ -13,7 +14,11 @@ import ExoplanetStats from './components/ExoplanetStats'
 const FAST = 30_000   // 30 s — live data
 const SLOW = 120_000  // 2 min — slower-changing data
 
+const LANGS = ['en', 'tr']
+
 export default function App() {
+  const { t, i18n } = useTranslation()
+
   const kp       = useApi('/api/kp',          FAST)
   const wind     = useApi('/api/solar-wind',  SLOW)
   const xray     = useApi('/api/xray',        SLOW)
@@ -38,41 +43,58 @@ export default function App() {
     <div className="min-h-screen p-4 max-w-screen-2xl mx-auto flex flex-col gap-3">
 
       <header className="flex items-center justify-between pb-2 border-b border-zinc-800">
-        <h1 className="text-zinc-100 font-semibold tracking-tight">Astraeus</h1>
-        <span className="text-zinc-500 text-xs font-mono">
-          {new Date().toUTCString().slice(0, -4) + 'UTC'}
-        </span>
+        <h1 className="text-zinc-100 font-semibold tracking-tight">{t('appTitle')}</h1>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            {LANGS.map(lng => (
+              <button
+                key={lng}
+                onClick={() => i18n.changeLanguage(lng)}
+                className={`text-xs font-mono px-2 py-0.5 rounded transition-colors ${
+                  i18n.language === lng
+                    ? 'bg-zinc-700 text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {lng.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <span className="text-zinc-500 text-xs font-mono">
+            {new Date().toUTCString().slice(0, -4) + 'UTC'}
+          </span>
+        </div>
       </header>
 
       {/* Row 1 — Metric cards */}
       <div className="grid grid-cols-5 gap-3">
         <MetricCard
-          label="Kp Index"
+          label={t('metrics.kpIndex')}
           value={currentKp != null ? fmtNum(currentKp, 2) : null}
-          sub={storm.label}
+          sub={t(storm.key)}
           valueCls={storm.cls}
         />
         <MetricCard
-          label="Solar Wind Speed"
+          label={t('metrics.solarWindSpeed')}
           value={latestWind?.proton_speed != null ? fmtNum(latestWind.proton_speed, 0) : null}
           unit="km/s"
-          sub={wind.loading ? 'Loading…' : wind.error ? 'Unavailable' : null}
+          sub={wind.loading ? t('common.loading') : wind.error ? t('common.unavailable') : null}
         />
         <MetricCard
-          label="Proton Density"
+          label={t('metrics.protonDensity')}
           value={latestWind?.proton_density != null ? fmtNum(latestWind.proton_density, 1) : null}
           unit="p/cm³"
-          sub={wind.loading ? 'Loading…' : null}
+          sub={wind.loading ? t('common.loading') : null}
         />
         <MetricCard
-          label="X-Ray Class"
+          label={t('metrics.xrayClass')}
           value={xClass.label}
-          sub={latestXray?.flux != null ? `${latestXray.flux.toExponential(1)} W/m²` : xray.loading ? 'Loading…' : xray.error ? 'Unavailable' : null}
+          sub={latestXray?.flux != null ? `${latestXray.flux.toExponential(1)} W/m²` : xray.loading ? t('common.loading') : xray.error ? t('common.unavailable') : null}
           valueCls={xClass.cls}
         />
         <MetricCard
-          label="Storm Level"
-          value={storm.label}
+          label={t('metrics.stormLevel')}
+          value={t(storm.key)}
           sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '—'}`}
           valueCls={storm.cls}
         />

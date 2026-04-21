@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { fmtNum } from '../lib/utils'
 
 function StatBox({ label, value, sub }) {
@@ -11,49 +12,43 @@ function StatBox({ label, value, sub }) {
 }
 
 export default function ExoplanetStats({ data }) {
+  const { t } = useTranslation()
   const planets = data ?? []
 
   const withRadius = planets.filter(p => p.pl_rade != null)
   const withMass   = planets.filter(p => p.pl_masse != null)
-  const withPeriod = planets.filter(p => p.pl_orbper != null)
-
-  const byYear = planets.reduce((acc, p) => {
-    if (p.disc_year) acc[p.disc_year] = (acc[p.disc_year] ?? 0) + 1
-    return acc
-  }, {})
-  const recentYear = Object.keys(byYear).sort().at(-1)
 
   const sample = planets.slice(0, 8)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-4">
-      <span className="text-zinc-500 text-xs uppercase tracking-widest">Exoplanet Catalog</span>
+      <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('exo.title')}</span>
 
       {planets.length === 0 ? (
-        <p className="text-zinc-600 text-sm">No data</p>
+        <p className="text-zinc-600 text-sm">{t('common.noData')}</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2">
-            <StatBox label="Total"  value={fmtNum(planets.length)} sub="planets" />
+            <StatBox label={t('exo.total')} value={fmtNum(planets.length)} sub={t('exo.planets')} />
             <StatBox
-              label="Median radius"
+              label={t('exo.medianRadius')}
               value={withRadius.length ? fmtNum(withRadius.map(p => p.pl_rade).sort((a,b) => a-b)[Math.floor(withRadius.length/2)], 1) : '—'}
-              sub="Earth radii"
+              sub={t('exo.earthRadii')}
             />
             <StatBox
-              label="Median mass"
+              label={t('exo.medianMass')}
               value={withMass.length ? fmtNum(withMass.map(p => p.pl_masse).sort((a,b) => a-b)[Math.floor(withMass.length/2)], 1) : '—'}
-              sub="Earth masses"
+              sub={t('exo.earthMasses')}
             />
           </div>
 
           <div>
-            <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Sample — closest orbits</p>
+            <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">{t('exo.sample')}</p>
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-zinc-800">
-                  {['Planet', 'Host', 'Period (d)', 'Radius (R⊕)', 'Year'].map(h => (
-                    <th key={h} className="text-left text-zinc-500 font-normal pb-1.5 pr-3 last:pr-0 whitespace-nowrap">{h}</th>
+                  {['exo.colPlanet', 'exo.colHost', 'exo.colPeriod', 'exo.colRadius', 'exo.colYear'].map(k => (
+                    <th key={k} className="text-left text-zinc-500 font-normal pb-1.5 pr-3 last:pr-0 whitespace-nowrap">{t(k)}</th>
                   ))}
                 </tr>
               </thead>

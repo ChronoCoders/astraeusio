@@ -1,13 +1,13 @@
 // ── Kp / Storm ────────────────────────────────────────────────────────────────
 
 export function stormInfo(kp) {
-  if (kp >= 9) return { label: 'G5 Extreme',  cls: 'text-red-400' }
-  if (kp >= 8) return { label: 'G4 Severe',   cls: 'text-red-400' }
-  if (kp >= 7) return { label: 'G3 Strong',   cls: 'text-orange-400' }
-  if (kp >= 6) return { label: 'G2 Moderate', cls: 'text-orange-400' }
-  if (kp >= 5) return { label: 'G1 Minor',    cls: 'text-yellow-400' }
-  if (kp >= 4) return { label: 'Unsettled',   cls: 'text-yellow-500' }
-  return             { label: 'Quiet',        cls: 'text-zinc-400' }
+  if (kp >= 9) return { key: 'storm.g5',        cls: 'text-red-400' }
+  if (kp >= 8) return { key: 'storm.g4',        cls: 'text-red-400' }
+  if (kp >= 7) return { key: 'storm.g3',        cls: 'text-orange-400' }
+  if (kp >= 6) return { key: 'storm.g2',        cls: 'text-orange-400' }
+  if (kp >= 5) return { key: 'storm.g1',        cls: 'text-yellow-400' }
+  if (kp >= 4) return { key: 'storm.unsettled', cls: 'text-yellow-500' }
+  return             { key: 'storm.quiet',      cls: 'text-zinc-400' }
 }
 
 export function kpBarColor(kp) {
@@ -20,7 +20,7 @@ export function kpBarColor(kp) {
 export function auroraLine(kp) {
   const lat = [90, 87, 83, 79, 72, 67, 62, 58, 52, 47]
   const idx = Math.min(Math.max(Math.floor(kp), 0), 9)
-  return idx < 2 ? 'Not visible' : `>${lat[idx]}° latitude`
+  return idx < 2 ? { visible: false } : { visible: true, lat: lat[idx] }
 }
 
 // ── X-ray ─────────────────────────────────────────────────────────────────────

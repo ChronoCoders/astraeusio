@@ -1,0 +1,96 @@
+{
+  "appTitle": "Astraeus",
+  "common": {
+    "noData": "No data",
+    "loading": "Loading…",
+    "unavailable": "Unavailable",
+    "objects": "{{count}} objects"
+  },
+  "metrics": {
+    "kpIndex": "Kp Index",
+    "solarWindSpeed": "Solar Wind Speed",
+    "protonDensity": "Proton Density",
+    "xrayClass": "X-Ray Class",
+    "stormLevel": "Storm Level"
+  },
+  "kpChart": {
+    "title": "Kp index — last 24 h"
+  },
+  "forecast": {
+    "title": "ML Kp Forecast",
+    "loading": "Loading forecast…",
+    "noData": "No forecast data",
+    "predictedKp": "Predicted Kp (+3 h)",
+    "ci": "Confidence interval (95%)",
+    "stormProb": "Storm probability (Kp ≥ 5)",
+    "stormLevel": "Storm level",
+    "aurora": "Aurora visibility",
+    "uncertainty": "Uncertainty (1σ)",
+    "footer": "LSTM · {{samples}} MC passes · trained {{date}}"
+  },
+  "neo": {
+    "title": "Near-Earth Objects (7-day)",
+    "objects": "{{count}} objects",
+    "colName": "Name",
+    "colDate": "Date",
+    "colDistance": "Distance (LD)",
+    "colDiameter": "Diameter (km)",
+    "colStatus": "Status",
+    "hazardous": "HAZARDOUS",
+    "safe": "safe"
+  },
+  "alerts": {
+    "title": "Space Weather Alerts",
+    "noAlerts": "No active alerts",
+    "warning": "WARNING",
+    "alert": "ALERT",
+    "summary": "SUMMARY",
+    "info": "INFO"
+  },
+  "iss": {
+    "title": "ISS Position",
+    "orbitProgress": "Orbit progress",
+    "period": "~92.68 min period",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "altitude": "Altitude",
+    "velocity": "Velocity",
+    "updated": "Updated {{time}} UTC"
+  },
+  "apod": {
+    "title": "Astronomy Picture of the Day",
+    "viewMedia": "View media ↗"
+  },
+  "epic": {
+    "title": "EPIC — Earth Polychromatic Imaging",
+    "frame": "Frame:"
+  },
+  "exo": {
+    "title": "Exoplanet Catalog",
+    "total": "Total",
+    "medianRadius": "Median radius",
+    "medianMass": "Median mass",
+    "planets": "planets",
+    "earthRadii": "Earth radii",
+    "earthMasses": "Earth masses",
+    "sample": "Sample — closest orbits",
+    "colPlanet": "Planet",
+    "colHost": "Host",
+    "colPeriod": "Period (d)",
+    "colRadius": "Radius (R⊕)",
+    "colYear": "Year"
+  },
+  "storm": {
+    "quiet": "Quiet",
+    "unsettled": "Unsettled",
+    "g1": "G1 Minor",
+    "g2": "G2 Moderate",
+    "g3": "G3 Strong",
+    "g4": "G4 Severe",
+    "g5": "G5 Extreme"
+  },
+  "aurora": {
+    "notVisible": "Not visible",
+    "visible": ">{{lat}}° latitude"
+  }
+}

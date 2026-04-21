@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { epicImageUrl } from '../lib/utils'
 
 export default function EpicViewer({ data }) {
+  const { t } = useTranslation()
   const images = (data ?? []).slice(0, 4)
   const [active, setActive] = useState(0)
   const img = images[active]
@@ -9,13 +11,13 @@ export default function EpicViewer({ data }) {
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-widest">EPIC — Earth Polychromatic Imaging</span>
+        <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('epic.title')}</span>
         {img && <span className="text-zinc-500 text-xs font-mono">{img.date?.slice(0, 10)}</span>}
       </div>
 
       {!img ? (
         <div className="flex items-center justify-center bg-zinc-800 rounded" style={{ height: '260px' }}>
-          <p className="text-zinc-600 text-sm">No data</p>
+          <p className="text-zinc-600 text-sm">{t('common.noData')}</p>
         </div>
       ) : (
         <>
@@ -30,7 +32,7 @@ export default function EpicViewer({ data }) {
           <p className="text-zinc-400 text-xs leading-relaxed line-clamp-2">{img.caption}</p>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-zinc-600 text-xs mr-1">Frame:</span>
+            <span className="text-zinc-600 text-xs mr-1">{t('epic.frame')}</span>
             {images.map((_, i) => (
               <button
                 key={i}

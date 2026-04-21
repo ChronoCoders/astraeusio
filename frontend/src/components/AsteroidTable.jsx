@@ -1,24 +1,26 @@
+import { useTranslation } from 'react-i18next'
 import { flattenNeo, fmtNum } from '../lib/utils'
 
 export default function AsteroidTable({ data }) {
+  const { t } = useTranslation()
   const rows = flattenNeo(data).slice(0, 12)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-widest">Near-Earth Objects (7-day)</span>
-        {data && <span className="text-zinc-500 text-xs font-mono">{data.element_count} objects</span>}
+        <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('neo.title')}</span>
+        {data && <span className="text-zinc-500 text-xs font-mono">{t('neo.objects', { count: data.element_count })}</span>}
       </div>
 
       {!rows.length ? (
-        <p className="text-zinc-600 text-sm">No data</p>
+        <p className="text-zinc-600 text-sm">{t('common.noData')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-zinc-800">
-                {['Name', 'Date', 'Distance (LD)', 'Diameter (km)', 'Status'].map(h => (
-                  <th key={h} className="text-left text-zinc-500 text-xs font-normal pb-2 pr-4 last:pr-0 whitespace-nowrap">{h}</th>
+                {['neo.colName', 'neo.colDate', 'neo.colDistance', 'neo.colDiameter', 'neo.colStatus'].map(k => (
+                  <th key={k} className="text-left text-zinc-500 text-xs font-normal pb-2 pr-4 last:pr-0 whitespace-nowrap">{t(k)}</th>
                 ))}
               </tr>
             </thead>
@@ -33,8 +35,8 @@ export default function AsteroidTable({ data }) {
                   </td>
                   <td className="py-2">
                     {r.hazardous
-                      ? <span className="text-xs font-medium text-red-400 border border-red-800 rounded px-1.5 py-0.5">HAZARDOUS</span>
-                      : <span className="text-xs text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">safe</span>
+                      ? <span className="text-xs font-medium text-red-400 border border-red-800 rounded px-1.5 py-0.5">{t('neo.hazardous')}</span>
+                      : <span className="text-xs text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">{t('neo.safe')}</span>
                     }
                   </td>
                 </tr>

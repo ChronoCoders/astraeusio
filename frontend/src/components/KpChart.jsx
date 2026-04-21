@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { processKpBuckets, kpBarColor } from '../lib/utils'
 
 const W = 560
@@ -8,13 +9,14 @@ const CH = H - PAD.t - PAD.b
 const MAX_KP = 9
 
 export default function KpChart({ records }) {
+  const { t } = useTranslation()
   const bars = processKpBuckets(records)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-      <span className="text-zinc-500 text-xs uppercase tracking-widest">Kp index — last 24 h</span>
+      <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('kpChart.title')}</span>
       {bars.length === 0 ? (
-        <div className="h-24 flex items-center justify-center text-zinc-600 text-sm mt-2">No data</div>
+        <div className="h-24 flex items-center justify-center text-zinc-600 text-sm mt-2">{t('common.noData')}</div>
       ) : (
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-2" style={{ height: `${H}px` }}>
           {/* Gridlines at Kp 3, 5, 7 */}

@@ -1,0 +1,96 @@
+{
+  "appTitle": "Astraeus",
+  "common": {
+    "noData": "Veri yok",
+    "loading": "Yükleniyor…",
+    "unavailable": "Kullanılamıyor",
+    "objects": "{{count}} cisim"
+  },
+  "metrics": {
+    "kpIndex": "Kp Endeksi",
+    "solarWindSpeed": "Güneş Rüzgarı Hızı",
+    "protonDensity": "Proton Yoğunluğu",
+    "xrayClass": "X-Işını Sınıfı",
+    "stormLevel": "Fırtına Seviyesi"
+  },
+  "kpChart": {
+    "title": "Kp Endeksi — Son 24 saat"
+  },
+  "forecast": {
+    "title": "ML Kp Tahmini",
+    "loading": "Tahmin yükleniyor…",
+    "noData": "Tahmin verisi yok",
+    "predictedKp": "Tahmin Kp (+3 s)",
+    "ci": "Güven aralığı (%95)",
+    "stormProb": "Fırtına olasılığı (Kp ≥ 5)",
+    "stormLevel": "Fırtına seviyesi",
+    "aurora": "Aurora görünürlüğü",
+    "uncertainty": "Belirsizlik (1σ)",
+    "footer": "LSTM · {{samples}} MC geçişi · eğitim {{date}}"
+  },
+  "neo": {
+    "title": "Yakın Dünya Cisimleri (7 gün)",
+    "objects": "{{count}} cisim",
+    "colName": "Ad",
+    "colDate": "Tarih",
+    "colDistance": "Mesafe (AD)",
+    "colDiameter": "Çap (km)",
+    "colStatus": "Durum",
+    "hazardous": "TEHLİKELİ",
+    "safe": "güvenli"
+  },
+  "alerts": {
+    "title": "Uzay Hava Uyarıları",
+    "noAlerts": "Aktif uyarı yok",
+    "warning": "UYARI",
+    "alert": "ALARM",
+    "summary": "ÖZET",
+    "info": "BİLGİ"
+  },
+  "iss": {
+    "title": "ISS Konumu",
+    "orbitProgress": "Yörünge ilerlemesi",
+    "period": "~92,68 dak. periyot",
+    "latitude": "Enlem",
+    "longitude": "Boylam",
+    "altitude": "Yükseklik",
+    "velocity": "Hız",
+    "updated": "{{time}} UTC güncellendi"
+  },
+  "apod": {
+    "title": "Günün Astronomi Fotoğrafı",
+    "viewMedia": "Medyayı görüntüle ↗"
+  },
+  "epic": {
+    "title": "EPIC — Çok Renkli Dünya Görüntüleme",
+    "frame": "Kare:"
+  },
+  "exo": {
+    "title": "Öte Gezegen Kataloğu",
+    "total": "Toplam",
+    "medianRadius": "Medyan yarıçap",
+    "medianMass": "Medyan kütle",
+    "planets": "gezegen",
+    "earthRadii": "Dünya yarıçapı",
+    "earthMasses": "Dünya kütlesi",
+    "sample": "Örnek — en yakın yörüngeler",
+    "colPlanet": "Gezegen",
+    "colHost": "Yıldız",
+    "colPeriod": "Periyot (g)",
+    "colRadius": "Yarıçap (R⊕)",
+    "colYear": "Yıl"
+  },
+  "storm": {
+    "quiet": "Sakin",
+    "unsettled": "Kararsız",
+    "g1": "G1 Hafif",
+    "g2": "G2 Orta",
+    "g3": "G3 Güçlü",
+    "g4": "G4 Şiddetli",
+    "g5": "G5 Aşırı"
+  },
+  "aurora": {
+    "notVisible": "Görünür değil",
+    "visible": ">{{lat}}° enlem"
+  }
+}
