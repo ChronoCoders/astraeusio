@@ -8,6 +8,7 @@ i18n.use(initReactI18next).init({
   lng: localStorage.getItem('lang') ?? 'en',
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
+  react: { useSuspense: false },
 })
 
 i18n.on('languageChanged', (lng) => localStorage.setItem('lang', lng))
