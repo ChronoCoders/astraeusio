@@ -4,9 +4,6 @@ mod nasa;
 mod noaa;
 mod routes;
 
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
 use anyhow::Result;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -25,11 +22,7 @@ async fn main() -> Result<()> {
         .build()?;
     let ml_url = std::env::var("ML_SERVICE_URL")
         .unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let state = routes::AppState {
-        client,
-        db: Arc::new(Mutex::new(db)),
-        ml_url,
-    };
+    let state = routes::AppState::new(client, db, ml_url);
 
     let app = routes::router(state);
 
