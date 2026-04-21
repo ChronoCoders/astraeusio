@@ -15,6 +15,8 @@ pub enum DbError {
     Duckdb(#[from] duckdb::Error),
     #[error("parse error for field '{field}': {value}")]
     Parse { field: &'static str, value: String },
+    #[error("email already registered")]
+    EmailTaken,
 }
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -102,6 +104,12 @@ CREATE TABLE IF NOT EXISTS iss_position (
     lon_e6       BIGINT NOT NULL,
     altitude_m   BIGINT NOT NULL,
     velocity_m_h BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    email         TEXT   NOT NULL PRIMARY KEY,
+    password_hash TEXT   NOT NULL,
+    created_at    BIGINT NOT NULL
 );
 ";
 
@@ -311,6 +319,42 @@ impl Db {
             .collect::<Result<_, _>>()?;
         // Reverse so values are oldest-first, de-scale back to Kp float.
         Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
+    }
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+pub struct User {
+    pub email: String,
+    pub password_hash: String,
+}
+
+impl Db {
+    pub fn create_user(&self, email: &str, hash: &str) -> Result<(), DbError> {
+        let result = self.conn.execute(
+            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            params![email, hash, now()],
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_string().contains("Constraint Error") => Err(DbError::EmailTaken),
+            Err(e) => Err(DbError::Duckdb(e)),
+        }
+    }
+
+    pub fn find_user_by_email(&self, email: &str) -> Result<Option<User>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT email, password_hash FROM users WHERE email = ?")?;
+        let mut rows = stmt.query([email])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(User {
+                email: row.get(0)?,
+                password_hash: row.get(1)?,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }
 

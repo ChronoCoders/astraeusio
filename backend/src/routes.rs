@@ -8,13 +8,13 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use chrono::{Duration as ChronoDuration, Utc};
 use tracing::info;
 
-use crate::{db::Db, iss, nasa, noaa};
+use crate::{auth, db::Db, iss, nasa, noaa};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -51,15 +51,17 @@ pub struct AppState {
     pub db: Arc<Mutex<Db>>,
     pub ml_url: String,
     pub cache: Arc<Mutex<CacheMap>>,
+    pub jwt_secret: String,
 }
 
 impl AppState {
-    pub fn new(client: reqwest::Client, db: Db, ml_url: String) -> Self {
+    pub fn new(client: reqwest::Client, db: Db, ml_url: String, jwt_secret: String) -> Self {
         Self {
             client,
             db: Arc::new(Mutex::new(db)),
             ml_url,
             cache: Arc::new(Mutex::new(HashMap::new())),
+            jwt_secret,
         }
     }
 }
@@ -93,6 +95,8 @@ async fn lock_db(db: &Arc<Mutex<Db>>) -> MutexGuard<'_, Db> {
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
         .route("/api/apod", get(get_apod))
         .route("/api/neo", get(get_neo))
         .route("/api/epic", get(get_epic))

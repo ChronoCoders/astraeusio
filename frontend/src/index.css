@@ -11,3 +11,101 @@
     font-size: 14px;
   }
 }
+
+/* ── Auth page space panel ─────────────────────────────────────────────────── */
+
+.space-panel {
+  background-color: #030712;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 28% 58%, rgba(139, 92, 246, 0.14) 0%, transparent 100%),
+    radial-gradient(ellipse 55% 65% at 74% 26%, rgba(59, 130, 246, 0.11) 0%, transparent 100%),
+    radial-gradient(ellipse 45% 35% at 52% 88%, rgba(6, 182, 212, 0.09) 0%, transparent 100%);
+}
+
+.star-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Small stars */
+.star-field::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  background: transparent;
+  box-shadow:
+    12px 45px 0 rgba(255,255,255,0.9),   78px 123px 0 rgba(255,255,255,0.6),
+    134px 67px 0 rgba(255,255,255,0.8),  189px 234px 0 rgba(255,255,255,0.5),
+    245px 12px 0 rgba(255,255,255,0.9),  312px 167px 0 rgba(255,255,255,0.7),
+    367px 89px 0 rgba(255,255,255,0.6),  423px 278px 0 rgba(255,255,255,0.8),
+    489px 145px 0 rgba(255,255,255,0.5), 545px 34px 0 rgba(255,255,255,0.9),
+    601px 189px 0 rgba(255,255,255,0.7), 656px 312px 0 rgba(255,255,255,0.6),
+    712px 56px 0 rgba(255,255,255,0.8),  23px 389px 0 rgba(255,255,255,0.5),
+    89px 478px 0 rgba(255,255,255,0.9),  145px 534px 0 rgba(255,255,255,0.6),
+    201px 612px 0 rgba(255,255,255,0.7), 256px 456px 0 rgba(255,255,255,0.8),
+    312px 689px 0 rgba(255,255,255,0.5), 367px 534px 0 rgba(255,255,255,0.9),
+    423px 712px 0 rgba(255,255,255,0.6), 489px 567px 0 rgba(255,255,255,0.8),
+    545px 634px 0 rgba(255,255,255,0.5), 601px 489px 0 rgba(255,255,255,0.7),
+    656px 756px 0 rgba(255,255,255,0.9), 712px 623px 0 rgba(255,255,255,0.6),
+    34px 778px 0 rgba(255,255,255,0.8),  90px 845px 0 rgba(255,255,255,0.5),
+    156px 712px 0 rgba(255,255,255,0.9), 212px 889px 0 rgba(255,255,255,0.7),
+    267px 756px 0 rgba(255,255,255,0.6), 323px 823px 0 rgba(255,255,255,0.8),
+    379px 689px 0 rgba(255,255,255,0.5), 434px 845px 0 rgba(255,255,255,0.9),
+    490px 778px 0 rgba(255,255,255,0.7), 546px 812px 0 rgba(255,255,255,0.6),
+    602px 689px 0 rgba(255,255,255,0.8), 658px 845px 0 rgba(255,255,255,0.5),
+    714px 756px 0 rgba(255,255,255,0.9), 56px 167px 0 rgba(255,255,255,0.6),
+    112px 289px 0 rgba(255,255,255,0.8), 168px 412px 0 rgba(255,255,255,0.7),
+    224px 534px 0 rgba(255,255,255,0.5), 280px 656px 0 rgba(255,255,255,0.9),
+    336px 778px 0 rgba(255,255,255,0.6), 392px 845px 0 rgba(255,255,255,0.8),
+    448px 234px 0 rgba(255,255,255,0.5), 504px 356px 0 rgba(255,255,255,0.7),
+    560px 467px 0 rgba(255,255,255,0.9), 616px 578px 0 rgba(255,255,255,0.6),
+    672px 689px 0 rgba(255,255,255,0.8), 728px 800px 0 rgba(255,255,255,0.5),
+    45px 623px 0 rgba(255,255,255,0.9),  101px 734px 0 rgba(255,255,255,0.7),
+    157px 845px 0 rgba(255,255,255,0.6), 213px 312px 0 rgba(255,255,255,0.8),
+    269px 423px 0 rgba(255,255,255,0.5), 325px 534px 0 rgba(255,255,255,0.9),
+    381px 112px 0 rgba(255,255,255,0.7), 437px 223px 0 rgba(255,255,255,0.6),
+    493px 334px 0 rgba(255,255,255,0.8), 549px 445px 0 rgba(255,255,255,0.5),
+    605px 556px 0 rgba(255,255,255,0.9), 661px 667px 0 rgba(255,255,255,0.7),
+    717px 345px 0 rgba(255,255,255,0.6), 67px 512px 0 rgba(255,255,255,0.8),
+    123px 256px 0 rgba(255,255,255,0.5), 179px 145px 0 rgba(255,255,255,0.9),
+    235px 567px 0 rgba(255,255,255,0.7), 291px 678px 0 rgba(255,255,255,0.6);
+  animation: twinkle 4s ease-in-out infinite;
+}
+
+/* Larger, brighter stars */
+.star-field::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 2px;
+  background: transparent;
+  box-shadow:
+    89px 78px 0 rgba(255,255,255,0.95),  234px 145px 0 rgba(255,255,255,0.9),
+    389px 267px 0 rgba(255,255,255,0.95), 534px 389px 0 rgba(255,255,255,0.85),
+    679px 512px 0 rgba(255,255,255,0.9),  156px 478px 0 rgba(255,255,255,0.95),
+    312px 634px 0 rgba(255,255,255,0.85), 467px 789px 0 rgba(255,255,255,0.9),
+    623px 156px 0 rgba(255,255,255,0.95), 45px 334px 0 rgba(255,255,255,0.85),
+    201px 589px 0 rgba(255,255,255,0.9),  356px 712px 0 rgba(255,255,255,0.95),
+    512px 89px 0 rgba(255,255,255,0.85),  667px 234px 0 rgba(255,255,255,0.9),
+    123px 756px 0 rgba(255,255,255,0.95), 278px 67px 0 rgba(255,255,255,0.85),
+    434px 389px 0 rgba(255,255,255,0.9),  589px 512px 0 rgba(255,255,255,0.95),
+    744px 178px 0 rgba(255,255,255,0.85), 67px 678px 0 rgba(255,255,255,0.9);
+  animation: twinkle 7s ease-in-out infinite 2.5s;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.08); }
+}

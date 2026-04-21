@@ -1,3 +1,4 @@
+mod auth;
 mod db;
 mod iss;
 mod nasa;
@@ -22,7 +23,8 @@ async fn main() -> Result<()> {
         .build()?;
     let ml_url = std::env::var("ML_SERVICE_URL")
         .unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let state = routes::AppState::new(client, db, ml_url);
+    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    let state = routes::AppState::new(client, db, ml_url, jwt_secret);
 
     let app = routes::router(state);
 

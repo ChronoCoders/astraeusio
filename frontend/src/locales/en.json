@@ -1,5 +1,5 @@
 {
-  "appTitle": "Astraeus",
+  "appTitle": "Astraeusio",
   "common": {
     "noData": "No data",
     "loading": "Loading…",
@@ -92,5 +92,26 @@
   "aurora": {
     "notVisible": "Not visible",
     "visible": ">{{lat}}° latitude"
+  },
+  "auth": {
+    "tagline1": "Space Weather Intelligence",
+    "tagline2": "Solar storms · ISS · Near-Earth objects",
+    "loginTitle": "Welcome back",
+    "loginSub": "Sign in to your Astraeusio account",
+    "signupTitle": "Create account",
+    "signupSub": "Start monitoring space weather",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "loginBtn": "Sign in",
+    "signupBtn": "Create account",
+    "logout": "Sign out",
+    "noAccount": "No account?",
+    "switchToSignup": "Create one",
+    "hasAccount": "Already have an account?",
+    "switchToLogin": "Sign in",
+    "passwordMismatch": "Passwords do not match",
+    "networkError": "Network error — is the server running?",
+    "unknownError": "Something went wrong"
   }
 }

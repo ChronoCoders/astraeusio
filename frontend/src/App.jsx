@@ -16,7 +16,7 @@ const SLOW = 120_000  // 2 min — slower-changing data
 
 const LANGS = ['en', 'tr']
 
-export default function App() {
+export default function App({ onLogout }) {
   const { t, i18n } = useTranslation()
 
   const kp       = useApi('/api/kp',          FAST)
@@ -63,6 +63,12 @@ export default function App() {
           <span className="text-zinc-500 text-xs font-mono">
             {new Date().toUTCString().slice(0, -4) + 'UTC'}
           </span>
+          <button
+            onClick={onLogout}
+            className="text-xs font-mono px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+          >
+            {t('auth.logout')}
+          </button>
         </div>
       </header>
 

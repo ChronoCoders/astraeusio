@@ -1,5 +1,5 @@
 {
-  "appTitle": "Astraeus",
+  "appTitle": "Astraeusio",
   "common": {
     "noData": "Veri yok",
     "loading": "Yükleniyor…",
@@ -92,5 +92,26 @@
   "aurora": {
     "notVisible": "Görünür değil",
     "visible": ">{{lat}}° enlem"
+  },
+  "auth": {
+    "tagline1": "Uzay Hava İstihbaratı",
+    "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",
+    "loginTitle": "Tekrar hoş geldiniz",
+    "loginSub": "Astraeusio hesabınıza giriş yapın",
+    "signupTitle": "Hesap oluştur",
+    "signupSub": "Uzay hava takibine başlayın",
+    "email": "E-posta",
+    "password": "Şifre",
+    "confirmPassword": "Şifreyi onayla",
+    "loginBtn": "Giriş yap",
+    "signupBtn": "Hesap oluştur",
+    "logout": "Çıkış yap",
+    "noAccount": "Hesabınız yok mu?",
+    "switchToSignup": "Oluşturun",
+    "hasAccount": "Zaten hesabınız var mı?",
+    "switchToLogin": "Giriş yapın",
+    "passwordMismatch": "Şifreler eşleşmiyor",
+    "networkError": "Ağ hatası — sunucu çalışıyor mu?",
+    "unknownError": "Bir şeyler ters gitti"
   }
 }
