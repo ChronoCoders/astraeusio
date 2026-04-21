@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 
+use anyhow::anyhow;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -19,6 +20,7 @@ use crate::{db::Db, iss, nasa, noaa};
 pub struct AppState {
     pub client: reqwest::Client,
     pub db: Arc<Mutex<Db>>,
+    pub ml_url: String,
 }
 
 // ── Error ─────────────────────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/xray", get(get_xray))
         .route("/api/alerts", get(get_alerts))
         .route("/api/iss", get(get_iss))
+        .route("/api/kp-forecast", get(get_kp_forecast))
         .with_state(state)
 }
 
@@ -180,4 +183,33 @@ async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
     info!("ISS: lat={:.4} lon={:.4} alt={:.1}km", pos.latitude, pos.longitude, pos.altitude);
     lock_db(&s.db).await.insert_iss_position(&pos)?;
     Ok(Json(pos))
+}
+
+// ── ML forecast handler ───────────────────────────────────────────────────────
+
+async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    let readings = lock_db(&s.db).await.get_recent_kp(7)?;
+
+    if readings.is_empty() {
+        return Err(anyhow::anyhow!("no Kp data in database — call /api/kp first").into());
+    }
+
+    info!("kp-forecast: sending {} readings to ML service", readings.len());
+
+    let body = serde_json::json!({ "readings": readings });
+    let resp = s
+        .client
+        .post(format!("{}/predict", s.ml_url))
+        .json(&body)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let payload: serde_json::Value = resp.json().await?;
+
+    if !status.is_success() {
+        return Err(anyhow::anyhow!("ML service error {status}: {payload}").into());
+    }
+
+    Ok(Json(payload))
 }

@@ -23,9 +23,12 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()?;
+    let ml_url = std::env::var("ML_SERVICE_URL")
+        .unwrap_or_else(|_| "http://localhost:8000".to_string());
     let state = routes::AppState {
         client,
         db: Arc::new(Mutex::new(db)),
+        ml_url,
     };
 
     let app = routes::router(state);

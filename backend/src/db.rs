@@ -298,6 +298,22 @@ impl Db {
     }
 }
 
+// ── NOAA queries ─────────────────────────────────────────────────────────────
+
+impl Db {
+    /// Returns the `n` most recent Kp readings ordered oldest-first.
+    pub fn get_recent_kp(&self, n: usize) -> Result<Vec<f64>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT ?",
+        )?;
+        let rows: Vec<i64> = stmt
+            .query_map([n as i64], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        // Reverse so values are oldest-first, de-scale back to Kp float.
+        Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
+    }
+}
+
 // ── ISS inserts ───────────────────────────────────────────────────────────────
 
 impl Db {
