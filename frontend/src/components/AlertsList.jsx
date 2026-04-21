@@ -20,7 +20,7 @@ function parseDate(dt) {
 
 export default function AlertsList({ data }) {
   const { t } = useTranslation()
-  const alerts = (data ?? []).slice(0, 8)
+  const alerts = (data ?? []).slice(0, 20)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
@@ -32,7 +32,7 @@ export default function AlertsList({ data }) {
       {alerts.length === 0 ? (
         <p className="text-zinc-600 text-sm">{t('alerts.noAlerts')}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 overflow-y-auto max-h-60">
           {alerts.map((a, i) => {
             const sev = severity(a.product_id)
             return (

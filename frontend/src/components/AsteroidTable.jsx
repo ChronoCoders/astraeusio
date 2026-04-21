@@ -3,7 +3,7 @@ import { flattenNeo, fmtNum } from '../lib/utils'
 
 export default function AsteroidTable({ data }) {
   const { t } = useTranslation()
-  const rows = flattenNeo(data).slice(0, 12)
+  const rows = flattenNeo(data).slice(0, 8)
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
@@ -15,9 +15,9 @@ export default function AsteroidTable({ data }) {
       {!rows.length ? (
         <p className="text-zinc-600 text-sm">{t('common.noData')}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-60">
           <table className="w-full text-sm border-collapse">
-            <thead>
+            <thead className="sticky top-0 bg-zinc-900">
               <tr className="border-b border-zinc-800">
                 {['neo.colName', 'neo.colDate', 'neo.colDistance', 'neo.colDiameter', 'neo.colStatus'].map(k => (
                   <th key={k} className="text-left text-zinc-500 text-xs font-normal pb-2 pr-4 last:pr-0 whitespace-nowrap">{t(k)}</th>
