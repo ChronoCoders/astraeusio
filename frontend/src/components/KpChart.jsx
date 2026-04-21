@@ -13,12 +13,12 @@ export default function KpChart({ records }) {
   const bars = processKpBuckets(records)
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded p-4 h-full flex flex-col">
       <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('kpChart.title')}</span>
       {bars.length === 0 ? (
-        <div className="h-24 flex items-center justify-center text-zinc-600 text-sm mt-2">{t('common.noData')}</div>
+        <div className="flex-1 flex items-center justify-center text-zinc-600 text-sm mt-2">{t('common.noData')}</div>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-2" style={{ height: `${H}px` }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-2 flex-1" style={{ minHeight: `${H}px` }}>
           {/* Gridlines at Kp 3, 5, 7 */}
           {[3, 5, 7].map(y => {
             const cy = PAD.t + CH - (y / MAX_KP) * CH
