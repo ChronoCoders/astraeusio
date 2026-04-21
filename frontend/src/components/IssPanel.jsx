@@ -22,10 +22,8 @@ function Ring({ progress }) {
   )
 }
 
-export default function IssPanel({ data }) {
-  const { t } = useTranslation()
-
-  const Row = ({ label, value, unit }) => (
+function Row({ label, value, unit }) {
+  return (
     <div className="flex flex-col">
       <span className="text-zinc-500 text-xs">{label}</span>
       <span className="font-mono text-zinc-200">
@@ -33,6 +31,10 @@ export default function IssPanel({ data }) {
       </span>
     </div>
   )
+}
+
+export default function IssPanel({ data }) {
+  const { t } = useTranslation()
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-4">

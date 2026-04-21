@@ -13,15 +13,17 @@ function Bar({ value, max = 1, cls }) {
   )
 }
 
-export default function ForecastPanel({ data, loading, error }) {
-  const { t } = useTranslation()
-
-  const Row = ({ label, children }) => (
+function Row({ label, children }) {
+  return (
     <div className="flex flex-col gap-1">
       <span className="text-zinc-500 text-xs uppercase tracking-widest">{label}</span>
       {children}
     </div>
   )
+}
+
+export default function ForecastPanel({ data, loading, error }) {
+  const { t } = useTranslation()
 
   if (loading) return <Panel><p className="text-zinc-600 text-sm">{t('forecast.loading')}</p></Panel>
   if (error)   return <Panel><p className="text-red-500 text-sm">{error}</p></Panel>
