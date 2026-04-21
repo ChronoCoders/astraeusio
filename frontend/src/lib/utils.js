@@ -72,12 +72,15 @@ export function processKpBuckets(records) {
 
 // ── NEO helpers ───────────────────────────────────────────────────────────────
 
+const KM_PER_LD = 384_400
+
 export function flattenNeo(feed) {
   if (!feed?.near_earth_objects) return []
   return Object.entries(feed.near_earth_objects)
     .flatMap(([date, neos]) =>
       neos.map(neo => {
         const ca = neo.close_approach_data?.[0] ?? {}
+        const km = parseFloat(ca.miss_distance?.kilometers ?? 0)
         return {
           id: neo.id,
           name: neo.name,
@@ -85,8 +88,8 @@ export function flattenNeo(feed) {
           hazardous: neo.is_potentially_hazardous_asteroid,
           diamMin: neo.estimated_diameter?.kilometers?.estimated_diameter_min ?? 0,
           diamMax: neo.estimated_diameter?.kilometers?.estimated_diameter_max ?? 0,
-          lunar: parseFloat(ca.miss_distance?.lunar ?? 0),
-          km: parseFloat(ca.miss_distance?.kilometers ?? 0),
+          lunar: km / KM_PER_LD,
+          km,
         }
       })
     )

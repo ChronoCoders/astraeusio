@@ -34,7 +34,7 @@ export default function App() {
   const currentKp = latestKp?.estimated_kp ?? latestKp?.kp_index
   const storm     = stormInfo(currentKp ?? 0)
 
-  const latestWind = wind.data?.at(-1)
+  const latestWind = wind.data?.find(r => r.proton_speed != null)
 
   const latestXray = xray.data?.filter(r => r.energy === '0.1-0.8nm')?.at(-1)
   const xClass     = xrayClass(latestXray?.flux)
