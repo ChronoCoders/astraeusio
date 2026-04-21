@@ -1,0 +1,4 @@
+target/
+.env
+*.duckdb
+data/kp_raw/
