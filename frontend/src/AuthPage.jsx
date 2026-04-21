@@ -10,11 +10,13 @@ export default function AuthPage({ onAuth }) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError]     = useState(null)
+  const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(false)
 
   function switchMode(next) {
     setMode(next)
     setError(null)
+    setSuccess(null)
     setConfirm('')
   }
 
@@ -42,21 +44,11 @@ export default function AuthPage({ onAuth }) {
       }
 
       if (mode === 'signup') {
-        // 201 Created — auto-login
-        const loginRes = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        })
-        if (!loginRes.ok) {
-          let msg = t('auth.unknownError')
-          try { msg = (await loginRes.json()).error ?? msg } catch { /* non-JSON body */ }
-          setError(msg)
-          return
-        }
-        const { token } = await loginRes.json()
-        localStorage.setItem('token', token)
-        onAuth(token)
+        setMode('login')
+        setConfirm('')
+        setPassword('')
+        setSuccess(t('auth.accountCreated'))
+        return
       } else {
         const { token } = await res.json()
         localStorage.setItem('token', token)
@@ -177,6 +169,12 @@ export default function AuthPage({ onAuth }) {
                     className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-zinc-100 text-sm placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
                   />
                 </Field>
+              )}
+
+              {success && (
+                <p className="text-green-400 text-xs bg-green-950/40 border border-green-900/40 rounded px-3 py-2">
+                  {success}
+                </p>
               )}
 
               {error && (

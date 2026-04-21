@@ -112,6 +112,7 @@
     "switchToLogin": "Sign in",
     "passwordMismatch": "Passwords do not match",
     "networkError": "Network error — is the server running?",
-    "unknownError": "Something went wrong"
+    "unknownError": "Something went wrong",
+    "accountCreated": "Account created. Please sign in."
   }
 }

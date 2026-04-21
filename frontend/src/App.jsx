@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
@@ -16,8 +17,20 @@ const SLOW = 120_000  // 2 min — slower-changing data
 
 const LANGS = ['en', 'tr']
 
+function fmtUtc(d) {
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ` +
+         `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`
+}
+
 export default function App({ onLogout }) {
   const { t, i18n } = useTranslation()
+  const [utcNow, setUtcNow] = useState(() => fmtUtc(new Date()))
+
+  useEffect(() => {
+    const id = setInterval(() => setUtcNow(fmtUtc(new Date())), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const kp       = useApi('/api/kp',          FAST)
   const wind     = useApi('/api/solar-wind',  SLOW)
@@ -60,9 +73,7 @@ export default function App({ onLogout }) {
               </button>
             ))}
           </div>
-          <span className="text-zinc-500 text-xs font-mono">
-            {new Date().toUTCString().slice(0, -4) + 'UTC'}
-          </span>
+          <span className="text-zinc-500 text-xs font-mono">{utcNow}</span>
           <button
             onClick={onLogout}
             className="text-xs font-mono px-2 py-0.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"

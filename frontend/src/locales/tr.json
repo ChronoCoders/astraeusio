@@ -112,6 +112,7 @@
     "switchToLogin": "Giriş yapın",
     "passwordMismatch": "Şifreler eşleşmiyor",
     "networkError": "Ağ hatası — sunucu çalışıyor mu?",
-    "unknownError": "Bir şeyler ters gitti"
+    "unknownError": "Bir şeyler ters gitti",
+    "accountCreated": "Hesap oluşturuldu. Lütfen giriş yapın."
   }
 }
