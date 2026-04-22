@@ -19,6 +19,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from fastapi import FastAPI, HTTPException
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from pydantic import BaseModel, Field, field_validator
 
 # ── Constants matching train.py ────────────────────────────────────────────────
@@ -154,7 +155,26 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Astraeus Kp Forecast", lifespan=lifespan)
+app = FastAPI(title="Astraeus Kp Forecast", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="Astraeus Kp Forecast",
+        swagger_js_url="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc():
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="Astraeus Kp Forecast",
+        redoc_js_url="https://unpkg.com/redoc@2.1.3/bundles/redoc.standalone.js",
+    )
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
