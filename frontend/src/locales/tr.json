@@ -93,6 +93,17 @@
     "notVisible": "Görünür değil",
     "visible": ">{{lat}}° enlem"
   },
+  "anomaly": {
+    "title": "Anomali Uyarıları",
+    "none": "Anomali tespit edilmedi",
+    "warning": "Uyarı",
+    "critical": "Kritik",
+    "typeKpStorm": "Kp Fırtınası",
+    "typeSolarWind": "Güneş Rüzgarı",
+    "typeXrayFlare": "X-Işını Patlaması",
+    "typeAsteroid": "Asteroid",
+    "typeMlForecast": "ML Tahmini"
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",

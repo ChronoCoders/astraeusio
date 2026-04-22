@@ -111,6 +111,21 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT   NOT NULL,
     created_at    BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS kp_forecast (
+    ts         BIGINT NOT NULL PRIMARY KEY,
+    kp_e2      BIGINT NOT NULL,
+    fetched_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alerts_anomaly (
+    anomaly_type TEXT   NOT NULL,
+    source_ref   TEXT   NOT NULL,
+    detected_at  BIGINT NOT NULL,
+    severity     TEXT   NOT NULL,
+    message      TEXT   NOT NULL,
+    PRIMARY KEY (anomaly_type, source_ref)
+);
 ";
 
 // ── Db ────────────────────────────────────────────────────────────────────────
@@ -620,5 +635,136 @@ impl Db {
             ],
         )?;
         Ok(())
+    }
+}
+
+// ── Kp forecast ───────────────────────────────────────────────────────────────
+
+impl Db {
+    pub fn insert_kp_forecast(&self, ts: i64, kp_e2: i64) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO kp_forecast (ts, kp_e2, fetched_at) VALUES (?, ?, ?)
+             ON CONFLICT (ts) DO NOTHING",
+            params![ts, kp_e2, now()],
+        )?;
+        Ok(())
+    }
+
+    /// Returns the (ts, kp_e2) with the highest predicted Kp among forecasts stored since `since`.
+    pub fn get_kp_forecast_max_recent(&self, since: i64) -> Result<Option<(i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ts, kp_e2 FROM kp_forecast WHERE fetched_at > ? ORDER BY kp_e2 DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([since])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+// ── Anomaly detection ─────────────────────────────────────────────────────────
+
+impl Db {
+    pub fn insert_anomaly(
+        &self,
+        anomaly_type: &str,
+        source_ref: &str,
+        severity: &str,
+        message: &str,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO alerts_anomaly (anomaly_type, source_ref, detected_at, severity, message)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (anomaly_type, source_ref) DO NOTHING",
+            params![anomaly_type, source_ref, now(), severity, message],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_anomalies_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT anomaly_type, source_ref, detected_at, severity, message
+             FROM alerts_anomaly ORDER BY detected_at DESC LIMIT 100",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let anomaly_type: String = row.get(0)?;
+                let source_ref: String = row.get(1)?;
+                let detected_at: i64 = row.get(2)?;
+                let severity: String = row.get(3)?;
+                let message: String = row.get(4)?;
+                Ok(serde_json::json!({
+                    "type":        anomaly_type,
+                    "source_ref":  source_ref,
+                    "detected_at": detected_at,
+                    "severity":    severity,
+                    "message":     message,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    // ── Raw queries for anomaly detection ─────────────────────────────────────
+
+    pub fn latest_kp_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn latest_solar_wind_speed_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, speed_e1 FROM solar_wind \
+             WHERE speed_e1 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns (time_tag, flux_e12) for the 0.1-0.8 nm long band (M/X class classification).
+    pub fn latest_xray_flux_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, flux_e12 FROM xray \
+             WHERE energy = '0.1-0.8nm' ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns (id, close_approach_date, miss_distance_m) for NEO approaches under `max_dist_scaled`
+    /// fetched within the last `since` seconds window.
+    pub fn neo_close_approaches_raw(
+        &self,
+        max_dist_scaled: i64,
+        since: i64,
+    ) -> Result<Vec<(String, String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, close_approach_date, miss_distance_m FROM neo \
+             WHERE miss_distance_m < ? AND fetched_at > ? \
+             ORDER BY miss_distance_m ASC",
+        )?;
+        let rows = stmt
+            .query_map([max_dist_scaled, since], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 }

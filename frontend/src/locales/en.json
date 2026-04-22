@@ -93,6 +93,17 @@
     "notVisible": "Not visible",
     "visible": ">{{lat}}° latitude"
   },
+  "anomaly": {
+    "title": "Anomaly Alerts",
+    "none": "No anomalies detected",
+    "warning": "Warning",
+    "critical": "Critical",
+    "typeKpStorm": "Kp Storm",
+    "typeSolarWind": "Solar Wind",
+    "typeXrayFlare": "X-Ray Flare",
+    "typeAsteroid": "Asteroid",
+    "typeMlForecast": "ML Forecast"
+  },
   "auth": {
     "tagline1": "Space Weather Intelligence",
     "tagline2": "Solar storms · ISS · Near-Earth objects",

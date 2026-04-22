@@ -11,6 +11,7 @@ import IssPanel       from './components/IssPanel'
 import ApodCard       from './components/ApodCard'
 import EpicViewer     from './components/EpicViewer'
 import ExoplanetStats from './components/ExoplanetStats'
+import AnomalyPanel   from './components/AnomalyPanel'
 
 const FAST = 30_000   // 30 s — live data
 const SLOW = 120_000  // 2 min — slower-changing data
@@ -41,7 +42,8 @@ export default function App({ onLogout }) {
   const epic     = useApi('/api/epic',        SLOW)
   const neo      = useApi('/api/neo',         SLOW)
   const exo      = useApi('/api/exoplanets',  SLOW)
-  const forecast = useApi('/api/kp-forecast', FAST)
+  const forecast  = useApi('/api/kp-forecast', FAST)
+  const anomalies = useApi('/api/anomalies',   FAST)
 
   const latestKp  = kp.data?.at(-1)
   const currentKp = latestKp?.estimated_kp ?? latestKp?.kp_index
@@ -125,13 +127,14 @@ export default function App({ onLogout }) {
         <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} />
       </div>
 
-      {/* Row 3 — Asteroid table + Alerts */}
+      {/* Row 3 — Asteroid table + Alerts + Anomalies */}
       <div className="grid grid-cols-5 gap-3">
         <div className="col-span-3">
           <AsteroidTable data={neo.data} />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-2 flex flex-col gap-3">
           <AlertsList data={alerts.data} />
+          <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} />
         </div>
       </div>
 

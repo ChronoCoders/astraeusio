@@ -106,6 +106,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/alerts", get(get_alerts))
         .route("/api/iss", get(get_iss))
         .route("/api/kp-forecast", get(get_kp_forecast))
+        .route("/api/anomalies", get(get_anomalies))
         .with_state(state)
 }
 
@@ -114,9 +115,6 @@ pub fn router(state: AppState) -> Router {
 async fn get_apod(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "apod", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_apod_latest()?;
-        if val.is_null() {
-            return Err(anyhow!("no APOD data yet — poller initializing").into());
-        }
         info!("api/apod: served from db");
         Ok(val)
     })
@@ -193,9 +191,6 @@ async fn get_alerts(State(s): State<AppState>) -> Result<impl IntoResponse, AppE
 async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "iss", Duration::from_secs(3), || async {
         let val = lock_db(&s.db).await.get_iss_latest()?;
-        if val.is_null() {
-            return Err(anyhow!("no ISS data yet — poller initializing").into());
-        }
         info!("api/iss: served from db");
         Ok(val)
     })
@@ -229,7 +224,31 @@ async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse,
             return Err(anyhow!("ML service error {status}: {payload}").into());
         }
 
+        // Persist forecast for anomaly detection (3-hour horizon from now).
+        if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
+            let forecast_ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64
+                + 3 * 3600;
+            let kp_e2 = (kp * 100.0).round() as i64;
+            if let Err(e) = lock_db(&s.db).await.insert_kp_forecast(forecast_ts, kp_e2) {
+                tracing::warn!("kp-forecast: failed to persist to db: {e}");
+            }
+        }
+
         Ok(payload)
+    })
+    .await
+}
+
+// ── Anomaly handler ───────────────────────────────────────────────────────────
+
+async fn get_anomalies(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
+        let val = lock_db(&s.db).await.get_anomalies_recent()?;
+        info!("api/anomalies: served from db");
+        Ok(val)
     })
     .await
 }

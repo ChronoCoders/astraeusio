@@ -5,7 +5,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use crate::{db::Db, iss, nasa, noaa};
+use crate::{anomaly, db::Db, iss, nasa, noaa};
 
 pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_iss(client.clone(), db.clone()));
@@ -17,6 +17,7 @@ pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_epic(client.clone(), db.clone()));
     tokio::spawn(poll_apod(client.clone(), db.clone()));
     tokio::spawn(poll_exoplanets(client.clone(), db.clone()));
+    tokio::spawn(poll_anomaly(db.clone()));
 }
 
 async fn poll_iss(client: reqwest::Client, db: Arc<Mutex<Db>>) {
@@ -190,5 +191,19 @@ async fn poll_exoplanets(client: reqwest::Client, db: Arc<Mutex<Db>>) {
             Err(e) => error!(source = "poller/exoplanets", "fetch: {e}"),
         }
         tokio::time::sleep(Duration::from_secs(86400)).await;
+    }
+}
+
+async fn poll_anomaly(db: Arc<Mutex<Db>>) {
+    // Initial delay so pollers can populate the DB before first scan.
+    tokio::time::sleep(Duration::from_secs(90)).await;
+    loop {
+        {
+            let db_guard = db.lock().await;
+            if let Err(e) = anomaly::detect_and_store(&db_guard) {
+                error!(source = "poller/anomaly", "detect: {e}");
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(60)).await;
     }
 }

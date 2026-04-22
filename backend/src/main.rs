@@ -1,3 +1,4 @@
+mod anomaly;
 mod auth;
 mod db;
 mod iss;
