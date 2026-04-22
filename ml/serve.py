@@ -10,6 +10,7 @@ Run: uvicorn ml.serve:app --port 8000
 """
 
 import math
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,7 +25,7 @@ from pydantic import BaseModel, Field, field_validator
 
 # ── Constants matching train.py ────────────────────────────────────────────────
 
-MODEL_PATH = Path(__file__).parent / "models" / "kp_lstm.pt"
+MODEL_PATH = Path(os.getenv("MODEL_PATH", str(Path(__file__).parent / "models" / "kp_lstm.pt")))
 
 SEQ_LEN = 16          # loaded from checkpoint; defined here for type clarity
 N_FEATURES = 7

@@ -1,0 +1,6 @@
+target/
+.env
+*.duckdb
+*.duckdb.wal
+*.log
+*.err
