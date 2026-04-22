@@ -127,14 +127,12 @@ export default function App({ onLogout }) {
         <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} />
       </div>
 
-      {/* Row 3 — Asteroid table + Alerts + Anomalies */}
-      <div className="grid grid-cols-5 gap-3">
-        <div className="col-span-3">
-          <AsteroidTable data={neo.data} />
-        </div>
-        <div className="col-span-2 flex flex-col gap-3">
-          <AlertsList data={alerts.data} />
+      {/* Row 3 — Asteroid table full width, then Anomaly + Alerts side by side */}
+      <div className="flex flex-col gap-3">
+        <AsteroidTable data={neo.data} />
+        <div className="grid grid-cols-2 gap-3">
           <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} />
+          <AlertsList data={alerts.data} />
         </div>
       </div>
 
