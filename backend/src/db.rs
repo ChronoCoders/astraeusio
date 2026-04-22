@@ -320,6 +320,251 @@ impl Db {
         // Reverse so values are oldest-first, de-scale back to Kp float.
         Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
     }
+
+    pub fn get_kp_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY time_tag ASC LIMIT 1440",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let kp_index: i32 = row.get(1)?;
+                let estimated_kp_e2: i64 = row.get(2)?;
+                Ok(serde_json::json!({
+                    "time_tag": time_tag,
+                    "kp_index": kp_index,
+                    "estimated_kp": estimated_kp_e2 as f64 / 100.0,
+                    "kp": "",
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_solar_wind_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
+             ORDER BY time_tag DESC LIMIT 1440",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let speed_e1: Option<i64> = row.get(1)?;
+                let density_e2: Option<i64> = row.get(2)?;
+                let temp_k: Option<i64> = row.get(3)?;
+                Ok(serde_json::json!({
+                    "time_tag": time_tag,
+                    "proton_speed":       speed_e1.map(|v| v as f64 / 10.0),
+                    "proton_density":     density_e2.map(|v| v as f64 / 100.0),
+                    "proton_temperature": temp_k.map(|v| v as f64),
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_xray_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, energy, satellite, flux_e12, observed_flux_e12 FROM xray \
+             ORDER BY time_tag ASC LIMIT 2880",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let energy: String = row.get(1)?;
+                let satellite: i32 = row.get(2)?;
+                let flux_e12: i64 = row.get(3)?;
+                let observed_flux_e12: i64 = row.get(4)?;
+                Ok(serde_json::json!({
+                    "time_tag":      time_tag,
+                    "energy":        energy,
+                    "satellite":     satellite,
+                    "flux":          flux_e12 as f64 / 1e12,
+                    "observed_flux": observed_flux_e12 as f64 / 1e12,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_alerts_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT product_id, issue_datetime, message FROM space_weather_alert \
+             ORDER BY issue_datetime DESC LIMIT 50",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let product_id: String = row.get(0)?;
+                let issue_datetime: String = row.get(1)?;
+                let message: String = row.get(2)?;
+                Ok(serde_json::json!({
+                    "product_id":     product_id,
+                    "issue_datetime": issue_datetime,
+                    "message":        message,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_iss_latest(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ts, lat_e6, lon_e6, altitude_m, velocity_m_h FROM iss_position \
+             ORDER BY ts DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            let ts: i64 = row.get(0)?;
+            let lat_e6: i64 = row.get(1)?;
+            let lon_e6: i64 = row.get(2)?;
+            let altitude_m: i64 = row.get(3)?;
+            let velocity_m_h: i64 = row.get(4)?;
+            Ok(serde_json::json!({
+                "timestamp": ts,
+                "latitude":  lat_e6 as f64 / 1_000_000.0,
+                "longitude": lon_e6 as f64 / 1_000_000.0,
+                "altitude":  altitude_m as f64 / 1_000.0,
+                "velocity":  velocity_m_h as f64 / 1_000.0,
+            }))
+        } else {
+            Ok(serde_json::Value::Null)
+        }
+    }
+
+    pub fn get_apod_latest(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT date, title, explanation, url, media_type, hdurl FROM apod \
+             ORDER BY date DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            let date: String = row.get(0)?;
+            let title: String = row.get(1)?;
+            let explanation: String = row.get(2)?;
+            let url: String = row.get(3)?;
+            let media_type: String = row.get(4)?;
+            let hdurl: Option<String> = row.get(5)?;
+            Ok(serde_json::json!({
+                "date":        date,
+                "title":       title,
+                "explanation": explanation,
+                "url":         url,
+                "media_type":  media_type,
+                "hdurl":       hdurl,
+            }))
+        } else {
+            Ok(serde_json::Value::Null)
+        }
+    }
+
+    pub fn get_epic_latest(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT identifier, caption, image, date, centroid_lat_e6, centroid_lon_e6 FROM epic \
+             WHERE date = (SELECT MAX(date) FROM epic)",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let identifier: String = row.get(0)?;
+                let caption: String = row.get(1)?;
+                let image: String = row.get(2)?;
+                let date: String = row.get(3)?;
+                let lat_e6: i64 = row.get(4)?;
+                let lon_e6: i64 = row.get(5)?;
+                Ok(serde_json::json!({
+                    "identifier": identifier,
+                    "caption":    caption,
+                    "image":      image,
+                    "date":       date,
+                    "centroid_coordinates": {
+                        "lat": lat_e6 as f64 / 1_000_000.0,
+                        "lon": lon_e6 as f64 / 1_000_000.0,
+                    },
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_neo_recent(&self) -> Result<serde_json::Value, DbError> {
+        let cutoff = now() - 7 * 24 * 3600;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, close_approach_date, name, is_hazardous, \
+                    diameter_min_m, diameter_max_m, velocity_m_per_h, miss_distance_m \
+             FROM neo WHERE fetched_at > ? \
+             ORDER BY close_approach_date ASC, id ASC",
+        )?;
+        let tuples = stmt
+            .query_map([cutoff], |row| {
+                let id: String = row.get(0)?;
+                let date: String = row.get(1)?;
+                let name: String = row.get(2)?;
+                let is_hazardous: bool = row.get(3)?;
+                let dmin_m: i64 = row.get(4)?;
+                let dmax_m: i64 = row.get(5)?;
+                let vel_scaled: i64 = row.get(6)?;
+                let dist_scaled: i64 = row.get(7)?;
+                Ok((id, date, name, is_hazardous, dmin_m, dmax_m, vel_scaled, dist_scaled))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut by_date: std::collections::HashMap<String, Vec<serde_json::Value>> =
+            std::collections::HashMap::new();
+        for (id, date, name, is_hazardous, dmin_m, dmax_m, vel_scaled, dist_scaled) in tuples {
+            let dmin_km = dmin_m as f64 / 1_000.0;
+            let dmax_km = dmax_m as f64 / 1_000.0;
+            let vel_kmh = vel_scaled as f64 / 1_000.0;
+            let dist_km = dist_scaled as f64 / 1_000.0;
+            let obj = serde_json::json!({
+                "id":   id,
+                "name": name,
+                "is_potentially_hazardous_asteroid": is_hazardous,
+                "estimated_diameter": {
+                    "kilometers": {
+                        "estimated_diameter_min": dmin_km,
+                        "estimated_diameter_max": dmax_km,
+                    }
+                },
+                "close_approach_data": [{
+                    "close_approach_date": date,
+                    "relative_velocity": { "kilometers_per_hour": format!("{vel_kmh:.3}") },
+                    "miss_distance":     { "kilometers": format!("{dist_km:.3}") },
+                }],
+            });
+            by_date.entry(date.clone()).or_default().push(obj);
+        }
+
+        let element_count: usize = by_date.values().map(|v| v.len()).sum();
+        Ok(serde_json::json!({
+            "element_count":      element_count,
+            "near_earth_objects": by_date,
+        }))
+    }
+
+    pub fn get_exoplanets_all(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT pl_name, hostname, orbital_period_md, radius_me3, mass_me3, disc_year \
+             FROM exoplanet ORDER BY disc_year DESC LIMIT 100",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let pl_name: String = row.get(0)?;
+                let hostname: String = row.get(1)?;
+                let orbital_period_md: Option<i64> = row.get(2)?;
+                let radius_me3: Option<i64> = row.get(3)?;
+                let mass_me3: Option<i64> = row.get(4)?;
+                let disc_year: Option<i32> = row.get(5)?;
+                Ok(serde_json::json!({
+                    "pl_name":  pl_name,
+                    "hostname": hostname,
+                    "pl_orbper": orbital_period_md.map(|v| v as f64 / 1_000.0),
+                    "pl_rade":   radius_me3.map(|v| v as f64 / 1_000.0),
+                    "pl_masse":  mass_me3.map(|v| v as f64 / 1_000.0),
+                    "disc_year": disc_year,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────

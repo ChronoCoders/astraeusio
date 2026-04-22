@@ -3,6 +3,7 @@ mod db;
 mod iss;
 mod nasa;
 mod noaa;
+mod poller;
 mod routes;
 
 use anyhow::Result;
@@ -25,6 +26,8 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let state = routes::AppState::new(client, db, ml_url, jwt_secret);
+
+    poller::spawn(state.client.clone(), state.db.clone());
 
     let app = routes::router(state);
 

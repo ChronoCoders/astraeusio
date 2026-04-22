@@ -11,10 +11,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::{Duration as ChronoDuration, Utc};
 use tracing::info;
 
-use crate::{auth, db::Db, iss, nasa, noaa};
+use crate::{auth, db::Db};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -113,64 +112,40 @@ pub fn router(state: AppState) -> Router {
 // ── NASA handlers ─────────────────────────────────────────────────────────────
 
 async fn get_apod(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "apod", Duration::from_secs(3600), || async {
-        let apod = nasa::fetch_apod(&s.client).await?;
-        info!("APOD: {}", apod.date);
-        lock_db(&s.db).await.insert_apod(&apod)?;
-        Ok(serde_json::to_value(apod)?)
+    cached(&s.cache, "apod", Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_apod_latest()?;
+        if val.is_null() {
+            return Err(anyhow!("no APOD data yet — poller initializing").into());
+        }
+        info!("api/apod: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_neo(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "neo", Duration::from_secs(1800), || async {
-        let today = Utc::now().date_naive();
-        let start = today.format("%Y-%m-%d").to_string();
-        let end = (today + ChronoDuration::days(7)).format("%Y-%m-%d").to_string();
-        let feed = nasa::fetch_neo_feed(&s.client, &start, &end).await?;
-        info!("NEO: {} objects ({} to {})", feed.element_count, start, end);
-        let fetched_at = Utc::now().timestamp();
-        {
-            let db = lock_db(&s.db).await;
-            for neos in feed.near_earth_objects.values() {
-                for neo in neos {
-                    for approach in &neo.close_approach_data {
-                        db.insert_neo(neo, approach, fetched_at)?;
-                    }
-                }
-            }
-        }
-        Ok(serde_json::to_value(feed)?)
+    cached(&s.cache, "neo", Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_neo_recent()?;
+        info!("api/neo: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_epic(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "epic", Duration::from_secs(3600), || async {
-        let images = nasa::fetch_epic(&s.client).await?;
-        info!("EPIC: {} images", images.len());
-        {
-            let db = lock_db(&s.db).await;
-            for img in &images {
-                db.insert_epic_image(img)?;
-            }
-        }
-        Ok(serde_json::to_value(images)?)
+    cached(&s.cache, "epic", Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_epic_latest()?;
+        info!("api/epic: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_exoplanets(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "exoplanets", Duration::from_secs(86400), || async {
-        let planets = nasa::fetch_exoplanets(&s.client).await?;
-        info!("Exoplanets: {}", planets.len());
-        {
-            let db = lock_db(&s.db).await;
-            for p in &planets {
-                db.insert_exoplanet(p)?;
-            }
-        }
-        Ok(serde_json::to_value(planets)?)
+    cached(&s.cache, "exoplanets", Duration::from_secs(3600), || async {
+        let val = lock_db(&s.db).await.get_exoplanets_all()?;
+        info!("api/exoplanets: served from db");
+        Ok(val)
     })
     .await
 }
@@ -178,73 +153,37 @@ async fn get_exoplanets(State(s): State<AppState>) -> Result<impl IntoResponse, 
 // ── NOAA handlers ─────────────────────────────────────────────────────────────
 
 async fn get_kp(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "kp", Duration::from_secs(60), || async {
-        let records = noaa::fetch_kp(&s.client).await?;
-        info!("Kp: {} records", records.len());
-        {
-            let db = lock_db(&s.db).await;
-            for r in &records {
-                db.insert_kp(r)?;
-            }
-        }
-        Ok(serde_json::to_value(records)?)
+    cached(&s.cache, "kp", Duration::from_secs(10), || async {
+        let val = lock_db(&s.db).await.get_kp_recent()?;
+        info!("api/kp: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_solar_wind(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "solar-wind", Duration::from_secs(60), || async {
-        let records = noaa::fetch_solar_wind(&s.client).await?;
-        info!("Solar wind: {} records", records.len());
-        {
-            let db = lock_db(&s.db).await;
-            db.begin()?;
-            let result = records.iter().try_for_each(|r| db.insert_solar_wind(r));
-            match result {
-                Ok(()) => db.commit()?,
-                Err(e) => {
-                    db.rollback();
-                    return Err(e.into());
-                }
-            }
-        }
-        Ok(serde_json::to_value(records)?)
+    cached(&s.cache, "solar-wind", Duration::from_secs(10), || async {
+        let val = lock_db(&s.db).await.get_solar_wind_recent()?;
+        info!("api/solar-wind: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_xray(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "xray", Duration::from_secs(120), || async {
-        let records = noaa::fetch_xray(&s.client).await?;
-        info!("X-ray: {} records", records.len());
-        {
-            let db = lock_db(&s.db).await;
-            db.begin()?;
-            let result = records.iter().try_for_each(|r| db.insert_xray(r));
-            match result {
-                Ok(()) => db.commit()?,
-                Err(e) => {
-                    db.rollback();
-                    return Err(e.into());
-                }
-            }
-        }
-        Ok(serde_json::to_value(records)?)
+    cached(&s.cache, "xray", Duration::from_secs(30), || async {
+        let val = lock_db(&s.db).await.get_xray_recent()?;
+        info!("api/xray: served from db");
+        Ok(val)
     })
     .await
 }
 
 async fn get_alerts(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "alerts", Duration::from_secs(300), || async {
-        let alerts = noaa::fetch_alerts(&s.client).await?;
-        info!("Alerts: {}", alerts.len());
-        {
-            let db = lock_db(&s.db).await;
-            for a in &alerts {
-                db.insert_alert(a)?;
-            }
-        }
-        Ok(serde_json::to_value(alerts)?)
+    cached(&s.cache, "alerts", Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_alerts_recent()?;
+        info!("api/alerts: served from db");
+        Ok(val)
     })
     .await
 }
@@ -252,14 +191,13 @@ async fn get_alerts(State(s): State<AppState>) -> Result<impl IntoResponse, AppE
 // ── ISS handler ───────────────────────────────────────────────────────────────
 
 async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "iss", Duration::from_secs(5), || async {
-        let pos = iss::fetch_iss_position(&s.client).await?;
-        info!(
-            "ISS: lat={:.4} lon={:.4} alt={:.1}km",
-            pos.latitude, pos.longitude, pos.altitude
-        );
-        lock_db(&s.db).await.insert_iss_position(&pos)?;
-        Ok(serde_json::to_value(pos)?)
+    cached(&s.cache, "iss", Duration::from_secs(3), || async {
+        let val = lock_db(&s.db).await.get_iss_latest()?;
+        if val.is_null() {
+            return Err(anyhow!("no ISS data yet — poller initializing").into());
+        }
+        info!("api/iss: served from db");
+        Ok(val)
     })
     .await
 }
@@ -271,7 +209,7 @@ async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse,
         let readings = lock_db(&s.db).await.get_recent_kp(7)?;
 
         if readings.is_empty() {
-            return Err(anyhow!("no Kp data in database — call /api/kp first").into());
+            return Err(anyhow!("no Kp data in database — poller initializing").into());
         }
 
         info!("kp-forecast: sending {} readings to ML service", readings.len());
