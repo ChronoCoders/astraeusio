@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { stormInfo, kpBarColor } from '../lib/utils'
 
-const GW = 200, GH = 120
+const GW = 200, GH = 136
 const GCX = 100, GCY = 100
 const GR  = 78
 const GSW = 14
@@ -41,9 +41,9 @@ export default function KpGauge({ kp }) {
               strokeDasharray={`${(v / 9).toFixed(4)} 1`}
             />
           )}
-          {/* Scale labels */}
-          <text x={GCX - GR - 4} y={GCY + 5} textAnchor="end"   fill="#52525b" fontSize="10">0</text>
-          <text x={GCX + GR + 4} y={GCY + 5} textAnchor="start" fill="#52525b" fontSize="10">9</text>
+          {/* Scale labels — below arc endpoints, clear of the GSW=14 stroke */}
+          <text x={GCX - GR} y={GCY + 24} textAnchor="middle" fill="#52525b" fontSize="10">0</text>
+          <text x={GCX + GR} y={GCY + 24} textAnchor="middle" fill="#52525b" fontSize="10">9</text>
           {/* Current value */}
           <text x={GCX} y={GCY - 28} textAnchor="middle"
             fill={kp != null ? color : '#52525b'}
