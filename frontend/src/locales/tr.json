@@ -104,6 +104,23 @@
     "typeAsteroid": "Asteroid",
     "typeMlForecast": "ML Tahmini"
   },
+  "tabs": {
+    "overview": "Genel Bakış",
+    "charts": "Grafikler",
+    "map": "Harita"
+  },
+  "charts": {
+    "solarWind": "Güneş Rüzgarı Hızı — 24 saat",
+    "xrayFlux": "X-Işını Akısı — 24 saat",
+    "kpGauge": "Güncel Kp"
+  },
+  "map": {
+    "title": "Aurora Oval Tahmini",
+    "north": "Kuzey Yarımküresi",
+    "south": "Güney Yarımküresi",
+    "credit": "Kaynak: NOAA / Uzay Hava Tahmin Merkezi",
+    "updated": "30 dakikada bir güncellenir"
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",
