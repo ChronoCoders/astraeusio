@@ -2,24 +2,22 @@ import { useTranslation } from 'react-i18next'
 import { stormInfo, kpBarColor } from '../lib/utils'
 
 const GW = 200, GH = 120
-const GCX = 100, GCY = 100   // center near bottom — arc spans upward
-const GR  = 78               // arc radius
-const GSW = 14               // stroke width
+const GCX = 100, GCY = 100
+const GR  = 78
+const GSW = 14
 
-// Both arcs use CW (sweep=1) through the top semicircle.
-// Screen angle formula: angle = (180 + (v/9)*180)°
-// ex = GCX + GR*cos(angle), ey = GCY + GR*sin(angle)
-const BG_PATH = `M ${GCX - GR} ${GCY} A ${GR} ${GR} 0 0 1 ${GCX + GR} ${GCY}`
-
-function fillPath(v) {
-  const a = (180 + (v / 9) * 180) * (Math.PI / 180)
-  const ex = (GCX + GR * Math.cos(a)).toFixed(2)
-  const ey = (GCY + GR * Math.sin(a)).toFixed(2)
-  return `M ${GCX - GR} ${GCY} A ${GR} ${GR} 0 0 1 ${ex} ${ey}`
-}
+// Two explicit quarter-arcs: left(22,100) → top(100,22) → right(178,100).
+// Each arc spans exactly 90° with sweep=1 (increasing θ in SVG formula),
+// so there is no large/small arc ambiguity and the path unambiguously
+// traces the top semicircle through (GCX, GCY-GR).
+const TRACK = [
+  `M ${GCX - GR} ${GCY}`,
+  `A ${GR} ${GR} 0 0 1 ${GCX} ${GCY - GR}`,
+  `A ${GR} ${GR} 0 0 1 ${GCX + GR} ${GCY}`,
+].join(' ')
 
 export default function KpGauge({ kp }) {
-  const { t } = useTranslation()
+  const { t }  = useTranslation()
   const v      = kp != null ? Math.max(0, Math.min(9, kp)) : 0
   const color  = kpBarColor(v)
   const storm  = stormInfo(v)
@@ -30,16 +28,25 @@ export default function KpGauge({ kp }) {
       <div className="flex-1 flex items-center justify-center">
         <svg viewBox={`0 0 ${GW} ${GH}`} style={{ width: '100%', maxWidth: `${GW}px` }}>
           {/* Background track */}
-          <path d={BG_PATH} fill="none" stroke="#27272a" strokeWidth={GSW} strokeLinecap="round" />
-          {/* Value fill */}
+          <path d={TRACK} fill="none" stroke="#27272a" strokeWidth={GSW} strokeLinecap="round" />
+          {/* Fill — stroke-dasharray on pathLength=1 avoids any endpoint calculation */}
           {v > 0.05 && (
-            <path d={fillPath(v)} fill="none" stroke={color} strokeWidth={GSW} strokeLinecap="round" />
+            <path
+              d={TRACK}
+              fill="none"
+              stroke={color}
+              strokeWidth={GSW}
+              strokeLinecap="round"
+              pathLength="1"
+              strokeDasharray={`${(v / 9).toFixed(4)} 1`}
+            />
           )}
-          {/* End labels */}
+          {/* Scale labels */}
           <text x={GCX - GR - 4} y={GCY + 5} textAnchor="end"   fill="#52525b" fontSize="10">0</text>
           <text x={GCX + GR + 4} y={GCY + 5} textAnchor="start" fill="#52525b" fontSize="10">9</text>
           {/* Current value */}
-          <text x={GCX} y={GCY - 28} textAnchor="middle" fill={kp != null ? color : '#52525b'}
+          <text x={GCX} y={GCY - 28} textAnchor="middle"
+            fill={kp != null ? color : '#52525b'}
             fontSize="34" fontWeight="600" fontFamily="monospace">
             {kp != null ? kp.toFixed(1) : '—'}
           </text>
