@@ -116,7 +116,11 @@
   "charts": {
     "solarWind": "Güneş Rüzgarı Hızı — 24 saat",
     "xrayFlux": "X-Işını Akısı — 24 saat",
-    "kpGauge": "Güncel Kp"
+    "kpGauge": "Güncel Kp",
+    "imfBz": "IMF Bz Bileşeni — 24 saat",
+    "dst": "Dst Endeksi — 7 gün",
+    "dstModerate": "Orta fırtına",
+    "dstSevere": "Şiddetli fırtına"
   },
   "map": {
     "title": "Aurora Oval Tahmini",

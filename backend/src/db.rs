@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::{
     iss::IssPosition,
     nasa::{Apod, CloseApproach, EpicImage, Exoplanet, NearEarthObject},
-    noaa::{KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
+    noaa::{DstRecord, ImfRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
 };
 
 #[derive(Error, Debug)]
@@ -125,6 +125,19 @@ CREATE TABLE IF NOT EXISTS alerts_anomaly (
     severity     TEXT   NOT NULL,
     message      TEXT   NOT NULL,
     PRIMARY KEY (anomaly_type, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS imf (
+    time_tag   TEXT   NOT NULL PRIMARY KEY,
+    bz_e2      BIGINT,
+    bt_e2      BIGINT,
+    fetched_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dst (
+    time_tag   TEXT    NOT NULL PRIMARY KEY,
+    dst_nt     INTEGER,
+    fetched_at BIGINT  NOT NULL
 );
 ";
 
@@ -319,6 +332,34 @@ impl Db {
         )?;
         Ok(())
     }
+
+    pub fn insert_imf(&self, r: &ImfRecord) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO imf (time_tag, bz_e2, bt_e2, fetched_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT (time_tag) DO UPDATE SET
+               bz_e2      = excluded.bz_e2,
+               bt_e2      = excluded.bt_e2,
+               fetched_at = excluded.fetched_at",
+            params![
+                r.time_tag,
+                scale_opt(r.bz_gsm, 100.0),
+                scale_opt(r.bt,     100.0),
+                now(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_dst(&self, r: &DstRecord) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO dst (time_tag, dst_nt, fetched_at)
+             VALUES (?, ?, ?)
+             ON CONFLICT (time_tag) DO NOTHING",
+            params![r.time_tag, r.dst_nt, now()],
+        )?;
+        Ok(())
+    }
 }
 
 // ── NOAA queries ─────────────────────────────────────────────────────────────
@@ -416,6 +457,42 @@ impl Db {
                     "product_id":     product_id,
                     "issue_datetime": issue_datetime,
                     "message":        message,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_imf_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY time_tag DESC LIMIT 1440",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let bz_e2: Option<i64> = row.get(1)?;
+                let bt_e2: Option<i64> = row.get(2)?;
+                Ok(serde_json::json!({
+                    "time_tag": time_tag,
+                    "bz_gsm":  bz_e2.map(|v| v as f64 / 100.0),
+                    "bt":      bt_e2.map(|v| v as f64 / 100.0),
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_dst_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, dst_nt FROM dst ORDER BY time_tag DESC LIMIT 1440",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let dst_nt: Option<i32> = row.get(1)?;
+                Ok(serde_json::json!({
+                    "time_tag": time_tag,
+                    "dst_nt":   dst_nt,
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
