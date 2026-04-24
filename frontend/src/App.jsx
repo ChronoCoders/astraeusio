@@ -29,10 +29,15 @@ function fmtUtc(d) {
 
 const TABS = ['overview', 'charts', 'map']
 
-export default function App({ onLogout }) {
+export default function App({ onLogout, onReady }) {
   const { t, i18n } = useTranslation()
   const [utcNow, setUtcNow] = useState(() => fmtUtc(new Date()))
   const [tab, setTab] = useState('overview')
+
+  useEffect(() => {
+    onReady?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const id = setInterval(() => setUtcNow(fmtUtc(new Date())), 1000)

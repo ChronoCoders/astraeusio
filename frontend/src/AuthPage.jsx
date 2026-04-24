@@ -39,25 +39,27 @@ export default function AuthPage({ onAuth }) {
       if (!res.ok) {
         let msg = t('auth.unknownError')
         try { msg = (await res.json()).error ?? msg } catch { /* non-JSON body */ }
+        setLoading(false)
         setError(msg)
         return
       }
 
       if (mode === 'signup') {
+        setLoading(false)
         setMode('login')
         setConfirm('')
         setPassword('')
         setSuccess(t('auth.accountCreated'))
         return
-      } else {
-        const { token } = await res.json()
-        localStorage.setItem('token', token)
-        onAuth(token)
       }
+
+      // Login success — keep loading=true so button stays disabled while
+      // Root transitions to App. AuthPage unmounts; no setLoading(false) needed.
+      const { token } = await res.json()
+      onAuth(token)
     } catch {
-      setError(t('auth.networkError'))
-    } finally {
       setLoading(false)
+      setError(t('auth.networkError'))
     }
   }
 
