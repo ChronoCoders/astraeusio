@@ -104,6 +104,23 @@
     "typeAsteroid": "Asteroid",
     "typeMlForecast": "ML Forecast"
   },
+  "tabs": {
+    "overview": "Overview",
+    "charts": "Charts",
+    "map": "Map"
+  },
+  "charts": {
+    "solarWind": "Solar Wind Speed — 24 h",
+    "xrayFlux": "X-Ray Flux — 24 h",
+    "kpGauge": "Current Kp"
+  },
+  "map": {
+    "title": "Auroral Oval Forecast",
+    "north": "Northern Hemisphere",
+    "south": "Southern Hemisphere",
+    "credit": "Source: NOAA / Space Weather Prediction Center",
+    "updated": "Updated every 30 minutes"
+  },
   "auth": {
     "tagline1": "Space Weather Intelligence",
     "tagline2": "Solar storms · ISS · Near-Earth objects",

@@ -55,7 +55,9 @@ export function stormProb(predictedKp, uncertainty) {
 
 export function processKpBuckets(records) {
   if (!records?.length) return []
-  const cutoff = Date.now() - 24 * 3600 * 1000
+  const sorted = [...records].sort((a, b) => new Date(a.time_tag) - new Date(b.time_tag))
+  const latestMs = new Date(sorted[sorted.length - 1].time_tag).getTime()
+  const cutoff = latestMs - 24 * 3600 * 1000
   const buckets = {}
   records
     .filter(r => new Date(r.time_tag).getTime() >= cutoff)

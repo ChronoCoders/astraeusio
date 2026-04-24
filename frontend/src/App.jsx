@@ -12,6 +12,9 @@ import ApodCard       from './components/ApodCard'
 import EpicViewer     from './components/EpicViewer'
 import ExoplanetStats from './components/ExoplanetStats'
 import AnomalyPanel   from './components/AnomalyPanel'
+import SolarWindChart from './components/SolarWindChart'
+import XrayFluxChart  from './components/XrayFluxChart'
+import KpGauge        from './components/KpGauge'
 
 const FAST = 30_000   // 30 s — live data
 const SLOW = 120_000  // 2 min — slower-changing data
@@ -24,9 +27,12 @@ function fmtUtc(d) {
          `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`
 }
 
+const TABS = ['overview', 'charts', 'map']
+
 export default function App({ onLogout }) {
   const { t, i18n } = useTranslation()
   const [utcNow, setUtcNow] = useState(() => fmtUtc(new Date()))
+  const [tab, setTab] = useState('overview')
 
   useEffect(() => {
     const id = setInterval(() => setUtcNow(fmtUtc(new Date())), 1000)
@@ -84,6 +90,26 @@ export default function App({ onLogout }) {
           </button>
         </div>
       </header>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-zinc-800">
+        {TABS.map(id => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm font-mono tracking-wide transition-colors ${
+              tab === id
+                ? 'text-zinc-100 border-b-2 border-zinc-400 -mb-px'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {t(`tabs.${id}`)}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Overview tab ─────────────────────────────────────────────────────── */}
+      {tab === 'overview' && <>
 
       {/* Row 1 — Metric cards */}
       <div className="grid grid-cols-5 gap-3">
@@ -147,6 +173,50 @@ export default function App({ onLogout }) {
         <EpicViewer data={epic.data} />
         <ExoplanetStats data={exo.data} />
       </div>
+
+      </>}
+
+      {/* ── Charts tab ───────────────────────────────────────────────────────── */}
+      {tab === 'charts' && (
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <SolarWindChart data={wind.data} />
+            </div>
+            <KpGauge kp={currentKp} />
+          </div>
+          <XrayFluxChart data={xray.data} />
+        </div>
+      )}
+
+      {/* ── Map tab ──────────────────────────────────────────────────────────── */}
+      {tab === 'map' && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('map.title')}</span>
+            <span className="text-zinc-600 text-xs">{t('map.updated')}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
+              <span className="text-zinc-400 text-xs font-mono">{t('map.north')}</span>
+              <img
+                src={`https://services.swpc.noaa.gov/images/aurora-forecast-northern-hemisphere.jpg?v=${Math.floor(Date.now() / 1_800_000)}`}
+                alt="Northern hemisphere auroral oval forecast"
+                className="w-full rounded"
+              />
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
+              <span className="text-zinc-400 text-xs font-mono">{t('map.south')}</span>
+              <img
+                src={`https://services.swpc.noaa.gov/images/aurora-forecast-southern-hemisphere.jpg?v=${Math.floor(Date.now() / 1_800_000)}`}
+                alt="Southern hemisphere auroral oval forecast"
+                className="w-full rounded"
+              />
+            </div>
+          </div>
+          <p className="text-zinc-600 text-xs text-right">{t('map.credit')}</p>
+        </div>
+      )}
 
     </div>
   )
