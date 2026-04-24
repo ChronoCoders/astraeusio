@@ -18,9 +18,11 @@ import XrayFluxChart  from './components/XrayFluxChart'
 import KpGauge        from './components/KpGauge'
 import ImfBzChart     from './components/ImfBzChart'
 import DstChart       from './components/DstChart'
+import StarlinkMap    from './components/StarlinkMap'
 
-const FAST = 30_000   // 30 s — live data
-const SLOW = 120_000  // 2 min — slower-changing data
+const FAST     = 30_000       // 30 s — live data
+const SLOW     = 120_000      // 2 min — slower-changing data
+const STARLINK = 1_800_000    // 30 min — TLEs change slowly
 
 function fmtUtc(d) {
   const p = n => String(n).padStart(2, '0')
@@ -57,6 +59,7 @@ export default function App({ onLogout, onReady }) {
   const anomalies = useApi('/api/anomalies',   FAST)
   const imf       = useApi('/api/imf',         SLOW)
   const dst       = useApi('/api/dst',         SLOW)
+  const starlink  = useApi('/api/starlink',    STARLINK)
 
   const latestKp  = kp.data?.at(-1)
   const currentKp = latestKp?.estimated_kp ?? latestKp?.kp_index
@@ -212,6 +215,7 @@ export default function App({ onLogout, onReady }) {
                 </div>
               </div>
               <p className="text-zinc-600 text-xs text-right">{t('map.credit')}</p>
+              <StarlinkMap data={starlink.data} />
             </div>
           )}
 

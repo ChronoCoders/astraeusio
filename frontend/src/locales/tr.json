@@ -129,6 +129,12 @@
     "credit": "Kaynak: NOAA / Uzay Hava Tahmin Merkezi",
     "updated": "30 dakikada bir güncellenir"
   },
+  "starlink": {
+    "title": "Starlink Takımyıldızı",
+    "count": "{{count}} uydu izleniyor",
+    "footer": "Konumlar TLE verisinden hesaplanır · 10 saniyede bir güncellenir",
+    "noData": "TLE verisi mevcut değil — Celestrak senkronizasyonu bekleniyor"
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",
