@@ -107,6 +107,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/iss", get(get_iss))
         .route("/api/kp-forecast", get(get_kp_forecast))
         .route("/api/anomalies", get(get_anomalies))
+        .route("/api/imf", get(get_imf))
+        .route("/api/dst", get(get_dst))
         .with_state(state)
 }
 
@@ -238,6 +240,26 @@ async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse,
         }
 
         Ok(payload)
+    })
+    .await
+}
+
+// ── IMF / Dst handlers ────────────────────────────────────────────────────────
+
+async fn get_imf(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "imf", Duration::from_secs(30), || async {
+        let val = lock_db(&s.db).await.get_imf_recent()?;
+        info!("api/imf: served from db");
+        Ok(val)
+    })
+    .await
+}
+
+async fn get_dst(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "dst", Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_dst_recent()?;
+        info!("api/dst: served from db");
+        Ok(val)
     })
     .await
 }

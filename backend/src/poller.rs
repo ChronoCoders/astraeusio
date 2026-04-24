@@ -18,6 +18,8 @@ pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_apod(client.clone(), db.clone()));
     tokio::spawn(poll_exoplanets(client.clone(), db.clone()));
     tokio::spawn(poll_anomaly(db.clone()));
+    tokio::spawn(poll_imf(client.clone(), db.clone()));
+    tokio::spawn(poll_dst(client.clone(), db.clone()));
 }
 
 async fn poll_iss(client: reqwest::Client, db: Arc<Mutex<Db>>) {
@@ -191,6 +193,52 @@ async fn poll_exoplanets(client: reqwest::Client, db: Arc<Mutex<Db>>) {
             Err(e) => error!(source = "poller/exoplanets", "fetch: {e}"),
         }
         tokio::time::sleep(Duration::from_secs(86400)).await;
+    }
+}
+
+async fn poll_imf(client: reqwest::Client, db: Arc<Mutex<Db>>) {
+    loop {
+        match noaa::fetch_imf(&client).await {
+            Ok(records) => {
+                info!("poller/imf: {} records", records.len());
+                let db = db.lock().await;
+                if let Err(e) = (|| -> Result<(), crate::db::DbError> {
+                    db.begin()?;
+                    let result = records.iter().try_for_each(|r| db.insert_imf(r));
+                    match result {
+                        Ok(()) => db.commit(),
+                        Err(e) => { db.rollback(); Err(e) }
+                    }
+                })() {
+                    error!(source = "poller/imf", "insert: {e}");
+                }
+            }
+            Err(e) => error!(source = "poller/imf", "fetch: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
+async fn poll_dst(client: reqwest::Client, db: Arc<Mutex<Db>>) {
+    loop {
+        match noaa::fetch_dst(&client).await {
+            Ok(records) => {
+                info!("poller/dst: {} records", records.len());
+                let db = db.lock().await;
+                if let Err(e) = (|| -> Result<(), crate::db::DbError> {
+                    db.begin()?;
+                    let result = records.iter().try_for_each(|r| db.insert_dst(r));
+                    match result {
+                        Ok(()) => db.commit(),
+                        Err(e) => { db.rollback(); Err(e) }
+                    }
+                })() {
+                    error!(source = "poller/dst", "insert: {e}");
+                }
+            }
+            Err(e) => error!(source = "poller/dst", "fetch: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(300)).await;
     }
 }
 

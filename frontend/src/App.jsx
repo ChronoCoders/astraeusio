@@ -16,6 +16,8 @@ import AnomalyPanel   from './components/AnomalyPanel'
 import SolarWindChart from './components/SolarWindChart'
 import XrayFluxChart  from './components/XrayFluxChart'
 import KpGauge        from './components/KpGauge'
+import ImfBzChart     from './components/ImfBzChart'
+import DstChart       from './components/DstChart'
 
 const FAST = 30_000   // 30 s — live data
 const SLOW = 120_000  // 2 min — slower-changing data
@@ -53,6 +55,8 @@ export default function App({ onLogout, onReady }) {
   const exo       = useApi('/api/exoplanets',  SLOW)
   const forecast  = useApi('/api/kp-forecast', FAST)
   const anomalies = useApi('/api/anomalies',   FAST)
+  const imf       = useApi('/api/imf',         SLOW)
+  const dst       = useApi('/api/dst',         SLOW)
 
   const latestKp  = kp.data?.at(-1)
   const currentKp = latestKp?.estimated_kp ?? latestKp?.kp_index
@@ -177,6 +181,8 @@ export default function App({ onLogout, onReady }) {
                 <KpGauge kp={currentKp} />
               </div>
               <XrayFluxChart data={xray.data} />
+              <ImfBzChart data={imf.data} />
+              <DstChart data={dst.data} />
             </div>
           )}
 
