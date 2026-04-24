@@ -5,7 +5,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use crate::{anomaly, db::Db, iss, nasa, noaa};
+use crate::{anomaly, db::Db, iss, nasa, noaa, starlink};
 
 pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_iss(client.clone(), db.clone()));
@@ -20,6 +20,7 @@ pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_anomaly(db.clone()));
     tokio::spawn(poll_imf(client.clone(), db.clone()));
     tokio::spawn(poll_dst(client.clone(), db.clone()));
+    tokio::spawn(poll_starlink(client.clone(), db.clone()));
 }
 
 async fn poll_iss(client: reqwest::Client, db: Arc<Mutex<Db>>) {
@@ -239,6 +240,29 @@ async fn poll_dst(client: reqwest::Client, db: Arc<Mutex<Db>>) {
             Err(e) => error!(source = "poller/dst", "fetch: {e}"),
         }
         tokio::time::sleep(Duration::from_secs(300)).await;
+    }
+}
+
+async fn poll_starlink(client: reqwest::Client, db: Arc<Mutex<Db>>) {
+    loop {
+        match starlink::fetch_starlink(&client).await {
+            Ok(sats) => {
+                info!("poller/starlink: {} satellites", sats.len());
+                let db = db.lock().await;
+                if let Err(e) = (|| -> Result<(), crate::db::DbError> {
+                    db.begin()?;
+                    let result = sats.iter().try_for_each(|s| db.insert_starlink(s));
+                    match result {
+                        Ok(()) => db.commit(),
+                        Err(e) => { db.rollback(); Err(e) }
+                    }
+                })() {
+                    error!(source = "poller/starlink", "insert: {e}");
+                }
+            }
+            Err(e) => error!(source = "poller/starlink", "fetch: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(3600)).await;
     }
 }
 
