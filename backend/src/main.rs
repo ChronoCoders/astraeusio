@@ -6,6 +6,7 @@ mod nasa;
 mod noaa;
 mod poller;
 mod routes;
+mod starlink;
 
 use anyhow::Result;
 use tracing::info;

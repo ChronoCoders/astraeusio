@@ -7,6 +7,7 @@ use crate::{
     iss::IssPosition,
     nasa::{Apod, CloseApproach, EpicImage, Exoplanet, NearEarthObject},
     noaa::{DstRecord, ImfRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
+    starlink::StarlinkSat,
 };
 
 #[derive(Error, Debug)]
@@ -125,6 +126,14 @@ CREATE TABLE IF NOT EXISTS alerts_anomaly (
     severity     TEXT   NOT NULL,
     message      TEXT   NOT NULL,
     PRIMARY KEY (anomaly_type, source_ref)
+);
+
+CREATE TABLE IF NOT EXISTS starlink (
+    norad_id   INTEGER NOT NULL PRIMARY KEY,
+    name       TEXT    NOT NULL,
+    tle_line1  TEXT    NOT NULL,
+    tle_line2  TEXT    NOT NULL,
+    fetched_at BIGINT  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS imf (
@@ -843,5 +852,44 @@ impl Db {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+}
+
+// ── Starlink ──────────────────────────────────────────────────────────────────
+
+impl Db {
+    pub fn insert_starlink(&self, sat: &StarlinkSat) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO starlink (norad_id, name, tle_line1, tle_line2, fetched_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (norad_id) DO UPDATE SET
+               name       = excluded.name,
+               tle_line1  = excluded.tle_line1,
+               tle_line2  = excluded.tle_line2,
+               fetched_at = excluded.fetched_at",
+            params![sat.norad_id, sat.name, sat.tle_line1, sat.tle_line2, now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_starlink_all(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT norad_id, name, tle_line1, tle_line2 FROM starlink ORDER BY norad_id ASC",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let norad_id: i32 = row.get(0)?;
+                let name: String  = row.get(1)?;
+                let line1: String = row.get(2)?;
+                let line2: String = row.get(3)?;
+                Ok(serde_json::json!({
+                    "norad_id":  norad_id,
+                    "name":      name,
+                    "tle_line1": line1,
+                    "tle_line2": line2,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
     }
 }
