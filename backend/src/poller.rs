@@ -195,8 +195,6 @@ async fn poll_exoplanets(client: reqwest::Client, db: Arc<Mutex<Db>>) {
 }
 
 async fn poll_anomaly(db: Arc<Mutex<Db>>) {
-    // Initial delay so pollers can populate the DB before first scan.
-    tokio::time::sleep(Duration::from_secs(90)).await;
     loop {
         {
             let db_guard = db.lock().await;
