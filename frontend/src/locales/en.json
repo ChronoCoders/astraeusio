@@ -104,10 +104,14 @@
     "typeAsteroid": "Asteroid",
     "typeMlForecast": "ML Forecast"
   },
-  "tabs": {
-    "overview": "Overview",
+  "nav": {
+    "dashboard": "Dashboard",
     "charts": "Charts",
-    "map": "Map"
+    "map": "Map",
+    "alerts": "Alerts",
+    "reports": "Reports",
+    "api": "API",
+    "settings": "Settings"
   },
   "charts": {
     "solarWind": "Solar Wind Speed — 24 h",

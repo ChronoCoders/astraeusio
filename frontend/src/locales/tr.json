@@ -104,10 +104,14 @@
     "typeAsteroid": "Asteroid",
     "typeMlForecast": "ML Tahmini"
   },
-  "tabs": {
-    "overview": "Genel Bakış",
+  "nav": {
+    "dashboard": "Gösterge Paneli",
     "charts": "Grafikler",
-    "map": "Harita"
+    "map": "Harita",
+    "alerts": "Uyarılar",
+    "reports": "Raporlar",
+    "api": "API",
+    "settings": "Ayarlar"
   },
   "charts": {
     "solarWind": "Güneş Rüzgarı Hızı — 24 saat",
