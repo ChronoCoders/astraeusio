@@ -855,6 +855,173 @@ impl Db {
     }
 }
 
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+fn flux_to_xray_class(flux_e12: i64) -> String {
+    let f = flux_e12 as f64 / 1e12;
+    if      f >= 1e-4 { format!("X{:.1}", f / 1e-4) }
+    else if f >= 1e-5 { format!("M{:.1}", f / 1e-5) }
+    else if f >= 1e-6 { format!("C{:.1}", f / 1e-6) }
+    else if f >= 1e-7 { format!("B{:.1}", f / 1e-7) }
+    else              { format!("A{:.1}", f / 1e-8)  }
+}
+
+impl Db {
+    pub fn get_report_summary(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
+        let cutoff = now() - since_secs;
+
+        // Kp: avg and max over the window
+        let (kp_avg, kp_max, kp_count) = {
+            let mut stmt = self.conn.prepare(
+                "SELECT AVG(estimated_kp_e2), MAX(estimated_kp_e2), COUNT(*) \
+                 FROM kp WHERE fetched_at > ?",
+            )?;
+            let mut rows = stmt.query([cutoff])?;
+            match rows.next()? {
+                Some(row) => {
+                    let avg: Option<f64> = row.get(0)?;
+                    let max: Option<i64> = row.get(1)?;
+                    let cnt: i64         = row.get(2)?;
+                    (avg, max, cnt)
+                }
+                None => (None, None, 0i64),
+            }
+        };
+
+        // Max solar wind speed in km/s (speed_e1 / 10)
+        let sw_max: Option<i64> = {
+            let mut stmt = self.conn.prepare(
+                "SELECT MAX(speed_e1) FROM solar_wind \
+                 WHERE fetched_at > ? AND speed_e1 IS NOT NULL",
+            )?;
+            let mut rows = stmt.query([cutoff])?;
+            match rows.next()? {
+                Some(row) => row.get(0)?,
+                None => None,
+            }
+        };
+
+        // Max X-ray flux in 0.1-0.8 nm band
+        let xray_max: Option<i64> = {
+            let mut stmt = self.conn.prepare(
+                "SELECT MAX(flux_e12) FROM xray \
+                 WHERE energy = '0.1-0.8nm' AND fetched_at > ?",
+            )?;
+            let mut rows = stmt.query([cutoff])?;
+            match rows.next()? {
+                Some(row) => row.get(0)?,
+                None => None,
+            }
+        };
+
+        // Anomaly count in window
+        let anomaly_count: i64 = {
+            let mut stmt = self.conn.prepare(
+                "SELECT COUNT(*) FROM alerts_anomaly WHERE detected_at > ?",
+            )?;
+            let mut rows = stmt.query([cutoff])?;
+            match rows.next()? {
+                Some(row) => row.get(0)?,
+                None => 0,
+            }
+        };
+
+        // Asteroid close approaches in the date window (today → today+N days)
+        let asteroid_count: i64 = {
+            use chrono::Duration as D;
+            let today    = chrono::Utc::now().date_naive();
+            let end_date = today + D::days((since_secs / 86400).max(1));
+            let today_s  = today.format("%Y-%m-%d").to_string();
+            let end_s    = end_date.format("%Y-%m-%d").to_string();
+            let mut stmt = self.conn.prepare(
+                "SELECT COUNT(*) FROM neo \
+                 WHERE close_approach_date >= ? AND close_approach_date <= ?",
+            )?;
+            let mut rows = stmt.query(params![today_s, end_s])?;
+            match rows.next()? {
+                Some(row) => row.get(0)?,
+                None => 0,
+            }
+        };
+
+        Ok(serde_json::json!({
+            "range_secs":          since_secs,
+            "kp_avg":              kp_avg.map(|v| (v / 100.0 * 100.0).round() / 100.0),
+            "kp_max":              kp_max.map(|v| v as f64 / 100.0),
+            "kp_count":            kp_count,
+            "solar_wind_max_kms":  sw_max.map(|v| v as f64 / 10.0),
+            "xray_max_flux":       xray_max.map(|v| v as f64 / 1e12),
+            "xray_max_class":      xray_max.map(flux_to_xray_class)
+                                           .unwrap_or_else(|| "—".to_owned()),
+            "anomaly_count":       anomaly_count,
+            "asteroid_approaches": asteroid_count,
+        }))
+    }
+
+    pub fn get_report_csv(&self, since_secs: i64) -> Result<String, DbError> {
+        let cutoff = now() - since_secs;
+        let mut out = String::new();
+
+        // Kp section
+        out.push_str("time_tag,kp_index,estimated_kp\n");
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp \
+                 WHERE fetched_at > ? ORDER BY time_tag ASC",
+            )?;
+            let rows: Vec<(String, i32, i64)> = stmt
+                .query_map([cutoff], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                .collect::<Result<_, _>>()?;
+            for (tt, kp_i, kp_e2) in rows {
+                out.push_str(&format!("{},{},{:.2}\n", tt, kp_i, kp_e2 as f64 / 100.0));
+            }
+        }
+
+        out.push('\n');
+
+        // Solar wind section
+        out.push_str("time_tag,speed_kms,density_pcm3,temperature_k\n");
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
+                 WHERE fetched_at > ? ORDER BY time_tag ASC",
+            )?;
+            type WindRow = (String, Option<i64>, Option<i64>, Option<i64>);
+            let rows: Vec<WindRow> = stmt
+                .query_map([cutoff], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })?
+                .collect::<Result<_, _>>()?;
+            for (tt, speed, density, temp) in rows {
+                let spd = speed.map(|v| format!("{:.1}", v as f64 / 10.0)).unwrap_or_default();
+                let den = density.map(|v| format!("{:.2}", v as f64 / 100.0)).unwrap_or_default();
+                let tmp = temp.map(|v| v.to_string()).unwrap_or_default();
+                out.push_str(&format!("{},{},{},{}\n", tt, spd, den, tmp));
+            }
+        }
+
+        out.push('\n');
+
+        // X-ray section (0.1-0.8 nm band only)
+        out.push_str("time_tag,flux_wm2,xray_class\n");
+        {
+            let mut stmt = self.conn.prepare(
+                "SELECT time_tag, flux_e12 FROM xray \
+                 WHERE energy = '0.1-0.8nm' AND fetched_at > ? ORDER BY time_tag ASC",
+            )?;
+            let rows: Vec<(String, i64)> = stmt
+                .query_map([cutoff], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<Result<_, _>>()?;
+            for (tt, flux_e12) in rows {
+                let class = flux_to_xray_class(flux_e12);
+                out.push_str(&format!("{},{:.3e},{}\n", tt, flux_e12 as f64 / 1e12, class));
+            }
+        }
+
+        Ok(out)
+    }
+}
+
 // ── Starlink ──────────────────────────────────────────────────────────────────
 
 impl Db {

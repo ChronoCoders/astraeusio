@@ -129,6 +129,17 @@
     "credit": "Kaynak: NOAA / Uzay Hava Tahmin Merkezi",
     "updated": "30 dakikada bir güncellenir"
   },
+  "reports": {
+    "title": "Uzay Hava Raporu",
+    "avgKp": "Ort. Kp",
+    "maxKp": "Maks. Kp",
+    "maxSolarWind": "Maks. Güneş Rüzgarı",
+    "maxXray": "Maks. X-Işını",
+    "anomalies": "Anomaliler",
+    "asteroidApproaches": "Asteroid Yaklaşmaları",
+    "exportCsv": "CSV İndir",
+    "note": "Veri dışa aktarımı, seçilen dönem için Kp endeksi, güneş rüzgarı ve X-ışını akısı ölçümlerini içerir."
+  },
   "starlink": {
     "title": "Starlink Takımyıldızı",
     "count": "{{count}} uydu izleniyor",

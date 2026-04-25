@@ -129,6 +129,17 @@
     "credit": "Source: NOAA / Space Weather Prediction Center",
     "updated": "Updated every 30 minutes"
   },
+  "reports": {
+    "title": "Space Weather Report",
+    "avgKp": "Avg Kp",
+    "maxKp": "Max Kp",
+    "maxSolarWind": "Max Solar Wind",
+    "maxXray": "Max X-Ray",
+    "anomalies": "Anomalies",
+    "asteroidApproaches": "Asteroid Approaches",
+    "exportCsv": "Export CSV",
+    "note": "Data export includes Kp index, solar wind, and X-ray flux readings for the selected period."
+  },
   "starlink": {
     "title": "Starlink Constellation",
     "count": "{{count}} satellites tracked",

@@ -7,7 +7,7 @@ const NAV = [
   { id: 'charts',    icon: IconCharts },
   { id: 'map',       icon: IconMap },
   { id: 'alerts',    icon: IconAlerts },
-  { id: 'reports',   icon: IconReports,  soon: true },
+  { id: 'reports',   icon: IconReports },
   { id: 'api',       icon: IconApi,      soon: true },
   { id: 'settings',  icon: IconSettings, soon: true },
 ]
