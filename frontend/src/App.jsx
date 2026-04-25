@@ -63,9 +63,10 @@ export default function App({ onLogout, onReady }) {
   const imf       = useApi('/api/imf',         SLOW)
   const dst       = useApi('/api/dst',         SLOW)
   const starlink  = useApi('/api/starlink',    STARLINK)
+  const kp3h      = useApi('/api/kp-3h',       1_800_000)
 
-  const latestKp  = kp.data?.at(-1)
-  const currentKp = latestKp?.estimated_kp ?? latestKp?.kp_index
+  const latestKp3h = kp3h.data?.at(-1)
+  const currentKp  = latestKp3h?.estimated_kp ?? kp.data?.at(-1)?.estimated_kp
   const storm     = stormInfo(currentKp ?? 0)
 
   const latestWind = wind.data?.find(r => r.proton_speed != null)
