@@ -31,6 +31,8 @@ function fmtUtc(d) {
          `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`
 }
 
+const AURORA_V = Math.floor(Date.now() / 1_800_000)
+
 export default function App({ onLogout, onReady }) {
   const { t } = useTranslation()
   const [utcNow, setUtcNow]       = useState(() => fmtUtc(new Date()))
@@ -201,7 +203,7 @@ export default function App({ onLogout, onReady }) {
                 <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
                   <span className="text-zinc-400 text-xs font-mono">{t('map.north')}</span>
                   <img
-                    src={`https://services.swpc.noaa.gov/images/aurora-forecast-northern-hemisphere.jpg?v=${Math.floor(Date.now() / 1_800_000)}`}
+                    src={`https://services.swpc.noaa.gov/images/aurora-forecast-northern-hemisphere.jpg?v=${AURORA_V}`}
                     alt="Northern hemisphere auroral oval forecast"
                     className="w-full rounded"
                   />
@@ -209,7 +211,7 @@ export default function App({ onLogout, onReady }) {
                 <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
                   <span className="text-zinc-400 text-xs font-mono">{t('map.south')}</span>
                   <img
-                    src={`https://services.swpc.noaa.gov/images/aurora-forecast-southern-hemisphere.jpg?v=${Math.floor(Date.now() / 1_800_000)}`}
+                    src={`https://services.swpc.noaa.gov/images/aurora-forecast-southern-hemisphere.jpg?v=${AURORA_V}`}
                     alt="Southern hemisphere auroral oval forecast"
                     className="w-full rounded"
                   />
