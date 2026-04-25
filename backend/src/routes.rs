@@ -9,12 +9,12 @@ use axum::{
     extract::{Query, State},
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 use serde::Deserialize;
 use tracing::info;
 
-use crate::{auth, db::Db};
+use crate::{api_keys, auth, db::Db};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -117,6 +117,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/starlink", get(get_starlink))
         .route("/api/reports/summary", get(get_report_summary))
         .route("/api/reports/export", get(get_report_export))
+        .route(
+            "/api/keys",
+            get(api_keys::list_api_keys).post(api_keys::create_api_key),
+        )
+        .route("/api/keys/{id}", delete(api_keys::delete_api_key))
         .with_state(state)
 }
 

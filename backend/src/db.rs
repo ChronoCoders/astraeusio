@@ -16,6 +16,8 @@ pub enum DbError {
     Parse { field: &'static str, value: String },
     #[error("email already registered")]
     EmailTaken,
+    #[error("api key not found")]
+    KeyNotFound,
 }
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -151,6 +153,16 @@ CREATE TABLE IF NOT EXISTS kp_3h (
     time_tag   TEXT   NOT NULL PRIMARY KEY,
     kp_e2      BIGINT NOT NULL,
     fetched_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    id            TEXT   NOT NULL PRIMARY KEY,
+    user_email    TEXT   NOT NULL,
+    key_hash      TEXT   NOT NULL UNIQUE,
+    name          TEXT   NOT NULL,
+    created_at    BIGINT NOT NULL,
+    last_used_at  BIGINT,
+    request_count BIGINT NOT NULL DEFAULT 0
 );
 ";
 
@@ -1306,6 +1318,65 @@ impl Db {
         }
 
         Ok(out)
+    }
+}
+
+// ── API keys ──────────────────────────────────────────────────────────────────
+
+pub struct ApiKey {
+    pub id: String,
+    pub name: String,
+    pub created_at: i64,
+    pub last_used_at: Option<i64>,
+    pub request_count: i64,
+}
+
+impl Db {
+    pub fn create_api_key(
+        &self,
+        id: &str,
+        user_email: &str,
+        key_hash: &str,
+        name: &str,
+    ) -> Result<(), DbError> {
+        let result = self.conn.execute(
+            "INSERT INTO api_keys (id, user_email, key_hash, name, created_at, request_count)
+             VALUES (?, ?, ?, ?, ?, 0)",
+            params![id, user_email, key_hash, name, now()],
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_string().contains("Constraint Error") => Err(DbError::KeyNotFound),
+            Err(e) => Err(DbError::Duckdb(e)),
+        }
+    }
+
+    pub fn list_api_keys(&self, user_email: &str) -> Result<Vec<ApiKey>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, created_at, last_used_at, request_count \
+             FROM api_keys WHERE user_email = ? ORDER BY created_at DESC",
+        )?;
+        let rows = stmt
+            .query_map([user_email], |row| {
+                Ok(ApiKey {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    created_at: row.get(2)?,
+                    last_used_at: row.get(3)?,
+                    request_count: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Returns true if deleted, false if key not found for this user.
+    pub fn delete_api_key(&self, id: &str, user_email: &str) -> Result<bool, DbError> {
+        let n = self.conn.execute(
+            "DELETE FROM api_keys WHERE id = ? AND user_email = ?",
+            params![id, user_email],
+        )?;
+        Ok(n > 0)
     }
 }
 
