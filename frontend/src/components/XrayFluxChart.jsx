@@ -20,7 +20,7 @@ export default function XrayFluxChart({ data }) {
   const all = (data ?? [])
     .filter(r => r.energy === '0.1-0.8nm' && r.flux > 0)
     .sort((a, b) => new Date(a.time_tag) - new Date(b.time_tag))
-  const latestMs = all.length ? new Date(all[all.length - 1].time_tag).getTime() : Date.now()
+  const latestMs = all.length ? new Date(all[all.length - 1].time_tag).getTime() : 0
   const pts = all.filter(r => new Date(r.time_tag).getTime() >= latestMs - 86_400_000)
 
   if (pts.length < 2) return (

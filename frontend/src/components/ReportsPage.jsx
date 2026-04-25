@@ -19,21 +19,18 @@ function StatCard({ label, value, unit }) {
 
 export default function ReportsPage() {
   const { t } = useTranslation()
-  const [range, setRange]   = useState('24h')
-  const [data,  setData]    = useState(null)
-  const [loading, setLoad]  = useState(false)
-  const [error,  setError]  = useState(null)
+  const [range, setRange] = useState('24h')
+  const [{ data, error, loadedFor }, setState] = useState({ data: null, error: null, loadedFor: null })
+  const loading = loadedFor !== range
 
   useEffect(() => {
     let cancelled = false
-    setLoad(true)
-    setError(null)
     fetch(`/api/reports/summary?range=${range}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     })
       .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoad(false) } })
-      .catch(e => { if (!cancelled) { setError(e.message); setLoad(false) } })
+      .then(d => { if (!cancelled) setState({ data: d, error: null, loadedFor: range }) })
+      .catch(e => { if (!cancelled) setState({ data: null, error: e.message, loadedFor: range }) })
     return () => { cancelled = true }
   }, [range])
 
