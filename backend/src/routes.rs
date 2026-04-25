@@ -5,12 +5,13 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use anyhow::anyhow;
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Query, State},
+    http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use serde::Deserialize;
 use tracing::info;
 
 use crate::{auth, db::Db};
@@ -110,6 +111,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/imf", get(get_imf))
         .route("/api/dst", get(get_dst))
         .route("/api/starlink", get(get_starlink))
+        .route("/api/reports/summary", get(get_report_summary))
+        .route("/api/reports/export",  get(get_report_export))
         .with_state(state)
 }
 
@@ -274,6 +277,50 @@ async fn get_starlink(State(s): State<AppState>) -> Result<impl IntoResponse, Ap
         Ok(val)
     })
     .await
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ReportQuery {
+    range: Option<String>,
+}
+
+fn range_to_secs(r: &str) -> i64 {
+    match r {
+        "7d"  => 604_800,
+        "30d" => 2_592_000,
+        _     => 86_400,
+    }
+}
+
+async fn get_report_summary(
+    State(s): State<AppState>,
+    Query(q): Query<ReportQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
+    let val = lock_db(&s.db).await.get_report_summary(secs)?;
+    info!("api/reports/summary: range={}s", secs);
+    Ok(Json(val))
+}
+
+async fn get_report_export(
+    State(s): State<AppState>,
+    Query(q): Query<ReportQuery>,
+) -> Result<Response, AppError> {
+    let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
+    let csv = lock_db(&s.db).await.get_report_csv(secs)?;
+    info!("api/reports/export: range={}s, {} bytes", secs, csv.len());
+    let mut res = csv.into_response();
+    res.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
+    res.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=\"astraeus-report.csv\""),
+    );
+    Ok(res)
 }
 
 // ── Anomaly handler ───────────────────────────────────────────────────────────
