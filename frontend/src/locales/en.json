@@ -146,6 +146,28 @@
     "footer": "Positions computed from TLE data · Updated every 10 s",
     "noData": "TLE data unavailable — awaiting Celestrak sync"
   },
+  "apiKeys": {
+    "createTitle": "Generate API Key",
+    "namePlaceholder": "Key name (e.g. my-app)",
+    "generate": "Generate",
+    "createError": "Failed to create key",
+    "listTitle": "Your API Keys",
+    "keys": "keys",
+    "noKeys": "No API keys yet — generate one above",
+    "colName": "Name",
+    "colCreated": "Created",
+    "colLastUsed": "Last used",
+    "colRequests": "Requests",
+    "delete": "Delete",
+    "newKeyTitle": "New API Key",
+    "newKeyWarning": "Copy this key now — it will never be shown again.",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "confirmCopied": "I have copied the key and stored it somewhere safe",
+    "dismiss": "I've saved it — close",
+    "docsTitle": "API Reference",
+    "docsNote": "All endpoints require a JWT token in the Authorization header: Authorization: Bearer <token>"
+  },
   "auth": {
     "tagline1": "Space Weather Intelligence",
     "tagline2": "Solar storms · ISS · Near-Earth objects",

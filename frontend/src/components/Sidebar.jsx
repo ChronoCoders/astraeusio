@@ -8,7 +8,7 @@ const NAV = [
   { id: 'map',       icon: IconMap },
   { id: 'alerts',    icon: IconAlerts },
   { id: 'reports',   icon: IconReports },
-  { id: 'api',       icon: IconApi,      soon: true },
+  { id: 'api',       icon: IconApi },
   { id: 'settings',  icon: IconSettings, soon: true },
 ]
 

@@ -146,6 +146,28 @@
     "footer": "Konumlar TLE verisinden hesaplanır · 10 saniyede bir güncellenir",
     "noData": "TLE verisi mevcut değil — Celestrak senkronizasyonu bekleniyor"
   },
+  "apiKeys": {
+    "createTitle": "API Anahtarı Oluştur",
+    "namePlaceholder": "Anahtar adı (örn. benim-uygulamam)",
+    "generate": "Oluştur",
+    "createError": "Anahtar oluşturulamadı",
+    "listTitle": "API Anahtarlarınız",
+    "keys": "anahtar",
+    "noKeys": "Henüz API anahtarı yok — yukarıdan oluşturun",
+    "colName": "Ad",
+    "colCreated": "Oluşturuldu",
+    "colLastUsed": "Son kullanım",
+    "colRequests": "İstek sayısı",
+    "delete": "Sil",
+    "newKeyTitle": "Yeni API Anahtarı",
+    "newKeyWarning": "Bu anahtarı şimdi kopyalayın — bir daha gösterilmeyecek.",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı!",
+    "confirmCopied": "Anahtarı kopyaladım ve güvenli bir yere kaydettim",
+    "dismiss": "Kaydettim — kapat",
+    "docsTitle": "API Referansı",
+    "docsNote": "Tüm uç noktalar Authorization başlığında JWT token gerektirir: Authorization: Bearer <token>"
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",

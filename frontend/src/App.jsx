@@ -20,6 +20,7 @@ import ImfBzChart     from './components/ImfBzChart'
 import DstChart       from './components/DstChart'
 import StarlinkMap    from './components/StarlinkMap'
 import ReportsPage    from './components/ReportsPage'
+import ApiKeysPage   from './components/ApiKeysPage'
 
 const FAST     = 30_000       // 30 s — live data
 const SLOW     = 120_000      // 2 min — slower-changing data
@@ -225,6 +226,9 @@ export default function App({ onLogout, onReady }) {
 
           {/* ── Reports ────────────────────────────────────────────────── */}
           {page === 'reports' && <ReportsPage />}
+
+          {/* ── API Keys ───────────────────────────────────────────────── */}
+          {page === 'api' && <ApiKeysPage />}
 
           {/* ── Alerts ─────────────────────────────────────────────────── */}
           {page === 'alerts' && (
