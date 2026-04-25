@@ -5,11 +5,11 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use anyhow::anyhow;
 use axum::{
+    Json, Router,
     extract::{Query, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use tracing::info;
@@ -39,7 +39,10 @@ where
         }
     }
     let val = fetch().await?;
-    cache.lock().await.insert(key, (Instant::now(), val.clone()));
+    cache
+        .lock()
+        .await
+        .insert(key, (Instant::now(), val.clone()));
     Ok(Json(val))
 }
 
@@ -112,7 +115,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/dst", get(get_dst))
         .route("/api/starlink", get(get_starlink))
         .route("/api/reports/summary", get(get_report_summary))
-        .route("/api/reports/export",  get(get_report_export))
+        .route("/api/reports/export", get(get_report_export))
         .with_state(state)
 }
 
@@ -146,11 +149,16 @@ async fn get_epic(State(s): State<AppState>) -> Result<impl IntoResponse, AppErr
 }
 
 async fn get_exoplanets(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "exoplanets", Duration::from_secs(3600), || async {
-        let val = lock_db(&s.db).await.get_exoplanets_all()?;
-        info!("api/exoplanets: served from db");
-        Ok(val)
-    })
+    cached(
+        &s.cache,
+        "exoplanets",
+        Duration::from_secs(3600),
+        || async {
+            let val = lock_db(&s.db).await.get_exoplanets_all()?;
+            info!("api/exoplanets: served from db");
+            Ok(val)
+        },
+    )
     .await
 }
 
@@ -206,45 +214,53 @@ async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
 // ── ML forecast handler ───────────────────────────────────────────────────────
 
 async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
-        let readings = lock_db(&s.db).await.get_recent_kp(7)?;
+    cached(
+        &s.cache,
+        "kp-forecast",
+        Duration::from_secs(180),
+        || async {
+            let readings = lock_db(&s.db).await.get_recent_kp(7)?;
 
-        if readings.is_empty() {
-            return Err(anyhow!("no Kp data in database — poller initializing").into());
-        }
-
-        info!("kp-forecast: sending {} readings to ML service", readings.len());
-
-        let body = serde_json::json!({ "readings": readings });
-        let resp = s
-            .client
-            .post(format!("{}/predict", s.ml_url))
-            .json(&body)
-            .send()
-            .await?;
-
-        let status = resp.status();
-        let payload: serde_json::Value = resp.json().await?;
-
-        if !status.is_success() {
-            return Err(anyhow!("ML service error {status}: {payload}").into());
-        }
-
-        // Persist forecast for anomaly detection (3-hour horizon from now).
-        if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
-            let forecast_ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs() as i64
-                + 3 * 3600;
-            let kp_e2 = (kp * 100.0).round() as i64;
-            if let Err(e) = lock_db(&s.db).await.insert_kp_forecast(forecast_ts, kp_e2) {
-                tracing::warn!("kp-forecast: failed to persist to db: {e}");
+            if readings.is_empty() {
+                return Err(anyhow!("no Kp data in database — poller initializing").into());
             }
-        }
 
-        Ok(payload)
-    })
+            info!(
+                "kp-forecast: sending {} readings to ML service",
+                readings.len()
+            );
+
+            let body = serde_json::json!({ "readings": readings });
+            let resp = s
+                .client
+                .post(format!("{}/predict", s.ml_url))
+                .json(&body)
+                .send()
+                .await?;
+
+            let status = resp.status();
+            let payload: serde_json::Value = resp.json().await?;
+
+            if !status.is_success() {
+                return Err(anyhow!("ML service error {status}: {payload}").into());
+            }
+
+            // Persist forecast for anomaly detection (3-hour horizon from now).
+            if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
+                let forecast_ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64
+                    + 3 * 3600;
+                let kp_e2 = (kp * 100.0).round() as i64;
+                if let Err(e) = lock_db(&s.db).await.insert_kp_forecast(forecast_ts, kp_e2) {
+                    tracing::warn!("kp-forecast: failed to persist to db: {e}");
+                }
+            }
+
+            Ok(payload)
+        },
+    )
     .await
 }
 
@@ -273,7 +289,10 @@ async fn get_dst(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
 async fn get_starlink(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "starlink", Duration::from_secs(1800), || async {
         let val = lock_db(&s.db).await.get_starlink_all()?;
-        info!("api/starlink: {} satellites served from db", val.as_array().map_or(0, |a| a.len()));
+        info!(
+            "api/starlink: {} satellites served from db",
+            val.as_array().map_or(0, |a| a.len())
+        );
         Ok(val)
     })
     .await
@@ -288,9 +307,9 @@ struct ReportQuery {
 
 fn range_to_secs(r: &str) -> i64 {
     match r {
-        "7d"  => 604_800,
+        "7d" => 604_800,
         "30d" => 2_592_000,
-        _     => 86_400,
+        _ => 86_400,
     }
 }
 

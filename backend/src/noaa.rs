@@ -97,8 +97,8 @@ pub async fn fetch_alerts(client: &Client) -> Result<Vec<SpaceWeatherAlert>, Noa
 #[derive(Debug)]
 pub struct ImfRecord {
     pub time_tag: String,
-    pub bz_gsm:   Option<f64>,
-    pub bt:        Option<f64>,
+    pub bz_gsm: Option<f64>,
+    pub bt: Option<f64>,
 }
 
 /// Parses the 2-D array format: row 0 is the header, rows 1+ are data.
@@ -118,9 +118,13 @@ pub async fn fetch_imf(client: &Client) -> Result<Vec<ImfRecord>, NoaaError> {
         .skip(1)
         .filter_map(|row| {
             let time_tag = row.first()?.as_str()?.to_owned();
-            let bz_gsm   = parse_val(row.get(3)?);
-            let bt        = parse_val(row.get(6)?);
-            Some(ImfRecord { time_tag, bz_gsm, bt })
+            let bz_gsm = parse_val(row.get(3)?);
+            let bt = parse_val(row.get(6)?);
+            Some(ImfRecord {
+                time_tag,
+                bz_gsm,
+                bt,
+            })
         })
         .collect();
 
@@ -129,7 +133,8 @@ pub async fn fetch_imf(client: &Client) -> Result<Vec<ImfRecord>, NoaaError> {
 
 /// Handles both JSON numbers and JSON strings containing a float (NOAA uses strings).
 fn parse_val(v: &serde_json::Value) -> Option<f64> {
-    v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    v.as_f64()
+        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
 }
 
 // ── Dst index (Kyoto WDC via NOAA SWPC proxy) ────────────────────────────────
@@ -137,7 +142,7 @@ fn parse_val(v: &serde_json::Value) -> Option<f64> {
 #[derive(Debug)]
 pub struct DstRecord {
     pub time_tag: String,
-    pub dst_nt:   Option<i32>,
+    pub dst_nt: Option<i32>,
 }
 
 /// Parses the array-of-objects format: [{"time_tag":"...","dst":-45}, ...].
@@ -155,7 +160,10 @@ pub async fn fetch_dst(client: &Client) -> Result<Vec<DstRecord>, NoaaError> {
         .filter_map(|item| {
             let time_tag = item.get("time_tag")?.as_str()?.to_owned();
             // NOAA emits integers but guard against floats.
-            let dst_nt = item.get("dst").and_then(|v| v.as_f64()).map(|v| v.round() as i32);
+            let dst_nt = item
+                .get("dst")
+                .and_then(|v| v.as_f64())
+                .map(|v| v.round() as i32);
             Some(DstRecord { time_tag, dst_nt })
         })
         .collect();
