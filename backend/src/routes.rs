@@ -234,9 +234,11 @@ async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse,
             let resp = s
                 .client
                 .post(format!("{}/predict", s.ml_url))
+                .timeout(Duration::from_secs(5))
                 .json(&body)
                 .send()
-                .await?;
+                .await
+                .map_err(|e| anyhow!("ML service unreachable: {e}"))?;
 
             let status = resp.status();
             let payload: serde_json::Value = resp.json().await?;
