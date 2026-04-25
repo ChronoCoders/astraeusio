@@ -1,11 +1,9 @@
-#![allow(dead_code)]
-
 use duckdb::{Connection, params};
 use thiserror::Error;
 
 use crate::{
     iss::IssPosition,
-    nasa::{Apod, CloseApproach, EpicImage, Exoplanet, NearEarthObject},
+    nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
     noaa::{DstRecord, ImfRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
     starlink::StarlinkSat,
 };
@@ -223,168 +221,369 @@ impl Db {
         Ok(())
     }
 
-    /// One row per (neo, close_approach) pair.
-    pub fn insert_neo(
-        &self,
-        neo: &NearEarthObject,
-        approach: &CloseApproach,
-        fetched_at: i64,
-    ) -> Result<(), DbError> {
-        let vel = parse_f64(
-            "velocity_kmh",
-            &approach.relative_velocity.kilometers_per_hour,
-        )?;
-        let dist = parse_f64("miss_distance_km", &approach.miss_distance.kilometers)?;
-
-        self.conn.execute(
-            "INSERT INTO neo
-             (id, close_approach_date, name, is_hazardous,
-              diameter_min_m, diameter_max_m, velocity_m_per_h, miss_distance_m, fetched_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (id, close_approach_date) DO NOTHING",
-            params![
-                neo.id,
-                approach.close_approach_date,
-                neo.name,
-                neo.is_potentially_hazardous_asteroid,
-                scale(
-                    neo.estimated_diameter.kilometers.estimated_diameter_min,
-                    1_000.0
-                ),
-                scale(
-                    neo.estimated_diameter.kilometers.estimated_diameter_max,
-                    1_000.0
-                ),
-                scale(vel, 1_000.0),
-                scale(dist, 1_000.0),
-                fetched_at,
-            ],
-        )?;
-        Ok(())
+    pub fn insert_epic_batch(&self, images: &[EpicImage]) -> Result<(), DbError> {
+        if images.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO epic
+                 (identifier, caption, image, date,
+                  centroid_lat_e6, centroid_lon_e6, fetched_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (identifier) DO NOTHING",
+            )?;
+            for img in images {
+                stmt.execute(params![
+                    img.identifier,
+                    img.caption,
+                    img.image,
+                    img.date,
+                    scale(img.centroid_coordinates.lat, 1_000_000.0),
+                    scale(img.centroid_coordinates.lon, 1_000_000.0),
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_epic_image(&self, img: &EpicImage) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO epic
-             (identifier, caption, image, date, centroid_lat_e6, centroid_lon_e6, fetched_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (identifier) DO NOTHING",
-            params![
-                img.identifier,
-                img.caption,
-                img.image,
-                img.date,
-                scale(img.centroid_coordinates.lat, 1_000_000.0),
-                scale(img.centroid_coordinates.lon, 1_000_000.0),
-                now(),
-            ],
-        )?;
-        Ok(())
+    pub fn insert_neo_batch(&self, feed: &NeoFeed, fetched_at: i64) -> Result<(), DbError> {
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO neo
+                 (id, close_approach_date, name, is_hazardous,
+                  diameter_min_m, diameter_max_m,
+                  velocity_m_per_h, miss_distance_m, fetched_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (id, close_approach_date) DO NOTHING",
+            )?;
+            for neos in feed.near_earth_objects.values() {
+                for neo in neos {
+                    for approach in &neo.close_approach_data {
+                        let vel = parse_f64(
+                            "velocity_kmh",
+                            &approach.relative_velocity.kilometers_per_hour,
+                        )?;
+                        let dist =
+                            parse_f64("miss_distance_km", &approach.miss_distance.kilometers)?;
+                        stmt.execute(params![
+                            neo.id,
+                            approach.close_approach_date,
+                            neo.name,
+                            neo.is_potentially_hazardous_asteroid,
+                            scale(
+                                neo.estimated_diameter.kilometers.estimated_diameter_min,
+                                1_000.0
+                            ),
+                            scale(
+                                neo.estimated_diameter.kilometers.estimated_diameter_max,
+                                1_000.0
+                            ),
+                            scale(vel, 1_000.0),
+                            scale(dist, 1_000.0),
+                            fetched_at
+                        ])?;
+                    }
+                }
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_exoplanet(&self, exo: &Exoplanet) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO exoplanet
-             (pl_name, hostname, orbital_period_md, radius_me3, mass_me3, disc_year, fetched_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (pl_name) DO NOTHING",
-            params![
-                exo.pl_name,
-                exo.hostname,
-                scale_opt(exo.pl_orbper, 1_000.0),
-                scale_opt(exo.pl_rade, 1_000.0),
-                scale_opt(exo.pl_masse, 1_000.0),
-                exo.disc_year,
-                now(),
-            ],
-        )?;
-        Ok(())
+    pub fn insert_exoplanet_batch(&self, planets: &[Exoplanet]) -> Result<(), DbError> {
+        if planets.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO exoplanet
+                 (pl_name, hostname, orbital_period_md,
+                  radius_me3, mass_me3, disc_year, fetched_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (pl_name) DO NOTHING",
+            )?;
+            for exo in planets {
+                stmt.execute(params![
+                    exo.pl_name,
+                    exo.hostname,
+                    scale_opt(exo.pl_orbper, 1_000.0),
+                    scale_opt(exo.pl_rade, 1_000.0),
+                    scale_opt(exo.pl_masse, 1_000.0),
+                    exo.disc_year,
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 }
 
 // ── NOAA inserts ──────────────────────────────────────────────────────────────
 
 impl Db {
-    pub fn insert_kp(&self, r: &KpRecord) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (time_tag) DO NOTHING",
-            params![r.time_tag, r.kp_index, scale(r.estimated_kp, 100.0), now()],
-        )?;
-        Ok(())
+    pub fn insert_kp_batch(&self, records: &[KpRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let max_tag: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(time_tag) FROM kp", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .unwrap_or(None);
+        let to_insert: Vec<&KpRecord> = match &max_tag {
+            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
+            None => records.iter().collect(),
+        };
+        if to_insert.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT (time_tag) DO NOTHING",
+            )?;
+            for r in to_insert {
+                stmt.execute(params![
+                    r.time_tag,
+                    r.kp_index,
+                    scale(r.estimated_kp, 100.0),
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_solar_wind(&self, r: &SolarWindRecord) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, fetched_at)
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT (time_tag) DO NOTHING",
-            params![
-                r.time_tag,
-                scale_opt(r.proton_speed, 10.0),
-                scale_opt(r.proton_density, 100.0),
-                r.proton_temperature.map(|t| t.round() as i64),
-                now(),
-            ],
-        )?;
-        Ok(())
+    pub fn insert_solar_wind_batch(&self, records: &[SolarWindRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let max_tag: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(time_tag) FROM solar_wind", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .unwrap_or(None);
+        let to_insert: Vec<&SolarWindRecord> = match &max_tag {
+            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
+            None => records.iter().collect(),
+        };
+        if to_insert.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, fetched_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (time_tag) DO NOTHING",
+            )?;
+            for r in to_insert {
+                stmt.execute(params![
+                    r.time_tag,
+                    scale_opt(r.proton_speed, 10.0),
+                    scale_opt(r.proton_density, 100.0),
+                    r.proton_temperature.map(|t| t.round() as i64),
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_xray(&self, r: &XRayRecord) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO xray
-             (time_tag, energy, satellite, flux_e12, observed_flux_e12, fetched_at)
-             VALUES (?, ?, ?, ?, ?, ?)
-             ON CONFLICT (time_tag, energy) DO NOTHING",
-            params![
-                r.time_tag,
-                r.energy,
-                r.satellite,
-                scale(r.flux, 1e12),
-                scale(r.observed_flux, 1e12),
-                now(),
-            ],
-        )?;
-        Ok(())
+    pub fn insert_xray_batch(&self, records: &[XRayRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let max_tag: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(time_tag) FROM xray", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .unwrap_or(None);
+        let to_insert: Vec<&XRayRecord> = match &max_tag {
+            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
+            None => records.iter().collect(),
+        };
+        if to_insert.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO xray
+                 (time_tag, energy, satellite, flux_e12, observed_flux_e12, fetched_at)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (time_tag, energy) DO NOTHING",
+            )?;
+            for r in to_insert {
+                stmt.execute(params![
+                    r.time_tag,
+                    r.energy,
+                    r.satellite,
+                    scale(r.flux, 1e12),
+                    scale(r.observed_flux, 1e12),
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_alert(&self, a: &SpaceWeatherAlert) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO space_weather_alert (product_id, issue_datetime, message, fetched_at)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (product_id, issue_datetime) DO NOTHING",
-            params![a.product_id, a.issue_datetime, a.message, now()],
-        )?;
-        Ok(())
+    pub fn insert_alerts_batch(&self, alerts: &[SpaceWeatherAlert]) -> Result<(), DbError> {
+        if alerts.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO space_weather_alert
+                 (product_id, issue_datetime, message, fetched_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT (product_id, issue_datetime) DO NOTHING",
+            )?;
+            for a in alerts {
+                stmt.execute(params![a.product_id, a.issue_datetime, a.message, now()])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_imf(&self, r: &ImfRecord) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO imf (time_tag, bz_e2, bt_e2, fetched_at)
-             VALUES (?, ?, ?, ?)
-             ON CONFLICT (time_tag) DO UPDATE SET
-               bz_e2      = excluded.bz_e2,
-               bt_e2      = excluded.bt_e2,
-               fetched_at = excluded.fetched_at",
-            params![
-                r.time_tag,
-                scale_opt(r.bz_gsm, 100.0),
-                scale_opt(r.bt, 100.0),
-                now(),
-            ],
-        )?;
-        Ok(())
+    pub fn insert_imf_batch(&self, records: &[ImfRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let max_tag: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(time_tag) FROM imf", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .unwrap_or(None);
+        let to_insert: Vec<&ImfRecord> = match &max_tag {
+            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
+            None => records.iter().collect(),
+        };
+        if to_insert.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO imf (time_tag, bz_e2, bt_e2, fetched_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT (time_tag) DO NOTHING",
+            )?;
+            for r in to_insert {
+                stmt.execute(params![
+                    r.time_tag,
+                    scale_opt(r.bz_gsm, 100.0),
+                    scale_opt(r.bt, 100.0),
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    pub fn insert_dst(&self, r: &DstRecord) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO dst (time_tag, dst_nt, fetched_at)
-             VALUES (?, ?, ?)
-             ON CONFLICT (time_tag) DO NOTHING",
-            params![r.time_tag, r.dst_nt, now()],
-        )?;
-        Ok(())
+    pub fn insert_dst_batch(&self, records: &[DstRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let max_tag: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(time_tag) FROM dst", [], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .unwrap_or(None);
+        let to_insert: Vec<&DstRecord> = match &max_tag {
+            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
+            None => records.iter().collect(),
+        };
+        if to_insert.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO dst (time_tag, dst_nt, fetched_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (time_tag) DO NOTHING",
+            )?;
+            for r in to_insert {
+                stmt.execute(params![r.time_tag, r.dst_nt, now()])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 }
 
@@ -1066,18 +1265,39 @@ impl Db {
 // ── Starlink ──────────────────────────────────────────────────────────────────
 
 impl Db {
-    pub fn insert_starlink(&self, sat: &StarlinkSat) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO starlink (norad_id, name, tle_line1, tle_line2, fetched_at)
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT (norad_id) DO UPDATE SET
-               name       = excluded.name,
-               tle_line1  = excluded.tle_line1,
-               tle_line2  = excluded.tle_line2,
-               fetched_at = excluded.fetched_at",
-            params![sat.norad_id, sat.name, sat.tle_line1, sat.tle_line2, now()],
-        )?;
-        Ok(())
+    pub fn insert_starlink_batch(&self, sats: &[StarlinkSat]) -> Result<(), DbError> {
+        if sats.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO starlink (norad_id, name, tle_line1, tle_line2, fetched_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (norad_id) DO UPDATE SET
+                   name       = excluded.name,
+                   tle_line1  = excluded.tle_line1,
+                   tle_line2  = excluded.tle_line2,
+                   fetched_at = excluded.fetched_at",
+            )?;
+            for sat in sats {
+                stmt.execute(params![
+                    sat.norad_id,
+                    sat.name,
+                    sat.tle_line1,
+                    sat.tle_line2,
+                    now()
+                ])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
     pub fn get_starlink_all(&self) -> Result<serde_json::Value, DbError> {
