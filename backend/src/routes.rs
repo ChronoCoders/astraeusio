@@ -105,6 +105,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/epic", get(get_epic))
         .route("/api/exoplanets", get(get_exoplanets))
         .route("/api/kp", get(get_kp))
+        .route("/api/kp-3h", get(get_kp_3h))
         .route("/api/solar-wind", get(get_solar_wind))
         .route("/api/xray", get(get_xray))
         .route("/api/alerts", get(get_alerts))
@@ -168,6 +169,15 @@ async fn get_kp(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     cached(&s.cache, "kp", Duration::from_secs(10), || async {
         let val = lock_db(&s.db).await.get_kp_recent()?;
         info!("api/kp: served from db");
+        Ok(val)
+    })
+    .await
+}
+
+async fn get_kp_3h(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "kp-3h", Duration::from_secs(300), || async {
+        let val = lock_db(&s.db).await.get_kp_3h_recent()?;
+        info!("api/kp-3h: served from db");
         Ok(val)
     })
     .await

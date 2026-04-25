@@ -10,6 +10,7 @@ use crate::{anomaly, db::Db, iss, nasa, noaa, starlink};
 pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     tokio::spawn(poll_iss(client.clone(), db.clone()));
     tokio::spawn(poll_kp(client.clone(), db.clone()));
+    tokio::spawn(poll_kp_3h(client.clone(), db.clone()));
     tokio::spawn(poll_solar_wind(client.clone(), db.clone()));
     tokio::spawn(poll_xray(client.clone(), db.clone()));
     tokio::spawn(poll_alerts(client.clone(), db.clone()));
@@ -53,6 +54,21 @@ async fn poll_kp(client: reqwest::Client, db: Arc<Mutex<Db>>) {
             Err(e) => error!(source = "poller/kp", "fetch: {e}"),
         }
         tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
+async fn poll_kp_3h(client: reqwest::Client, db: Arc<Mutex<Db>>) {
+    loop {
+        match noaa::fetch_kp_3h(&client).await {
+            Ok(records) => {
+                info!("poller/kp-3h: {} records", records.len());
+                if let Err(e) = db.lock().await.insert_kp_3h_batch(&records) {
+                    error!(source = "poller/kp-3h", "insert: {e}");
+                }
+            }
+            Err(e) => error!(source = "poller/kp-3h", "fetch: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(1800)).await;
     }
 }
 

@@ -4,7 +4,7 @@ use thiserror::Error;
 use crate::{
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
-    noaa::{DstRecord, ImfRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
+    noaa::{DstRecord, ImfRecord, Kp3hRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
     starlink::StarlinkSat,
 };
 
@@ -145,6 +145,12 @@ CREATE TABLE IF NOT EXISTS dst (
     time_tag   TEXT    NOT NULL PRIMARY KEY,
     dst_nt     INTEGER,
     fetched_at BIGINT  NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS kp_3h (
+    time_tag   TEXT   NOT NULL PRIMARY KEY,
+    kp_e2      BIGINT NOT NULL,
+    fetched_at BIGINT NOT NULL
 );
 ";
 
@@ -585,6 +591,31 @@ impl Db {
             }
         }
     }
+
+    pub fn insert_kp_3h_batch(&self, records: &[Kp3hRecord]) -> Result<(), DbError> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO kp_3h (time_tag, kp_e2, fetched_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (time_tag) DO UPDATE SET kp_e2 = excluded.kp_e2, fetched_at = excluded.fetched_at",
+            )?;
+            for r in records {
+                stmt.execute(params![r.time_tag, scale(r.kp, 100.0), now()])?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.commit(),
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
+    }
 }
 
 // ── NOAA queries ─────────────────────────────────────────────────────────────
@@ -615,7 +646,23 @@ impl Db {
                     "time_tag": time_tag,
                     "kp_index": kp_index,
                     "estimated_kp": estimated_kp_e2 as f64 / 100.0,
-                    "kp": "",
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_kp_3h_recent(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, kp_e2 FROM kp_3h ORDER BY time_tag ASC LIMIT 240",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let kp_e2: i64 = row.get(1)?;
+                Ok(serde_json::json!({
+                    "time_tag": time_tag,
+                    "estimated_kp": kp_e2 as f64 / 100.0,
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,14 +10,13 @@ pub enum NoaaError {
 
 const SWPC: &str = "https://services.swpc.noaa.gov";
 
-// ── Kp index ──────────────────────────────────────────────────────────────────
+// ── Kp index (1-minute) ───────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KpRecord {
     pub time_tag: String,
     pub kp_index: i32,
     pub estimated_kp: f64,
-    pub kp: String,
 }
 
 pub async fn fetch_kp(client: &Client) -> Result<Vec<KpRecord>, NoaaError> {
@@ -29,6 +26,25 @@ pub async fn fetch_kp(client: &Client) -> Result<Vec<KpRecord>, NoaaError> {
         .await?
         .error_for_status()?
         .json::<Vec<KpRecord>>()
+        .await?)
+}
+
+// ── Kp index (3-hour official) ────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Kp3hRecord {
+    pub time_tag: String,
+    #[serde(rename = "Kp")]
+    pub kp: f64,
+}
+
+pub async fn fetch_kp_3h(client: &Client) -> Result<Vec<Kp3hRecord>, NoaaError> {
+    Ok(client
+        .get(format!("{SWPC}/products/noaa-planetary-k-index.json"))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<Vec<Kp3hRecord>>()
         .await?)
 }
 
