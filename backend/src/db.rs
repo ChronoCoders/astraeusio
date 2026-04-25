@@ -1271,14 +1271,12 @@ impl Db {
         }
         self.begin()?;
         let result = (|| {
+            // Full replace: TLEs are always a fresh snapshot, so DELETE + INSERT
+            // is faster than per-row upsert conflict checking on 10k+ rows.
+            self.conn.execute_batch("DELETE FROM starlink")?;
             let mut stmt = self.conn.prepare(
                 "INSERT INTO starlink (norad_id, name, tle_line1, tle_line2, fetched_at)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT (norad_id) DO UPDATE SET
-                   name       = excluded.name,
-                   tle_line1  = excluded.tle_line1,
-                   tle_line2  = excluded.tle_line2,
-                   fetched_at = excluded.fetched_at",
+                 VALUES (?, ?, ?, ?, ?)",
             )?;
             for sat in sats {
                 stmt.execute(params![
