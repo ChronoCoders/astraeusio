@@ -123,7 +123,9 @@ pub struct CentroidCoordinates {
 pub async fn fetch_epic(client: &Client) -> Result<Vec<EpicImage>, NasaError> {
     let key = api_key()?;
     Ok(client
-        .get(format!("https://api.nasa.gov/EPIC/api/natural?api_key={key}"))
+        .get(format!(
+            "https://api.nasa.gov/EPIC/api/natural?api_key={key}"
+        ))
         .send()
         .await?
         .error_for_status()?

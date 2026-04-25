@@ -1,17 +1,14 @@
 use axum::{
-    extract::{FromRequestParts, State},
-    http::{request::Parts, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    extract::{FromRequestParts, State},
+    http::{StatusCode, request::Parts},
+    response::{IntoResponse, Response},
 };
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::{
-    db::DbError,
-    routes::AppState,
-};
+use crate::{db::DbError, routes::AppState};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,34 +37,30 @@ struct LoginResponse {
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
-pub async fn register(
-    State(s): State<AppState>,
-    Json(body): Json<RegisterRequest>,
-) -> Response {
+pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterRequest>) -> Response {
     let password = body.password;
-    let hash = match tokio::task::spawn_blocking(move || {
-        bcrypt::hash(password, bcrypt::DEFAULT_COST)
-    })
-    .await
-    {
-        Ok(Ok(h)) => h,
-        Ok(Err(e)) => {
-            warn!("bcrypt hash error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            warn!("spawn_blocking join error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-    };
+    let hash =
+        match tokio::task::spawn_blocking(move || bcrypt::hash(password, bcrypt::DEFAULT_COST))
+            .await
+        {
+            Ok(Ok(h)) => h,
+            Ok(Err(e)) => {
+                warn!("bcrypt hash error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                warn!("spawn_blocking join error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+        };
 
     match s.db.lock().await.create_user(&body.email, &hash) {
         Ok(()) => StatusCode::CREATED.into_response(),
@@ -95,7 +88,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "invalid credentials" })),
             )
-                .into_response()
+                .into_response();
         }
         Err(e) => {
             warn!("find_user error: {e}");

@@ -27,7 +27,10 @@ async fn poll_iss(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     loop {
         match iss::fetch_iss_position(&client).await {
             Ok(pos) => {
-                info!("poller/iss: lat={:.4} lon={:.4}", pos.latitude, pos.longitude);
+                info!(
+                    "poller/iss: lat={:.4} lon={:.4}",
+                    pos.latitude, pos.longitude
+                );
                 if let Err(e) = db.lock().await.insert_iss_position(&pos) {
                     error!(source = "poller/iss", "insert: {e}");
                 }
@@ -67,7 +70,10 @@ async fn poll_solar_wind(client: reqwest::Client, db: Arc<Mutex<Db>>) {
                     let result = records.iter().try_for_each(|r| db.insert_solar_wind(r));
                     match result {
                         Ok(()) => db.commit(),
-                        Err(e) => { db.rollback(); Err(e) }
+                        Err(e) => {
+                            db.rollback();
+                            Err(e)
+                        }
                     }
                 })() {
                     error!(source = "poller/solar-wind", "insert: {e}");
@@ -90,7 +96,10 @@ async fn poll_xray(client: reqwest::Client, db: Arc<Mutex<Db>>) {
                     let result = records.iter().try_for_each(|r| db.insert_xray(r));
                     match result {
                         Ok(()) => db.commit(),
-                        Err(e) => { db.rollback(); Err(e) }
+                        Err(e) => {
+                            db.rollback();
+                            Err(e)
+                        }
                     }
                 })() {
                     error!(source = "poller/xray", "insert: {e}");
@@ -124,7 +133,9 @@ async fn poll_neo(client: reqwest::Client, db: Arc<Mutex<Db>>) {
     loop {
         let today = Utc::now().date_naive();
         let start = today.format("%Y-%m-%d").to_string();
-        let end = (today + ChronoDuration::days(7)).format("%Y-%m-%d").to_string();
+        let end = (today + ChronoDuration::days(7))
+            .format("%Y-%m-%d")
+            .to_string();
         match nasa::fetch_neo_feed(&client, &start, &end).await {
             Ok(feed) => {
                 info!("poller/neo: {} objects", feed.element_count);
@@ -208,7 +219,10 @@ async fn poll_imf(client: reqwest::Client, db: Arc<Mutex<Db>>) {
                     let result = records.iter().try_for_each(|r| db.insert_imf(r));
                     match result {
                         Ok(()) => db.commit(),
-                        Err(e) => { db.rollback(); Err(e) }
+                        Err(e) => {
+                            db.rollback();
+                            Err(e)
+                        }
                     }
                 })() {
                     error!(source = "poller/imf", "insert: {e}");
@@ -231,7 +245,10 @@ async fn poll_dst(client: reqwest::Client, db: Arc<Mutex<Db>>) {
                     let result = records.iter().try_for_each(|r| db.insert_dst(r));
                     match result {
                         Ok(()) => db.commit(),
-                        Err(e) => { db.rollback(); Err(e) }
+                        Err(e) => {
+                            db.rollback();
+                            Err(e)
+                        }
                     }
                 })() {
                     error!(source = "poller/dst", "insert: {e}");
@@ -254,7 +271,10 @@ async fn poll_starlink(client: reqwest::Client, db: Arc<Mutex<Db>>) {
                     let result = sats.iter().try_for_each(|s| db.insert_starlink(s));
                     match result {
                         Ok(()) => db.commit(),
-                        Err(e) => { db.rollback(); Err(e) }
+                        Err(e) => {
+                            db.rollback();
+                            Err(e)
+                        }
                     }
                 })() {
                     error!(source = "poller/starlink", "insert: {e}");

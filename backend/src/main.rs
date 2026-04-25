@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()?;
-    let ml_url = std::env::var("ML_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:8000".to_string());
+    let ml_url =
+        std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let state = routes::AppState::new(client, db, ml_url, jwt_secret);
 

@@ -11,8 +11,8 @@ pub enum StarlinkError {
 
 #[derive(Debug)]
 pub struct StarlinkSat {
-    pub norad_id:  i32,
-    pub name:      String,
+    pub norad_id: i32,
+    pub name: String,
     pub tle_line1: String,
     pub tle_line2: String,
 }
@@ -31,9 +31,7 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
         .await?;
 
     let status = resp.status();
-    if status == reqwest::StatusCode::NOT_MODIFIED
-        || status == reqwest::StatusCode::FORBIDDEN
-    {
+    if status == reqwest::StatusCode::NOT_MODIFIED || status == reqwest::StatusCode::FORBIDDEN {
         return Ok(Vec::new());
     }
 
@@ -48,7 +46,7 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
     let mut sats = Vec::new();
     let mut i = 0;
     while i + 2 < lines.len() {
-        let name  = lines[i];
+        let name = lines[i];
         let line1 = lines[i + 1];
         let line2 = lines[i + 2];
 
@@ -62,7 +60,7 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
         if let Ok(norad_id) = line1[2..7].trim().parse::<i32>() {
             sats.push(StarlinkSat {
                 norad_id,
-                name:      name.to_owned(),
+                name: name.to_owned(),
                 tle_line1: line1.to_owned(),
                 tle_line2: line2.to_owned(),
             });

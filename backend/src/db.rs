@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use duckdb::{params, Connection};
+use duckdb::{Connection, params};
 use thiserror::Error;
 
 use crate::{
@@ -210,7 +210,15 @@ impl Db {
             "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (date) DO NOTHING",
-            params![a.date, a.title, a.explanation, a.url, a.media_type, a.hdurl, now()],
+            params![
+                a.date,
+                a.title,
+                a.explanation,
+                a.url,
+                a.media_type,
+                a.hdurl,
+                now()
+            ],
         )?;
         Ok(())
     }
@@ -222,7 +230,10 @@ impl Db {
         approach: &CloseApproach,
         fetched_at: i64,
     ) -> Result<(), DbError> {
-        let vel = parse_f64("velocity_kmh", &approach.relative_velocity.kilometers_per_hour)?;
+        let vel = parse_f64(
+            "velocity_kmh",
+            &approach.relative_velocity.kilometers_per_hour,
+        )?;
         let dist = parse_f64("miss_distance_km", &approach.miss_distance.kilometers)?;
 
         self.conn.execute(
@@ -236,8 +247,14 @@ impl Db {
                 approach.close_approach_date,
                 neo.name,
                 neo.is_potentially_hazardous_asteroid,
-                scale(neo.estimated_diameter.kilometers.estimated_diameter_min, 1_000.0),
-                scale(neo.estimated_diameter.kilometers.estimated_diameter_max, 1_000.0),
+                scale(
+                    neo.estimated_diameter.kilometers.estimated_diameter_min,
+                    1_000.0
+                ),
+                scale(
+                    neo.estimated_diameter.kilometers.estimated_diameter_max,
+                    1_000.0
+                ),
                 scale(vel, 1_000.0),
                 scale(dist, 1_000.0),
                 fetched_at,
@@ -353,7 +370,7 @@ impl Db {
             params![
                 r.time_tag,
                 scale_opt(r.bz_gsm, 100.0),
-                scale_opt(r.bt,     100.0),
+                scale_opt(r.bt, 100.0),
                 now(),
             ],
         )?;
@@ -376,9 +393,9 @@ impl Db {
 impl Db {
     /// Returns the `n` most recent Kp readings ordered oldest-first.
     pub fn get_recent_kp(&self, n: usize) -> Result<Vec<f64>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT ?",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT ?")?;
         let rows: Vec<i64> = stmt
             .query_map([n as i64], |row| row.get(0))?
             .collect::<Result<_, _>>()?;
@@ -473,9 +490,9 @@ impl Db {
     }
 
     pub fn get_imf_recent(&self) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY time_tag DESC LIMIT 1440",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY time_tag DESC LIMIT 1440")?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -492,9 +509,9 @@ impl Db {
     }
 
     pub fn get_dst_recent(&self) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, dst_nt FROM dst ORDER BY time_tag DESC LIMIT 1440",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT time_tag, dst_nt FROM dst ORDER BY time_tag DESC LIMIT 1440")?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -604,7 +621,16 @@ impl Db {
                 let dmax_m: i64 = row.get(5)?;
                 let vel_scaled: i64 = row.get(6)?;
                 let dist_scaled: i64 = row.get(7)?;
-                Ok((id, date, name, is_hazardous, dmin_m, dmax_m, vel_scaled, dist_scaled))
+                Ok((
+                    id,
+                    date,
+                    name,
+                    is_hazardous,
+                    dmin_m,
+                    dmax_m,
+                    vel_scaled,
+                    dist_scaled,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -796,9 +822,9 @@ impl Db {
     // ── Raw queries for anomaly detection ─────────────────────────────────────
 
     pub fn latest_kp_raw(&self) -> Result<Option<(String, i64)>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 1",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT time_tag, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 1")?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
@@ -859,11 +885,17 @@ impl Db {
 
 fn flux_to_xray_class(flux_e12: i64) -> String {
     let f = flux_e12 as f64 / 1e12;
-    if      f >= 1e-4 { format!("X{:.1}", f / 1e-4) }
-    else if f >= 1e-5 { format!("M{:.1}", f / 1e-5) }
-    else if f >= 1e-6 { format!("C{:.1}", f / 1e-6) }
-    else if f >= 1e-7 { format!("B{:.1}", f / 1e-7) }
-    else              { format!("A{:.1}", f / 1e-8)  }
+    if f >= 1e-4 {
+        format!("X{:.1}", f / 1e-4)
+    } else if f >= 1e-5 {
+        format!("M{:.1}", f / 1e-5)
+    } else if f >= 1e-6 {
+        format!("C{:.1}", f / 1e-6)
+    } else if f >= 1e-7 {
+        format!("B{:.1}", f / 1e-7)
+    } else {
+        format!("A{:.1}", f / 1e-8)
+    }
 }
 
 impl Db {
@@ -881,7 +913,7 @@ impl Db {
                 Some(row) => {
                     let avg: Option<f64> = row.get(0)?;
                     let max: Option<i64> = row.get(1)?;
-                    let cnt: i64         = row.get(2)?;
+                    let cnt: i64 = row.get(2)?;
                     (avg, max, cnt)
                 }
                 None => (None, None, 0i64),
@@ -916,9 +948,9 @@ impl Db {
 
         // Anomaly count in window
         let anomaly_count: i64 = {
-            let mut stmt = self.conn.prepare(
-                "SELECT COUNT(*) FROM alerts_anomaly WHERE detected_at > ?",
-            )?;
+            let mut stmt = self
+                .conn
+                .prepare("SELECT COUNT(*) FROM alerts_anomaly WHERE detected_at > ?")?;
             let mut rows = stmt.query([cutoff])?;
             match rows.next()? {
                 Some(row) => row.get(0)?,
@@ -929,10 +961,10 @@ impl Db {
         // Asteroid close approaches in the date window (today → today+N days)
         let asteroid_count: i64 = {
             use chrono::Duration as D;
-            let today    = chrono::Utc::now().date_naive();
+            let today = chrono::Utc::now().date_naive();
             let end_date = today + D::days((since_secs / 86400).max(1));
-            let today_s  = today.format("%Y-%m-%d").to_string();
-            let end_s    = end_date.format("%Y-%m-%d").to_string();
+            let today_s = today.format("%Y-%m-%d").to_string();
+            let end_s = end_date.format("%Y-%m-%d").to_string();
             let mut stmt = self.conn.prepare(
                 "SELECT COUNT(*) FROM neo \
                  WHERE close_approach_date >= ? AND close_approach_date <= ?",
@@ -993,8 +1025,12 @@ impl Db {
                 })?
                 .collect::<Result<_, _>>()?;
             for (tt, speed, density, temp) in rows {
-                let spd = speed.map(|v| format!("{:.1}", v as f64 / 10.0)).unwrap_or_default();
-                let den = density.map(|v| format!("{:.2}", v as f64 / 100.0)).unwrap_or_default();
+                let spd = speed
+                    .map(|v| format!("{:.1}", v as f64 / 10.0))
+                    .unwrap_or_default();
+                let den = density
+                    .map(|v| format!("{:.2}", v as f64 / 100.0))
+                    .unwrap_or_default();
                 let tmp = temp.map(|v| v.to_string()).unwrap_or_default();
                 out.push_str(&format!("{},{},{},{}\n", tt, spd, den, tmp));
             }
@@ -1014,7 +1050,12 @@ impl Db {
                 .collect::<Result<_, _>>()?;
             for (tt, flux_e12) in rows {
                 let class = flux_to_xray_class(flux_e12);
-                out.push_str(&format!("{},{:.3e},{}\n", tt, flux_e12 as f64 / 1e12, class));
+                out.push_str(&format!(
+                    "{},{:.3e},{}\n",
+                    tt,
+                    flux_e12 as f64 / 1e12,
+                    class
+                ));
             }
         }
 
@@ -1046,7 +1087,7 @@ impl Db {
         let rows = stmt
             .query_map([], |row| {
                 let norad_id: i32 = row.get(0)?;
-                let name: String  = row.get(1)?;
+                let name: String = row.get(1)?;
                 let line1: String = row.get(2)?;
                 let line2: String = row.get(3)?;
                 Ok(serde_json::json!({
