@@ -369,7 +369,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         <Link to="/" className="font-thin tracking-[0.25em] text-sm select-none text-zinc-100 hover:text-white transition-colors">
           ASTRAEUSIO
         </Link>
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-10">
           <Link to="/products" className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navProducts')}</Link>
           <a href="/pricing"   className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navPricing')}</a>
           <a href="/docs"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navDocs')}</a>
