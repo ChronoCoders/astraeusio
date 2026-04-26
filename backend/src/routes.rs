@@ -14,7 +14,7 @@ use axum::{
 use serde::Deserialize;
 use tracing::info;
 
-use crate::{api_keys, auth, db::Db};
+use crate::{api_keys, auth, auth::AuthClaims, db::Db};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -125,6 +125,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/reports/export", get(get_report_export))
         .route("/api/reports/kp", get(get_report_kp))
         .route("/api/reports/solar-wind", get(get_report_solar_wind))
+        .route("/api/public/kp",          get(get_public_kp))
+        .route("/api/public/solar-wind",  get(get_public_solar_wind))
+        .route("/api/public/forecast",    get(get_public_forecast))
+        .route("/api/user/me", get(get_user_me))
         .route(
             "/api/keys",
             get(api_keys::list_api_keys).post(api_keys::create_api_key),
@@ -384,6 +388,60 @@ async fn get_report_solar_wind(
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
     let val = lock_db(&s.db).await.get_solar_wind_range(secs)?;
     info!("api/reports/solar-wind: range={}s, {} buckets", secs, val.as_array().map_or(0, |a| a.len()));
+    Ok(Json(val))
+}
+
+// ── Public handlers (no auth) ─────────────────────────────────────────────────
+
+async fn get_public_kp(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "pub-kp", Duration::from_secs(10), || async {
+        let val = lock_db(&s.db).await.get_kp_array_public()?;
+        Ok(val)
+    })
+    .await
+}
+
+async fn get_public_solar_wind(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "pub-wind", Duration::from_secs(10), || async {
+        let val = lock_db(&s.db).await.get_solar_wind_latest_public()?;
+        Ok(val)
+    })
+    .await
+}
+
+async fn get_public_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    // Shares cache key with the authenticated /api/kp-forecast endpoint — no duplicate ML calls.
+    cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
+        let readings = lock_db(&s.db).await.get_recent_kp(7)?;
+        if readings.is_empty() {
+            return Err(anyhow!("no Kp data in database — poller initializing").into());
+        }
+        let body = serde_json::json!({ "readings": readings });
+        let resp = s
+            .client
+            .post(format!("{}/predict", s.ml_url))
+            .timeout(Duration::from_secs(5))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| anyhow!("ML service unreachable: {e}"))?;
+        let status = resp.status();
+        let payload: serde_json::Value = resp.json().await?;
+        if !status.is_success() {
+            return Err(anyhow!("ML service error {status}: {payload}").into());
+        }
+        Ok(payload)
+    })
+    .await
+}
+
+// ── User handler ──────────────────────────────────────────────────────────────
+
+async fn get_user_me(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+) -> Result<impl IntoResponse, AppError> {
+    let val = lock_db(&s.db).await.get_user_me(&claims.sub)?;
     Ok(Json(val))
 }
 

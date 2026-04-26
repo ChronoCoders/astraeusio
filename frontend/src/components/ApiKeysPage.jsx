@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import UpgradePrompt from './UpgradePrompt'
 
 function authHeader() {
   return { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -34,7 +35,7 @@ const ENDPOINTS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ApiKeysPage() {
+export default function ApiKeysPage({ plan }) {
   const { t } = useTranslation()
   const [{ keys, error, loadedSeq }, setListState] = useState({ keys: [], error: null, loadedSeq: -1 })
   const [name, setName]           = useState('')
@@ -104,6 +105,20 @@ export default function ApiKeysPage() {
     setNewKey(null)
     setCopied(false)
     setConfirmed(false)
+  }
+
+  // Null plan means still loading — show full UI optimistically.
+  // Starter plan is locked.
+  if (plan === 'starter') {
+    return (
+      <div className="flex flex-col gap-6 max-w-4xl">
+        <div className="bg-zinc-900 border border-zinc-800 rounded">
+          <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="pro" />
+        </div>
+        <WebhooksCard />
+        <ApiDocsSection t={t} />
+      </div>
+    )
   }
 
   return (
@@ -235,36 +250,61 @@ export default function ApiKeysPage() {
         )}
       </div>
 
-      {/* ── Endpoint documentation ─────────────────────────────────────── */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded flex flex-col">
-        <div className="px-4 py-3 border-b border-zinc-800">
-          <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
-            {t('apiKeys.docsTitle')}
-          </span>
-        </div>
-        <div className="p-4 flex flex-col gap-1">
-          <p className="text-zinc-600 text-xs mb-3">{t('apiKeys.docsNote')}</p>
-          {ENDPOINTS.map(({ method, path, desc }) => (
-            <div key={path} className="flex flex-col gap-0.5 py-2 border-b border-zinc-800/50 last:border-0">
-              <div className="flex items-center gap-2">
-                <span className="text-green-500 text-[11px] font-mono w-10 shrink-0">{method}</span>
-                <code className="text-zinc-200 text-xs font-mono">{path}</code>
-              </div>
-              <p className="text-zinc-600 text-xs pl-12">{desc}</p>
-              <details className="pl-12">
-                <summary className="text-zinc-700 text-[11px] cursor-pointer hover:text-zinc-500 select-none">
-                  curl
-                </summary>
-                <pre className="mt-1 bg-zinc-950 border border-zinc-800 rounded p-2 text-[11px] text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">
+      <WebhooksCard />
+      <ApiDocsSection t={t} />
+
+    </div>
+  )
+}
+
+// ── Webhooks placeholder ───────────────────────────────────────────────────────
+
+function WebhooksCard() {
+  const { t } = useTranslation()
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded p-5 flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <span className="text-zinc-400 text-xs font-mono uppercase tracking-widest">Webhooks</span>
+        <p className="text-zinc-600 text-xs">{t('plan.lockedWebhooks')}</p>
+      </div>
+      <span className="shrink-0 text-[10px] font-mono border border-purple-800 text-purple-400 rounded px-2 py-0.5">
+        {t('plan.comingSoon')}
+      </span>
+    </div>
+  )
+}
+
+// ── Endpoint documentation ────────────────────────────────────────────────────
+
+function ApiDocsSection({ t }) {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded flex flex-col">
+      <div className="px-4 py-3 border-b border-zinc-800">
+        <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+          {t('apiKeys.docsTitle')}
+        </span>
+      </div>
+      <div className="p-4 flex flex-col gap-1">
+        <p className="text-zinc-600 text-xs mb-3">{t('apiKeys.docsNote')}</p>
+        {ENDPOINTS.map(({ method, path, desc }) => (
+          <div key={path} className="flex flex-col gap-0.5 py-2 border-b border-zinc-800/50 last:border-0">
+            <div className="flex items-center gap-2">
+              <span className="text-green-500 text-[11px] font-mono w-10 shrink-0">{method}</span>
+              <code className="text-zinc-200 text-xs font-mono">{path}</code>
+            </div>
+            <p className="text-zinc-600 text-xs pl-12">{desc}</p>
+            <details className="pl-12">
+              <summary className="text-zinc-700 text-[11px] cursor-pointer hover:text-zinc-500 select-none">
+                curl
+              </summary>
+              <pre className="mt-1 bg-zinc-950 border border-zinc-800 rounded p-2 text-[11px] text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">
 {`curl -H "Authorization: Bearer YOUR_TOKEN" \\
   https://your-domain.com${path}`}
-                </pre>
-              </details>
-            </div>
-          ))}
-        </div>
+              </pre>
+            </details>
+          </div>
+        ))}
       </div>
-
     </div>
   )
 }

@@ -176,6 +176,15 @@ impl Db {
     pub fn open(path: &str) -> Result<Self, DbError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
+        // Migrate existing DBs that pre-date the plan column.
+        if let Err(e) = conn.execute_batch(
+            "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'",
+        ) {
+            let msg = e.to_string().to_lowercase();
+            if !msg.contains("already exists") && !msg.contains("duplicate") {
+                return Err(DbError::Duckdb(e));
+            }
+        }
         Ok(Self { conn })
     }
 
@@ -1002,7 +1011,7 @@ pub struct User {
 impl Db {
     pub fn create_user(&self, email: &str, hash: &str) -> Result<(), DbError> {
         let result = self.conn.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO users (email, password_hash, created_at, plan) VALUES (?, ?, ?, 'starter')",
             params![email, hash, now()],
         );
         match result {
@@ -1033,6 +1042,16 @@ impl Db {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn get_user_me(&self, email: &str) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare("SELECT plan FROM users WHERE email = ?")?;
+        let mut rows = stmt.query([email])?;
+        let plan = match rows.next()? {
+            Some(row) => row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string()),
+            None => "starter".to_string(),
+        };
+        Ok(serde_json::json!({ "email": email, "plan": plan }))
     }
 }
 
@@ -1366,6 +1385,51 @@ impl Db {
         }
 
         Ok(out)
+    }
+}
+
+// ── Public endpoints (no auth) ────────────────────────────────────────────────
+
+impl Db {
+    /// Returns the last 60 Kp readings oldest-first — same shape as /api/kp.
+    pub fn get_kp_array_public(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 60",
+        )?;
+        let mut rows: Vec<serde_json::Value> = stmt
+            .query_map([], |row| {
+                let time_tag: String = row.get(0)?;
+                let kp_index: i32 = row.get(1)?;
+                let kp_e2: i64 = row.get(2)?;
+                Ok(serde_json::json!({
+                    "time_tag":     time_tag,
+                    "kp_index":     kp_index,
+                    "estimated_kp": kp_e2 as f64 / 100.0,
+                }))
+            })?
+            .collect::<Result<_, _>>()?;
+        rows.reverse(); // oldest-first for the chart
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    pub fn get_solar_wind_latest_public(&self) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT speed_e1, density_e2, time_tag FROM solar_wind \
+             WHERE speed_e1 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            let speed_e1: Option<i64> = row.get(0)?;
+            let density_e2: Option<i64> = row.get(1)?;
+            let time_tag: String = row.get(2)?;
+            Ok(serde_json::json!({
+                "speed":    speed_e1.map(|v| v as f64 / 10.0),
+                "density":  density_e2.map(|v| v as f64 / 100.0),
+                "time_tag": time_tag,
+            }))
+        } else {
+            Ok(serde_json::json!({ "speed": null, "density": null, "time_tag": null }))
+        }
     }
 }
 

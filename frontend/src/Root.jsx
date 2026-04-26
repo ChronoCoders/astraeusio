@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import App from './App.jsx'
 import AuthPage from './AuthPage.jsx'
@@ -6,11 +6,26 @@ import LandingPage from './components/LandingPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
+  const [user,     setUser]     = useState(null)   // null while loading, then { email, plan }
   const [booting,  setBooting]  = useState(false)
-  const [authMode, setAuthMode] = useState(null) // null | 'login' | 'signup'
+  const [authMode, setAuthMode] = useState(null)   // null | 'login' | 'signup'
+
+  // Fetch /api/user/me whenever token is set (login or page reload with stored token).
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    fetch('/api/user/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled) setUser(d ?? { email: '', plan: 'starter' }) })
+      .catch(() => { if (!cancelled) setUser({ email: '', plan: 'starter' }) })
+    return () => { cancelled = true }
+  }, [token])
 
   function handleAuth(t) {
     localStorage.setItem('token', t)
+    setUser(null)   // reset so effect re-fetches for new token
     setToken(t)
     setBooting(true)
     setAuthMode(null)
@@ -19,6 +34,7 @@ export default function Root() {
   function handleLogout() {
     localStorage.removeItem('token')
     setToken(null)
+    setUser(null)
     setBooting(false)
   }
 
@@ -34,13 +50,15 @@ export default function Root() {
     return <AuthPage onAuth={handleAuth} initialMode={authMode} />
   }
 
-  // Render App hidden while booting so it mounts and begins fetching
-  // immediately. Once App signals onReady the overlay is removed.
+  // Show loader while we still have no user object (plan fetch in-flight)
+  // or while App itself is booting.
+  const showLoader = booting || user === null
+
   return (
     <>
-      {booting && <DashboardLoader />}
-      <div style={booting ? { display: 'none' } : undefined}>
-        <App onLogout={handleLogout} onReady={() => setBooting(false)} />
+      {showLoader && <DashboardLoader />}
+      <div style={showLoader ? { display: 'none' } : undefined}>
+        <App user={user} onLogout={handleLogout} onReady={() => setBooting(false)} />
       </div>
     </>
   )
