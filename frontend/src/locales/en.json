@@ -138,13 +138,34 @@
     "anomalies": "Anomalies",
     "asteroidApproaches": "Asteroid Approaches",
     "exportCsv": "Export CSV",
-    "note": "Data export includes Kp index, solar wind, and X-ray flux readings for the selected period."
+    "note": "Data export includes Kp index, solar wind, and X-ray flux readings for the selected period.",
+    "kpChartTitle": "Kp Index",
+    "windChartTitle": "Solar Wind Speed",
+    "anomaliesTitle": "Anomaly Events",
+    "neoTitle": "Asteroid Close Approaches",
+    "colTime": "Time",
+    "colType": "Type",
+    "colSeverity": "Severity",
+    "colMessage": "Message",
+    "noAnomalies": "No anomalies detected in this period",
+    "noApproaches": "No close approaches in this period"
   },
   "starlink": {
     "title": "Starlink Constellation",
     "count": "{{count}} satellites tracked",
     "footer": "Positions computed from TLE data · Updated every 10 s",
     "noData": "TLE data unavailable — awaiting Celestrak sync"
+  },
+  "settings": {
+    "languageTitle": "Language",
+    "changePasswordTitle": "Change Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmNewPassword": "Confirm new password",
+    "changePasswordBtn": "Update password",
+    "pwChanged": "Password updated successfully.",
+    "pwTooShort": "New password must be at least 8 characters",
+    "sessionTitle": "Session"
   },
   "apiKeys": {
     "createTitle": "Generate API Key",

@@ -100,6 +100,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/auth/change-password", post(auth::change_password))
         .route("/api/apod", get(get_apod))
         .route("/api/neo", get(get_neo))
         .route("/api/epic", get(get_epic))
@@ -117,6 +118,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/starlink", get(get_starlink))
         .route("/api/reports/summary", get(get_report_summary))
         .route("/api/reports/export", get(get_report_export))
+        .route("/api/reports/kp", get(get_report_kp))
+        .route("/api/reports/solar-wind", get(get_report_solar_wind))
         .route(
             "/api/keys",
             get(api_keys::list_api_keys).post(api_keys::create_api_key),
@@ -357,6 +360,26 @@ async fn get_report_export(
         HeaderValue::from_static("attachment; filename=\"astraeus-report.csv\""),
     );
     Ok(res)
+}
+
+async fn get_report_kp(
+    State(s): State<AppState>,
+    Query(q): Query<ReportQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
+    let val = lock_db(&s.db).await.get_kp_range(secs)?;
+    info!("api/reports/kp: range={}s, {} buckets", secs, val.as_array().map_or(0, |a| a.len()));
+    Ok(Json(val))
+}
+
+async fn get_report_solar_wind(
+    State(s): State<AppState>,
+    Query(q): Query<ReportQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
+    let val = lock_db(&s.db).await.get_solar_wind_range(secs)?;
+    info!("api/reports/solar-wind: range={}s, {} buckets", secs, val.as_array().map_or(0, |a| a.len()));
+    Ok(Json(val))
 }
 
 // ── Anomaly handler ───────────────────────────────────────────────────────────

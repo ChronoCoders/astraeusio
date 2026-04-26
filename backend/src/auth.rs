@@ -30,6 +30,12 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 #[derive(Serialize)]
 struct LoginResponse {
     token: String,
@@ -144,6 +150,102 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
         Ok(token) => Json(LoginResponse { token }).into_response(),
         Err(e) => {
             warn!("jwt encode error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+pub async fn change_password(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Json(body): Json<ChangePasswordRequest>,
+) -> Response {
+    if body.new_password.len() < 8 {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "new password must be at least 8 characters" })),
+        )
+            .into_response();
+    }
+
+    let user = match s.db.lock().await.find_user_by_email(&claims.sub) {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "user not found" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!("change_password find_user error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+    };
+
+    let current = body.current_password;
+    let stored_hash = user.password_hash.clone();
+    let valid = match tokio::task::spawn_blocking(move || bcrypt::verify(current, &stored_hash)).await {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => {
+            warn!("change_password bcrypt verify error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!("change_password spawn_blocking error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+    };
+
+    if !valid {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "current password is incorrect" })),
+        )
+            .into_response();
+    }
+
+    let new_pw = body.new_password;
+    let new_hash = match tokio::task::spawn_blocking(move || bcrypt::hash(new_pw, bcrypt::DEFAULT_COST)).await {
+        Ok(Ok(h)) => h,
+        Ok(Err(e)) => {
+            warn!("change_password bcrypt hash error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!("change_password spawn_blocking hash error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+    };
+
+    match s.db.lock().await.update_password_hash(&claims.sub, &new_hash) {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            warn!("change_password update error: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": "internal error" })),
