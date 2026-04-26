@@ -1,5 +1,12 @@
 import { useTranslation } from 'react-i18next'
 
+const PLAN_BADGE = {
+  starter:    'text-zinc-500 border-zinc-700',
+  pro:        'text-blue-400 border-blue-800',
+  business:   'text-purple-400 border-purple-800',
+  enterprise: 'text-amber-400 border-amber-700',
+}
+
 const NAV = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'charts',    icon: IconCharts },
@@ -10,8 +17,10 @@ const NAV = [
   { id: 'settings',  icon: IconSettings },
 ]
 
-export default function Sidebar({ page, onNavigate, open, onClose, onLogout }) {
+export default function Sidebar({ page, onNavigate, open, onClose, onLogout, user }) {
   const { t } = useTranslation()
+  const plan = user?.plan ?? 'starter'
+  const planCls = PLAN_BADGE[plan] ?? PLAN_BADGE.starter
 
   return (
     <>
@@ -65,10 +74,20 @@ export default function Sidebar({ page, onNavigate, open, onClose, onLogout }) {
           ))}
         </nav>
 
-        <div className="border-t border-zinc-800 p-2 shrink-0">
+        <div className="border-t border-zinc-800 p-3 shrink-0 flex flex-col gap-2">
+          {user?.email && (
+            <div className="px-2 flex items-center justify-between gap-2">
+              <span className="text-zinc-500 text-xs font-mono truncate" title={user.email}>
+                {user.email}
+              </span>
+              <span className={`shrink-0 text-[10px] font-mono border rounded px-1.5 py-0.5 ${planCls}`}>
+                {t(`plan.${plan}`)}
+              </span>
+            </div>
+          )}
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-mono tracking-wide text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm font-mono tracking-wide text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 rounded transition-colors"
           >
             {t('auth.logout')}
           </button>

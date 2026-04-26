@@ -35,7 +35,7 @@ function fmtUtc(d) {
 
 const AURORA_V = Math.floor(Date.now() / 1_800_000)
 
-export default function App({ onLogout, onReady }) {
+export default function App({ user, onLogout, onReady }) {
   const { t } = useTranslation()
   const [utcNow, setUtcNow]       = useState(() => fmtUtc(new Date()))
   const [page, setPage]           = useState('dashboard')
@@ -85,6 +85,7 @@ export default function App({ onLogout, onReady }) {
         open={sidebarOpen}
         onClose={() => setSidebar(false)}
         onLogout={onLogout}
+        user={user}
       />
 
       {/* ── Main content, offset by sidebar width on desktop ───────────── */}
@@ -226,10 +227,10 @@ export default function App({ onLogout, onReady }) {
           )}
 
           {/* ── Reports ────────────────────────────────────────────────── */}
-          {page === 'reports' && <ReportsPage />}
+          {page === 'reports' && <ReportsPage plan={user?.plan ?? null} />}
 
           {/* ── API Keys ───────────────────────────────────────────────── */}
-          {page === 'api' && <ApiKeysPage />}
+          {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} />}
 
           {/* ── Settings ───────────────────────────────────────────────── */}
           {page === 'settings' && <SettingsPage onLogout={onLogout} />}

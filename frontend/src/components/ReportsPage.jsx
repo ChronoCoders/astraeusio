@@ -129,8 +129,9 @@ function fmtTs(unixSec) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ReportsPage() {
+export default function ReportsPage({ plan }) {
   const { t } = useTranslation()
+  const csvLocked = plan === 'starter'
   const [range, setRange] = useState('24h')
 
   // Summary stats
@@ -253,12 +254,34 @@ export default function ReportsPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={handleExport}
-            className="text-xs font-mono px-3 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-          >
-            {t('reports.exportCsv')} ↓
-          </button>
+          <div className="relative group">
+            <button
+              onClick={csvLocked ? undefined : handleExport}
+              disabled={csvLocked}
+              className={[
+                'text-xs font-mono px-3 py-1 rounded border transition-colors flex items-center gap-1.5',
+                csvLocked
+                  ? 'border-zinc-800 text-zinc-700 cursor-not-allowed'
+                  : 'border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500',
+              ].join(' ')}
+            >
+              {csvLocked && (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              )}
+              {t('reports.exportCsv')} ↓
+            </button>
+            {csvLocked && (
+              <div className="absolute right-0 top-full mt-1.5 z-10 hidden group-hover:block
+                bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-[11px] text-zinc-400
+                font-mono whitespace-nowrap shadow-lg">
+                {t('plan.lockedCsvExport')}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

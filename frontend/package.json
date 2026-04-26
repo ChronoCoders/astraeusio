@@ -14,7 +14,8 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-i18next": "^17.0.4",
-    "satellite.js": "^4.1.4"
+    "satellite.js": "^4.1.4",
+    "three": "^0.128.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
