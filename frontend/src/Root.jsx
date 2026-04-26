@@ -2,15 +2,18 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import App from './App.jsx'
 import AuthPage from './AuthPage.jsx'
+import LandingPage from './components/LandingPage.jsx'
 
 export default function Root() {
-  const [token,   setToken]   = useState(() => localStorage.getItem('token'))
-  const [booting, setBooting] = useState(false)
+  const [token,    setToken]    = useState(() => localStorage.getItem('token'))
+  const [booting,  setBooting]  = useState(false)
+  const [authMode, setAuthMode] = useState(null) // null | 'login' | 'signup'
 
   function handleAuth(t) {
-    localStorage.setItem('token', t)  // set before App ever renders
+    localStorage.setItem('token', t)
     setToken(t)
     setBooting(true)
+    setAuthMode(null)
   }
 
   function handleLogout() {
@@ -19,7 +22,17 @@ export default function Root() {
     setBooting(false)
   }
 
-  if (!token) return <AuthPage onAuth={handleAuth} />
+  if (!token) {
+    if (!authMode) {
+      return (
+        <LandingPage
+          onSignUp={() => setAuthMode('signup')}
+          onSignIn={() => setAuthMode('login')}
+        />
+      )
+    }
+    return <AuthPage onAuth={handleAuth} initialMode={authMode} />
+  }
 
   // Render App hidden while booting so it mounts and begins fetching
   // immediately. Once App signals onReady the overlay is removed.

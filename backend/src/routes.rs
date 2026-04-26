@@ -96,8 +96,13 @@ async fn lock_db(db: &Arc<Mutex<Db>>) -> MutexGuard<'_, Db> {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
+async fn health() -> impl IntoResponse {
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/health", get(health))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/change-password", post(auth::change_password))

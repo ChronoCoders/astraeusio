@@ -6,6 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tracing::warn;
 
 use crate::{db::DbError, routes::AppState};
@@ -255,7 +256,14 @@ pub async fn change_password(
     }
 }
 
-// ── JWT extractor ─────────────────────────────────────────────────────────────
+// ── JWT / API-key extractor ────────────────────────────────────────────────────
+
+fn sha256_hex(input: &str) -> String {
+    Sha256::digest(input.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
 
 impl FromRequestParts<AppState> for AuthClaims {
     type Rejection = Response;
@@ -277,6 +285,34 @@ impl FromRequestParts<AppState> for AuthClaims {
                     .into_response()
             })?;
 
+        // API key path — prefix "ast_"
+        if token.starts_with("ast_") {
+            let hash = sha256_hex(token);
+            let db = state.db.lock().await;
+            let email = db.find_api_key_by_hash(&hash).map_err(|e| {
+                warn!("api_key lookup error: {e}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response()
+            })?;
+            match email {
+                Some(sub) => {
+                    let _ = db.touch_api_key(&hash);
+                    return Ok(AuthClaims { sub, exp: usize::MAX });
+                }
+                None => {
+                    return Err((
+                        StatusCode::UNAUTHORIZED,
+                        Json(serde_json::json!({ "error": "invalid API key" })),
+                    )
+                        .into_response());
+                }
+            }
+        }
+
+        // JWT path
         decode::<AuthClaims>(
             token,
             &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
