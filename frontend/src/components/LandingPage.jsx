@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import * as THREE from 'three'
 import { stormInfo, fmtNum } from '../lib/utils'
@@ -365,9 +366,16 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
       {/* ── Nav (fixed) ──────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-950/75 backdrop-blur-md">
-        <span className="font-thin tracking-[0.25em] text-sm select-none text-zinc-100">
+        <Link to="/" className="font-thin tracking-[0.25em] text-sm select-none text-zinc-100 hover:text-white transition-colors">
           ASTRAEUSIO
-        </span>
+        </Link>
+        <div className="hidden md:flex items-center gap-6">
+          <Link to="/products" className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navProducts')}</Link>
+          <a href="/pricing"   className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navPricing')}</a>
+          <a href="/docs"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navDocs')}</a>
+          <a href="/about"     className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navAbout')}</a>
+          <a href="/blog"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navBlog')}</a>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={toggleLang}
