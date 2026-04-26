@@ -138,13 +138,34 @@
     "anomalies": "Anomaliler",
     "asteroidApproaches": "Asteroid Yaklaşmaları",
     "exportCsv": "CSV İndir",
-    "note": "Veri dışa aktarımı, seçilen dönem için Kp endeksi, güneş rüzgarı ve X-ışını akısı ölçümlerini içerir."
+    "note": "Veri dışa aktarımı, seçilen dönem için Kp endeksi, güneş rüzgarı ve X-ışını akısı ölçümlerini içerir.",
+    "kpChartTitle": "Kp Endeksi",
+    "windChartTitle": "Güneş Rüzgarı Hızı",
+    "anomaliesTitle": "Anomali Olayları",
+    "neoTitle": "Asteroid Yakın Geçişleri",
+    "colTime": "Zaman",
+    "colType": "Tür",
+    "colSeverity": "Seviye",
+    "colMessage": "Mesaj",
+    "noAnomalies": "Bu dönemde anomali tespit edilmedi",
+    "noApproaches": "Bu dönemde yakın geçiş yok"
   },
   "starlink": {
     "title": "Starlink Takımyıldızı",
     "count": "{{count}} uydu izleniyor",
     "footer": "Konumlar TLE verisinden hesaplanır · 10 saniyede bir güncellenir",
     "noData": "TLE verisi mevcut değil — Celestrak senkronizasyonu bekleniyor"
+  },
+  "settings": {
+    "languageTitle": "Dil",
+    "changePasswordTitle": "Şifre Değiştir",
+    "currentPassword": "Mevcut şifre",
+    "newPassword": "Yeni şifre",
+    "confirmNewPassword": "Yeni şifreyi onayla",
+    "changePasswordBtn": "Şifreyi güncelle",
+    "pwChanged": "Şifre başarıyla güncellendi.",
+    "pwTooShort": "Yeni şifre en az 8 karakter olmalıdır",
+    "sessionTitle": "Oturum"
   },
   "apiKeys": {
     "createTitle": "API Anahtarı Oluştur",

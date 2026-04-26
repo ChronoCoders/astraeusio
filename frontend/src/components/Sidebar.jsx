@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next'
 
-const LANGS = ['en', 'tr']
-
 const NAV = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'charts',    icon: IconCharts },
@@ -9,11 +7,11 @@ const NAV = [
   { id: 'alerts',    icon: IconAlerts },
   { id: 'reports',   icon: IconReports },
   { id: 'api',       icon: IconApi },
-  { id: 'settings',  icon: IconSettings, soon: true },
+  { id: 'settings',  icon: IconSettings },
 ]
 
 export default function Sidebar({ page, onNavigate, open, onClose, onLogout }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
 
   return (
     <>
@@ -67,30 +65,15 @@ export default function Sidebar({ page, onNavigate, open, onClose, onLogout }) {
           ))}
         </nav>
 
-        {/* Footer */}
-        <div className="border-t border-zinc-800 p-4 flex flex-col gap-3 shrink-0">
-          <div className="flex items-center gap-1">
-            {LANGS.map(lng => (
-              <button
-                key={lng}
-                onClick={() => i18n.changeLanguage(lng)}
-                className={`text-xs font-mono px-2 py-0.5 rounded transition-colors ${
-                  i18n.language === lng
-                    ? 'bg-zinc-700 text-zinc-100'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                {lng.toUpperCase()}
-              </button>
-            ))}
-          </div>
+        <div className="border-t border-zinc-800 p-2 shrink-0">
           <button
             onClick={onLogout}
-            className="text-xs font-mono px-2 py-1 rounded text-left text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-mono tracking-wide text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 transition-colors"
           >
             {t('auth.logout')}
           </button>
         </div>
+
       </aside>
     </>
   )

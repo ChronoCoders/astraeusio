@@ -664,6 +664,46 @@ impl Db {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Bucketed average Kp for the given time window. Bucket size adapts to range
+    /// so charts always receive ≤ ~200 points regardless of period length.
+    pub fn get_kp_range(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
+        let cutoff = now() - since_secs;
+        let bucket = if since_secs <= 86_400 { 900 } else if since_secs <= 604_800 { 3_600 } else { 21_600 };
+        let sql = format!(
+            "SELECT MIN(time_tag) as time_tag, CAST(AVG(estimated_kp_e2) AS BIGINT) as kp_e2 \
+             FROM kp WHERE fetched_at > ? GROUP BY fetched_at / {bucket} ORDER BY time_tag ASC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map([cutoff], |row| {
+                let time_tag: String = row.get(0)?;
+                let kp_e2: i64 = row.get(1)?;
+                Ok(serde_json::json!({ "time_tag": time_tag, "estimated_kp": kp_e2 as f64 / 100.0 }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    /// Bucketed average solar wind speed for the given time window.
+    pub fn get_solar_wind_range(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
+        let cutoff = now() - since_secs;
+        let bucket = if since_secs <= 86_400 { 900 } else if since_secs <= 604_800 { 3_600 } else { 21_600 };
+        let sql = format!(
+            "SELECT MIN(time_tag) as time_tag, CAST(AVG(speed_e1) AS BIGINT) as speed_e1 \
+             FROM solar_wind WHERE fetched_at > ? AND speed_e1 IS NOT NULL \
+             GROUP BY fetched_at / {bucket} ORDER BY time_tag ASC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map([cutoff], |row| {
+                let time_tag: String = row.get(0)?;
+                let speed_e1: i64 = row.get(1)?;
+                Ok(serde_json::json!({ "time_tag": time_tag, "proton_speed": speed_e1 as f64 / 10.0 }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
     pub fn get_kp_3h_recent(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, kp_e2 FROM kp_3h ORDER BY time_tag ASC LIMIT 240",
@@ -970,6 +1010,14 @@ impl Db {
             Err(e) if e.to_string().contains("Constraint Error") => Err(DbError::EmailTaken),
             Err(e) => Err(DbError::Duckdb(e)),
         }
+    }
+
+    pub fn update_password_hash(&self, email: &str, new_hash: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET password_hash = ? WHERE email = ?",
+            params![new_hash, email],
+        )?;
+        Ok(())
     }
 
     pub fn find_user_by_email(&self, email: &str) -> Result<Option<User>, DbError> {
