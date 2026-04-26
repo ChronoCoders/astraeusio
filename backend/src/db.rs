@@ -1426,6 +1426,27 @@ impl Db {
         )?;
         Ok(n > 0)
     }
+
+    /// Returns the user_email for the given key hash, if it exists.
+    pub fn find_api_key_by_hash(&self, key_hash: &str) -> Result<Option<String>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT user_email FROM api_keys WHERE key_hash = ? LIMIT 1")?;
+        let mut rows = stmt.query([key_hash])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(row.get(0)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Increments request_count and sets last_used_at for the given key hash.
+    pub fn touch_api_key(&self, key_hash: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE api_keys SET last_used_at = ?, request_count = request_count + 1 WHERE key_hash = ?",
+            params![now(), key_hash],
+        )?;
+        Ok(())
+    }
 }
 
 // ── Starlink ──────────────────────────────────────────────────────────────────

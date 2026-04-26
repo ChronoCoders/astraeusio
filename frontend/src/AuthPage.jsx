@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 
 const LANGS = ['en', 'tr']
 
-export default function AuthPage({ onAuth }) {
+export default function AuthPage({ onAuth, initialMode = 'login' }) {
   const { t, i18n } = useTranslation()
-  const [mode, setMode]       = useState('login')
+  const [mode, setMode]       = useState(initialMode)
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
