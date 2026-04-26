@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Routes, Route } from 'react-router-dom'
 import App from './App.jsx'
 import AuthPage from './AuthPage.jsx'
 import LandingPage from './components/LandingPage.jsx'
+import ProductsPage from './components/ProductsPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -39,15 +41,15 @@ export default function Root() {
   }
 
   if (!token) {
-    if (!authMode) {
-      return (
-        <LandingPage
-          onSignUp={() => setAuthMode('signup')}
-          onSignIn={() => setAuthMode('login')}
-        />
-      )
-    }
-    return <AuthPage onAuth={handleAuth} initialMode={authMode} />
+    if (authMode) return <AuthPage onAuth={handleAuth} initialMode={authMode} />
+    const landingProps = { onSignUp: () => setAuthMode('signup'), onSignIn: () => setAuthMode('login') }
+    return (
+      <Routes>
+        <Route path="/"         element={<LandingPage  {...landingProps} />} />
+        <Route path="/products" element={<ProductsPage {...landingProps} />} />
+        <Route path="*"         element={<LandingPage  {...landingProps} />} />
+      </Routes>
+    )
   }
 
   // Show loader while we still have no user object (plan fetch in-flight)
