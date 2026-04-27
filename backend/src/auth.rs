@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::warn;
 
-use crate::{db::DbError, routes::AppState};
+use crate::{db::DbError, rate_limit, routes::AppState};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -288,18 +288,32 @@ impl FromRequestParts<AppState> for AuthClaims {
         // API key path — prefix "ast_"
         if token.starts_with("ast_") {
             let hash = sha256_hex(token);
-            let db = state.db.lock().await;
-            let email = db.find_api_key_by_hash(&hash).map_err(|e| {
-                warn!("api_key lookup error: {e}");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({ "error": "internal error" })),
-                )
-                    .into_response()
-            })?;
-            match email {
-                Some(sub) => {
+            // Resolve email under DB lock, then release the lock before the rate-limit
+            // check (which may re-acquire it on the cold path).
+            let sub_opt = {
+                let db = state.db.lock().await;
+                let email = db.find_api_key_by_hash(&hash).map_err(|e| {
+                    warn!("api_key lookup error: {e}");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({ "error": "internal error" })),
+                    )
+                        .into_response()
+                })?;
+                if email.is_some() {
                     let _ = db.touch_api_key(&hash);
+                }
+                email
+            }; // DB lock released here
+
+            match sub_opt {
+                Some(sub) => {
+                    rate_limit::check_and_increment(
+                        &state.usage_counter,
+                        &state.db,
+                        &sub,
+                    )
+                    .await?;
                     return Ok(AuthClaims { sub, exp: usize::MAX });
                 }
                 None => {
@@ -313,7 +327,7 @@ impl FromRequestParts<AppState> for AuthClaims {
         }
 
         // JWT path
-        decode::<AuthClaims>(
+        let claims = decode::<AuthClaims>(
             token,
             &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
             &Validation::default(),
@@ -325,6 +339,15 @@ impl FromRequestParts<AppState> for AuthClaims {
                 Json(serde_json::json!({ "error": e.to_string() })),
             )
                 .into_response()
-        })
+        })?;
+
+        rate_limit::check_and_increment(
+            &state.usage_counter,
+            &state.db,
+            &claims.sub,
+        )
+        .await?;
+
+        Ok(claims)
     }
 }

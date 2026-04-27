@@ -14,7 +14,9 @@ use axum::{
 use serde::Deserialize;
 use tracing::info;
 
-use crate::{api_keys, auth, auth::AuthClaims, db::Db};
+use dashmap::DashMap;
+
+use crate::{api_keys, auth, auth::AuthClaims, db::Db, rate_limit::UsageCounter};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,7 @@ pub struct AppState {
     pub ml_url: String,
     pub cache: Arc<Mutex<CacheMap>>,
     pub jwt_secret: String,
+    pub usage_counter: Arc<UsageCounter>,
 }
 
 impl AppState {
@@ -65,6 +68,7 @@ impl AppState {
             ml_url,
             cache: Arc::new(Mutex::new(HashMap::new())),
             jwt_secret,
+            usage_counter: Arc::new(DashMap::new()),
         }
     }
 }
@@ -129,6 +133,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/public/solar-wind",  get(get_public_solar_wind))
         .route("/api/public/forecast",    get(get_public_forecast))
         .route("/api/user/me", get(get_user_me))
+        .route("/api/usage", get(get_usage))
         .route(
             "/api/keys",
             get(api_keys::list_api_keys).post(api_keys::create_api_key),
@@ -139,7 +144,7 @@ pub fn router(state: AppState) -> Router {
 
 // ── NASA handlers ─────────────────────────────────────────────────────────────
 
-async fn get_apod(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_apod(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "apod", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_apod_latest()?;
         info!("api/apod: served from db");
@@ -148,7 +153,7 @@ async fn get_apod(State(s): State<AppState>) -> Result<impl IntoResponse, AppErr
     .await
 }
 
-async fn get_neo(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_neo(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "neo", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_neo_recent()?;
         info!("api/neo: served from db");
@@ -157,7 +162,7 @@ async fn get_neo(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
     .await
 }
 
-async fn get_epic(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_epic(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "epic", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_epic_latest()?;
         info!("api/epic: served from db");
@@ -166,7 +171,7 @@ async fn get_epic(State(s): State<AppState>) -> Result<impl IntoResponse, AppErr
     .await
 }
 
-async fn get_exoplanets(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_exoplanets(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(
         &s.cache,
         "exoplanets",
@@ -182,7 +187,7 @@ async fn get_exoplanets(State(s): State<AppState>) -> Result<impl IntoResponse, 
 
 // ── NOAA handlers ─────────────────────────────────────────────────────────────
 
-async fn get_kp(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_kp(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "kp", Duration::from_secs(10), || async {
         let val = lock_db(&s.db).await.get_kp_recent()?;
         info!("api/kp: served from db");
@@ -191,7 +196,7 @@ async fn get_kp(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     .await
 }
 
-async fn get_kp_3h(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_kp_3h(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "kp-3h", Duration::from_secs(300), || async {
         let val = lock_db(&s.db).await.get_kp_3h_recent()?;
         info!("api/kp-3h: served from db");
@@ -200,7 +205,7 @@ async fn get_kp_3h(State(s): State<AppState>) -> Result<impl IntoResponse, AppEr
     .await
 }
 
-async fn get_solar_wind(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_solar_wind(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "solar-wind", Duration::from_secs(10), || async {
         let val = lock_db(&s.db).await.get_solar_wind_recent()?;
         info!("api/solar-wind: served from db");
@@ -209,7 +214,7 @@ async fn get_solar_wind(State(s): State<AppState>) -> Result<impl IntoResponse, 
     .await
 }
 
-async fn get_xray(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_xray(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "xray", Duration::from_secs(30), || async {
         let val = lock_db(&s.db).await.get_xray_recent()?;
         info!("api/xray: served from db");
@@ -218,7 +223,7 @@ async fn get_xray(State(s): State<AppState>) -> Result<impl IntoResponse, AppErr
     .await
 }
 
-async fn get_alerts(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_alerts(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "alerts", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_alerts_recent()?;
         info!("api/alerts: served from db");
@@ -229,7 +234,7 @@ async fn get_alerts(State(s): State<AppState>) -> Result<impl IntoResponse, AppE
 
 // ── ISS handler ───────────────────────────────────────────────────────────────
 
-async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_iss(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "iss", Duration::from_secs(3), || async {
         let val = lock_db(&s.db).await.get_iss_latest()?;
         info!("api/iss: served from db");
@@ -240,7 +245,7 @@ async fn get_iss(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
 
 // ── ML forecast handler ───────────────────────────────────────────────────────
 
-async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_kp_forecast(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(
         &s.cache,
         "kp-forecast",
@@ -295,7 +300,7 @@ async fn get_kp_forecast(State(s): State<AppState>) -> Result<impl IntoResponse,
 
 // ── IMF / Dst handlers ────────────────────────────────────────────────────────
 
-async fn get_imf(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_imf(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "imf", Duration::from_secs(30), || async {
         let val = lock_db(&s.db).await.get_imf_recent()?;
         info!("api/imf: served from db");
@@ -304,7 +309,7 @@ async fn get_imf(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
     .await
 }
 
-async fn get_dst(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_dst(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "dst", Duration::from_secs(60), || async {
         let val = lock_db(&s.db).await.get_dst_recent()?;
         info!("api/dst: served from db");
@@ -315,7 +320,7 @@ async fn get_dst(State(s): State<AppState>) -> Result<impl IntoResponse, AppErro
 
 // ── Starlink handler ──────────────────────────────────────────────────────────
 
-async fn get_starlink(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_starlink(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "starlink", Duration::from_secs(1800), || async {
         let val = lock_db(&s.db).await.get_starlink_all()?;
         info!(
@@ -344,6 +349,7 @@ fn range_to_secs(r: &str) -> i64 {
 
 async fn get_report_summary(
     State(s): State<AppState>,
+    _claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
@@ -354,6 +360,7 @@ async fn get_report_summary(
 
 async fn get_report_export(
     State(s): State<AppState>,
+    _claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<Response, AppError> {
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
@@ -373,6 +380,7 @@ async fn get_report_export(
 
 async fn get_report_kp(
     State(s): State<AppState>,
+    _claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
@@ -383,6 +391,7 @@ async fn get_report_kp(
 
 async fn get_report_solar_wind(
     State(s): State<AppState>,
+    _claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
@@ -447,11 +456,50 @@ async fn get_user_me(
 
 // ── Anomaly handler ───────────────────────────────────────────────────────────
 
-async fn get_anomalies(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn get_anomalies(State(s): State<AppState>, _claims: AuthClaims) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
         let val = lock_db(&s.db).await.get_anomalies_recent()?;
         info!("api/anomalies: served from db");
         Ok(val)
     })
     .await
+}
+
+// ── Usage handler ─────────────────────────────────────────────────────────────
+
+async fn get_usage(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+) -> Result<impl IntoResponse, AppError> {
+    let email = &claims.sub;
+
+    // Live count from the in-memory counter (already incremented for this request).
+    let live = s.usage_counter
+        .get(email.as_str())
+        .map(|e| (e.count, e.period_start));
+
+    let now_ts = chrono::Utc::now().timestamp();
+    let db = lock_db(&s.db).await;
+    let plan = db.get_user_plan(email)?;
+
+    let (count, p_start) = if let Some(l) = live {
+        l
+    } else {
+        // Fall back to last flushed DB record (e.g. counter was restarted).
+        match db.get_usage_for_user(email)? {
+            Some((cnt, ps, _pe)) => (cnt as u64, ps),
+            None => (0, crate::rate_limit::current_period_start(&plan, now_ts)),
+        }
+    };
+    let p_end = crate::rate_limit::period_end(&plan, p_start);
+    let limit = crate::rate_limit::plan_limit(&plan);
+
+    Ok(Json(serde_json::json!({
+        "email":        email,
+        "plan":         plan,
+        "period_start": p_start,
+        "period_end":   p_end,
+        "count":        count,
+        "limit":        limit,
+    })))
 }
