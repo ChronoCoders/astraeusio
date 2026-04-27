@@ -353,7 +353,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
   const { t } = useTranslation()
   const { kpData, wind, forecastData, forecastLoading, forecastError, age } = useLiveWeather()
 
-  const latestKp = kpData?.at(-1)?.estimated_kp ?? null
+  const latestKp = kpData?.filter(r => r.estimated_kp > 0)?.at(-1)?.estimated_kp ?? null
   const storm    = stormInfo(latestKp ?? 0)
   const badge    = latestKp != null ? kpBadge(latestKp) : null
 
