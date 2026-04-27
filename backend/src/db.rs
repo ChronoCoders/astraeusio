@@ -164,6 +164,14 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_used_at  BIGINT,
     request_count BIGINT NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS usage_records (
+    user_email    TEXT   NOT NULL PRIMARY KEY,
+    request_count BIGINT NOT NULL DEFAULT 0,
+    period_start  BIGINT NOT NULL,
+    period_end    BIGINT NOT NULL,
+    updated_at    BIGINT NOT NULL
+);
 ";
 
 // ── Db ────────────────────────────────────────────────────────────────────────
@@ -1510,6 +1518,53 @@ impl Db {
             params![now(), key_hash],
         )?;
         Ok(())
+    }
+}
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+
+impl Db {
+    pub fn get_user_plan(&self, email: &str) -> Result<String, DbError> {
+        let mut stmt = self.conn.prepare("SELECT plan FROM users WHERE email = ?")?;
+        let mut rows = stmt.query([email])?;
+        Ok(match rows.next()? {
+            Some(row) => row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string()),
+            None => "starter".to_string(),
+        })
+    }
+
+    pub fn upsert_usage_record(
+        &self,
+        email: &str,
+        count: i64,
+        period_start: i64,
+        period_end: i64,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO usage_records
+                 (user_email, request_count, period_start, period_end, updated_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (user_email) DO UPDATE SET
+                 request_count = excluded.request_count,
+                 period_start  = excluded.period_start,
+                 period_end    = excluded.period_end,
+                 updated_at    = excluded.updated_at",
+            params![email, count, period_start, period_end, now()],
+        )?;
+        Ok(())
+    }
+
+    /// Returns `(request_count, period_start, period_end)` from the last DB flush, if any.
+    pub fn get_usage_for_user(&self, email: &str) -> Result<Option<(i64, i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT request_count, period_start, period_end \
+             FROM usage_records WHERE user_email = ?",
+        )?;
+        let mut rows = stmt.query([email])?;
+        match rows.next()? {
+            Some(row) => Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?))),
+            None => Ok(None),
+        }
     }
 }
 

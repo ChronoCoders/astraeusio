@@ -6,6 +6,7 @@ mod iss;
 mod nasa;
 mod noaa;
 mod poller;
+mod rate_limit;
 mod routes;
 mod starlink;
 
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
     let state = routes::AppState::new(client, db, ml_url, jwt_secret);
 
     poller::spawn(state.client.clone(), state.db.clone());
+    rate_limit::spawn_flush_task(state.usage_counter.clone(), state.db.clone());
 
     let app = routes::router(state);
 
