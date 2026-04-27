@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import Navbar from './Navbar'
 
 const IconDashboard = () => (
   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -58,42 +59,12 @@ const PRODUCTS = [
 ]
 
 export default function ProductsPage({ onSignIn, onSignUp }) {
-  const { t, i18n } = useTranslation()
-
-  function toggleLang() {
-    i18n.changeLanguage(i18n.language === 'en' ? 'tr' : 'en')
-  }
+  const { t } = useTranslation()
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
 
-      {/* ── Nav ──────────────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-950/75 backdrop-blur-md">
-        <Link to="/" className="font-thin tracking-[0.25em] text-sm select-none text-zinc-100 hover:text-white transition-colors">
-          ASTRAEUSIO
-        </Link>
-        <div className="hidden md:flex items-center gap-6">
-          <Link to="/products" className="text-zinc-100 text-sm transition-colors">{t('landing.navProducts')}</Link>
-          <a href="/pricing"   className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navPricing')}</a>
-          <a href="/docs"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navDocs')}</a>
-          <a href="/about"     className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navAbout')}</a>
-          <a href="/blog"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navBlog')}</a>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleLang}
-            className="text-zinc-500 hover:text-zinc-300 text-xs font-mono px-2 py-1 rounded border border-zinc-800 hover:border-zinc-600 transition-colors"
-          >
-            {i18n.language === 'en' ? 'TR' : 'EN'}
-          </button>
-          <button
-            onClick={onSignIn}
-            className="text-zinc-300 hover:text-zinc-100 text-sm font-mono tracking-wide transition-colors"
-          >
-            {t('landing.nav')}
-          </button>
-        </div>
-      </nav>
+      <Navbar onSignIn={onSignIn} />
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="pt-40 pb-20 px-6 text-center">

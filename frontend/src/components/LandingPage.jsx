@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import * as THREE from 'three'
 import { stormInfo, fmtNum } from '../lib/utils'
 import KpChart       from './KpChart'
 import ForecastPanel from './ForecastPanel'
+import Navbar        from './Navbar'
 
 // ── Live data hook ────────────────────────────────────────────────────────────
 
@@ -350,47 +350,17 @@ const TECH_SPECS = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LandingPage({ onSignUp, onSignIn }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { kpData, wind, forecastData, forecastLoading, forecastError, age } = useLiveWeather()
 
   const latestKp = kpData?.at(-1)?.estimated_kp ?? null
   const storm    = stormInfo(latestKp ?? 0)
   const badge    = latestKp != null ? kpBadge(latestKp) : null
 
-  function toggleLang() {
-    i18n.changeLanguage(i18n.language === 'en' ? 'tr' : 'en')
-  }
-
   return (
     <div className="bg-zinc-950 text-zinc-100">
 
-      {/* ── Nav (fixed) ──────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-950/75 backdrop-blur-md">
-        <Link to="/" className="font-thin tracking-[0.25em] text-sm select-none text-zinc-100 hover:text-white transition-colors">
-          ASTRAEUSIO
-        </Link>
-        <div className="hidden md:flex items-center gap-10">
-          <Link to="/products" className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navProducts')}</Link>
-          <a href="/pricing"   className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navPricing')}</a>
-          <a href="/docs"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navDocs')}</a>
-          <a href="/about"     className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navAbout')}</a>
-          <a href="/blog"      className="text-zinc-400 hover:text-zinc-100 text-sm transition-colors">{t('landing.navBlog')}</a>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={toggleLang}
-            className="text-zinc-500 hover:text-zinc-300 text-xs font-mono px-2 py-1 rounded border border-zinc-800 hover:border-zinc-600 transition-colors"
-          >
-            {i18n.language === 'en' ? 'TR' : 'EN'}
-          </button>
-          <button
-            onClick={onSignIn}
-            className="text-zinc-300 hover:text-zinc-100 text-sm font-mono tracking-wide transition-colors"
-          >
-            {t('landing.nav')}
-          </button>
-        </div>
-      </nav>
+      <Navbar onSignIn={onSignIn} />
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 overflow-hidden">

@@ -5,6 +5,10 @@ import App from './App.jsx'
 import AuthPage from './AuthPage.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import ProductsPage from './components/ProductsPage.jsx'
+import PricingPage  from './components/PricingPage.jsx'
+import DocsPage     from './components/DocsPage.jsx'
+import AboutPage    from './components/AboutPage.jsx'
+import BlogPage     from './components/BlogPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -42,12 +46,16 @@ export default function Root() {
 
   if (!token) {
     if (authMode) return <AuthPage onAuth={handleAuth} initialMode={authMode} />
-    const landingProps = { onSignUp: () => setAuthMode('signup'), onSignIn: () => setAuthMode('login') }
+    const pub = { onSignUp: () => setAuthMode('signup'), onSignIn: () => setAuthMode('login') }
     return (
       <Routes>
-        <Route path="/"         element={<LandingPage  {...landingProps} />} />
-        <Route path="/products" element={<ProductsPage {...landingProps} />} />
-        <Route path="*"         element={<LandingPage  {...landingProps} />} />
+        <Route path="/"         element={<LandingPage  {...pub} />} />
+        <Route path="/products" element={<ProductsPage {...pub} />} />
+        <Route path="/pricing"  element={<PricingPage  {...pub} />} />
+        <Route path="/docs"     element={<DocsPage     {...pub} />} />
+        <Route path="/about"    element={<AboutPage    {...pub} />} />
+        <Route path="/blog"     element={<BlogPage     {...pub} />} />
+        <Route path="*"         element={<LandingPage  {...pub} />} />
       </Routes>
     )
   }
