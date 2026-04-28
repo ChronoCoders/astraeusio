@@ -20,13 +20,17 @@ export default function Root() {
   useEffect(() => {
     if (!token) return
     let cancelled = false
+    const ctrl = new AbortController()
+    const timeout = setTimeout(() => ctrl.abort(), 5000)
     fetch('/api/user/me', {
       headers: { Authorization: `Bearer ${token}` },
+      signal: ctrl.signal,
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (!cancelled) setUser(d ?? { email: '', plan: 'starter' }) })
       .catch(() => { if (!cancelled) setUser({ email: '', plan: 'starter' }) })
-    return () => { cancelled = true }
+      .finally(() => clearTimeout(timeout))
+    return () => { cancelled = true; ctrl.abort() }
   }, [token])
 
   function handleAuth(t) {
