@@ -9,7 +9,7 @@ export default function DocsPage({ onSignIn }) {
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
         <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase">{t('landing.navDocs')}</p>
         <h1 className="text-4xl font-thin tracking-tight text-zinc-100">{t('plan.comingSoon')}</h1>
-        <p className="text-zinc-500 text-sm max-w-sm">API documentation and integration guides are coming soon.</p>
+        <p className="text-zinc-500 text-sm max-w-sm">{t('docs.comingSoonSub')}</p>
       </div>
     </div>
   )
