@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { stormInfo, fmtNum } from '../lib/utils'
 import Navbar from './Navbar'
@@ -186,14 +187,7 @@ const AUDIENCE_CONFIG = [
 
 const SOURCE_KEYS = ['s1', 's2', 's3', 's4', 's5']
 
-// Tech spec rows: [translation-key-suffix, English technical value]
-const TECH_SPECS = [
-  ['techModel',       'LSTM neural network with MC Dropout'],
-  ['techTraining',    '20+ years of NOAA Kp historical data'],
-  ['techUncertainty', '95% confidence intervals · 50 inference passes'],
-  ['techRefresh',     '1-minute ingestion cycle from live sensors'],
-  ['techDetection',   'Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO)'],
-]
+const TECH_SPECS = ['techModel', 'techTraining', 'techUncertainty', 'techRefresh', 'techDetection']
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -430,12 +424,12 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           {techOpen && (
             <div className="mt-6">
               <div className="divide-y divide-zinc-900">
-                {TECH_SPECS.map(([labelKey, value]) => (
-                  <div key={labelKey} className="flex items-baseline gap-6 py-3.5">
+                {TECH_SPECS.map(key => (
+                  <div key={key} className="flex items-baseline gap-6 py-3.5">
                     <span className="text-xs font-mono text-zinc-600 tracking-[0.12em] uppercase w-28 shrink-0">
-                      {t(`landing.${labelKey}`)}
+                      {t(`landing.${key}`)}
                     </span>
-                    <span className="text-sm font-mono text-zinc-400">{value}</span>
+                    <span className="text-sm font-mono text-zinc-400">{t(`landing.${key}Val`)}</span>
                   </div>
                 ))}
               </div>
@@ -464,10 +458,25 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="bg-zinc-950 border-t border-zinc-900 px-6 py-6">
-        <p className="text-zinc-600 text-xs font-mono text-center">
-          {t('landing.footerNote')}
-        </p>
+      <footer className="bg-zinc-950 border-t border-zinc-900 px-6 py-10">
+        <div className="max-w-5xl mx-auto flex flex-col items-center gap-6">
+          <nav className="flex flex-wrap justify-center gap-x-8 gap-y-2">
+            {[
+              ['/products', t('landing.navProducts')],
+              ['/pricing',  t('landing.navPricing')],
+              ['/docs',     t('landing.navDocs')],
+              ['/about',    t('landing.navAbout')],
+              ['/blog',     t('landing.navBlog')],
+            ].map(([to, label]) => (
+              <Link key={to} to={to} className="text-zinc-500 hover:text-zinc-300 text-xs font-mono tracking-wide transition-colors">
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <p className="text-zinc-600 text-xs font-mono text-center">
+            {t('landing.footerNote')}
+          </p>
+        </div>
       </footer>
 
     </div>

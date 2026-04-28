@@ -83,7 +83,7 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
       </section>
 
       {/* ── Product cards ─────────────────────────────────────────────────── */}
-      <section className="px-6 pb-28 max-w-5xl mx-auto">
+      <section className="px-6 pb-10 max-w-5xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {PRODUCTS.map(({ key, Icon, accent, border, iconBg, iconCls, live, popular, action }) => (
             <div
@@ -154,6 +154,13 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ── Pricing nudge ────────────────────────────────────────────────── */}
+      <section className="px-6 pb-20 text-center">
+        <Link to="/pricing" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
+          {t('products.seePricing')}
+        </Link>
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}

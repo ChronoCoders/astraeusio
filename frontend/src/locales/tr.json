@@ -243,7 +243,8 @@
     "d3Sub": "Anomali tespiti ve bildirimler",
     "d3Desc": "Uzay hava koşulları değiştiği anda uyarı alın. Fırtınalar yoğunlaştığında, özel eşikler aşıldığında veya uydu koşulları değiştiğinde — webhook veya e-posta ile anında bildirim.",
     "d3Cta": "Lansmanda bildirim al",
-    "backHome": "← Ana sayfaya dön"
+    "backHome": "← Ana sayfaya dön",
+    "seePricing": "Plan ve fiyatları görün →"
   },
   "about": {
     "comingSoonSub": "Hikayemiz ve misyonumuz yakında paylaşılacak."
@@ -265,9 +266,9 @@
     "perMo": "/ay",
     "comparison": "Tam karşılaştırma",
     "featureCol": "Özellik",
-    "faq": "Sorularınız mı var?",
-    "faqLink": "Bizimle iletişime geçin",
-    "faqSuffix": "— doğru planı seçmenize yardımcı oluruz.",
+    "faq": "Hangi planın uygun olduğundan emin değil misiniz?",
+    "faqLink": "Ücretsiz başlayın",
+    "faqSuffix": "ve hazır olduğunuzda yükseltin.",
     "plans": {
       "free":       { "name": "Ücretsiz",    "sub": "Uzay hava verilerini keşfedin",         "cta": "Hemen başlayın",           "trust1": "Kredi kartı gerekmez", "trust2": "Bağlayıcılık yok", "trust3": "İstediğinizde iptal edin" },
       "developer":  { "name": "Geliştirici", "sub": "Geliştirin ve prototip yapın",          "cta": "API Erişimi Al" },
@@ -395,10 +396,16 @@
     "ctaBtn": "Ücretsiz Hesap Oluştur",
     "footerNote": "Astraeusio · Açık bilimsel verilere dayalıdır · NOAA, NASA ve açık erişimli uzay hava API'ları tarafından desteklenmektedir · BSL 1.1",
     "liveDelayed": "NOAA'dan veri gecikmeli",
-    "techModel":       "Model",
-    "techTraining":    "Eğitim",
-    "techUncertainty": "Belirsizlik",
-    "techRefresh":     "Güncelleme",
-    "techDetection":   "Tespit"
+    "techModel":          "Model",
+    "techTraining":       "Eğitim",
+    "techUncertainty":    "Belirsizlik",
+    "techRefresh":        "Güncelleme",
+    "techDetection":      "Tespit",
+    "techModelVal":       "MC Dropout ile LSTM sinir ağı",
+    "techTrainingVal":    "20+ yıllık NOAA Kp tarihsel verisi",
+    "techUncertaintyVal": "95% güven aralıkları · 50 çıkarım geçişi",
+    "techRefreshVal":     "Canlı sensörlerden 1 dakikalık veri alım döngüsü",
+    "techDetectionVal":   "Çoklu sinyal anomali hattı (Kp, güneş rüzgarı, X-ışını, NEO)",
+    "ctaSub":             "Uzay hava durumu canlı ve sürekli değişiyor. Ücretsiz kaydolun — giriş yaptığınız anda mevcut koşulları görün."
   }
 }
