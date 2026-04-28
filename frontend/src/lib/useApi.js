@@ -13,7 +13,11 @@ export function useApi(url, intervalMs = 60000) {
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 90000)
       try {
-        const res = await fetch(url, { signal: ctrl.signal })
+        const token = localStorage.getItem('token')
+        const res = await fetch(url, {
+          signal: ctrl.signal,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json = await res.json()
         if (!cancelled) { setData(json); setError(null) }
