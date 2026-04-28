@@ -4,7 +4,9 @@ use thiserror::Error;
 use crate::{
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
-    noaa::{DstRecord, ImfRecord, Kp3hRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
+    noaa::{
+        DstRecord, ImfRecord, Kp3hRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord,
+    },
     starlink::StarlinkSat,
 };
 
@@ -185,9 +187,9 @@ impl Db {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
         // Migrate existing DBs that pre-date the plan column.
-        if let Err(e) = conn.execute_batch(
-            "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'",
-        ) {
+        if let Err(e) =
+            conn.execute_batch("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'")
+        {
             let msg = e.to_string().to_lowercase();
             if !msg.contains("already exists") && !msg.contains("duplicate") {
                 return Err(DbError::Duckdb(e));
@@ -685,7 +687,13 @@ impl Db {
     /// so charts always receive ≤ ~200 points regardless of period length.
     pub fn get_kp_range(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
         let cutoff = now() - since_secs;
-        let bucket = if since_secs <= 86_400 { 900 } else if since_secs <= 604_800 { 3_600 } else { 21_600 };
+        let bucket = if since_secs <= 86_400 {
+            900
+        } else if since_secs <= 604_800 {
+            3_600
+        } else {
+            21_600
+        };
         let sql = format!(
             "SELECT MIN(time_tag) as time_tag, CAST(AVG(estimated_kp_e2) AS BIGINT) as kp_e2 \
              FROM kp WHERE fetched_at > ? GROUP BY fetched_at / {bucket} ORDER BY time_tag ASC"
@@ -704,7 +712,13 @@ impl Db {
     /// Bucketed average solar wind speed for the given time window.
     pub fn get_solar_wind_range(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
         let cutoff = now() - since_secs;
-        let bucket = if since_secs <= 86_400 { 900 } else if since_secs <= 604_800 { 3_600 } else { 21_600 };
+        let bucket = if since_secs <= 86_400 {
+            900
+        } else if since_secs <= 604_800 {
+            3_600
+        } else {
+            21_600
+        };
         let sql = format!(
             "SELECT MIN(time_tag) as time_tag, CAST(AVG(speed_e1) AS BIGINT) as speed_e1 \
              FROM solar_wind WHERE fetched_at > ? AND speed_e1 IS NOT NULL \
@@ -722,9 +736,9 @@ impl Db {
     }
 
     pub fn get_kp_3h_recent(&self) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, kp_e2 FROM kp_3h ORDER BY time_tag ASC LIMIT 240",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT time_tag, kp_e2 FROM kp_3h ORDER BY time_tag ASC LIMIT 240")?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -1053,10 +1067,14 @@ impl Db {
     }
 
     pub fn get_user_me(&self, email: &str) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare("SELECT plan FROM users WHERE email = ?")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT plan FROM users WHERE email = ?")?;
         let mut rows = stmt.query([email])?;
         let plan = match rows.next()? {
-            Some(row) => row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string()),
+            Some(row) => row
+                .get::<_, Option<String>>(0)?
+                .unwrap_or_else(|| "starter".to_string()),
             None => "starter".to_string(),
         };
         Ok(serde_json::json!({ "email": email, "plan": plan }))
@@ -1525,10 +1543,14 @@ impl Db {
 
 impl Db {
     pub fn get_user_plan(&self, email: &str) -> Result<String, DbError> {
-        let mut stmt = self.conn.prepare("SELECT plan FROM users WHERE email = ?")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT plan FROM users WHERE email = ?")?;
         let mut rows = stmt.query([email])?;
         Ok(match rows.next()? {
-            Some(row) => row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string()),
+            Some(row) => row
+                .get::<_, Option<String>>(0)?
+                .unwrap_or_else(|| "starter".to_string()),
             None => "starter".to_string(),
         })
     }
