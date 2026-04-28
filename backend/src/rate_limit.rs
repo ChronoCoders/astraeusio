@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use axum::{Json, http::StatusCode, response::{IntoResponse, Response}};
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use dashmap::DashMap;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -18,11 +22,11 @@ pub type UsageCounter = DashMap<String, UsageEntry>;
 pub fn plan_limit(plan: &str) -> Option<u64> {
     match plan {
         "free" | "starter" => Some(100),
-        "developer"        => Some(10_000),
-        "pro"              => Some(100_000),
-        "business"         => Some(1_000_000),
-        "enterprise"       => None,
-        _                  => Some(100),
+        "developer" => Some(10_000),
+        "pro" => Some(100_000),
+        "business" => Some(1_000_000),
+        "enterprise" => None,
+        _ => Some(100),
     }
 }
 
@@ -38,7 +42,8 @@ pub fn current_period_start(plan: &str, now: i64) -> i64 {
         Utc.timestamp_opt(now, 0)
             .single()
             .and_then(|dt| {
-                Utc.with_ymd_and_hms(dt.year(), dt.month(), 1, 0, 0, 0).single()
+                Utc.with_ymd_and_hms(dt.year(), dt.month(), 1, 0, 0, 0)
+                    .single()
             })
             .map(|d| d.timestamp())
             .unwrap_or(now)
@@ -92,15 +97,21 @@ pub async fn check_and_increment(
     // Cold path: no entry yet or period rolled — fetch plan from DB.
     let plan = {
         let guard = db.lock().await;
-        guard.get_user_plan(email).unwrap_or_else(|_| "starter".to_string())
+        guard
+            .get_user_plan(email)
+            .unwrap_or_else(|_| "starter".to_string())
     };
     let p_start = current_period_start(&plan, now_ts);
-    let p_end   = period_end(&plan, p_start);
+    let p_end = period_end(&plan, p_start);
 
     // Insert or get existing entry under shard lock (no await below this point).
     let mut entry = counter
         .entry(email.to_string())
-        .or_insert_with(|| UsageEntry { count: 0, period_start: p_start, plan: plan.clone() });
+        .or_insert_with(|| UsageEntry {
+            count: 0,
+            period_start: p_start,
+            plan: plan.clone(),
+        });
 
     // Reset if an existing entry belongs to a prior period.
     if entry.period_start < p_start {
