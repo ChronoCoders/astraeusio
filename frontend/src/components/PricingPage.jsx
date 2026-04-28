@@ -1,134 +1,52 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 
-// ── Plans ─────────────────────────────────────────────────────────────────────
+// ── Static data (keys only, no human-readable strings) ────────────────────────
 
 const PLANS = [
-  {
-    key:       'free',
-    name:      'Free',
-    sub:       'Explore space weather data',
-    monthly:   0,
-    annual:    0,
-    freeLabel: '$0',
-    badge:     null,
-    highlight: false,
-    cta:       'Get started',
-    trust:     ['No credit card required', 'No lock-in', 'Cancel anytime'],
-    features: [
-      '100 requests / day',
-      '60s+ data delay',
-      'Kp & solar wind data',
-    ],
-  },
-  {
-    key:       'developer',
-    name:      'Developer',
-    sub:       'Build and prototype',
-    monthly:   29,
-    annual:    23,
-    freeLabel: null,
-    badge:     null,
-    highlight: false,
-    cta:       'Get API Access',
-    trust:     [],
-    features: [
-      '10,000 requests / month',
-      'Real-time data',
-      'ML forecast',
-      'Basic anomaly detection',
-      'Limited email alerts',
-    ],
-  },
-  {
-    key:       'pro',
-    name:      'Pro',
-    sub:       'Production-grade monitoring',
-    monthly:   99,
-    annual:    79,
-    freeLabel: null,
-    badge:     'Most Popular',
-    highlight: true,
-    cta:       'Start building',
-    trust:     [],
-    features: [
-      '100,000 requests / month',
-      'Real-time data',
-      'ML forecast + confidence intervals',
-      'Full anomaly detection',
-      'Webhook alerts',
-      'Priority support',
-    ],
-  },
-  {
-    key:       'business',
-    name:      'Business',
-    sub:       'Scale with confidence',
-    monthly:   299,
-    annual:    239,
-    freeLabel: null,
-    badge:     null,
-    highlight: false,
-    cta:       'Scale your system',
-    trust:     [],
-    features: [
-      '1,000,000 requests / month',
-      'Real-time data',
-      'Advanced alerting',
-      'Custom thresholds',
-      'Multi-channel alerts',
-      'SLA-backed uptime',
-    ],
-  },
-  {
-    key:       'enterprise',
-    name:      'Enterprise',
-    sub:       'Mission-critical operations',
-    monthly:   null,
-    annual:    null,
-    freeLabel: 'Custom',
-    badge:     null,
-    highlight: false,
-    cta:       'Contact sales',
-    trust:     [],
-    features: [
-      'Unlimited requests',
-      'Dedicated infrastructure',
-      'Custom anomaly models',
-      'SLA + onboarding',
-      'Dedicated support',
-    ],
-  },
+  { key: 'free',       monthly: 0,    annual: 0,    highlight: false },
+  { key: 'developer',  monthly: 29,   annual: 23,   highlight: false },
+  { key: 'pro',        monthly: 99,   annual: 79,   highlight: true  },
+  { key: 'business',   monthly: 299,  annual: 239,  highlight: false },
+  { key: 'enterprise', monthly: null, annual: null, highlight: false },
 ]
 
-// ── Comparison table ──────────────────────────────────────────────────────────
+const PLAN_FEATURES = {
+  free:       ['req100day', 'delay60', 'kpSolar'],
+  developer:  ['req10k', 'realtime', 'ml', 'anomalyBasic', 'emailLimited'],
+  pro:        ['req100k', 'realtime', 'mlCI', 'anomalyFull', 'webhooks', 'prioritySupport'],
+  business:   ['req1m', 'realtime', 'advAlerts', 'thresholds', 'multiChannel', 'sla'],
+  enterprise: ['unlimited', 'dedicated', 'customModels', 'slaOnboarding', 'dedicatedSupport'],
+}
 
 const ROWS = [
-  { label: 'API requests',           k: 'api',       type: 'text' },
-  { label: 'Data delay',             k: 'delay',     type: 'text' },
-  { label: 'Kp & solar data',        k: 'kp',        type: 'bool' },
-  { label: 'Real-time data',         k: 'realtime',  type: 'bool' },
-  { label: 'ML forecast',            k: 'ml',        type: 'bool' },
-  { label: 'Confidence intervals',   k: 'ci',        type: 'bool' },
-  { label: 'Basic anomaly detection',k: 'anomalyBasic', type: 'bool' },
-  { label: 'Full anomaly detection', k: 'anomalyFull',  type: 'bool' },
-  { label: 'Custom thresholds',      k: 'thresholds',   type: 'bool' },
-  { label: 'Email alerts',           k: 'email',     type: 'text' },
-  { label: 'Webhook alerts',         k: 'webhooks',  type: 'bool' },
-  { label: 'Multi-channel alerts',   k: 'multichan', type: 'bool' },
-  { label: 'Custom anomaly models',  k: 'customModels', type: 'bool' },
-  { label: 'SLA uptime',             k: 'sla',       type: 'bool' },
-  { label: 'Dedicated infrastructure',k: 'dedicated',type: 'bool' },
-  { label: 'Support',                k: 'support',   type: 'text' },
+  { k: 'api',          type: 'text' },
+  { k: 'delay',        type: 'text' },
+  { k: 'kp',           type: 'bool' },
+  { k: 'realtime',     type: 'bool' },
+  { k: 'ml',           type: 'bool' },
+  { k: 'ci',           type: 'bool' },
+  { k: 'anomalyBasic', type: 'bool' },
+  { k: 'anomalyFull',  type: 'bool' },
+  { k: 'thresholds',   type: 'bool' },
+  { k: 'email',        type: 'text' },
+  { k: 'webhooks',     type: 'bool' },
+  { k: 'multichan',    type: 'bool' },
+  { k: 'customModels', type: 'bool' },
+  { k: 'sla',          type: 'bool' },
+  { k: 'dedicated',    type: 'bool' },
+  { k: 'support',      type: 'text' },
 ]
 
+// Text cells: true = ✓, null/false = —, string = t('pricing.tv.' + val)
 const TABLE = {
-  free:       { api: '100 / day',   delay: '60s+',       kp: true,  realtime: false, ml: false, ci: false, anomalyBasic: false, anomalyFull: false, thresholds: false, email: '—',       webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'Community' },
-  developer:  { api: '10K / mo',    delay: 'Real-time',  kp: true,  realtime: true,  ml: true,  ci: false, anomalyBasic: true,  anomalyFull: false, thresholds: false, email: 'Limited', webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'Email'     },
-  pro:        { api: '100K / mo',   delay: 'Real-time',  kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: false, email: '✓',       webhooks: true,  multichan: false, customModels: false, sla: false, dedicated: false, support: 'Priority'  },
-  business:   { api: '1M / mo',     delay: 'Real-time',  kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: '✓',       webhooks: true,  multichan: true,  customModels: false, sla: true,  dedicated: false, support: 'Priority'  },
-  enterprise: { api: 'Unlimited',   delay: 'Real-time',  kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: '✓',       webhooks: true,  multichan: true,  customModels: true,  sla: true,  dedicated: true,  support: 'Dedicated' },
+  free:       { api: 'req100day', delay: 'delay60',  kp: true,  realtime: false, ml: false, ci: false, anomalyBasic: false, anomalyFull: false, thresholds: false, email: null,      webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'community' },
+  developer:  { api: 'req10k',    delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: false, anomalyBasic: true,  anomalyFull: false, thresholds: false, email: 'limited', webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'email'     },
+  pro:        { api: 'req100k',   delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: false, email: true,      webhooks: true,  multichan: false, customModels: false, sla: false, dedicated: false, support: 'priority'  },
+  business:   { api: 'req1m',     delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: false, sla: true,  dedicated: false, support: 'priority'  },
+  enterprise: { api: 'unlimited', delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: true,  sla: true,  dedicated: true,  support: 'dedicated' },
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -143,10 +61,11 @@ function CheckIcon() {
 }
 
 function BillingToggle({ annual, onChange }) {
+  const { t } = useTranslation()
   return (
     <div className="inline-flex items-center gap-3">
       <span className={`text-sm transition-colors ${!annual ? 'text-zinc-100' : 'text-zinc-500'}`}>
-        Monthly
+        {t('pricing.monthly')}
       </span>
       <button
         onClick={onChange}
@@ -156,16 +75,21 @@ function BillingToggle({ annual, onChange }) {
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${annual ? 'translate-x-5' : ''}`} />
       </button>
       <span className={`text-sm transition-colors ${annual ? 'text-zinc-100' : 'text-zinc-500'}`}>
-        Annual
-        <span className="ml-2 text-xs font-mono text-green-400">−20%</span>
+        {t('pricing.annual')}
+        <span className="ml-2 text-xs font-mono text-green-400">{t('pricing.save')}</span>
       </span>
     </div>
   )
 }
 
 function PlanCard({ plan, annual, onCta }) {
-  const price    = annual ? plan.annual : plan.monthly
-  const showSave = annual && plan.monthly > 0
+  const { t } = useTranslation()
+  const price      = annual ? plan.annual : plan.monthly
+  const showSave   = annual && plan.monthly > 0
+  const isFree     = plan.monthly === 0
+  const isEnterprise = plan.key === 'enterprise'
+  const features   = PLAN_FEATURES[plan.key].map(fk => t(`pricing.features.${fk}`))
+  const trust      = isFree ? ['trust1', 'trust2', 'trust3'].map(k => t(`pricing.plans.free.${k}`)) : []
 
   return (
     <div className={`relative flex flex-col rounded-2xl border ${
@@ -174,30 +98,30 @@ function PlanCard({ plan, annual, onCta }) {
         : 'border-zinc-800 bg-zinc-900'
     }`}>
 
-      {plan.badge && (
+      {plan.highlight && (
         <div className="absolute -top-3.5 inset-x-0 flex justify-center">
           <span className="text-xs font-mono font-medium px-3 py-1 rounded-full bg-orange-500 text-zinc-950">
-            {plan.badge}
+            {t('pricing.mostPopular')}
           </span>
         </div>
       )}
 
       <div className="p-6 flex flex-col gap-5 flex-1">
 
-        {/* Header */}
         <div>
-          <p className="text-base font-semibold text-zinc-100">{plan.name}</p>
-          <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{plan.sub}</p>
+          <p className="text-base font-semibold text-zinc-100">{t(`pricing.plans.${plan.key}.name`)}</p>
+          <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{t(`pricing.plans.${plan.key}.sub`)}</p>
         </div>
 
-        {/* Price */}
         <div>
-          {plan.freeLabel ? (
-            <span className="text-3xl font-thin text-zinc-100">{plan.freeLabel}</span>
+          {(isFree || isEnterprise) ? (
+            <span className="text-3xl font-thin text-zinc-100">
+              {isEnterprise ? t('pricing.plans.enterprise.price') : '$0'}
+            </span>
           ) : (
             <div className="flex items-end gap-1">
               <span className="text-3xl font-thin text-zinc-100">${price}</span>
-              <span className="text-zinc-500 text-xs mb-1.5">/mo</span>
+              <span className="text-zinc-500 text-xs mb-1.5">{t('pricing.perMo')}</span>
             </div>
           )}
           {showSave && (
@@ -205,14 +129,13 @@ function PlanCard({ plan, annual, onCta }) {
               ${price * 12}/yr · <span className="line-through">${plan.monthly * 12}</span>
             </p>
           )}
-          {plan.freeLabel === '$0' && !showSave && (
+          {isFree && !showSave && (
             <p className="text-zinc-700 text-xs mt-1 invisible">—</p>
           )}
         </div>
 
-        {/* Feature list */}
         <ul className="flex flex-col gap-2 flex-1">
-          {plan.features.map(f => (
+          {features.map(f => (
             <li key={f} className="flex items-start gap-2 text-xs text-zinc-400">
               <span className="text-green-400 shrink-0 mt-0.5"><CheckIcon /></span>
               {f}
@@ -220,24 +143,23 @@ function PlanCard({ plan, annual, onCta }) {
           ))}
         </ul>
 
-        {/* CTA */}
         <div className="flex flex-col gap-2 mt-auto">
           <button
             onClick={onCta}
             className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
               plan.highlight
                 ? 'bg-orange-500 hover:bg-orange-400 text-white'
-                : plan.key === 'enterprise'
+                : isEnterprise
                 ? 'border border-zinc-600 hover:border-zinc-400 text-zinc-300 hover:text-zinc-100 bg-transparent'
                 : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100'
             }`}
           >
-            {plan.cta}
+            {t(`pricing.plans.${plan.key}.cta`)}
           </button>
 
-          {plan.trust.length > 0 && (
+          {trust.length > 0 && (
             <div className="flex flex-col gap-1 pt-1">
-              {plan.trust.map(s => (
+              {trust.map(s => (
                 <p key={s} className="text-zinc-600 text-xs text-center">{s}</p>
               ))}
             </div>
@@ -252,6 +174,7 @@ function PlanCard({ plan, annual, onCta }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PricingPage({ onSignIn, onSignUp }) {
+  const { t } = useTranslation()
   const [annual, setAnnual] = useState(false)
 
   return (
@@ -260,12 +183,14 @@ export default function PricingPage({ onSignIn, onSignUp }) {
 
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <section className="pt-36 pb-14 px-6 text-center">
-        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">Pricing</p>
+        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">
+          {t('pricing.eyebrow')}
+        </p>
         <h1 className="text-4xl md:text-5xl font-thin tracking-tight text-zinc-100 max-w-2xl mx-auto mb-5">
-          Simple, transparent pricing.
+          {t('pricing.title')}
         </h1>
         <p className="text-zinc-400 text-base max-w-md mx-auto mb-10 leading-relaxed">
-          Start free. Scale when you&apos;re ready. No hidden fees.
+          {t('pricing.sub')}
         </p>
         <BillingToggle annual={annual} onChange={() => setAnnual(a => !a)} />
       </section>
@@ -282,19 +207,21 @@ export default function PricingPage({ onSignIn, onSignUp }) {
       {/* ── Comparison table ───────────────────────────────────────────────── */}
       <section className="px-6 pb-28 max-w-7xl mx-auto">
         <p className="text-xs font-mono tracking-[0.25em] text-zinc-500 uppercase text-center mb-8">
-          Full comparison
+          {t('pricing.comparison')}
         </p>
 
         <div className="overflow-x-auto rounded-xl border border-zinc-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800">
-                <th className="text-left px-5 py-4 text-zinc-500 font-normal w-48">Feature</th>
+                <th className="text-left px-5 py-4 text-zinc-500 font-normal w-48">
+                  {t('pricing.featureCol')}
+                </th>
                 {PLANS.map(p => (
                   <th key={p.key} className={`px-4 py-4 text-center font-medium text-xs uppercase tracking-wide ${
                     p.highlight ? 'text-orange-400' : 'text-zinc-400'
                   }`}>
-                    {p.name}
+                    {t(`pricing.plans.${p.key}.name`)}
                   </th>
                 ))}
               </tr>
@@ -304,7 +231,7 @@ export default function PricingPage({ onSignIn, onSignUp }) {
                 <tr key={row.k} className={`border-b border-zinc-800/50 last:border-0 ${
                   i % 2 !== 0 ? 'bg-zinc-900/30' : ''
                 }`}>
-                  <td className="px-5 py-3 text-zinc-400 text-xs">{row.label}</td>
+                  <td className="px-5 py-3 text-zinc-400 text-xs">{t(`pricing.rows.${row.k}`)}</td>
                   {PLANS.map(p => {
                     const val = TABLE[p.key][row.k]
                     return (
@@ -313,11 +240,15 @@ export default function PricingPage({ onSignIn, onSignUp }) {
                           val
                             ? <span className="text-green-400 inline-flex justify-center"><CheckIcon /></span>
                             : <span className="text-zinc-700 text-xs">—</span>
+                        ) : val === true ? (
+                          <span className="text-green-400 inline-flex justify-center"><CheckIcon /></span>
+                        ) : val == null || val === false ? (
+                          <span className="text-zinc-700 text-xs">—</span>
                         ) : (
                           <span className={`text-xs ${
                             p.highlight ? 'text-zinc-100 font-medium' : 'text-zinc-400'
-                          } ${val === '—' ? 'text-zinc-700' : ''}`}>
-                            {val}
+                          }`}>
+                            {t(`pricing.tv.${val}`)}
                           </span>
                         )}
                       </td>
@@ -333,21 +264,21 @@ export default function PricingPage({ onSignIn, onSignUp }) {
       {/* ── FAQ nudge ──────────────────────────────────────────────────────── */}
       <section className="pb-20 px-6 text-center">
         <p className="text-zinc-500 text-sm">
-          Questions?{' '}
+          {t('pricing.faq')}{' '}
           <button onClick={onSignUp} className="text-zinc-300 hover:text-white underline underline-offset-4 transition-colors">
-            Talk to us
+            {t('pricing.faqLink')}
           </button>
-          {' '}— we&apos;ll help you pick the right plan.
+          {' '}{t('pricing.faqSuffix')}
         </p>
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-zinc-800 px-6 py-10 text-center">
         <Link to="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-          ← Back to home
+          {t('products.backHome')}
         </Link>
         <p className="text-zinc-700 text-xs mt-4">
-          Astraeusio · Built on open scientific data · Powered by NOAA, NASA, and open-access space weather APIs · BSL 1.1
+          {t('landing.footerNote')}
         </p>
       </footer>
     </div>

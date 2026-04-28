@@ -66,6 +66,7 @@ function SectionLabel({ children }) {
 // ── Live metric card ──────────────────────────────────────────────────────────
 
 function LiveMetric({ label, value, unit, color = 'text-zinc-100', sub, delayed }) {
+  const { t } = useTranslation()
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-7 flex flex-col gap-3">
       <span className="text-xs font-mono tracking-[0.25em] text-zinc-500 uppercase">{label}</span>
@@ -76,7 +77,7 @@ function LiveMetric({ label, value, unit, color = 'text-zinc-100', sub, delayed 
         {unit && !delayed && <span className="text-sm font-mono text-zinc-500">{unit}</span>}
       </div>
       {delayed
-        ? <span className="text-xs font-mono text-zinc-600">Data delayed from NOAA</span>
+        ? <span className="text-xs font-mono text-zinc-600">{t('landing.liveDelayed')}</span>
         : sub && <span className={`text-xs font-mono mt-1 ${color} opacity-75`}>{sub}</span>
       }
     </div>
@@ -165,7 +166,7 @@ const IconEye = () => (
   </svg>
 )
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Data (keys only, no human-readable strings) ───────────────────────────────
 
 const CAP_CONFIG = [
   { key: 'c1', Icon: IconStorm,     topBorder: 'border-t-orange-500', iconBg: 'bg-orange-500/10', iconCls: 'text-orange-400' },
@@ -183,19 +184,15 @@ const AUDIENCE_CONFIG = [
   { key: 'a1', Icon: IconEye,       iconBg: 'bg-sky-500/10',     iconCls: 'text-sky-400'     },
 ]
 
-const SOURCES = [
-  'NOAA Space Weather Prediction Center (SWPC)',
-  'NASA NeoWs, EPIC, and APOD datasets',
-  'Celestrak orbital elements (including Starlink)',
-  'Kyoto World Data Center (Dst index)',
-]
+const SOURCE_KEYS = ['s1', 's2', 's3', 's4', 's5']
 
+// Tech spec rows: [translation-key-suffix, English technical value]
 const TECH_SPECS = [
-  ['Model',       'LSTM neural network with MC Dropout'],
-  ['Training',    '20+ years of NOAA Kp historical data'],
-  ['Uncertainty', '95% confidence intervals · 50 inference passes'],
-  ['Refresh',     '1-minute ingestion cycle from live sensors'],
-  ['Detection',   'Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO)'],
+  ['techModel',       'LSTM neural network with MC Dropout'],
+  ['techTraining',    '20+ years of NOAA Kp historical data'],
+  ['techUncertainty', '95% confidence intervals · 50 inference passes'],
+  ['techRefresh',     '1-minute ingestion cycle from live sensors'],
+  ['techDetection',   'Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO)'],
 ]
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -223,21 +220,21 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none" />
 
         <div className="relative z-10 flex flex-col items-center gap-7 max-w-4xl pt-20">
-          <SectionLabel>Space Weather Intelligence</SectionLabel>
+          <SectionLabel>{t('landing.heroEyebrow')}</SectionLabel>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08]">
             <span className="bg-gradient-to-b from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-              See space weather before it impacts Earth.
+              {t('landing.heroTitle')}
             </span>
           </h1>
 
           <p className="text-zinc-400 text-lg sm:text-xl max-w-xl leading-relaxed">
-            Real-time monitoring of solar activity, geomagnetic storms, and satellite conditions — powered by live data and short-term predictive models.
+            {t('landing.heroSub')}
           </p>
 
           <div className="border-l-2 border-zinc-600 pl-4 text-left w-full max-w-lg">
             <p className="text-zinc-300 text-sm font-mono leading-relaxed">
-              Get 3-hour advance warnings for space weather events that affect technology on Earth.
+              {t('landing.heroStat')}
             </p>
           </div>
 
@@ -255,13 +252,13 @@ export default function LandingPage({ onSignUp, onSignIn }) {
               onClick={onSignUp}
               className="px-8 py-3 bg-zinc-100 text-zinc-950 text-sm font-mono tracking-wide rounded-lg hover:bg-white transition-colors"
             >
-              Start Monitoring — Free
+              {t('landing.ctaPrimary')}
             </button>
             <button
               onClick={onSignIn}
               className="px-8 py-3 border border-zinc-700 text-zinc-300 text-sm font-mono tracking-wide rounded-lg hover:border-zinc-500 hover:text-zinc-100 transition-colors"
             >
-              Sign in
+              {t('landing.ctaSecondary')}
             </button>
           </div>
         </div>
@@ -277,7 +274,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col gap-2 mb-10">
-            <SectionLabel>What you can do</SectionLabel>
+            <SectionLabel>{t('landing.capTitle')}</SectionLabel>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {CAP_CONFIG.map(({ key, Icon, topBorder, iconBg, iconCls }) => (
@@ -306,33 +303,35 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-end justify-between mb-8">
-            <SectionLabel>Live right now</SectionLabel>
+            <SectionLabel>{t('landing.liveTitle')}</SectionLabel>
             {age != null && (
               <span className="text-zinc-600 text-xs font-mono">
-                {age === 0 ? 'Just now' : `Updated ${age}s ago`}
+                {age === 0
+                  ? t('landing.liveJustNow')
+                  : t('landing.liveUpdated', { s: age })}
               </span>
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <LiveMetric
-              label="Kp Index"
+              label={t('metrics.kpIndex')}
               value={latestKp != null ? fmtNum(latestKp, 2) : null}
               color={storm.cls}
               sub={t(storm.key)}
               delayed={kpData === null && !forecastLoading}
             />
             <LiveMetric
-              label="Solar Wind Speed"
+              label={t('metrics.solarWindSpeed')}
               value={wind?.speed != null ? fmtNum(wind.speed, 0) : null}
               unit="km/s"
               color={wind?.speed != null && wind.speed > 700 ? 'text-orange-400' : 'text-zinc-100'}
               delayed={wind === null && !forecastLoading}
             />
             <LiveMetric
-              label="ML Forecast"
+              label={t('forecast.title')}
               value={forecastData != null ? fmtNum(forecastData.predicted_kp, 1) : null}
-              sub="Predicted Kp +3 h"
+              sub={t('forecast.predictedKp')}
               color={forecastData != null ? stormInfo(forecastData.predicted_kp).cls : 'text-zinc-100'}
               delayed={forecastData === null && !forecastLoading}
             />
@@ -343,7 +342,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       {/* ── Predictive Intelligence (bg-zinc-900) ────────────────────────── */}
       <section className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <SectionLabel>Predictive intelligence</SectionLabel>
+          <SectionLabel>{t('landing.predTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-10">
             {['p1', 'p2', 'p3'].map((pk, i) => (
               <div key={pk} className="flex flex-col gap-3">
@@ -366,22 +365,22 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-14">
           <div className="flex flex-col gap-5">
-            <SectionLabel>How it works</SectionLabel>
+            <SectionLabel>{t('landing.howTitle')}</SectionLabel>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              We combine real-time observational data with predictive modeling from global space weather agencies and observatories.
+              {t('landing.howBody')}
             </p>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              A machine learning system processes real-time space weather data to provide short-term geomagnetic activity forecasts.
+              {t('landing.howMl')}
             </p>
           </div>
           <div className="flex flex-col gap-5">
-            <SectionLabel>Data sources</SectionLabel>
-            <p className="text-zinc-600 text-xs font-mono">Trusted space and atmospheric data providers</p>
+            <SectionLabel>{t('landing.sourcesTitle')}</SectionLabel>
+            <p className="text-zinc-600 text-xs font-mono">{t('landing.sourcesNote')}</p>
             <ul className="flex flex-col gap-3">
-              {SOURCES.map(s => (
-                <li key={s} className="flex items-start gap-3 text-sm text-zinc-400">
+              {SOURCE_KEYS.map(k => (
+                <li key={k} className="flex items-start gap-3 text-sm text-zinc-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0 mt-1.5" />
-                  {s}
+                  {t(`landing.${k}`)}
                 </li>
               ))}
             </ul>
@@ -392,7 +391,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       {/* ── Who It's For (bg-zinc-900) ───────────────────────────────────── */}
       <section className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <SectionLabel>Who it&apos;s for</SectionLabel>
+          <SectionLabel>{t('landing.audienceTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-5 mt-10">
             {AUDIENCE_CONFIG.map(({ key, Icon, iconBg, iconCls }, i) => (
               <div key={key} className={`sm:col-span-2${i === 3 ? ' sm:col-start-2' : ''}`}>
@@ -418,7 +417,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
             onClick={() => setTechOpen(o => !o)}
             className="flex items-center gap-3 group w-full text-left"
           >
-            <SectionLabel>Technical overview</SectionLabel>
+            <SectionLabel>{t('landing.techTitle')}</SectionLabel>
             <svg
               width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
@@ -431,17 +430,17 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           {techOpen && (
             <div className="mt-6">
               <div className="divide-y divide-zinc-900">
-                {TECH_SPECS.map(([label, value]) => (
-                  <div key={label} className="flex items-baseline gap-6 py-3.5">
+                {TECH_SPECS.map(([labelKey, value]) => (
+                  <div key={labelKey} className="flex items-baseline gap-6 py-3.5">
                     <span className="text-xs font-mono text-zinc-600 tracking-[0.12em] uppercase w-28 shrink-0">
-                      {label}
+                      {t(`landing.${labelKey}`)}
                     </span>
                     <span className="text-sm font-mono text-zinc-400">{value}</span>
                   </div>
                 ))}
               </div>
               <p className="text-zinc-600 text-xs font-mono mt-6">
-                API access available for integration into research, monitoring systems, and automation workflows.
+                {t('landing.techNote')}
               </p>
             </div>
           )}
@@ -451,23 +450,23 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       {/* ── CTA (full-width light) ────────────────────────────────────────── */}
       <section className="bg-zinc-100 px-6 py-28 flex flex-col items-center text-center gap-6">
         <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-zinc-950 max-w-2xl leading-tight">
-          Start Monitoring Space Weather
+          {t('landing.ctaTitle')}
         </h2>
         <p className="text-zinc-600 text-lg max-w-lg leading-relaxed">
-          Get real-time insights and predictive intelligence for space weather activity affecting Earth.
+          {t('landing.ctaSub')}
         </p>
         <button
           onClick={onSignUp}
           className="px-10 py-3.5 bg-zinc-950 text-zinc-100 text-sm font-mono tracking-widest uppercase rounded-lg hover:bg-zinc-800 transition-colors mt-2"
         >
-          Create Free Account
+          {t('landing.ctaBtn')}
         </button>
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="bg-zinc-950 border-t border-zinc-900 px-6 py-6">
         <p className="text-zinc-600 text-xs font-mono text-center">
-          Built on open scientific data. Powered by NOAA, NASA, and open-access APIs. · BSL 1.1
+          {t('landing.footerNote')}
         </p>
       </footer>
 

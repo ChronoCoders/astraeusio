@@ -34,6 +34,7 @@ const PRODUCTS = [
     iconBg: 'bg-blue-500/10',
     iconCls: 'text-blue-400',
     live: true,
+    popular: true,
     action: 'signup',
   },
   {
@@ -44,6 +45,7 @@ const PRODUCTS = [
     iconBg: 'bg-orange-500/10',
     iconCls: 'text-orange-400',
     live: true,
+    popular: false,
     action: 'signup',
   },
   {
@@ -54,7 +56,8 @@ const PRODUCTS = [
     iconBg: 'bg-purple-500/10',
     iconCls: 'text-purple-400',
     live: false,
-    action: null,
+    popular: false,
+    action: 'notify',
   },
 ]
 
@@ -82,7 +85,7 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
       {/* ── Product cards ─────────────────────────────────────────────────── */}
       <section className="px-6 pb-28 max-w-5xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {PRODUCTS.map(({ key, Icon, accent, border, iconBg, iconCls, live, action }) => (
+          {PRODUCTS.map(({ key, Icon, accent, border, iconBg, iconCls, live, popular, action }) => (
             <div
               key={key}
               className={`relative rounded-2xl border ${border} bg-zinc-900 overflow-hidden flex flex-col`}
@@ -96,13 +99,20 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
                   <div className={`w-14 h-14 rounded-xl ${iconBg} flex items-center justify-center ${iconCls}`}>
                     <Icon />
                   </div>
-                  <span className={`text-xs font-mono px-2.5 py-1 rounded-full border ${
-                    live
-                      ? 'text-green-400 border-green-500/30 bg-green-500/10'
-                      : 'text-zinc-500 border-zinc-700 bg-zinc-800'
-                  }`}>
-                    {live ? t('products.live') : t('products.comingSoon')}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {popular && (
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400">
+                        {t('products.mostPopular')}
+                      </span>
+                    )}
+                    <span className={`text-xs font-mono px-2.5 py-1 rounded-full border ${
+                      live
+                        ? 'text-green-400 border-green-500/30 bg-green-500/10'
+                        : 'text-zinc-500 border-zinc-700 bg-zinc-800'
+                    }`}>
+                      {live ? t('products.live') : t('products.comingSoon')}
+                    </span>
+                  </div>
                 </div>
 
                 {/* text */}
@@ -120,12 +130,14 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
                   {action === 'signup' ? (
                     <button
                       onClick={onSignUp}
-                      className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        live
-                          ? 'bg-zinc-100 text-zinc-950 hover:bg-white'
-                          : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                      }`}
-                      disabled={!live}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors bg-zinc-100 text-zinc-950 hover:bg-white"
+                    >
+                      {t(`products.${key}Cta`)}
+                    </button>
+                  ) : action === 'notify' ? (
+                    <button
+                      onClick={onSignUp}
+                      className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors border border-zinc-600 hover:border-zinc-400 text-zinc-300 hover:text-zinc-100 bg-transparent"
                     >
                       {t(`products.${key}Cta`)}
                     </button>
