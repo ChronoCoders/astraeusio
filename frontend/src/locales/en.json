@@ -243,7 +243,8 @@
     "d3Sub": "Anomaly detection & notifications",
     "d3Desc": "Get alerted the moment space weather conditions change. Know when storms intensify, custom thresholds are exceeded, or satellite conditions shift — delivered via webhook or email the instant it happens.",
     "d3Cta": "Get notified at launch",
-    "backHome": "← Back to home"
+    "backHome": "← Back to home",
+    "seePricing": "See plans and pricing →"
   },
   "about": {
     "comingSoonSub": "Our story and mission are coming soon."
@@ -265,9 +266,9 @@
     "perMo": "/mo",
     "comparison": "Full comparison",
     "featureCol": "Feature",
-    "faq": "Questions?",
-    "faqLink": "Talk to us",
-    "faqSuffix": "— we'll help you pick the right plan.",
+    "faq": "Not sure which plan fits?",
+    "faqLink": "Start for free",
+    "faqSuffix": "and upgrade whenever you're ready.",
     "plans": {
       "free":       { "name": "Free",       "sub": "Explore space weather data",      "cta": "Get started",          "trust1": "No credit card required", "trust2": "No lock-in", "trust3": "Cancel anytime" },
       "developer":  { "name": "Developer",  "sub": "Build and prototype",             "cta": "Get API Access" },
@@ -395,10 +396,16 @@
     "ctaBtn": "Create Free Account",
     "footerNote": "Astraeusio · Built on open scientific data · Powered by NOAA, NASA, and open-access space weather APIs · BSL 1.1",
     "liveDelayed": "Data delayed from NOAA",
-    "techModel":       "Model",
-    "techTraining":    "Training",
-    "techUncertainty": "Uncertainty",
-    "techRefresh":     "Refresh",
-    "techDetection":   "Detection"
+    "techModel":          "Model",
+    "techTraining":       "Training",
+    "techUncertainty":    "Uncertainty",
+    "techRefresh":        "Refresh",
+    "techDetection":      "Detection",
+    "techModelVal":       "LSTM neural network with MC Dropout",
+    "techTrainingVal":    "20+ years of NOAA Kp historical data",
+    "techUncertaintyVal": "95% confidence intervals · 50 inference passes",
+    "techRefreshVal":     "1-minute ingestion cycle from live sensors",
+    "techDetectionVal":   "Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO)",
+    "ctaSub":             "Space weather is live and constantly changing. Sign up free — see current conditions the moment you log in."
   }
 }
