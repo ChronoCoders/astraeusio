@@ -194,25 +194,26 @@ pub async fn change_password(
 
     let current = body.current_password;
     let stored_hash = user.password_hash.clone();
-    let valid = match tokio::task::spawn_blocking(move || bcrypt::verify(current, &stored_hash)).await {
-        Ok(Ok(v)) => v,
-        Ok(Err(e)) => {
-            warn!("change_password bcrypt verify error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            warn!("change_password spawn_blocking error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-    };
+    let valid =
+        match tokio::task::spawn_blocking(move || bcrypt::verify(current, &stored_hash)).await {
+            Ok(Ok(v)) => v,
+            Ok(Err(e)) => {
+                warn!("change_password bcrypt verify error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                warn!("change_password spawn_blocking error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+        };
 
     if !valid {
         return (
@@ -223,27 +224,34 @@ pub async fn change_password(
     }
 
     let new_pw = body.new_password;
-    let new_hash = match tokio::task::spawn_blocking(move || bcrypt::hash(new_pw, bcrypt::DEFAULT_COST)).await {
-        Ok(Ok(h)) => h,
-        Ok(Err(e)) => {
-            warn!("change_password bcrypt hash error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            warn!("change_password spawn_blocking hash error: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "internal error" })),
-            )
-                .into_response();
-        }
-    };
+    let new_hash =
+        match tokio::task::spawn_blocking(move || bcrypt::hash(new_pw, bcrypt::DEFAULT_COST)).await
+        {
+            Ok(Ok(h)) => h,
+            Ok(Err(e)) => {
+                warn!("change_password bcrypt hash error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                warn!("change_password spawn_blocking hash error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+        };
 
-    match s.db.lock().await.update_password_hash(&claims.sub, &new_hash) {
+    match s
+        .db
+        .lock()
+        .await
+        .update_password_hash(&claims.sub, &new_hash)
+    {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             warn!("change_password update error: {e}");
@@ -308,13 +316,11 @@ impl FromRequestParts<AppState> for AuthClaims {
 
             match sub_opt {
                 Some(sub) => {
-                    rate_limit::check_and_increment(
-                        &state.usage_counter,
-                        &state.db,
-                        &sub,
-                    )
-                    .await?;
-                    return Ok(AuthClaims { sub, exp: usize::MAX });
+                    rate_limit::check_and_increment(&state.usage_counter, &state.db, &sub).await?;
+                    return Ok(AuthClaims {
+                        sub,
+                        exp: usize::MAX,
+                    });
                 }
                 None => {
                     return Err((
@@ -341,12 +347,7 @@ impl FromRequestParts<AppState> for AuthClaims {
                 .into_response()
         })?;
 
-        rate_limit::check_and_increment(
-            &state.usage_counter,
-            &state.db,
-            &claims.sub,
-        )
-        .await?;
+        rate_limit::check_and_increment(&state.usage_counter, &state.db, &claims.sub).await?;
 
         Ok(claims)
     }
