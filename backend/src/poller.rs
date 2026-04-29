@@ -5,7 +5,12 @@ use chrono::{Duration as ChronoDuration, Utc};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use crate::{anomaly, db::Db, db_writer::{DbWriterHandle, WriteCmd}, iss, nasa, noaa, starlink};
+use crate::{
+    anomaly,
+    db::Db,
+    db_writer::{DbWriterHandle, WriteCmd},
+    iss, nasa, noaa, starlink,
+};
 
 // Stagger initial poller startup to prevent DB mutex contention on first run.
 // Each poller's first insert can be large (thousands of rows); if all fire at

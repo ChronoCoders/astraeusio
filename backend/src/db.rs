@@ -215,7 +215,9 @@ impl Db {
     }
 
     pub fn try_clone(&self) -> Result<Self, DbError> {
-        Ok(Self { conn: self.conn.try_clone()? })
+        Ok(Self {
+            conn: self.conn.try_clone()?,
+        })
     }
 }
 
