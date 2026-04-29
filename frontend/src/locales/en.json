@@ -213,15 +213,20 @@
     "loadingDashboard": "Loading dashboard…"
   },
   "plan": {
+    "free": "Free",
     "starter": "Starter",
+    "developer": "Developer",
     "pro": "Pro",
     "business": "Business",
     "enterprise": "Enterprise",
     "upgradeRequired": "Upgrade required",
-    "lockedApiKeys": "API key management requires a Pro plan or higher.",
-    "lockedCsvExport": "CSV export requires a Pro plan or higher.",
-    "lockedWebhooks": "Webhooks are available on Business and above.",
-    "upgradeBtn": "Upgrade plan",
+    "lockedApiKeys": "API key management requires a Developer plan or higher.",
+    "lockedKpForecast": "ML Kp forecast requires a Developer plan or higher.",
+    "lockedAnomalies": "Anomaly detection requires a Developer plan or higher.",
+    "lockedCsvExport": "CSV export requires a Developer plan or higher.",
+    "lockedWebhooks": "Webhooks are available on Pro and above.",
+    "lockedHistorical": "Historical data access requires a Business plan or higher.",
+    "upgradeBtn": "View pricing",
     "comingSoon": "Coming soon"
   },
   "products": {

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tracing::warn;
 
-use crate::{auth::AuthClaims, routes::AppState};
+use crate::{auth::AuthClaims, plan, routes::AppState};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,19 @@ pub async fn create_api_key(
     claims: AuthClaims,
     Json(body): Json<CreateKeyRequest>,
 ) -> Response {
+    let user_plan = plan::resolve(&s.usage_counter, &s.db, &claims.sub).await;
+    if !plan::satisfies(&user_plan, "developer") {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error":         "plan_required",
+                "required_plan": "developer",
+                "your_plan":     user_plan,
+            })),
+        )
+            .into_response();
+    }
+
     let name = body.name.trim().to_owned();
     if name.is_empty() {
         return (

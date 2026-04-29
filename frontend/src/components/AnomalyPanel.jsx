@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import UpgradePrompt from './UpgradePrompt'
 
 const TYPE_LABELS = {
   kp_storm:          'anomaly.typeKpStorm',
@@ -36,6 +37,14 @@ function Badge({ severity }) {
 export default function AnomalyPanel({ data, loading, error }) {
   const { t } = useTranslation()
   const items = (data ?? []).slice(0, 30)
+
+  if (error === 'HTTP 403') {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+        <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" />
+      </div>
+    )
+  }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">

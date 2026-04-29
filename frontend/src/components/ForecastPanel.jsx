@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { stormProb, auroraLine, stormInfo, fmtNum } from '../lib/utils'
+import UpgradePrompt from './UpgradePrompt'
 
 function Bar({ value, max = 1, cls }) {
   const pct = Math.round(Math.min(value / max, 1) * 100)
@@ -26,6 +27,7 @@ export default function ForecastPanel({ data, loading, error }) {
   const { t } = useTranslation()
 
   if (loading) return <Panel><p className="text-zinc-600 text-sm">{t('forecast.loading')}</p></Panel>
+  if (error === 'HTTP 403') return <Panel><UpgradePrompt messageKey="plan.lockedKpForecast" requiredPlan="developer" /></Panel>
   if (error)   return <Panel><p className="text-red-500 text-sm">{error}</p></Panel>
   if (!data)   return <Panel><p className="text-zinc-600 text-sm">{t('forecast.noData')}</p></Panel>
 

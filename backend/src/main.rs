@@ -6,6 +6,7 @@ mod db_writer;
 mod iss;
 mod nasa;
 mod noaa;
+mod plan;
 mod poller;
 mod rate_limit;
 mod routes;

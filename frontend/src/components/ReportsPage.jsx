@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { flattenNeo, fmtNum } from '../lib/utils'
+import { flattenNeo, fmtNum, planSatisfies } from '../lib/utils'
+import UpgradePrompt from './UpgradePrompt'
 
 const RANGES = ['24h', '7d', '30d']
 const RANGE_SECS = { '24h': 86_400, '7d': 604_800, '30d': 2_592_000 }
@@ -131,7 +132,7 @@ function fmtTs(unixSec) {
 
 export default function ReportsPage({ plan }) {
   const { t } = useTranslation()
-  const csvLocked = plan === 'starter'
+  const csvLocked = plan !== null && !planSatisfies(plan, 'developer')
   const [range, setRange] = useState('24h')
 
   // Summary stats
@@ -148,6 +149,7 @@ export default function ReportsPage({ plan }) {
 
   // Anomalies (fetched once, filtered client-side)
   const [anomalies, setAnomalies] = useState(null)
+  const [anomaliesForbidden, setAnomaliesForbidden] = useState(false)
 
   // NEO (fetched once)
   const [neo, setNeo] = useState(null)
@@ -182,8 +184,14 @@ export default function ReportsPage({ plan }) {
   useEffect(() => {
     let cancelled = false
     authFetch('/api/anomalies')
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setAnomalies(Array.isArray(d) ? d : []) })
+      .then(r => {
+        if (r.status === 403) {
+          if (!cancelled) setAnomaliesForbidden(true)
+          return null
+        }
+        return r.json()
+      })
+      .then(d => { if (!cancelled && d !== null) setAnomalies(Array.isArray(d) ? d : []) })
       .catch(() => { if (!cancelled) setAnomalies([]) })
     return () => { cancelled = true }
   }, [])
@@ -326,7 +334,9 @@ export default function ReportsPage({ plan }) {
           </span>
           <span className="text-zinc-700 text-xs font-mono">{filteredAnomalies.length}</span>
         </div>
-        {anomalies == null ? (
+        {anomaliesForbidden ? (
+          <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" />
+        ) : anomalies == null ? (
           <p className="text-zinc-600 text-xs font-mono p-4">{t('common.loading')}</p>
         ) : filteredAnomalies.length === 0 ? (
           <p className="text-zinc-600 text-xs font-mono p-4">{t('reports.noAnomalies')}</p>

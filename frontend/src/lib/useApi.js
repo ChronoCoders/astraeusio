@@ -10,6 +10,7 @@ export function useApi(url, intervalMs = 60000) {
     let cancelled = false
 
     async function run() {
+      let planGated = false
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 90000)
       try {
@@ -18,6 +19,11 @@ export function useApi(url, intervalMs = 60000) {
           signal: ctrl.signal,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
+        if (res.status === 403) {
+          planGated = true
+          if (!cancelled) { setError('HTTP 403'); setLoading(false) }
+          return
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json = await res.json()
         if (!cancelled) { setData(json); setError(null) }
@@ -25,7 +31,7 @@ export function useApi(url, intervalMs = 60000) {
         if (!cancelled && e.name !== 'AbortError') setError(e.message)
       } finally {
         clearTimeout(timeout)
-        if (!cancelled) {
+        if (!cancelled && !planGated) {
           setLoading(false)
           timer.current = setTimeout(run, intervalMs)
         }
