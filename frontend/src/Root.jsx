@@ -17,6 +17,7 @@ export default function Root() {
   const [authMode, setAuthMode] = useState(null)   // null | 'login' | 'signup'
 
   // Fetch /api/user/me whenever token is set (login or page reload with stored token).
+  // On 401, clear the stale/expired token so the user is returned to the login page.
   useEffect(() => {
     if (!token) return
     let cancelled = false
@@ -26,12 +27,25 @@ export default function Root() {
       headers: { Authorization: `Bearer ${token}` },
       signal: ctrl.signal,
     })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled) setUser(d ?? { email: '', plan: 'starter' }) })
+      .then(r => {
+        if (r.status === 401) {
+          if (!cancelled) clearSession()
+          return null
+        }
+        return r.ok ? r.json() : null
+      })
+      .then(d => { if (!cancelled && d !== null) setUser(d ?? { email: '', plan: 'starter' }) })
       .catch(() => { if (!cancelled) setUser({ email: '', plan: 'starter' }) })
       .finally(() => clearTimeout(timeout))
     return () => { cancelled = true; ctrl.abort() }
   }, [token])
+
+  function clearSession() {
+    localStorage.removeItem('token')
+    setToken(null)
+    setUser(null)
+    setBooting(false)
+  }
 
   function handleAuth(t) {
     localStorage.setItem('token', t)
@@ -42,10 +56,7 @@ export default function Root() {
   }
 
   function handleLogout() {
-    localStorage.removeItem('token')
-    setToken(null)
-    setUser(null)
-    setBooting(false)
+    clearSession()
   }
 
   if (!token) {
