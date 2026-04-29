@@ -16,7 +16,10 @@ use tracing::info;
 
 use dashmap::DashMap;
 
-use crate::{api_keys, auth, auth::AuthClaims, db::Db, rate_limit::UsageCounter};
+use crate::{
+    api_keys, auth, auth::AuthClaims, db::Db, db_writer::{DbWriterHandle, WriteCmd},
+    rate_limit::UsageCounter,
+};
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -54,6 +57,7 @@ where
 pub struct AppState {
     pub client: reqwest::Client,
     pub db: Arc<Mutex<Db>>,
+    pub writer: DbWriterHandle,
     pub ml_url: String,
     pub cache: Arc<Mutex<CacheMap>>,
     pub jwt_secret: String,
@@ -61,10 +65,17 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(client: reqwest::Client, db: Db, ml_url: String, jwt_secret: String) -> Self {
+    pub fn new(
+        client: reqwest::Client,
+        db: Db,
+        writer: DbWriterHandle,
+        ml_url: String,
+        jwt_secret: String,
+    ) -> Self {
         Self {
             client,
             db: Arc::new(Mutex::new(db)),
+            writer,
             ml_url,
             cache: Arc::new(Mutex::new(HashMap::new())),
             jwt_secret,
@@ -320,9 +331,7 @@ async fn get_kp_forecast(
                     .as_secs() as i64
                     + 3 * 3600;
                 let kp_e2 = (kp * 100.0).round() as i64;
-                if let Err(e) = lock_db(&s.db).await.insert_kp_forecast(forecast_ts, kp_e2) {
-                    tracing::warn!("kp-forecast: failed to persist to db: {e}");
-                }
+                s.writer.fire(WriteCmd::KpForecast { ts: forecast_ts, kp_e2 });
             }
 
             Ok(payload)

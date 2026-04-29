@@ -20,6 +20,8 @@ pub enum DbError {
     EmailTaken,
     #[error("api key not found")]
     KeyNotFound,
+    #[error("writer channel closed")]
+    WriterClosed,
 }
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -210,6 +212,10 @@ impl Db {
 
     pub fn rollback(&self) {
         let _ = self.conn.execute_batch("ROLLBACK");
+    }
+
+    pub fn try_clone(&self) -> Result<Self, DbError> {
+        Ok(Self { conn: self.conn.try_clone()? })
     }
 }
 

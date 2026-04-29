@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::warn;
 
-use crate::{db::DbError, rate_limit, routes::AppState};
+use crate::{db::DbError, db_writer::WriteCmd, rate_limit, routes::AppState};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
             }
         };
 
-    match s.db.lock().await.create_user(&body.email, &hash) {
+    match s.writer.create_user(body.email, hash).await {
         Ok(()) => StatusCode::CREATED.into_response(),
         Err(DbError::EmailTaken) => (
             StatusCode::CONFLICT,
@@ -246,12 +246,7 @@ pub async fn change_password(
             }
         };
 
-    match s
-        .db
-        .lock()
-        .await
-        .update_password_hash(&claims.sub, &new_hash)
-    {
+    match s.writer.update_password(claims.sub, new_hash).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             warn!("change_password update error: {e}");
@@ -300,19 +295,18 @@ impl FromRequestParts<AppState> for AuthClaims {
             // check (which may re-acquire it on the cold path).
             let sub_opt = {
                 let db = state.db.lock().await;
-                let email = db.find_api_key_by_hash(&hash).map_err(|e| {
+                db.find_api_key_by_hash(&hash).map_err(|e| {
                     warn!("api_key lookup error: {e}");
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(serde_json::json!({ "error": "internal error" })),
                     )
                         .into_response()
-                })?;
-                if email.is_some() {
-                    let _ = db.touch_api_key(&hash);
-                }
-                email
+                })?
             }; // DB lock released here
+            if sub_opt.is_some() {
+                state.writer.fire(WriteCmd::TouchApiKey(hash));
+            }
 
             match sub_opt {
                 Some(sub) => {
