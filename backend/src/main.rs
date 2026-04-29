@@ -2,6 +2,7 @@ mod anomaly;
 mod api_keys;
 mod auth;
 mod db;
+mod db_writer;
 mod iss;
 mod nasa;
 mod noaa;
@@ -23,17 +24,19 @@ async fn main() -> Result<()> {
         .init();
 
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "astraeus.duckdb".to_string());
-    let db = db::Db::open(&db_path)?;
+    let write_db = db::Db::open(&db_path)?;
+    let read_db = write_db.try_clone()?;
+    let writer = db_writer::spawn(write_db);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()?;
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    let state = routes::AppState::new(client, db, ml_url, jwt_secret);
+    let state = routes::AppState::new(client, read_db, writer.clone(), ml_url, jwt_secret);
 
-    poller::spawn(state.client.clone(), state.db.clone());
-    rate_limit::spawn_flush_task(state.usage_counter.clone(), state.db.clone());
+    poller::spawn(state.client.clone(), state.db.clone(), writer.clone());
+    rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 
     let app = routes::router(state);
 

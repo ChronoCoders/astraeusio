@@ -57,12 +57,7 @@ pub async fn create_api_key(
     let key_hash = sha256_hex(&raw_key);
     let id = random_id();
 
-    match s
-        .db
-        .lock()
-        .await
-        .create_api_key(&id, &claims.sub, &key_hash, &name)
-    {
+    match s.writer.create_api_key(id.clone(), claims.sub, key_hash, name.clone()).await {
         Ok(()) => (
             StatusCode::CREATED,
             Json(serde_json::json!({
@@ -116,7 +111,7 @@ pub async fn delete_api_key(
     claims: AuthClaims,
     Path(id): Path<String>,
 ) -> Response {
-    match s.db.lock().await.delete_api_key(&id, &claims.sub) {
+    match s.writer.delete_api_key(id, claims.sub).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => (
             StatusCode::NOT_FOUND,

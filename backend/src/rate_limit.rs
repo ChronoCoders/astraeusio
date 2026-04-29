@@ -7,9 +7,8 @@ use axum::{
 };
 use dashmap::DashMap;
 use tokio::sync::Mutex;
-use tracing::warn;
-
 use crate::db::Db;
+use crate::db_writer::{DbWriterHandle, WriteCmd};
 
 pub struct UsageEntry {
     pub count: u64,
@@ -143,7 +142,7 @@ fn rate_limit_response(plan: &str, limit: u64, reset_at: i64) -> Response {
 }
 
 /// Background task: flush in-memory counters to `usage_records` every 60 s.
-pub fn spawn_flush_task(counter: Arc<UsageCounter>, db: Arc<Mutex<Db>>) {
+pub fn spawn_flush_task(counter: Arc<UsageCounter>, writer: DbWriterHandle) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
@@ -159,16 +158,14 @@ pub fn spawn_flush_task(counter: Arc<UsageCounter>, db: Arc<Mutex<Db>>) {
                     )
                 })
                 .collect();
-            if snapshots.is_empty() {
-                continue;
-            }
-            let guard = db.lock().await;
             for (email, count, period_start, plan) in snapshots {
                 let p_end = period_end(&plan, period_start);
-                if let Err(e) = guard.upsert_usage_record(&email, count as i64, period_start, p_end)
-                {
-                    warn!("usage flush error for {email}: {e}");
-                }
+                writer.fire(WriteCmd::FlushUsage {
+                    email,
+                    count: count as i64,
+                    period_start,
+                    period_end: p_end,
+                });
             }
         }
     });
