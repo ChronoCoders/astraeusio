@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import UpgradePrompt from './UpgradePrompt'
+import { planSatisfies } from '../lib/utils'
 
 function authHeader() {
   return { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -108,12 +109,11 @@ export default function ApiKeysPage({ plan }) {
   }
 
   // Null plan means still loading — show full UI optimistically.
-  // Starter plan is locked.
-  if (plan === 'starter') {
+  if (plan !== null && !planSatisfies(plan, 'developer')) {
     return (
       <div className="flex flex-col gap-6 max-w-4xl">
         <div className="bg-zinc-900 border border-zinc-800 rounded">
-          <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="pro" />
+          <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="developer" />
         </div>
         <WebhooksCard />
         <ApiDocsSection t={t} />

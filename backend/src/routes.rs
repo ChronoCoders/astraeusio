@@ -21,6 +21,7 @@ use crate::{
     auth::AuthClaims,
     db::Db,
     db_writer::{DbWriterHandle, WriteCmd},
+    plan,
     rate_limit::UsageCounter,
 };
 
@@ -110,6 +111,25 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 
 async fn lock_db(db: &Arc<Mutex<Db>>) -> MutexGuard<'_, Db> {
     db.lock().await
+}
+
+/// Returns a 403 response if the user's plan doesn't meet `required`, else None.
+async fn plan_gate(s: &AppState, email: &str, required: &'static str) -> Option<Response> {
+    let user_plan = plan::resolve(&s.usage_counter, &s.db, email).await;
+    if plan::satisfies(&user_plan, required) {
+        return None;
+    }
+    Some(
+        (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error":         "plan_required",
+                "required_plan": required,
+                "your_plan":     user_plan,
+            })),
+        )
+            .into_response(),
+    )
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -291,9 +311,12 @@ async fn get_iss(
 
 async fn get_kp_forecast(
     State(s): State<AppState>,
-    _claims: AuthClaims,
-) -> Result<impl IntoResponse, AppError> {
-    cached(
+    claims: AuthClaims,
+) -> Result<Response, AppError> {
+    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
+        return Ok(r);
+    }
+    Ok(cached(
         &s.cache,
         "kp-forecast",
         Duration::from_secs(180),
@@ -343,7 +366,8 @@ async fn get_kp_forecast(
             Ok(payload)
         },
     )
-    .await
+    .await?
+    .into_response())
 }
 
 // ── IMF / Dst handlers ────────────────────────────────────────────────────────
@@ -417,9 +441,12 @@ async fn get_report_summary(
 
 async fn get_report_export(
     State(s): State<AppState>,
-    _claims: AuthClaims,
+    claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<Response, AppError> {
+    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
+        return Ok(r);
+    }
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
     let csv = lock_db(&s.db).await.get_report_csv(secs)?;
     info!("api/reports/export: range={}s, {} bytes", secs, csv.len());
@@ -528,14 +555,20 @@ async fn get_user_me(
 
 async fn get_anomalies(
     State(s): State<AppState>,
-    _claims: AuthClaims,
-) -> Result<impl IntoResponse, AppError> {
-    cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
-        let val = lock_db(&s.db).await.get_anomalies_recent()?;
-        info!("api/anomalies: served from db");
-        Ok(val)
-    })
-    .await
+    claims: AuthClaims,
+) -> Result<Response, AppError> {
+    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
+        return Ok(r);
+    }
+    Ok(
+        cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
+            let val = lock_db(&s.db).await.get_anomalies_recent()?;
+            info!("api/anomalies: served from db");
+            Ok(val)
+        })
+        .await?
+        .into_response(),
+    )
 }
 
 // ── Usage handler ─────────────────────────────────────────────────────────────

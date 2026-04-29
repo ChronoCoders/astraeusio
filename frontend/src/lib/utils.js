@@ -112,6 +112,14 @@ export function epicImageUrl(item) {
   return `https://epic.gsfc.nasa.gov/archive/natural/${id.slice(0,4)}/${id.slice(4,6)}/${id.slice(6,8)}/jpg/${item.image}.jpg`
 }
 
+// ── Plan hierarchy ────────────────────────────────────────────────────────────
+
+const PLAN_RANK = { free: 0, starter: 0, developer: 1, pro: 2, business: 3, enterprise: 4 }
+
+export function planSatisfies(userPlan, required) {
+  return (PLAN_RANK[userPlan] ?? 0) >= (PLAN_RANK[required] ?? 0)
+}
+
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 export function fmtNum(n, decimals = 0) {
