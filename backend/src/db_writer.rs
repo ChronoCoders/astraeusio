@@ -5,7 +5,9 @@ use crate::{
     db::{Db, DbError},
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
-    noaa::{DstRecord, ImfRecord, Kp3hRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord},
+    noaa::{
+        DstRecord, ImfRecord, Kp3hRecord, KpRecord, SolarWindRecord, SpaceWeatherAlert, XRayRecord,
+    },
     starlink::StarlinkSat,
 };
 
@@ -81,7 +83,11 @@ impl DbWriterHandle {
     pub async fn create_user(&self, email: String, hash: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::CreateUser { email, hash, reply: tx })
+            .send(WriteCmd::CreateUser {
+                email,
+                hash,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -90,7 +96,11 @@ impl DbWriterHandle {
     pub async fn update_password(&self, email: String, hash: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::UpdatePassword { email, hash, reply: tx })
+            .send(WriteCmd::UpdatePassword {
+                email,
+                hash,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -105,7 +115,13 @@ impl DbWriterHandle {
     ) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::CreateApiKey { id, user_email, key_hash, name, reply: tx })
+            .send(WriteCmd::CreateApiKey {
+                id,
+                user_email,
+                key_hash,
+                name,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -114,7 +130,11 @@ impl DbWriterHandle {
     pub async fn delete_api_key(&self, id: String, user_email: String) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::DeleteApiKey { id, user_email, reply: tx })
+            .send(WriteCmd::DeleteApiKey {
+                id,
+                user_email,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -200,7 +220,12 @@ fn process(db: &Db, cmd: WriteCmd) {
                 error!(source = "db_writer", "starlink: {e}");
             }
         }
-        WriteCmd::Anomaly { anomaly_type, source_ref, severity, message } => {
+        WriteCmd::Anomaly {
+            anomaly_type,
+            source_ref,
+            severity,
+            message,
+        } => {
             if let Err(e) = db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
                 error!(source = "db_writer", "anomaly: {e}");
             }
@@ -215,7 +240,12 @@ fn process(db: &Db, cmd: WriteCmd) {
                 error!(source = "db_writer", "touch-api-key: {e}");
             }
         }
-        WriteCmd::FlushUsage { email, count, period_start, period_end } => {
+        WriteCmd::FlushUsage {
+            email,
+            count,
+            period_start,
+            period_end,
+        } => {
             if let Err(e) = db.upsert_usage_record(&email, count, period_start, period_end) {
                 error!(source = "db_writer", "usage-flush {email}: {e}");
             }
@@ -226,10 +256,20 @@ fn process(db: &Db, cmd: WriteCmd) {
         WriteCmd::UpdatePassword { email, hash, reply } => {
             let _ = reply.send(db.update_password_hash(&email, &hash));
         }
-        WriteCmd::CreateApiKey { id, user_email, key_hash, name, reply } => {
+        WriteCmd::CreateApiKey {
+            id,
+            user_email,
+            key_hash,
+            name,
+            reply,
+        } => {
             let _ = reply.send(db.create_api_key(&id, &user_email, &key_hash, &name));
         }
-        WriteCmd::DeleteApiKey { id, user_email, reply } => {
+        WriteCmd::DeleteApiKey {
+            id,
+            user_email,
+            reply,
+        } => {
             let _ = reply.send(db.delete_api_key(&id, &user_email));
         }
     }

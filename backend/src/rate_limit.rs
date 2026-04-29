@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::db::Db;
+use crate::db_writer::{DbWriterHandle, WriteCmd};
 use axum::{
     Json,
     http::StatusCode,
@@ -7,8 +9,6 @@ use axum::{
 };
 use dashmap::DashMap;
 use tokio::sync::Mutex;
-use crate::db::Db;
-use crate::db_writer::{DbWriterHandle, WriteCmd};
 
 pub struct UsageEntry {
     pub count: u64,

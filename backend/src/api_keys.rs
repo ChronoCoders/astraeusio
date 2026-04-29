@@ -57,7 +57,11 @@ pub async fn create_api_key(
     let key_hash = sha256_hex(&raw_key);
     let id = random_id();
 
-    match s.writer.create_api_key(id.clone(), claims.sub, key_hash, name.clone()).await {
+    match s
+        .writer
+        .create_api_key(id.clone(), claims.sub, key_hash, name.clone())
+        .await
+    {
         Ok(()) => (
             StatusCode::CREATED,
             Json(serde_json::json!({

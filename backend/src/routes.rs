@@ -17,7 +17,10 @@ use tracing::info;
 use dashmap::DashMap;
 
 use crate::{
-    api_keys, auth, auth::AuthClaims, db::Db, db_writer::{DbWriterHandle, WriteCmd},
+    api_keys, auth,
+    auth::AuthClaims,
+    db::Db,
+    db_writer::{DbWriterHandle, WriteCmd},
     rate_limit::UsageCounter,
 };
 
@@ -331,7 +334,10 @@ async fn get_kp_forecast(
                     .as_secs() as i64
                     + 3 * 3600;
                 let kp_e2 = (kp * 100.0).round() as i64;
-                s.writer.fire(WriteCmd::KpForecast { ts: forecast_ts, kp_e2 });
+                s.writer.fire(WriteCmd::KpForecast {
+                    ts: forecast_ts,
+                    kp_e2,
+                });
             }
 
             Ok(payload)
