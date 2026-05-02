@@ -222,21 +222,27 @@ export default function ReportsPage({ plan }) {
   const cutoffSec = BOOT_SEC - rangeSecs
   const filteredAnomalies = (anomalies ?? []).filter(a => a.detected_at >= cutoffSec)
 
-  // NEO: filter by close_approach_date within range
-  const todayStr = new Date(BOOT_SEC * 1000).toISOString().slice(0, 10)
-  const endStr   = new Date((BOOT_SEC + rangeSecs) * 1000).toISOString().slice(0, 10)
-  const neoRows = flattenNeo(neo).filter(r => r.date >= todayStr && r.date <= endStr)
+  const neoRows = flattenNeo(neo)
 
   const fmtKp  = v => (v != null ? v.toFixed(2) : null)
   const fmtSpd = v => (v != null ? Math.round(v).toString() : null)
 
-  function handleExport() {
-    const a = document.createElement('a')
-    a.href = `/api/reports/export?range=${range}`
-    a.setAttribute('download', `astraeus-report-${range}.csv`)
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+  async function handleExport() {
+    try {
+      const res = await authFetch(`/api/reports/export?range=${range}`)
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `astraeus-report-${range}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      // network error — silently ignore
+    }
   }
 
   return (
