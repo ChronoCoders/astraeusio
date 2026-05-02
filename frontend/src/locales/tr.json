@@ -189,6 +189,18 @@
     "docsTitle": "API Referansı",
     "docsNote": "Tüm uç noktalar Authorization başlığında JWT token gerektirir: Authorization: Bearer <token>"
   },
+  "webhooks": {
+    "title": "Webhooklar",
+    "createTitle": "Webhook Kaydet",
+    "urlPlaceholder": "https://sunucunuz.com/webhook",
+    "create": "Kaydet",
+    "createError": "Webhook kaydedilemedi",
+    "listTitle": "Aktif Webhooklar",
+    "noHooks": "Henüz kayıtlı webhook yok",
+    "secretTitle": "Webhook Gizli Anahtarı",
+    "secretWarning": "İmzalama anahtarını şimdi kopyalayın — bir daha gösterilmeyecek.",
+    "secretDismiss": "Anladım — kapat"
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",

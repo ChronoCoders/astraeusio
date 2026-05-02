@@ -1,3 +1,4 @@
+use reqwest::Client;
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 
@@ -42,6 +43,20 @@ pub enum WriteCmd {
         count: i64,
         period_start: i64,
         period_end: i64,
+    },
+    // Webhook management
+    CreateWebhook {
+        id: String,
+        user_email: String,
+        url: String,
+        secret: String,
+        events_json: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    DeleteWebhook {
+        id: String,
+        user_email: String,
+        reply: oneshot::Sender<Result<bool, DbError>>,
     },
     // Writes that need a reply
     CreateUser {
@@ -139,21 +154,46 @@ impl DbWriterHandle {
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
-}
 
-pub fn spawn(db: Db) -> DbWriterHandle {
-    let (tx, rx) = mpsc::channel(1024);
-    tokio::spawn(run(db, rx));
-    DbWriterHandle { tx }
-}
+    pub async fn create_webhook(
+        &self,
+        id: String,
+        user_email: String,
+        url: String,
+        secret: String,
+        events_json: String,
+    ) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::CreateWebhook { id, user_email, url, secret, events_json, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
 
-async fn run(db: Db, mut rx: mpsc::Receiver<WriteCmd>) {
-    while let Some(cmd) = rx.recv().await {
-        tokio::task::block_in_place(|| process(&db, cmd));
+    pub async fn delete_webhook(&self, id: String, user_email: String) -> Result<bool, DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::DeleteWebhook { id, user_email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
     }
 }
 
-fn process(db: &Db, cmd: WriteCmd) {
+pub fn spawn(db: Db, client: Client) -> DbWriterHandle {
+    let (tx, rx) = mpsc::channel(1024);
+    tokio::spawn(run(db, client, rx));
+    DbWriterHandle { tx }
+}
+
+async fn run(db: Db, client: Client, mut rx: mpsc::Receiver<WriteCmd>) {
+    while let Some(cmd) = rx.recv().await {
+        tokio::task::block_in_place(|| process(&db, &client, cmd));
+    }
+}
+
+fn process(db: &Db, client: &Client, cmd: WriteCmd) {
     match cmd {
         WriteCmd::Iss(pos) => {
             if let Err(e) = db.insert_iss_position(&pos) {
@@ -226,8 +266,30 @@ fn process(db: &Db, cmd: WriteCmd) {
             severity,
             message,
         } => {
-            if let Err(e) = db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
-                error!(source = "db_writer", "anomaly: {e}");
+            match db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
+                Err(e) => error!(source = "db_writer", "anomaly: {e}"),
+                Ok(()) => {
+                    match db.list_active_webhooks_for_event(&anomaly_type) {
+                        Ok(hooks) if !hooks.is_empty() => {
+                            let ts = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs() as i64;
+                            for hook in hooks {
+                                let c = client.clone();
+                                let ev = anomaly_type.clone();
+                                let src = source_ref.clone();
+                                let sev = severity.clone();
+                                let msg = message.clone();
+                                tokio::spawn(async move {
+                                    crate::webhook_sender::send(&c, &hook, &ev, &src, &sev, &msg, ts).await;
+                                });
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => error!(source = "db_writer", "webhooks-query: {e}"),
+                    }
+                }
             }
         }
         WriteCmd::KpForecast { ts, kp_e2 } => {
@@ -271,6 +333,19 @@ fn process(db: &Db, cmd: WriteCmd) {
             reply,
         } => {
             let _ = reply.send(db.delete_api_key(&id, &user_email));
+        }
+        WriteCmd::CreateWebhook {
+            id,
+            user_email,
+            url,
+            secret,
+            events_json,
+            reply,
+        } => {
+            let _ = reply.send(db.create_webhook(&id, &user_email, &url, &secret, &events_json));
+        }
+        WriteCmd::DeleteWebhook { id, user_email, reply } => {
+            let _ = reply.send(db.delete_webhook(&id, &user_email));
         }
     }
 }
