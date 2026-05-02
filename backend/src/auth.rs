@@ -13,10 +13,19 @@ use crate::{db::DbError, db_writer::WriteCmd, rate_limit, routes::AppState};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum AuthType {
+    #[default]
+    Jwt,
+    ApiKey,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthClaims {
     pub sub: String,
     pub exp: usize,
+    #[serde(skip)]
+    pub auth_type: AuthType,
 }
 
 #[derive(Deserialize)]
@@ -141,6 +150,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     let claims = AuthClaims {
         sub: user.email,
         exp,
+        auth_type: AuthType::Jwt,
     };
 
     match encode(
@@ -314,6 +324,7 @@ impl FromRequestParts<AppState> for AuthClaims {
                     return Ok(AuthClaims {
                         sub,
                         exp: usize::MAX,
+                        auth_type: AuthType::ApiKey,
                     });
                 }
                 None => {
@@ -340,8 +351,6 @@ impl FromRequestParts<AppState> for AuthClaims {
             )
                 .into_response()
         })?;
-
-        rate_limit::check_and_increment(&state.usage_counter, &state.db, &claims.sub).await?;
 
         Ok(claims)
     }
