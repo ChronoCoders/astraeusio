@@ -186,6 +186,16 @@ CREATE TABLE IF NOT EXISTS webhooks (
     active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT  NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS email_alerts (
+    id                TEXT    NOT NULL PRIMARY KEY,
+    user_email        TEXT    NOT NULL UNIQUE,
+    enabled           BOOLEAN NOT NULL DEFAULT TRUE,
+    kp_threshold_e2   BIGINT  NOT NULL DEFAULT 500,
+    wind_threshold_e1 BIGINT  NOT NULL DEFAULT 7000,
+    last_notified_at  BIGINT,
+    created_at        BIGINT  NOT NULL
+);
 ";
 
 // ── Db ────────────────────────────────────────────────────────────────────────
@@ -1758,5 +1768,85 @@ impl Db {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(serde_json::Value::Array(rows))
+    }
+}
+
+// ── Email alerts ──────────────────────────────────────────────────────────────
+
+pub struct EmailAlertRow {
+    pub user_email: String,
+    pub enabled: bool,
+    pub kp_threshold_e2: i64,
+    pub wind_threshold_e1: i64,
+    pub last_notified_at: Option<i64>,
+}
+
+impl Db {
+    pub fn upsert_email_alert(
+        &self,
+        id: &str,
+        user_email: &str,
+        enabled: bool,
+        kp_threshold_e2: i64,
+        wind_threshold_e1: i64,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO email_alerts
+                 (id, user_email, enabled, kp_threshold_e2, wind_threshold_e1, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT (user_email) DO UPDATE SET
+                 enabled           = excluded.enabled,
+                 kp_threshold_e2   = excluded.kp_threshold_e2,
+                 wind_threshold_e1 = excluded.wind_threshold_e1",
+            params![id, user_email, enabled, kp_threshold_e2, wind_threshold_e1, now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_email_alert(&self, user_email: &str) -> Result<Option<EmailAlertRow>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT user_email, enabled, kp_threshold_e2, wind_threshold_e1, last_notified_at
+             FROM email_alerts WHERE user_email = ?",
+        )?;
+        match stmt.query_row([user_email], |row| {
+            Ok(EmailAlertRow {
+                user_email:        row.get(0)?,
+                enabled:           row.get(1)?,
+                kp_threshold_e2:   row.get(2)?,
+                wind_threshold_e1: row.get(3)?,
+                last_notified_at:  row.get(4)?,
+            })
+        }) {
+            Ok(row) => Ok(Some(row)),
+            Err(duckdb::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(DbError::Duckdb(e)),
+        }
+    }
+
+    pub fn list_enabled_email_alerts(&self) -> Result<Vec<EmailAlertRow>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT user_email, enabled, kp_threshold_e2, wind_threshold_e1, last_notified_at
+             FROM email_alerts WHERE enabled = true",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(EmailAlertRow {
+                    user_email:        row.get(0)?,
+                    enabled:           row.get(1)?,
+                    kp_threshold_e2:   row.get(2)?,
+                    wind_threshold_e1: row.get(3)?,
+                    last_notified_at:  row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn touch_email_alert_notified(&self, user_email: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE email_alerts SET last_notified_at = ? WHERE user_email = ?",
+            params![now(), user_email],
+        )?;
+        Ok(())
     }
 }

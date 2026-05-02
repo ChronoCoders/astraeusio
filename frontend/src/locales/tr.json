@@ -189,6 +189,16 @@
     "docsTitle": "API Referansı",
     "docsNote": "Tüm uç noktalar Authorization başlığında JWT token gerektirir: Authorization: Bearer <token>"
   },
+  "emailAlerts": {
+    "title": "E-posta Uyarıları",
+    "enable": "E-posta uyarılarını etkinleştir",
+    "kpThreshold": "Kp eşiği",
+    "windThreshold": "Güneş rüzgarı eşiği (km/s)",
+    "save": "Ayarları kaydet",
+    "saved": "Ayarlar kaydedildi",
+    "saveError": "Ayarlar kaydedilemedi",
+    "note": "Canlı ölçümler eşiklerinizi aştığında uyarı e-postası gönderilir (saatte en fazla bir kez)."
+  },
   "webhooks": {
     "title": "Webhooklar",
     "createTitle": "Webhook Kaydet",
@@ -236,6 +246,7 @@
     "lockedKpForecast": "ML Kp tahmini Geliştirici veya üzeri plan gerektirir.",
     "lockedAnomalies": "Anomali tespiti Geliştirici veya üzeri plan gerektirir.",
     "lockedCsvExport": "CSV dışa aktarımı Geliştirici veya üzeri plan gerektirir.",
+    "lockedEmailAlerts": "E-posta uyarıları Geliştirici veya üzeri plan gerektirir.",
     "lockedWebhooks": "Webhook'lar Pro ve üzeri planlarda kullanılabilir.",
     "lockedHistorical": "Geçmiş veri erişimi İş veya üzeri plan gerektirir.",
     "upgradeBtn": "Fiyatlandırmayı görüntüle",

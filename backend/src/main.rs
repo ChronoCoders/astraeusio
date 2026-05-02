@@ -3,7 +3,9 @@ mod api_keys;
 mod auth;
 mod db;
 mod db_writer;
+mod email_alerts;
 mod iss;
+mod mailer;
 mod nasa;
 mod noaa;
 mod plan;
@@ -38,7 +40,8 @@ async fn main() -> Result<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let state = routes::AppState::new(client, read_db, writer.clone(), ml_url, jwt_secret);
 
-    poller::spawn(state.client.clone(), state.db.clone(), writer.clone());
+    let smtp_config = mailer::SmtpConfig::from_env();
+    poller::spawn(state.client.clone(), state.db.clone(), writer.clone(), smtp_config);
     rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 
     let app = routes::router(state);

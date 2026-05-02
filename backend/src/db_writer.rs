@@ -44,6 +44,16 @@ pub enum WriteCmd {
         period_start: i64,
         period_end: i64,
     },
+    // Email alert management
+    UpsertEmailAlert {
+        id: String,
+        user_email: String,
+        enabled: bool,
+        kp_threshold_e2: i64,
+        wind_threshold_e1: i64,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    TouchEmailAlertNotified(String),
     // Webhook management
     CreateWebhook {
         id: String,
@@ -148,6 +158,29 @@ impl DbWriterHandle {
             .send(WriteCmd::DeleteApiKey {
                 id,
                 user_email,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn upsert_email_alert(
+        &self,
+        id: String,
+        user_email: String,
+        enabled: bool,
+        kp_threshold_e2: i64,
+        wind_threshold_e1: i64,
+    ) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::UpsertEmailAlert {
+                id,
+                user_email,
+                enabled,
+                kp_threshold_e2,
+                wind_threshold_e1,
                 reply: tx,
             })
             .await
@@ -333,6 +366,27 @@ fn process(db: &Db, client: &Client, cmd: WriteCmd) {
             reply,
         } => {
             let _ = reply.send(db.delete_api_key(&id, &user_email));
+        }
+        WriteCmd::UpsertEmailAlert {
+            id,
+            user_email,
+            enabled,
+            kp_threshold_e2,
+            wind_threshold_e1,
+            reply,
+        } => {
+            let _ = reply.send(db.upsert_email_alert(
+                &id,
+                &user_email,
+                enabled,
+                kp_threshold_e2,
+                wind_threshold_e1,
+            ));
+        }
+        WriteCmd::TouchEmailAlertNotified(user_email) => {
+            if let Err(e) = db.touch_email_alert_notified(&user_email) {
+                error!(source = "db_writer", "touch-email-alert: {e}");
+            }
         }
         WriteCmd::CreateWebhook {
             id,
