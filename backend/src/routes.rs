@@ -18,7 +18,7 @@ use dashmap::DashMap;
 
 use crate::{
     api_keys, auth,
-    auth::AuthClaims,
+    auth::{AuthClaims, AuthType},
     db::Db,
     db_writer::{DbWriterHandle, WriteCmd},
     plan,
@@ -604,6 +604,8 @@ async fn get_usage(
     Ok(Json(serde_json::json!({
         "email":        email,
         "plan":         plan,
+        "scope":        "api_key",
+        "caller":       if claims.auth_type == AuthType::ApiKey { "api_key" } else { "jwt" },
         "period_start": p_start,
         "period_end":   p_end,
         "count":        count,
