@@ -19,7 +19,7 @@ pub fn spawn(
     client: reqwest::Client,
     db: Arc<Mutex<Db>>,
     writer: DbWriterHandle,
-    smtp: Option<mailer::SmtpConfig>,
+    smtp: Option<mailer::MailerConfig>,
 ) {
     // Tier 0 — tiny/read-only, start immediately
     tokio::spawn(poll_iss(client.clone(), writer.clone(), 0));
@@ -235,7 +235,7 @@ async fn poll_starlink(client: reqwest::Client, writer: DbWriterHandle, init_del
 async fn poll_anomaly(
     db: Arc<Mutex<Db>>,
     writer: DbWriterHandle,
-    smtp: Option<mailer::SmtpConfig>,
+    smtp: Option<mailer::MailerConfig>,
     init_delay_secs: u64,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
@@ -256,7 +256,7 @@ async fn poll_anomaly(
 async fn dispatch_email_alerts(
     db: &Arc<Mutex<Db>>,
     writer: &DbWriterHandle,
-    cfg: &mailer::SmtpConfig,
+    cfg: &mailer::MailerConfig,
 ) {
     // Gather data while holding lock, then release before any async work.
     let (kp_opt, wind_opt, subs) = {
