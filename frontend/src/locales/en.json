@@ -189,6 +189,18 @@
     "docsTitle": "API Reference",
     "docsNote": "All endpoints require a JWT token in the Authorization header: Authorization: Bearer <token>"
   },
+  "webhooks": {
+    "title": "Webhooks",
+    "createTitle": "Register Webhook",
+    "urlPlaceholder": "https://your-server.com/webhook",
+    "create": "Register",
+    "createError": "Failed to register webhook",
+    "listTitle": "Active Webhooks",
+    "noHooks": "No webhooks registered yet",
+    "secretTitle": "Webhook Secret",
+    "secretWarning": "Copy this signing secret now — it will never be shown again.",
+    "secretDismiss": "Got it — close"
+  },
   "auth": {
     "tagline1": "Space Weather Intelligence",
     "tagline2": "Solar storms · ISS · Near-Earth objects",

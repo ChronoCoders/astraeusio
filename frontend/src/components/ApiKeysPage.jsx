@@ -115,7 +115,7 @@ export default function ApiKeysPage({ plan }) {
         <div className="bg-zinc-900 border border-zinc-800 rounded">
           <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="developer" />
         </div>
-        <WebhooksCard />
+        <WebhooksSection plan={plan} />
         <ApiDocsSection t={t} />
       </div>
     )
@@ -250,26 +250,209 @@ export default function ApiKeysPage({ plan }) {
         )}
       </div>
 
-      <WebhooksCard />
+      <WebhooksSection plan={plan} />
       <ApiDocsSection t={t} />
 
     </div>
   )
 }
 
-// ── Webhooks placeholder ───────────────────────────────────────────────────────
+// ── Webhooks ──────────────────────────────────────────────────────────────────
 
-function WebhooksCard() {
+const WEBHOOK_EVENTS = [
+  { id: 'kp_storm',          label: 'Kp Storm (≥G1)' },
+  { id: 'solar_wind_speed',  label: 'High Solar Wind' },
+  { id: 'xray_flare',        label: 'X-Ray Flare' },
+  { id: 'asteroid_close',    label: 'Asteroid Close Approach' },
+  { id: 'ml_forecast_storm', label: 'ML Storm Forecast' },
+]
+
+function WebhooksSection({ plan }) {
   const { t } = useTranslation()
-  return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded p-5 flex items-center justify-between gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="text-zinc-400 text-xs font-mono uppercase tracking-widest">Webhooks</span>
-        <p className="text-zinc-600 text-xs">{t('plan.lockedWebhooks')}</p>
+  const isPro = plan === null || planSatisfies(plan, 'pro')
+
+  if (!isPro) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded">
+        <UpgradePrompt messageKey="plan.lockedWebhooks" requiredPlan="pro" />
       </div>
-      <span className="shrink-0 text-[10px] font-mono border border-purple-800 text-purple-400 rounded px-2 py-0.5">
-        {t('plan.comingSoon')}
-      </span>
+    )
+  }
+
+  return <WebhooksCrud t={t} />
+}
+
+function WebhooksCrud({ t }) {
+  const [{ hooks, loadedSeq }, setListState] = useState({ hooks: [], loadedSeq: -1 })
+  const [seq, setSeq]                       = useState(0)
+  const [url, setUrl]                       = useState('')
+  const [events, setEvents]                 = useState([])
+  const [creating, setCreating]             = useState(false)
+  const [createError, setCreateError]       = useState(null)
+  const [newSecret, setNewSecret]           = useState(null)
+  const [secretCopied, setSecretCopied]     = useState(false)
+  const loading = loadedSeq !== seq
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/webhooks', { headers: authHeader() })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setListState({ hooks: Array.isArray(d) ? d : [], loadedSeq: seq }) })
+      .catch(() => { if (!cancelled) setListState({ hooks: [], loadedSeq: seq }) })
+    return () => { cancelled = true }
+  }, [seq])
+
+  function toggleEvent(id) {
+    setEvents(prev => prev.includes(id) ? prev.filter(e => e !== id) : [...prev, id])
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault()
+    const u = url.trim()
+    if (!u || events.length === 0) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const r = await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { ...authHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: u, events }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        setCreateError(d.error ?? t('webhooks.createError'))
+      } else {
+        const d = await r.json()
+        setNewSecret({ id: d.id, secret: d.secret })
+        setSecretCopied(false)
+        setUrl('')
+        setEvents([])
+        setSeq(n => n + 1)
+      }
+    } catch {
+      setCreateError(t('webhooks.createError'))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleDelete(id) {
+    await fetch(`/api/webhooks/${id}`, { method: 'DELETE', headers: authHeader() })
+    setSeq(n => n + 1)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+
+      {/* ── Secret banner (shown once after creation) ───────────────── */}
+      {newSecret && (
+        <div className="bg-amber-950/40 border border-amber-700 rounded p-4 flex flex-col gap-3">
+          <span className="text-amber-400 text-xs font-mono uppercase tracking-widest">
+            {t('webhooks.secretTitle')}
+          </span>
+          <p className="text-amber-300 text-xs">{t('webhooks.secretWarning')}</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono text-zinc-200 break-all">
+              {newSecret.secret}
+            </code>
+            <button
+              onClick={() => navigator.clipboard.writeText(newSecret.secret).then(() => setSecretCopied(true))}
+              className="shrink-0 px-3 py-2 text-xs font-mono rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:text-zinc-100 transition-colors"
+            >
+              {secretCopied ? t('apiKeys.copied') : t('apiKeys.copy')}
+            </button>
+          </div>
+          <button
+            onClick={() => { setNewSecret(null); setSecretCopied(false) }}
+            className="self-start px-4 py-1.5 text-xs font-mono rounded bg-amber-700 text-amber-100 hover:bg-amber-600 transition-colors"
+          >
+            {t('webhooks.secretDismiss')}
+          </button>
+        </div>
+      )}
+
+      {/* ── Create form ─────────────────────────────────────────────── */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
+        <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+          {t('webhooks.createTitle')}
+        </span>
+        <form onSubmit={handleCreate} className="flex flex-col gap-3">
+          <input
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder={t('webhooks.urlPlaceholder')}
+            className="bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
+          />
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {WEBHOOK_EVENTS.map(ev => (
+              <label key={ev.id} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={events.includes(ev.id)}
+                  onChange={() => toggleEvent(ev.id)}
+                  className="accent-indigo-500"
+                />
+                <span className="text-zinc-400 text-xs font-mono">{ev.label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={creating || !url.trim() || events.length === 0}
+              className="px-4 py-2 text-xs font-mono rounded bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors"
+            >
+              {creating ? t('common.loading') : t('webhooks.create')}
+            </button>
+            {createError && <p className="text-red-400 text-xs font-mono">{createError}</p>}
+          </div>
+        </form>
+      </div>
+
+      {/* ── Webhook list ────────────────────────────────────────────── */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded flex flex-col">
+        <div className="px-4 py-3 border-b border-zinc-800">
+          <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+            {t('webhooks.listTitle')}
+          </span>
+        </div>
+        {loading ? (
+          <p className="text-zinc-600 text-xs font-mono p-4">{t('common.loading')}</p>
+        ) : hooks.length === 0 ? (
+          <p className="text-zinc-600 text-xs font-mono p-4">{t('webhooks.noHooks')}</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-zinc-800">
+            {hooks.map(h => (
+              <div key={h.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1 min-w-0">
+                  <code className="text-zinc-200 text-xs font-mono truncate">{h.url}</code>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {h.events.map(ev => (
+                      <span key={ev} className="text-[10px] font-mono border border-zinc-700 text-zinc-500 rounded px-1.5 py-0.5">
+                        {ev}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-zinc-700 text-[11px] font-mono">{fmtTs(h.created_at)}</span>
+                </div>
+                <button
+                  onClick={() => handleDelete(h.id)}
+                  className="shrink-0 text-zinc-600 hover:text-red-400 transition-colors mt-0.5"
+                  title={t('apiKeys.delete')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    <line x1="1" y1="1" x2="13" y2="13" />
+                    <line x1="13" y1="1" x2="1" y2="13" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   )
 }

@@ -17,7 +17,7 @@ use tracing::info;
 use dashmap::DashMap;
 
 use crate::{
-    api_keys, auth,
+    api_keys, auth, webhooks,
     auth::{AuthClaims, AuthType},
     db::Db,
     db_writer::{DbWriterHandle, WriteCmd},
@@ -173,6 +173,11 @@ pub fn router(state: AppState) -> Router {
             get(api_keys::list_api_keys).post(api_keys::create_api_key),
         )
         .route("/api/keys/{id}", delete(api_keys::delete_api_key))
+        .route(
+            "/api/webhooks",
+            get(webhooks::list_webhooks).post(webhooks::create_webhook),
+        )
+        .route("/api/webhooks/{id}", delete(webhooks::delete_webhook))
         .with_state(state)
 }
 

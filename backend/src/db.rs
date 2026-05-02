@@ -176,6 +176,16 @@ CREATE TABLE IF NOT EXISTS usage_records (
     period_end    BIGINT NOT NULL,
     updated_at    BIGINT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    user_email TEXT    NOT NULL,
+    url        TEXT    NOT NULL,
+    secret     TEXT    NOT NULL,
+    events     TEXT    NOT NULL,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at BIGINT  NOT NULL
+);
 ";
 
 // ── Db ────────────────────────────────────────────────────────────────────────
@@ -1595,6 +1605,101 @@ impl Db {
             Some(row) => Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?))),
             None => Ok(None),
         }
+    }
+}
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+pub struct WebhookRow {
+    pub id: String,
+    pub url: String,
+    pub secret: String,
+    pub events: Vec<String>,
+    pub created_at: i64,
+}
+
+impl Db {
+    pub fn create_webhook(
+        &self,
+        id: &str,
+        user_email: &str,
+        url: &str,
+        secret: &str,
+        events_json: &str,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO webhooks (id, user_email, url, secret, events, active, created_at)
+             VALUES (?, ?, ?, ?, ?, true, ?)",
+            params![id, user_email, url, secret, events_json, now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_webhooks(&self, user_email: &str) -> Result<Vec<WebhookRow>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, url, secret, events, created_at
+             FROM webhooks WHERE user_email = ? ORDER BY created_at DESC",
+        )?;
+        let rows = stmt
+            .query_map([user_email], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, url, secret, events_json, created_at)| {
+                let events = serde_json::from_str(&events_json).unwrap_or_default();
+                WebhookRow { id, url, secret, events, created_at }
+            })
+            .collect())
+    }
+
+    pub fn delete_webhook(&self, id: &str, user_email: &str) -> Result<bool, DbError> {
+        let n = self.conn.execute(
+            "DELETE FROM webhooks WHERE id = ? AND user_email = ?",
+            params![id, user_email],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Returns all active webhooks subscribed to `event_type`.
+    pub fn list_active_webhooks_for_event(
+        &self,
+        event_type: &str,
+    ) -> Result<Vec<WebhookRow>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, url, secret, events, created_at
+             FROM webhooks WHERE active = true",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, url, secret, events_json, created_at)| {
+                let events: Vec<String> =
+                    serde_json::from_str(&events_json).unwrap_or_default();
+                if events.iter().any(|e| e == event_type) {
+                    Some(WebhookRow { id, url, secret, events, created_at })
+                } else {
+                    None
+                }
+            })
+            .collect())
     }
 }
 

@@ -11,6 +11,8 @@ mod poller;
 mod rate_limit;
 mod routes;
 mod starlink;
+mod webhook_sender;
+mod webhooks;
 
 use anyhow::Result;
 use tracing::info;
@@ -27,10 +29,10 @@ async fn main() -> Result<()> {
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "astraeus.duckdb".to_string());
     let write_db = db::Db::open(&db_path)?;
     let read_db = write_db.try_clone()?;
-    let writer = db_writer::spawn(write_db);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()?;
+    let writer = db_writer::spawn(write_db, client.clone());
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
