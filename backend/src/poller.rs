@@ -9,16 +9,21 @@ use crate::{
     anomaly,
     db::Db,
     db_writer::{DbWriterHandle, WriteCmd},
-    iss, nasa, noaa, starlink,
+    iss, mailer, nasa, noaa, starlink,
 };
 
 // Stagger initial poller startup to prevent DB mutex contention on first run.
 // Each poller's first insert can be large (thousands of rows); if all fire at
 // once the HTTP server is starved for 60+ seconds before any request lands.
-pub fn spawn(client: reqwest::Client, db: Arc<Mutex<Db>>, writer: DbWriterHandle) {
+pub fn spawn(
+    client: reqwest::Client,
+    db: Arc<Mutex<Db>>,
+    writer: DbWriterHandle,
+    smtp: Option<mailer::SmtpConfig>,
+) {
     // Tier 0 — tiny/read-only, start immediately
     tokio::spawn(poll_iss(client.clone(), writer.clone(), 0));
-    tokio::spawn(poll_anomaly(db.clone(), writer.clone(), 2));
+    tokio::spawn(poll_anomaly(db.clone(), writer.clone(), smtp, 2));
     // Tier 1 — small inserts, 5-second spacing
     tokio::spawn(poll_kp(client.clone(), writer.clone(), 5));
     tokio::spawn(poll_alerts(client.clone(), writer.clone(), 10));
@@ -227,7 +232,12 @@ async fn poll_starlink(client: reqwest::Client, writer: DbWriterHandle, init_del
     }
 }
 
-async fn poll_anomaly(db: Arc<Mutex<Db>>, writer: DbWriterHandle, init_delay_secs: u64) {
+async fn poll_anomaly(
+    db: Arc<Mutex<Db>>,
+    writer: DbWriterHandle,
+    smtp: Option<mailer::SmtpConfig>,
+    init_delay_secs: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         {
@@ -236,6 +246,72 @@ async fn poll_anomaly(db: Arc<Mutex<Db>>, writer: DbWriterHandle, init_delay_sec
                 error!(source = "poller/anomaly", "detect: {e}");
             }
         }
+        if let Some(ref cfg) = smtp {
+            dispatch_email_alerts(&db, &writer, cfg).await;
+        }
         tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
+async fn dispatch_email_alerts(
+    db: &Arc<Mutex<Db>>,
+    writer: &DbWriterHandle,
+    cfg: &mailer::SmtpConfig,
+) {
+    // Gather data while holding lock, then release before any async work.
+    let (kp_opt, wind_opt, subs) = {
+        let guard = db.lock().await;
+        let kp = guard.latest_kp_raw().unwrap_or(None);
+        let wind = guard.latest_solar_wind_speed_raw().unwrap_or(None);
+        let subs = guard.list_enabled_email_alerts().unwrap_or_default();
+        (kp, wind, subs)
+    };
+
+    let now_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    const COOLDOWN_SECS: i64 = 3600;
+
+    for sub in subs {
+        if let Some(last) = sub.last_notified_at
+            && now_ts - last < COOLDOWN_SECS
+        {
+            continue;
+        }
+
+        let mut lines: Vec<String> = Vec::new();
+
+        if let Some((_, kp_e2)) = kp_opt
+            && kp_e2 >= sub.kp_threshold_e2
+        {
+            let kp = kp_e2 as f64 / 100.0;
+            let thr = sub.kp_threshold_e2 as f64 / 100.0;
+            lines.push(format!("• Kp index {kp:.1} (your threshold: {thr:.1})"));
+        }
+
+        if let Some((_, speed_e1)) = wind_opt
+            && speed_e1 >= sub.wind_threshold_e1
+        {
+            let speed = speed_e1 as f64 / 10.0;
+            let thr = sub.wind_threshold_e1 as f64 / 10.0;
+            lines.push(format!("• Solar wind {speed:.0} km/s (your threshold: {thr:.0} km/s)"));
+        }
+
+        if lines.is_empty() {
+            continue;
+        }
+
+        writer.fire(WriteCmd::TouchEmailAlertNotified(sub.user_email.clone()));
+
+        let email = sub.user_email.clone();
+        let cfg = cfg.clone();
+        let body = format!(
+            "Space Weather Alert\n\nThe following conditions have exceeded your thresholds:\n\n{}\n\nView your dashboard: https://astraeusio.com\n\nTo update alert settings, visit the API Keys page in your dashboard.",
+            lines.join("\n")
+        );
+        tokio::spawn(async move {
+            mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await;
+        });
     }
 }

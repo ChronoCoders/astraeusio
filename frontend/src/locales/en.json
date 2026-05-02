@@ -189,6 +189,16 @@
     "docsTitle": "API Reference",
     "docsNote": "All endpoints require a JWT token in the Authorization header: Authorization: Bearer <token>"
   },
+  "emailAlerts": {
+    "title": "Email Alerts",
+    "enable": "Enable email alerts",
+    "kpThreshold": "Kp threshold",
+    "windThreshold": "Solar wind threshold (km/s)",
+    "save": "Save settings",
+    "saved": "Settings saved",
+    "saveError": "Failed to save settings",
+    "note": "An alert email is sent (max once per hour) when live readings exceed your thresholds."
+  },
   "webhooks": {
     "title": "Webhooks",
     "createTitle": "Register Webhook",
@@ -236,6 +246,7 @@
     "lockedKpForecast": "ML Kp forecast requires a Developer plan or higher.",
     "lockedAnomalies": "Anomaly detection requires a Developer plan or higher.",
     "lockedCsvExport": "CSV export requires a Developer plan or higher.",
+    "lockedEmailAlerts": "Email alerts require a Developer plan or higher.",
     "lockedWebhooks": "Webhooks are available on Pro and above.",
     "lockedHistorical": "Historical data access requires a Business plan or higher.",
     "upgradeBtn": "View pricing",

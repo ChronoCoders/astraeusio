@@ -115,6 +115,7 @@ export default function ApiKeysPage({ plan }) {
         <div className="bg-zinc-900 border border-zinc-800 rounded">
           <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="developer" />
         </div>
+        <EmailAlertsSection plan={plan} />
         <WebhooksSection plan={plan} />
         <ApiDocsSection t={t} />
       </div>
@@ -250,9 +251,136 @@ export default function ApiKeysPage({ plan }) {
         )}
       </div>
 
+      <EmailAlertsSection plan={plan} />
       <WebhooksSection plan={plan} />
       <ApiDocsSection t={t} />
 
+    </div>
+  )
+}
+
+// ── Email Alerts ──────────────────────────────────────────────────────────────
+
+function EmailAlertsSection({ plan }) {
+  const { t } = useTranslation()
+  const isDev = plan === null || planSatisfies(plan, 'developer')
+
+  const [settings, setSettings]     = useState(null)
+  const [enabled, setEnabled]       = useState(false)
+  const [kpThreshold, setKp]        = useState('5.0')
+  const [windThreshold, setWind]    = useState('700')
+  const [saving, setSaving]         = useState(false)
+  const [feedback, setFeedback]     = useState(null)
+
+  useEffect(() => {
+    if (!isDev) return
+    fetch('/api/email-alerts', { headers: authHeader() })
+      .then(r => r.json())
+      .then(d => {
+        setEnabled(d.enabled ?? false)
+        setKp(String(d.kp_threshold ?? 5.0))
+        setWind(String(d.wind_threshold ?? 700))
+        setSettings(d)
+      })
+      .catch(() => setSettings({}))
+  }, [isDev])
+
+  if (!isDev) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded">
+        <UpgradePrompt messageKey="plan.lockedEmailAlerts" requiredPlan="developer" />
+      </div>
+    )
+  }
+
+  if (settings === null) {
+    return (
+      <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+        <p className="text-zinc-600 text-xs font-mono">{t('common.loading')}</p>
+      </div>
+    )
+  }
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const r = await fetch('/api/email-alerts', {
+        method: 'POST',
+        headers: { ...authHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled,
+          kp_threshold:   parseFloat(kpThreshold)   || 5.0,
+          wind_threshold: parseFloat(windThreshold)  || 700,
+        }),
+      })
+      setFeedback(r.ok ? 'saved' : 'error')
+    } catch {
+      setFeedback('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
+      <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
+        {t('emailAlerts.title')}
+      </span>
+      <p className="text-zinc-600 text-xs">{t('emailAlerts.note')}</p>
+      <form onSubmit={handleSave} className="flex flex-col gap-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={e => setEnabled(e.target.checked)}
+            className="accent-indigo-500"
+          />
+          <span className="text-zinc-300 text-xs font-mono">{t('emailAlerts.enable')}</span>
+        </label>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-zinc-500 text-[11px] font-mono">{t('emailAlerts.kpThreshold')}</label>
+            <input
+              type="number"
+              min="1"
+              max="9"
+              step="0.1"
+              value={kpThreshold}
+              onChange={e => setKp(e.target.value)}
+              className="w-24 bg-zinc-950 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-zinc-500 text-[11px] font-mono">{t('emailAlerts.windThreshold')}</label>
+            <input
+              type="number"
+              min="100"
+              max="2000"
+              step="10"
+              value={windThreshold}
+              onChange={e => setWind(e.target.value)}
+              className="w-28 bg-zinc-950 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-4 py-2 text-xs font-mono rounded bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors"
+          >
+            {saving ? t('common.loading') : t('emailAlerts.save')}
+          </button>
+          {feedback === 'saved' && (
+            <span className="text-green-400 text-xs font-mono">{t('emailAlerts.saved')}</span>
+          )}
+          {feedback === 'error' && (
+            <span className="text-red-400 text-xs font-mono">{t('emailAlerts.saveError')}</span>
+          )}
+        </div>
+      </form>
     </div>
   )
 }
