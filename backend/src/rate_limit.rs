@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::db::Db;
+use crate::db::Store;
 use crate::db_writer::{DbWriterHandle, WriteCmd};
 use axum::{
     Json,
@@ -73,7 +73,7 @@ pub fn period_end(plan: &str, period_start: i64) -> i64 {
 /// On first request or period rollover, fetches the user's plan from the database.
 pub async fn check_and_increment(
     counter: &Arc<UsageCounter>,
-    db: &Arc<Mutex<Db>>,
+    db: &Arc<Mutex<Store>>,
     email: &str,
 ) -> Result<(), Response> {
     let now_ts = chrono::Utc::now().timestamp();
@@ -95,7 +95,7 @@ pub async fn check_and_increment(
 
     // Cold path: no entry yet or period rolled — fetch plan from DB.
     let plan = {
-        let guard = db.lock().await;
+        let guard: tokio::sync::MutexGuard<'_, Store> = db.lock().await;
         guard
             .get_user_plan(email)
             .unwrap_or_else(|_| "starter".to_string())

@@ -198,13 +198,13 @@ CREATE TABLE IF NOT EXISTS email_alerts (
 );
 ";
 
-// ── Db ────────────────────────────────────────────────────────────────────────
+// ── Store ─────────────────────────────────────────────────────────────────────
 
-pub struct Db {
+pub struct Store {
     conn: Connection,
 }
 
-impl Db {
+impl Store {
     pub fn open(path: &str) -> Result<Self, DbError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
@@ -267,7 +267,7 @@ fn parse_f64(field: &'static str, s: &str) -> Result<f64, DbError> {
 
 // ── NASA inserts ──────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_apod(&self, a: &Apod) -> Result<(), DbError> {
         self.conn.execute(
             "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at)
@@ -410,7 +410,7 @@ impl Db {
 
 // ── NOAA inserts ──────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_kp_batch(&self, records: &[KpRecord]) -> Result<(), DbError> {
         if records.is_empty() {
             return Ok(());
@@ -679,7 +679,7 @@ impl Db {
 
 // ── NOAA queries ─────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     /// Returns the `n` most recent Kp readings ordered oldest-first.
     pub fn get_recent_kp(&self, n: usize) -> Result<Vec<f64>, DbError> {
         let mut stmt = self
@@ -1058,7 +1058,7 @@ pub struct User {
     pub password_hash: String,
 }
 
-impl Db {
+impl Store {
     pub fn create_user(&self, email: &str, hash: &str) -> Result<(), DbError> {
         let result = self.conn.execute(
             "INSERT INTO users (email, password_hash, created_at, plan) VALUES (?, ?, ?, 'starter')",
@@ -1111,7 +1111,7 @@ impl Db {
 
 // ── ISS inserts ───────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_iss_position(&self, p: &IssPosition) -> Result<(), DbError> {
         self.conn.execute(
             "INSERT INTO iss_position (ts, lat_e6, lon_e6, altitude_m, velocity_m_h)
@@ -1131,7 +1131,7 @@ impl Db {
 
 // ── Kp forecast ───────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_kp_forecast(&self, ts: i64, kp_e2: i64) -> Result<(), DbError> {
         self.conn.execute(
             "INSERT INTO kp_forecast (ts, kp_e2, fetched_at) VALUES (?, ?, ?)
@@ -1139,6 +1139,18 @@ impl Db {
             params![ts, kp_e2, now()],
         )?;
         Ok(())
+    }
+
+    pub fn get_kp_forecast_latest(&self) -> Result<Option<(i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ts, kp_e2 FROM kp_forecast ORDER BY fetched_at DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns the (ts, kp_e2) with the highest predicted Kp among forecasts stored since `since`.
@@ -1157,7 +1169,7 @@ impl Db {
 
 // ── Anomaly detection ─────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_anomaly(
         &self,
         anomaly_type: &str,
@@ -1277,7 +1289,7 @@ fn flux_to_xray_class(flux_e12: i64) -> String {
     }
 }
 
-impl Db {
+impl Store {
     pub fn get_report_summary(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
         let cutoff = now() - since_secs;
 
@@ -1444,7 +1456,7 @@ impl Db {
 
 // ── Public endpoints (no auth) ────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     /// Returns the last 60 Kp readings oldest-first — same shape as /api/kp.
     pub fn get_kp_array_public(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
@@ -1497,7 +1509,7 @@ pub struct ApiKey {
     pub request_count: i64,
 }
 
-impl Db {
+impl Store {
     pub fn create_api_key(
         &self,
         id: &str,
@@ -1569,7 +1581,7 @@ impl Db {
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn get_user_plan(&self, email: &str) -> Result<String, DbError> {
         let mut stmt = self
             .conn
@@ -1628,7 +1640,7 @@ pub struct WebhookRow {
     pub created_at: i64,
 }
 
-impl Db {
+impl Store {
     pub fn create_webhook(
         &self,
         id: &str,
@@ -1715,7 +1727,7 @@ impl Db {
 
 // ── Starlink ──────────────────────────────────────────────────────────────────
 
-impl Db {
+impl Store {
     pub fn insert_starlink_batch(&self, sats: &[StarlinkSat]) -> Result<(), DbError> {
         if sats.is_empty() {
             return Ok(());
@@ -1781,7 +1793,7 @@ pub struct EmailAlertRow {
     pub last_notified_at: Option<i64>,
 }
 
-impl Db {
+impl Store {
     pub fn upsert_email_alert(
         &self,
         id: &str,

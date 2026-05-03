@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 
 use crate::{
-    db::{Db, DbError},
+    db::{Store, DbError},
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
     noaa::{
@@ -214,19 +214,19 @@ impl DbWriterHandle {
     }
 }
 
-pub fn spawn(db: Db, client: Client) -> DbWriterHandle {
+pub fn spawn(db: Store, client: Client) -> DbWriterHandle {
     let (tx, rx) = mpsc::channel(1024);
     tokio::spawn(run(db, client, rx));
     DbWriterHandle { tx }
 }
 
-async fn run(db: Db, client: Client, mut rx: mpsc::Receiver<WriteCmd>) {
+async fn run(db: Store, client: Client, mut rx: mpsc::Receiver<WriteCmd>) {
     while let Some(cmd) = rx.recv().await {
         tokio::task::block_in_place(|| process(&db, &client, cmd));
     }
 }
 
-fn process(db: &Db, client: &Client, cmd: WriteCmd) {
+fn process(db: &Store, client: &Client, cmd: WriteCmd) {
     match cmd {
         WriteCmd::Iss(pos) => {
             if let Err(e) = db.insert_iss_position(&pos) {

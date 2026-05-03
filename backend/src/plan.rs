@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::{db::Db, rate_limit::UsageCounter};
+use crate::{db::Store, rate_limit::UsageCounter};
 
 // ── Hierarchy ─────────────────────────────────────────────────────────────────
 // free/starter < developer < pro < business < enterprise
@@ -23,7 +23,7 @@ pub fn satisfies(user_plan: &str, required: &str) -> bool {
 
 /// Resolve the user's current plan from the in-memory counter (fast path)
 /// or fall back to a database read (cold path).
-pub async fn resolve(counter: &Arc<UsageCounter>, db: &Arc<Mutex<Db>>, email: &str) -> String {
+pub async fn resolve(counter: &Arc<UsageCounter>, db: &Arc<Mutex<Store>>, email: &str) -> String {
     if let Some(entry) = counter.get(email) {
         return entry.plan.clone();
     }
