@@ -19,7 +19,7 @@ use dashmap::DashMap;
 use crate::{
     api_keys, auth, email_alerts, webhooks,
     auth::{AuthClaims, AuthType},
-    db::Db,
+    db::Store,
     db_writer::{DbWriterHandle, WriteCmd},
     plan,
     rate_limit::UsageCounter,
@@ -60,7 +60,7 @@ where
 #[derive(Clone)]
 pub struct AppState {
     pub client: reqwest::Client,
-    pub db: Arc<Mutex<Db>>,
+    pub db: Arc<Mutex<Store>>,
     pub writer: DbWriterHandle,
     pub ml_url: String,
     pub cache: Arc<Mutex<CacheMap>>,
@@ -71,7 +71,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(
         client: reqwest::Client,
-        db: Db,
+        db: Store,
         writer: DbWriterHandle,
         ml_url: String,
         jwt_secret: String,
@@ -109,7 +109,7 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
     }
 }
 
-async fn lock_db(db: &Arc<Mutex<Db>>) -> MutexGuard<'_, Db> {
+async fn lock_db(db: &Arc<Mutex<Store>>) -> MutexGuard<'_, Store> {
     db.lock().await
 }
 
@@ -318,6 +318,65 @@ async fn get_iss(
 
 // ── ML forecast handler ───────────────────────────────────────────────────────
 
+async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> {
+    let readings = lock_db(&s.db).await.get_recent_kp(7)?;
+    if readings.is_empty() {
+        return Err(anyhow!("no Kp data in database — poller initializing").into());
+    }
+
+    let ml_timeout = std::env::var("ML_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5u64);
+
+    let result = s
+        .client
+        .post(format!("{}/predict", s.ml_url))
+        .timeout(Duration::from_secs(ml_timeout))
+        .json(&serde_json::json!({ "readings": readings }))
+        .send()
+        .await;
+
+    match result {
+        Ok(resp) if resp.status().is_success() => {
+            let payload: serde_json::Value = resp.json().await?;
+            if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
+                let forecast_ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64
+                    + 3 * 3600;
+                s.writer.fire(WriteCmd::KpForecast { ts: forecast_ts, kp_e2: (kp * 100.0).round() as i64 });
+            }
+            info!("kp-forecast: ML service returned prediction");
+            Ok(payload)
+        }
+        Ok(resp) => {
+            let status = resp.status();
+            tracing::warn!("kp-forecast: ML service returned {status}, falling back to cache");
+            ml_cache_fallback(s).await
+        }
+        Err(e) => {
+            tracing::warn!("kp-forecast: ML service unreachable ({e}), falling back to cache");
+            ml_cache_fallback(s).await
+        }
+    }
+}
+
+async fn ml_cache_fallback(s: &AppState) -> Result<serde_json::Value, AppError> {
+    match lock_db(&s.db).await.get_kp_forecast_latest()? {
+        Some((_, kp_e2)) => Ok(serde_json::json!({
+            "predicted_kp": kp_e2 as f64 / 100.0,
+            "ci_lower":     serde_json::Value::Null,
+            "ci_upper":     serde_json::Value::Null,
+            "uncertainty":  serde_json::Value::Null,
+            "status":       "degraded",
+            "source":       "cache",
+        })),
+        None => Err(anyhow!("ML service unavailable and no cached forecast").into()),
+    }
+}
+
 async fn get_kp_forecast(
     State(s): State<AppState>,
     claims: AuthClaims,
@@ -325,56 +384,9 @@ async fn get_kp_forecast(
     if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
         return Ok(r);
     }
-    Ok(cached(
-        &s.cache,
-        "kp-forecast",
-        Duration::from_secs(180),
-        || async {
-            let readings = lock_db(&s.db).await.get_recent_kp(7)?;
-
-            if readings.is_empty() {
-                return Err(anyhow!("no Kp data in database — poller initializing").into());
-            }
-
-            info!(
-                "kp-forecast: sending {} readings to ML service",
-                readings.len()
-            );
-
-            let body = serde_json::json!({ "readings": readings });
-            let resp = s
-                .client
-                .post(format!("{}/predict", s.ml_url))
-                .timeout(Duration::from_secs(5))
-                .json(&body)
-                .send()
-                .await
-                .map_err(|e| anyhow!("ML service unreachable: {e}"))?;
-
-            let status = resp.status();
-            let payload: serde_json::Value = resp.json().await?;
-
-            if !status.is_success() {
-                return Err(anyhow!("ML service error {status}: {payload}").into());
-            }
-
-            // Persist forecast for anomaly detection (3-hour horizon from now).
-            if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
-                let forecast_ts = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64
-                    + 3 * 3600;
-                let kp_e2 = (kp * 100.0).round() as i64;
-                s.writer.fire(WriteCmd::KpForecast {
-                    ts: forecast_ts,
-                    kp_e2,
-                });
-            }
-
-            Ok(payload)
-        },
-    )
+    Ok(cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
+        call_ml_or_cached(&s).await
+    })
     .await?
     .into_response())
 }
@@ -520,33 +532,10 @@ async fn get_public_solar_wind(State(s): State<AppState>) -> Result<impl IntoRes
 }
 
 async fn get_public_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    // Shares cache key with the authenticated /api/kp-forecast endpoint — no duplicate ML calls.
-    cached(
-        &s.cache,
-        "kp-forecast",
-        Duration::from_secs(180),
-        || async {
-            let readings = lock_db(&s.db).await.get_recent_kp(7)?;
-            if readings.is_empty() {
-                return Err(anyhow!("no Kp data in database — poller initializing").into());
-            }
-            let body = serde_json::json!({ "readings": readings });
-            let resp = s
-                .client
-                .post(format!("{}/predict", s.ml_url))
-                .timeout(Duration::from_secs(5))
-                .json(&body)
-                .send()
-                .await
-                .map_err(|e| anyhow!("ML service unreachable: {e}"))?;
-            let status = resp.status();
-            let payload: serde_json::Value = resp.json().await?;
-            if !status.is_success() {
-                return Err(anyhow!("ML service error {status}: {payload}").into());
-            }
-            Ok(payload)
-        },
-    )
+    // Shares cache key with /api/kp-forecast — no duplicate ML calls.
+    cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
+        call_ml_or_cached(&s).await
+    })
     .await
 }
 

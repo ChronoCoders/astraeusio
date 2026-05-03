@@ -1,6 +1,6 @@
 use tracing::warn;
 
-use crate::db::{Db, DbError};
+use crate::db::{Store, DbError};
 use crate::db_writer::{DbWriterHandle, WriteCmd};
 
 // Kp >= 5.0 = G1 storm, >= 8.0 = G4 severe
@@ -23,7 +23,7 @@ const XRAY_X_E12: i64 = 100_000_000;
 const FORECAST_WARNING_E2: i64 = 500;
 const FORECAST_CRITICAL_E2: i64 = 800;
 
-pub fn detect_and_store(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+pub fn detect_and_store(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     check_kp(db, writer)?;
     check_solar_wind(db, writer)?;
     check_xray(db, writer)?;
@@ -32,7 +32,7 @@ pub fn detect_and_store(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError>
     Ok(())
 }
 
-fn check_kp(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, kp_e2)) = db.latest_kp_raw()?
         && kp_e2 >= KP_WARNING_E2
     {
@@ -54,7 +54,7 @@ fn check_kp(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
     Ok(())
 }
 
-fn check_solar_wind(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+fn check_solar_wind(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, speed_e1)) = db.latest_solar_wind_speed_raw()?
         && speed_e1 >= WIND_WARNING_E1
     {
@@ -76,7 +76,7 @@ fn check_solar_wind(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
     Ok(())
 }
 
-fn check_xray(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, flux_e12)) = db.latest_xray_flux_raw()?
         && flux_e12 >= XRAY_M_E12
     {
@@ -98,7 +98,7 @@ fn check_xray(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
     Ok(())
 }
 
-fn check_neo(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let since = now() - 7 * 24 * 3600;
     for (id, date, dist_scaled) in db.neo_close_approaches_raw(ONE_LD_SCALED, since)? {
         let severity = if dist_scaled < HALF_LD_SCALED {
@@ -121,7 +121,7 @@ fn check_neo(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
     Ok(())
 }
 
-fn check_ml_forecast(db: &Db, writer: &DbWriterHandle) -> Result<(), DbError> {
+fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let since = now() - 24 * 3600;
     if let Some((ts, kp_e2)) = db.get_kp_forecast_max_recent(since)?
         && kp_e2 >= FORECAST_WARNING_E2

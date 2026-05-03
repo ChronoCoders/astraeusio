@@ -29,10 +29,12 @@ async fn main() -> Result<()> {
         .init();
 
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "astraeus.duckdb".to_string());
-    let write_db = db::Db::open(&db_path)?;
+    let write_db = db::Store::open(&db_path)?;
     let read_db = write_db.try_clone()?;
+    let http_timeout = std::env::var("HTTP_TIMEOUT")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(60u64);
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
+        .timeout(std::time::Duration::from_secs(http_timeout))
         .build()?;
     let writer = db_writer::spawn(write_db, client.clone());
     let ml_url =
