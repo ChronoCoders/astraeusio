@@ -9,6 +9,7 @@ import PricingPage  from './components/PricingPage.jsx'
 import DocsPage     from './components/DocsPage.jsx'
 import AboutPage    from './components/AboutPage.jsx'
 import BlogPage     from './components/BlogPage.jsx'
+import BlogPostPage from './components/BlogPostPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -69,8 +70,9 @@ export default function Root() {
         <Route path="/pricing"  element={<PricingPage  {...pub} />} />
         <Route path="/docs"     element={<DocsPage     {...pub} />} />
         <Route path="/about"    element={<AboutPage    {...pub} />} />
-        <Route path="/blog"     element={<BlogPage     {...pub} />} />
-        <Route path="*"         element={<LandingPage  {...pub} />} />
+        <Route path="/blog"          element={<BlogPage     {...pub} />} />
+        <Route path="/blog/:slug"    element={<BlogPostPage {...pub} />} />
+        <Route path="*"              element={<LandingPage  {...pub} />} />
       </Routes>
     )
   }
