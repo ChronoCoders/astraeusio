@@ -11,7 +11,42 @@
     "solarWindSpeed": "Solar Wind Speed",
     "protonDensity": "Proton Density",
     "xrayClass": "X-Ray Class",
-    "stormLevel": "Storm Level"
+    "stormLevel": "Storm Level",
+    "desc": {
+      "kp": {
+        "quiet":     "Quiet — no significant geomagnetic activity",
+        "low":       "Low activity — auroras only near poles",
+        "unsettled": "Unsettled — slight disturbances possible",
+        "g1":        "G1 Minor storm — auroras at high latitudes",
+        "g2":        "G2 Moderate — possible power grid fluctuations",
+        "g3":        "G3 Strong — intermittent GPS degradation",
+        "g4":        "G4 Severe — widespread grid and HF radio impact",
+        "g5":        "G5 Extreme — major disruptions, auroras at low latitudes"
+      },
+      "wind": {
+        "normal":   "Within normal range — quiet conditions",
+        "elevated": "Slightly elevated — monitor for changes",
+        "high":     "Elevated — increased geomagnetic activity likely",
+        "storm":    "High-speed stream detected — disturbance likely"
+      },
+      "xray": {
+        "none": "No significant flare activity",
+        "a":    "Minimal flare activity — no impact expected",
+        "b":    "Very weak flare — no disruption expected",
+        "c":    "Weak flare — minor radio interference possible",
+        "m":    "Moderate flare — possible HF radio blackout",
+        "x":    "Major flare — radio blackout and storm risk"
+      },
+      "storm": {
+        "quiet":     "No geomagnetic disturbance",
+        "unsettled": "Minor disturbances, mainly at polar regions",
+        "g1":        "Power grid fluctuations, aurora above 60°",
+        "g2":        "Long-duration power systems affected, aurora above 55°",
+        "g3":        "Voltage corrections needed, GPS degradation possible",
+        "g4":        "Widespread power control issues, satellite errors",
+        "g5":        "Complete HF blackout, grid instability"
+      }
+    }
   },
   "kpChart": {
     "title": "Kp index — last 24 h"

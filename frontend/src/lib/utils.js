@@ -1,5 +1,43 @@
 // ── Kp / Storm ────────────────────────────────────────────────────────────────
 
+export function kpDesc(kp) {
+  if (kp >= 9) return { key: 'metrics.desc.kp.g5',        cls: 'text-red-400' }
+  if (kp >= 8) return { key: 'metrics.desc.kp.g4',        cls: 'text-red-400' }
+  if (kp >= 7) return { key: 'metrics.desc.kp.g3',        cls: 'text-orange-400' }
+  if (kp >= 6) return { key: 'metrics.desc.kp.g2',        cls: 'text-orange-400' }
+  if (kp >= 5) return { key: 'metrics.desc.kp.g1',        cls: 'text-yellow-400' }
+  if (kp >= 4) return { key: 'metrics.desc.kp.unsettled', cls: 'text-yellow-500' }
+  if (kp >= 2) return { key: 'metrics.desc.kp.low',       cls: 'text-zinc-400' }
+  return             { key: 'metrics.desc.kp.quiet',      cls: 'text-zinc-500' }
+}
+
+export function windDesc(speed) {
+  if (!speed || speed <= 0) return { key: 'metrics.desc.wind.normal',   cls: 'text-zinc-500' }
+  if (speed > 700)          return { key: 'metrics.desc.wind.storm',    cls: 'text-red-400' }
+  if (speed > 500)          return { key: 'metrics.desc.wind.high',     cls: 'text-orange-400' }
+  if (speed > 400)          return { key: 'metrics.desc.wind.elevated', cls: 'text-yellow-400' }
+  return                           { key: 'metrics.desc.wind.normal',   cls: 'text-zinc-400' }
+}
+
+export function xrayDesc(flux) {
+  if (!flux || flux <= 0) return { key: 'metrics.desc.xray.none', cls: 'text-zinc-500' }
+  if (flux < 1e-7)        return { key: 'metrics.desc.xray.a',    cls: 'text-zinc-400' }
+  if (flux < 1e-6)        return { key: 'metrics.desc.xray.b',    cls: 'text-zinc-300' }
+  if (flux < 1e-5)        return { key: 'metrics.desc.xray.c',    cls: 'text-yellow-400' }
+  if (flux < 1e-4)        return { key: 'metrics.desc.xray.m',    cls: 'text-orange-400' }
+  return                         { key: 'metrics.desc.xray.x',    cls: 'text-red-400' }
+}
+
+export function stormDesc(kp) {
+  if (kp >= 9) return { key: 'metrics.desc.storm.g5',        cls: 'text-red-400' }
+  if (kp >= 8) return { key: 'metrics.desc.storm.g4',        cls: 'text-red-400' }
+  if (kp >= 7) return { key: 'metrics.desc.storm.g3',        cls: 'text-orange-400' }
+  if (kp >= 6) return { key: 'metrics.desc.storm.g2',        cls: 'text-orange-400' }
+  if (kp >= 5) return { key: 'metrics.desc.storm.g1',        cls: 'text-yellow-400' }
+  if (kp >= 4) return { key: 'metrics.desc.storm.unsettled', cls: 'text-yellow-500' }
+  return             { key: 'metrics.desc.storm.quiet',      cls: 'text-zinc-500' }
+}
+
 export function stormInfo(kp) {
   if (kp >= 9) return { key: 'storm.g5',        cls: 'text-red-400' }
   if (kp >= 8) return { key: 'storm.g4',        cls: 'text-red-400' }

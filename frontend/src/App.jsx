@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
-import { stormInfo, xrayClass, fmtNum } from './lib/utils'
+import { stormInfo, xrayClass, fmtNum, kpDesc, windDesc, xrayDesc, stormDesc } from './lib/utils'
 import Sidebar        from './components/Sidebar'
 import MetricCard     from './components/MetricCard'
 import KpChart        from './components/KpChart'
@@ -69,12 +69,17 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
 
   const latestKp3h = kp3h.data?.filter(r => r.estimated_kp > 0)?.at(-1)
   const currentKp  = latestKp3h?.estimated_kp ?? kp.data?.filter(r => r.estimated_kp > 0)?.at(-1)?.estimated_kp
-  const storm     = stormInfo(currentKp ?? 0)
+  const storm      = stormInfo(currentKp ?? 0)
 
   const latestWind = wind.data?.find(r => r.proton_speed != null)
 
   const latestXray = xray.data?.filter(r => r.energy === '0.1-0.8nm')?.at(-1)
   const xClass     = xrayClass(latestXray?.flux)
+
+  const kpDescInfo    = kpDesc(currentKp ?? 0)
+  const windDescInfo  = windDesc(latestWind?.proton_speed)
+  const xrayDescInfo  = xrayDesc(latestXray?.flux)
+  const stormDescInfo = stormDesc(currentKp ?? 0)
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -144,12 +149,16 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 value={currentKp != null ? fmtNum(currentKp, 2) : null}
                 sub={t(storm.key)}
                 valueCls={storm.cls}
+                desc={currentKp != null ? t(kpDescInfo.key) : null}
+                descCls={kpDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.solarWindSpeed')}
                 value={latestWind?.proton_speed != null ? fmtNum(latestWind.proton_speed, 0) : null}
                 unit="km/s"
                 sub={wind.loading ? t('common.loading') : wind.error ? t('common.unavailable') : null}
+                desc={latestWind?.proton_speed != null ? t(windDescInfo.key) : null}
+                descCls={windDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.protonDensity')}
@@ -162,12 +171,16 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 value={xClass.label}
                 sub={latestXray?.flux != null ? `${latestXray.flux.toExponential(1)} W/m²` : xray.loading ? t('common.loading') : xray.error ? t('common.unavailable') : null}
                 valueCls={xClass.cls}
+                desc={latestXray?.flux != null ? t(xrayDescInfo.key) : null}
+                descCls={xrayDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.stormLevel')}
                 value={t(storm.key)}
                 sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '—'}`}
                 valueCls={storm.cls}
+                desc={currentKp != null ? t(stormDescInfo.key) : null}
+                descCls={stormDescInfo.cls}
               />
             </div>
 
