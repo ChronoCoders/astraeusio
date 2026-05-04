@@ -9,7 +9,8 @@ import PricingPage  from './components/PricingPage.jsx'
 import DocsPage     from './components/DocsPage.jsx'
 import AboutPage    from './components/AboutPage.jsx'
 import BlogPage     from './components/BlogPage.jsx'
-import BlogPostPage from './components/BlogPostPage.jsx'
+import BlogPostPage      from './components/BlogPostPage.jsx'
+import VerifyEmailPage  from './components/VerifyEmailPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -41,6 +42,20 @@ export default function Root() {
     return () => { cancelled = true; ctrl.abort() }
   }, [token])
 
+  // Re-fetch user when the tab regains focus (e.g. after clicking a verification email link).
+  useEffect(() => {
+    if (!token) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      fetch('/api/user/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setUser(d) })
+        .catch(() => {})
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [token])
+
   function clearSession() {
     localStorage.removeItem('token')
     setToken(null)
@@ -70,9 +85,10 @@ export default function Root() {
         <Route path="/pricing"  element={<PricingPage  {...pub} />} />
         <Route path="/docs"     element={<DocsPage     {...pub} />} />
         <Route path="/about"    element={<AboutPage    {...pub} />} />
-        <Route path="/blog"          element={<BlogPage     {...pub} />} />
-        <Route path="/blog/:slug"    element={<BlogPostPage {...pub} />} />
-        <Route path="*"              element={<LandingPage  {...pub} />} />
+        <Route path="/blog"           element={<BlogPage       {...pub} />} />
+        <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
+        <Route path="/verify-email"   element={<VerifyEmailPage {...pub} />} />
+        <Route path="*"               element={<LandingPage    {...pub} />} />
       </Routes>
     )
   }
@@ -85,7 +101,7 @@ export default function Root() {
     <>
       {showLoader && <DashboardLoader />}
       <div style={showLoader ? { display: 'none' } : undefined}>
-        <App user={user} onLogout={handleLogout} onReady={() => setBooting(false)} />
+        <App user={user} onLogout={handleLogout} onReady={() => setBooting(false)} onUserChange={setUser} />
       </div>
     </>
   )

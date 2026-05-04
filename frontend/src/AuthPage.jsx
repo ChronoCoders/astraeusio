@@ -5,13 +5,16 @@ const LANGS = ['en', 'tr']
 
 export default function AuthPage({ onAuth, initialMode = 'login' }) {
   const { t, i18n } = useTranslation()
-  const [mode, setMode]       = useState(initialMode)
-  const [email, setEmail]     = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError]     = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [mode, setMode]           = useState(initialMode)
+  const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
+  const [confirm, setConfirm]     = useState('')
+  const [error, setError]         = useState(null)
+  const [success, setSuccess]     = useState(null)
+  const [loading, setLoading]     = useState(false)
+  // 2FA step
+  const [partialToken, setPartial] = useState(null)
+  const [totpCode, setTotpCode]   = useState('')
 
   function switchMode(next) {
     setMode(next)
@@ -53,10 +56,17 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
         return
       }
 
+      const data = await res.json()
+      if (data.requires_2fa) {
+        setLoading(false)
+        setPartial(data.partial_token)
+        setError(null)
+        return
+      }
+
       // Login success — keep loading=true so button stays disabled while
       // Root transitions to App. AuthPage unmounts; no setLoading(false) needed.
-      const { token } = await res.json()
-      onAuth(token)
+      onAuth(data.token)
     } catch {
       setLoading(false)
       setError(t('auth.networkError'))
@@ -118,8 +128,67 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           </div>
         </div>
 
+        {/* ── 2FA step ─────────────────────────────────────────────────── */}
+        {partialToken && (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="w-full max-w-sm">
+              <h2 className="text-zinc-100 text-xl font-semibold mb-1">Two-factor authentication</h2>
+              <p className="text-zinc-500 text-sm mb-7">Enter the 6-digit code from your authenticator app.</p>
+              <form onSubmit={async e => {
+                e.preventDefault()
+                setLoading(true)
+                setError(null)
+                try {
+                  const r = await fetch('/auth/2fa/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ partial_token: partialToken, code: totpCode }),
+                  })
+                  if (!r.ok) {
+                    const d = await r.json().catch(() => ({}))
+                    setError(d.error ?? t('auth.unknownError'))
+                    setLoading(false)
+                    return
+                  }
+                  const { token } = await r.json()
+                  onAuth(token)
+                } catch {
+                  setError(t('auth.networkError'))
+                  setLoading(false)
+                }
+              }} className="flex flex-col gap-4">
+                <Field label="Authenticator code">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    required
+                    autoFocus
+                    placeholder="000000"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-zinc-100 text-sm placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors tracking-widest"
+                  />
+                </Field>
+                {error && <p className="text-red-400 text-xs bg-red-950/40 border border-red-900/40 rounded px-3 py-2">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading || totpCode.length !== 6}
+                  className="bg-zinc-100 text-zinc-900 font-medium text-sm rounded px-4 py-2.5 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                >
+                  {loading ? t('common.loading') : 'Verify'}
+                </button>
+              </form>
+              <button onClick={() => { setPartial(null); setTotpCode(''); setError(null) }}
+                className="mt-4 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                ← Back to login
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Centered form */}
-        <div className="flex-1 flex items-center justify-center p-8">
+        {!partialToken && <div className="flex-1 flex items-center justify-center p-8">
           <div className="w-full max-w-sm">
 
             {/* Mobile wordmark */}
@@ -222,7 +291,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               )}
             </p>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   )

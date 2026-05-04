@@ -19,6 +19,13 @@ impl MailerConfig {
     }
 }
 
+pub async fn send_verification_email(config: &MailerConfig, to: &str, verify_url: &str) {
+    let body = format!(
+        "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 24 hours.\n\nIf you did not create an account, you can safely ignore this email."
+    );
+    send_alert_email(config, to, "Verify your Astraeusio email address", &body).await;
+}
+
 pub async fn send_alert_email(config: &MailerConfig, to: &str, subject: &str, body: &str) {
     let client = Resend::new(&config.api_key);
     let email = CreateEmailBaseOptions::new(&config.from, [to], subject)

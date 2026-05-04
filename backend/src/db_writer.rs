@@ -91,6 +91,23 @@ pub enum WriteCmd {
         user_email: String,
         reply: oneshot::Sender<Result<bool, DbError>>,
     },
+    SetEmailVerified {
+        email: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    SetTotpSecret {
+        email: String,
+        secret: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    EnableTotp {
+        email: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    DisableTotp {
+        email: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -201,6 +218,30 @@ impl DbWriterHandle {
             .send(WriteCmd::CreateWebhook { id, user_email, url, secret, events_json, reply: tx })
             .await
             .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn set_email_verified(&self, email: String) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(WriteCmd::SetEmailVerified { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn set_totp_secret(&self, email: String, secret: String) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(WriteCmd::SetTotpSecret { email, secret, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn enable_totp(&self, email: String) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(WriteCmd::EnableTotp { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn disable_totp(&self, email: String) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.send(WriteCmd::DisableTotp { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
@@ -400,6 +441,18 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         }
         WriteCmd::DeleteWebhook { id, user_email, reply } => {
             let _ = reply.send(db.delete_webhook(&id, &user_email));
+        }
+        WriteCmd::SetEmailVerified { email, reply } => {
+            let _ = reply.send(db.set_email_verified(&email));
+        }
+        WriteCmd::SetTotpSecret { email, secret, reply } => {
+            let _ = reply.send(db.set_totp_secret(&email, &secret));
+        }
+        WriteCmd::EnableTotp { email, reply } => {
+            let _ = reply.send(db.enable_totp(&email));
+        }
+        WriteCmd::DisableTotp { email, reply } => {
+            let _ = reply.send(db.disable_totp(&email));
         }
     }
 }
