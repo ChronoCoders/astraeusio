@@ -11,7 +11,42 @@
     "solarWindSpeed": "Güneş Rüzgarı Hızı",
     "protonDensity": "Proton Yoğunluğu",
     "xrayClass": "X-Işını Sınıfı",
-    "stormLevel": "Fırtına Seviyesi"
+    "stormLevel": "Fırtına Seviyesi",
+    "desc": {
+      "kp": {
+        "quiet":     "Sakin — önemli jeomanyetik aktivite yok",
+        "low":       "Düşük aktivite — aurora yalnızca kutuplara yakın",
+        "unsettled": "Kararsız — hafif rahatsızlıklar olabilir",
+        "g1":        "G1 Hafif fırtına — yüksek enlemlerde aurora",
+        "g2":        "G2 Orta — elektrik şebekesinde dalgalanmalar mümkün",
+        "g3":        "G3 Güçlü — aralıklı GPS bozulması",
+        "g4":        "G4 Şiddetli — yaygın şebeke ve KF radyo etkisi",
+        "g5":        "G5 Aşırı — büyük aksaklıklar, düşük enlemlerde aurora"
+      },
+      "wind": {
+        "normal":   "Normal aralıkta — sakin koşullar",
+        "elevated": "Hafif yükselmiş — değişimler için izleyin",
+        "high":     "Yükselmiş — artan jeomanyetik aktivite olası",
+        "storm":    "Hızlı akım tespit edildi — rahatsızlık olası"
+      },
+      "xray": {
+        "none": "Önemli patlama aktivitesi yok",
+        "a":    "Minimal patlama — etki beklenmez",
+        "b":    "Çok zayıf patlama — aksama beklenmez",
+        "c":    "Zayıf patlama — hafif radyo etkileşimi mümkün",
+        "m":    "Orta patlama — KF radyo karartması mümkün",
+        "x":    "Büyük patlama — radyo karartması ve fırtına riski"
+      },
+      "storm": {
+        "quiet":     "Jeomanyetik rahatsızlık yok",
+        "unsettled": "Küçük rahatsızlıklar, ağırlıklı olarak kutup bölgeleri",
+        "g1":        "Şebeke dalgalanmaları, 60° üzerinde aurora",
+        "g2":        "Uzun süreli güç sistemleri etkilenir, 55° üstünde aurora",
+        "g3":        "Voltaj düzeltmesi gerekebilir, GPS bozulması olası",
+        "g4":        "Yaygın güç kontrol sorunları, uydu hataları",
+        "g5":        "Tam KF karartma, şebeke kararsızlığı"
+      }
+    }
   },
   "kpChart": {
     "title": "Kp Endeksi — Son 24 saat"
