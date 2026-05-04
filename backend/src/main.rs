@@ -40,9 +40,10 @@ async fn main() -> Result<()> {
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    let state = routes::AppState::new(client, read_db, writer.clone(), ml_url, jwt_secret);
-
     let mailer_config = mailer::MailerConfig::from_env();
+    let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let state = routes::AppState::new(client, read_db, writer.clone(), ml_url, jwt_secret, mailer_config.clone(), app_url);
+
     poller::spawn(state.client.clone(), state.db.clone(), writer.clone(), mailer_config);
     rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 

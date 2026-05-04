@@ -209,12 +209,17 @@ impl Store {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
         // Migrate existing DBs that pre-date the plan column.
-        if let Err(e) =
-            conn.execute_batch("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'")
-        {
-            let msg = e.to_string().to_lowercase();
-            if !msg.contains("already exists") && !msg.contains("duplicate") {
-                return Err(DbError::Duckdb(e));
+        for sql in [
+            "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'",
+            "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN totp_secret TEXT",
+            "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
+        ] {
+            if let Err(e) = conn.execute_batch(sql) {
+                let msg = e.to_string().to_lowercase();
+                if !msg.contains("already exists") && !msg.contains("duplicate") {
+                    return Err(DbError::Duckdb(e));
+                }
             }
         }
         Ok(Self { conn })
@@ -1056,6 +1061,9 @@ impl Store {
 pub struct User {
     pub email: String,
     pub password_hash: String,
+    pub email_verified: bool,
+    pub totp_secret: Option<String>,
+    pub totp_enabled: bool,
 }
 
 impl Store {
@@ -1080,14 +1088,18 @@ impl Store {
     }
 
     pub fn find_user_by_email(&self, email: &str) -> Result<Option<User>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT email, password_hash FROM users WHERE email = ?")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT email, password_hash, email_verified, totp_secret, totp_enabled \
+             FROM users WHERE email = ?",
+        )?;
         let mut rows = stmt.query([email])?;
         if let Some(row) = rows.next()? {
             Ok(Some(User {
-                email: row.get(0)?,
-                password_hash: row.get(1)?,
+                email:          row.get(0)?,
+                password_hash:  row.get(1)?,
+                email_verified: row.get::<_, Option<bool>>(2)?.unwrap_or(false),
+                totp_secret:    row.get(3)?,
+                totp_enabled:   row.get::<_, Option<bool>>(4)?.unwrap_or(false),
             }))
         } else {
             Ok(None)
@@ -1095,17 +1107,29 @@ impl Store {
     }
 
     pub fn get_user_me(&self, email: &str) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT plan FROM users WHERE email = ?")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT plan, email_verified, totp_enabled FROM users WHERE email = ?",
+        )?;
         let mut rows = stmt.query([email])?;
-        let plan = match rows.next()? {
-            Some(row) => row
-                .get::<_, Option<String>>(0)?
-                .unwrap_or_else(|| "starter".to_string()),
-            None => "starter".to_string(),
-        };
-        Ok(serde_json::json!({ "email": email, "plan": plan }))
+        match rows.next()? {
+            Some(row) => {
+                let plan = row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string());
+                let verified = row.get::<_, Option<bool>>(1)?.unwrap_or(false);
+                let totp_on  = row.get::<_, Option<bool>>(2)?.unwrap_or(false);
+                Ok(serde_json::json!({
+                    "email":          email,
+                    "plan":           plan,
+                    "email_verified": verified,
+                    "totp_enabled":   totp_on,
+                }))
+            }
+            None => Ok(serde_json::json!({
+                "email":          email,
+                "plan":           "starter",
+                "email_verified": false,
+                "totp_enabled":   false,
+            })),
+        }
     }
 }
 
@@ -1582,6 +1606,38 @@ impl Store {
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
 impl Store {
+    pub fn set_email_verified(&self, email: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET email_verified = TRUE WHERE email = ?",
+            params![email],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_totp_secret(&self, email: &str, secret: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET totp_secret = ? WHERE email = ?",
+            params![secret, email],
+        )?;
+        Ok(())
+    }
+
+    pub fn enable_totp(&self, email: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET totp_enabled = TRUE WHERE email = ?",
+            params![email],
+        )?;
+        Ok(())
+    }
+
+    pub fn disable_totp(&self, email: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE email = ?",
+            params![email],
+        )?;
+        Ok(())
+    }
+
     pub fn get_user_plan(&self, email: &str) -> Result<String, DbError> {
         let mut stmt = self
             .conn

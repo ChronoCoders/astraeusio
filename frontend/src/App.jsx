@@ -35,7 +35,7 @@ function fmtUtc(d) {
 
 const AURORA_V = Math.floor(Date.now() / 1_800_000)
 
-export default function App({ user, onLogout, onReady }) {
+export default function App({ user, onLogout, onReady, onUserChange }) {
   const { t } = useTranslation()
   const [utcNow, setUtcNow]       = useState(() => fmtUtc(new Date()))
   const [page, setPage]           = useState('dashboard')
@@ -117,6 +117,23 @@ export default function App({ user, onLogout, onReady }) {
 
         {/* Page content */}
         <main className="p-4 flex flex-col gap-3 flex-1">
+
+          {/* ── Email verification banner ───────────────────────────────── */}
+          {user && !user.email_verified && (
+            <div className="flex items-center gap-3 bg-yellow-950/40 border border-yellow-800/50 rounded px-4 py-2.5">
+              <span className="text-yellow-400 text-xs">⚠</span>
+              <p className="text-yellow-300 text-xs font-mono flex-1">
+                Your email address is not verified. Check your inbox or go to{' '}
+                <button
+                  onClick={() => setPage('settings')}
+                  className="underline hover:text-yellow-100 transition-colors"
+                >
+                  Settings
+                </button>{' '}
+                to resend the verification email.
+              </p>
+            </div>
+          )}
 
           {/* ── Dashboard ──────────────────────────────────────────────── */}
           {page === 'dashboard' && <>
@@ -233,7 +250,7 @@ export default function App({ user, onLogout, onReady }) {
           {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} />}
 
           {/* ── Settings ───────────────────────────────────────────────── */}
-          {page === 'settings' && <SettingsPage onLogout={onLogout} />}
+          {page === 'settings' && <SettingsPage onLogout={onLogout} user={user} onUserChange={onUserChange} />}
 
           {/* ── Alerts ─────────────────────────────────────────────────── */}
           {page === 'alerts' && (

@@ -24,3 +24,4 @@ hmac = "0.12"
 hex = "0.4"
 dashmap = "6"
 resend-rs = "0.5"
+totp-rs = { version = "5", features = ["gen_secret", "qr"] }

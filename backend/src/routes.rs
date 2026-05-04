@@ -17,7 +17,7 @@ use tracing::info;
 use dashmap::DashMap;
 
 use crate::{
-    api_keys, auth, email_alerts, webhooks,
+    api_keys, auth, email_alerts, mailer, webhooks,
     auth::{AuthClaims, AuthType},
     db::Store,
     db_writer::{DbWriterHandle, WriteCmd},
@@ -66,6 +66,8 @@ pub struct AppState {
     pub cache: Arc<Mutex<CacheMap>>,
     pub jwt_secret: String,
     pub usage_counter: Arc<UsageCounter>,
+    pub mailer: Option<mailer::MailerConfig>,
+    pub app_url: String,
 }
 
 impl AppState {
@@ -75,6 +77,8 @@ impl AppState {
         writer: DbWriterHandle,
         ml_url: String,
         jwt_secret: String,
+        mailer: Option<mailer::MailerConfig>,
+        app_url: String,
     ) -> Self {
         Self {
             client,
@@ -84,6 +88,8 @@ impl AppState {
             cache: Arc::new(Mutex::new(HashMap::new())),
             jwt_secret,
             usage_counter: Arc::new(DashMap::new()),
+            mailer,
+            app_url,
         }
     }
 }
@@ -144,6 +150,12 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/change-password", post(auth::change_password))
+        .route("/auth/verify-email/{token}", post(auth::verify_email))
+        .route("/auth/resend-verification", post(auth::resend_verification))
+        .route("/auth/2fa/setup", post(auth::setup_2fa))
+        .route("/auth/2fa/verify", post(auth::verify_2fa))
+        .route("/auth/2fa/disable", post(auth::disable_2fa))
+        .route("/auth/2fa/login", post(auth::login_2fa))
         .route("/api/apod", get(get_apod))
         .route("/api/neo", get(get_neo))
         .route("/api/epic", get(get_epic))
