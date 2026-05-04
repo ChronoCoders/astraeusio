@@ -7,7 +7,7 @@ export default function MetricCard({ label, value, unit, sub, valueCls = 'text-z
         {unit && <span className="text-sm font-normal text-zinc-500 ml-1">{unit}</span>}
       </span>
       {sub  && <span className="text-zinc-400 text-xs truncate">{sub}</span>}
-      {desc && <span className={`text-xs truncate ${descCls}`}>{desc}</span>}
+      {desc && <span className={`text-xs leading-tight ${descCls}`}>{desc}</span>}
     </div>
   )
 }
