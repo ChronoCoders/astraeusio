@@ -12,7 +12,11 @@ export default function EpicViewer({ data }) {
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('epic.title')}</span>
-        {img && <span className="text-zinc-500 text-xs font-mono">{img.date?.slice(0, 10)}</span>}
+        {img && (
+          <span className="text-zinc-600 text-xs font-mono" title="NASA publishes EPIC imagery with a 1–2 day processing delay">
+            {img.date?.slice(0, 10)} · {t('epic.latestAvailable')}
+          </span>
+        )}
       </div>
 
       {!img ? (

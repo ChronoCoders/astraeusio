@@ -15,45 +15,50 @@ use crate::{
 // ── Poller configuration ──────────────────────────────────────────────────────
 
 pub struct PollerConfig {
-    pub iss_interval:        u64,
-    pub kp_interval:         u64,
-    pub kp_3h_interval:      u64,
+    pub iss_interval: u64,
+    pub kp_interval: u64,
+    pub kp_3h_interval: u64,
     pub solar_wind_interval: u64,
-    pub xray_interval:       u64,
-    pub alerts_interval:     u64,
-    pub neo_interval:        u64,
-    pub epic_interval:       u64,
-    pub apod_interval:       u64,
-    pub exoplanet_interval:  u64,
-    pub imf_interval:        u64,
-    pub dst_interval:        u64,
-    pub starlink_interval:   u64,
-    pub anomaly_interval:    u64,
-    pub retry_count:         u32,
+    pub xray_interval: u64,
+    pub alerts_interval: u64,
+    pub neo_interval: u64,
+    pub epic_interval: u64,
+    pub apod_interval: u64,
+    pub exoplanet_interval: u64,
+    pub imf_interval: u64,
+    pub dst_interval: u64,
+    pub starlink_interval: u64,
+    pub anomaly_interval: u64,
+    pub retry_count: u32,
 }
 
 impl PollerConfig {
     pub fn from_env() -> Self {
         fn secs(key: &str, default: u64) -> u64 {
-            std::env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+            std::env::var(key)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(default)
         }
         Self {
-            iss_interval:        secs("ISS_INTERVAL",        5),
-            kp_interval:         secs("KP_INTERVAL",         60),
-            kp_3h_interval:      secs("KP_3H_INTERVAL",      1800),
+            iss_interval: secs("ISS_INTERVAL", 5),
+            kp_interval: secs("KP_INTERVAL", 60),
+            kp_3h_interval: secs("KP_3H_INTERVAL", 1800),
             solar_wind_interval: secs("SOLAR_WIND_INTERVAL", 60),
-            xray_interval:       secs("XRAY_INTERVAL",       120),
-            alerts_interval:     secs("ALERTS_INTERVAL",     300),
-            neo_interval:        secs("NEO_INTERVAL",        1800),
-            epic_interval:       secs("EPIC_INTERVAL",       1800),
-            apod_interval:       secs("APOD_INTERVAL",       3600),
-            exoplanet_interval:  secs("EXOPLANET_INTERVAL",  86400),
-            imf_interval:        secs("IMF_INTERVAL",        60),
-            dst_interval:        secs("DST_INTERVAL",        300),
-            starlink_interval:   secs("STARLINK_INTERVAL",   3600),
-            anomaly_interval:    secs("ANOMALY_INTERVAL",    60),
-            retry_count:         std::env::var("RETRY_COUNT")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(3),
+            xray_interval: secs("XRAY_INTERVAL", 120),
+            alerts_interval: secs("ALERTS_INTERVAL", 300),
+            neo_interval: secs("NEO_INTERVAL", 1800),
+            epic_interval: secs("EPIC_INTERVAL", 1800),
+            apod_interval: secs("APOD_INTERVAL", 3600),
+            exoplanet_interval: secs("EXOPLANET_INTERVAL", 86400),
+            imf_interval: secs("IMF_INTERVAL", 60),
+            dst_interval: secs("DST_INTERVAL", 300),
+            starlink_interval: secs("STARLINK_INTERVAL", 3600),
+            anomaly_interval: secs("ANOMALY_INTERVAL", 60),
+            retry_count: std::env::var("RETRY_COUNT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(3),
         }
     }
 }
@@ -72,44 +77,125 @@ pub fn spawn(
     let cfg = PollerConfig::from_env();
     info!(
         retry_count = cfg.retry_count,
-        iss = cfg.iss_interval, kp = cfg.kp_interval, kp_3h = cfg.kp_3h_interval,
-        solar_wind = cfg.solar_wind_interval, xray = cfg.xray_interval,
-        alerts = cfg.alerts_interval, neo = cfg.neo_interval,
-        epic = cfg.epic_interval, apod = cfg.apod_interval,
-        exoplanets = cfg.exoplanet_interval, imf = cfg.imf_interval,
-        dst = cfg.dst_interval, starlink = cfg.starlink_interval,
+        iss = cfg.iss_interval,
+        kp = cfg.kp_interval,
+        kp_3h = cfg.kp_3h_interval,
+        solar_wind = cfg.solar_wind_interval,
+        xray = cfg.xray_interval,
+        alerts = cfg.alerts_interval,
+        neo = cfg.neo_interval,
+        epic = cfg.epic_interval,
+        apod = cfg.apod_interval,
+        exoplanets = cfg.exoplanet_interval,
+        imf = cfg.imf_interval,
+        dst = cfg.dst_interval,
+        starlink = cfg.starlink_interval,
         anomaly = cfg.anomaly_interval,
         "poller: intervals loaded"
     );
 
     // Tier 0 — tiny/read-only, start immediately
-    tokio::spawn(poll_iss(client.clone(), writer.clone(), 0, cfg.iss_interval));
-    tokio::spawn(poll_anomaly(db.clone(), writer.clone(), smtp, 2, cfg.anomaly_interval));
+    tokio::spawn(poll_iss(
+        client.clone(),
+        writer.clone(),
+        0,
+        cfg.iss_interval,
+    ));
+    tokio::spawn(poll_anomaly(
+        db.clone(),
+        writer.clone(),
+        smtp,
+        2,
+        cfg.anomaly_interval,
+    ));
     // Tier 1 — small inserts, 5-second spacing
     tokio::spawn(poll_kp(client.clone(), writer.clone(), 5, cfg.kp_interval));
-    tokio::spawn(poll_alerts(client.clone(), writer.clone(), 10, cfg.alerts_interval));
-    tokio::spawn(poll_neo(client.clone(), writer.clone(), 15, cfg.neo_interval));
-    tokio::spawn(poll_epic(client.clone(), writer.clone(), 20, cfg.epic_interval));
-    tokio::spawn(poll_apod(client.clone(), writer.clone(), 25, cfg.apod_interval));
+    tokio::spawn(poll_alerts(
+        client.clone(),
+        writer.clone(),
+        10,
+        cfg.alerts_interval,
+    ));
+    tokio::spawn(poll_neo(
+        client.clone(),
+        writer.clone(),
+        15,
+        cfg.neo_interval,
+    ));
+    tokio::spawn(poll_epic(
+        client.clone(),
+        writer.clone(),
+        20,
+        cfg.epic_interval,
+    ));
+    tokio::spawn(poll_apod(
+        client.clone(),
+        writer.clone(),
+        25,
+        cfg.apod_interval,
+    ));
     // Tier 2 — large initial inserts (hundreds to thousands of rows), 8-second spacing
-    tokio::spawn(poll_kp_3h(client.clone(), writer.clone(), 30, cfg.kp_3h_interval));
-    tokio::spawn(poll_dst(client.clone(), writer.clone(), 38, cfg.dst_interval));
-    tokio::spawn(poll_exoplanets(client.clone(), writer.clone(), 46, cfg.exoplanet_interval));
-    tokio::spawn(poll_imf(client.clone(), writer.clone(), 54, cfg.imf_interval));
-    tokio::spawn(poll_solar_wind(client.clone(), writer.clone(), 62, cfg.solar_wind_interval));
-    tokio::spawn(poll_xray(client.clone(), writer.clone(), 70, cfg.xray_interval));
+    tokio::spawn(poll_kp_3h(
+        client.clone(),
+        writer.clone(),
+        30,
+        cfg.kp_3h_interval,
+    ));
+    tokio::spawn(poll_dst(
+        client.clone(),
+        writer.clone(),
+        38,
+        cfg.dst_interval,
+    ));
+    tokio::spawn(poll_exoplanets(
+        client.clone(),
+        writer.clone(),
+        46,
+        cfg.exoplanet_interval,
+    ));
+    tokio::spawn(poll_imf(
+        client.clone(),
+        writer.clone(),
+        54,
+        cfg.imf_interval,
+    ));
+    tokio::spawn(poll_solar_wind(
+        client.clone(),
+        writer.clone(),
+        62,
+        cfg.solar_wind_interval,
+    ));
+    tokio::spawn(poll_xray(
+        client.clone(),
+        writer.clone(),
+        70,
+        cfg.xray_interval,
+    ));
     // Tier 3 — Starlink: DELETE + 7000+ inserts in one transaction, start last
-    tokio::spawn(poll_starlink(client.clone(), writer.clone(), 90, cfg.starlink_interval));
+    tokio::spawn(poll_starlink(
+        client.clone(),
+        writer.clone(),
+        90,
+        cfg.starlink_interval,
+    ));
 }
 
 // ── Poll functions ────────────────────────────────────────────────────────────
 
-async fn poll_iss(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_iss(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match iss::fetch_iss_position(&client).await {
             Ok(pos) => {
-                info!("poller/iss: lat={:.4} lon={:.4}", pos.latitude, pos.longitude);
+                info!(
+                    "poller/iss: lat={:.4} lon={:.4}",
+                    pos.latitude, pos.longitude
+                );
                 writer.fire(WriteCmd::Iss(pos));
             }
             Err(e) => error!(source = "poller/iss", "fetch: {e}"),
@@ -118,7 +204,12 @@ async fn poll_iss(client: reqwest::Client, writer: DbWriterHandle, init_delay_se
     }
 }
 
-async fn poll_kp(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_kp(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_kp(&client).await {
@@ -132,7 +223,12 @@ async fn poll_kp(client: reqwest::Client, writer: DbWriterHandle, init_delay_sec
     }
 }
 
-async fn poll_kp_3h(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_kp_3h(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_kp_3h(&client).await {
@@ -146,7 +242,12 @@ async fn poll_kp_3h(client: reqwest::Client, writer: DbWriterHandle, init_delay_
     }
 }
 
-async fn poll_solar_wind(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_solar_wind(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_solar_wind(&client).await {
@@ -160,7 +261,12 @@ async fn poll_solar_wind(client: reqwest::Client, writer: DbWriterHandle, init_d
     }
 }
 
-async fn poll_xray(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_xray(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_xray(&client).await {
@@ -174,7 +280,12 @@ async fn poll_xray(client: reqwest::Client, writer: DbWriterHandle, init_delay_s
     }
 }
 
-async fn poll_alerts(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_alerts(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_alerts(&client).await {
@@ -188,12 +299,19 @@ async fn poll_alerts(client: reqwest::Client, writer: DbWriterHandle, init_delay
     }
 }
 
-async fn poll_neo(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_neo(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         let today = Utc::now().date_naive();
         let start = today.format("%Y-%m-%d").to_string();
-        let end = (today + ChronoDuration::days(7)).format("%Y-%m-%d").to_string();
+        let end = (today + ChronoDuration::days(7))
+            .format("%Y-%m-%d")
+            .to_string();
         match nasa::fetch_neo_feed(&client, &start, &end).await {
             Ok(feed) => {
                 info!("poller/neo: {} objects", feed.element_count);
@@ -206,7 +324,12 @@ async fn poll_neo(client: reqwest::Client, writer: DbWriterHandle, init_delay_se
     }
 }
 
-async fn poll_epic(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_epic(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match nasa::fetch_epic(&client).await {
@@ -220,7 +343,12 @@ async fn poll_epic(client: reqwest::Client, writer: DbWriterHandle, init_delay_s
     }
 }
 
-async fn poll_apod(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_apod(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match nasa::fetch_apod(&client).await {
@@ -234,7 +362,12 @@ async fn poll_apod(client: reqwest::Client, writer: DbWriterHandle, init_delay_s
     }
 }
 
-async fn poll_exoplanets(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_exoplanets(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match nasa::fetch_exoplanets(&client).await {
@@ -248,7 +381,12 @@ async fn poll_exoplanets(client: reqwest::Client, writer: DbWriterHandle, init_d
     }
 }
 
-async fn poll_imf(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_imf(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_imf(&client).await {
@@ -262,7 +400,12 @@ async fn poll_imf(client: reqwest::Client, writer: DbWriterHandle, init_delay_se
     }
 }
 
-async fn poll_dst(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_dst(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_dst(&client).await {
@@ -276,7 +419,12 @@ async fn poll_dst(client: reqwest::Client, writer: DbWriterHandle, init_delay_se
     }
 }
 
-async fn poll_starlink(client: reqwest::Client, writer: DbWriterHandle, init_delay_secs: u64, interval: u64) {
+async fn poll_starlink(
+    client: reqwest::Client,
+    writer: DbWriterHandle,
+    init_delay_secs: u64,
+    interval: u64,
+) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match starlink::fetch_starlink(&client).await {
@@ -354,7 +502,9 @@ async fn dispatch_email_alerts(
         {
             let speed = speed_e1 as f64 / 10.0;
             let thr = sub.wind_threshold_e1 as f64 / 10.0;
-            lines.push(format!("• Solar wind {speed:.0} km/s (your threshold: {thr:.0} km/s)"));
+            lines.push(format!(
+                "• Solar wind {speed:.0} km/s (your threshold: {thr:.0} km/s)"
+            ));
         }
 
         if lines.is_empty() {

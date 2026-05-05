@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 // ── Static data (keys only, no human-readable strings) ────────────────────────
 
@@ -272,15 +273,7 @@ export default function PricingPage({ onSignIn, onSignUp }) {
         </p>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-zinc-800 px-6 py-10 text-center">
-        <Link to="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-          {t('products.backHome')}
-        </Link>
-        <p className="text-zinc-700 text-xs mt-4">
-          {t('landing.footerNote')}
-        </p>
-      </footer>
+      <Footer />
     </div>
   )
 }

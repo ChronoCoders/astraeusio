@@ -1,4 +1,5 @@
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 function Section({ id, children, className = '' }) {
   return (
@@ -163,8 +164,7 @@ export default function AboutPage({ onSignIn }) {
         </a>
       </Section>
 
-      {/* Footer spacer */}
-      <div className="h-20" />
+      <Footer />
     </div>
   )
 }

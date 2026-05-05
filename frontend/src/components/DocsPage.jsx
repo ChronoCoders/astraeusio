@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 // ── Sidebar nav structure ─────────────────────────────────────────────────────
 
@@ -793,6 +794,7 @@ curl -X POST https://your-domain.com/api/email-alerts \\
           <div className="h-24" />
         </main>
       </div>
+      <Footer />
     </div>
   )
 }

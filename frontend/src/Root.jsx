@@ -11,6 +11,7 @@ import AboutPage    from './components/AboutPage.jsx'
 import BlogPage     from './components/BlogPage.jsx'
 import BlogPostPage      from './components/BlogPostPage.jsx'
 import VerifyEmailPage  from './components/VerifyEmailPage.jsx'
+import StatusPage      from './components/StatusPage.jsx'
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -88,6 +89,7 @@ export default function Root() {
         <Route path="/blog"           element={<BlogPage       {...pub} />} />
         <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
         <Route path="/verify-email"   element={<VerifyEmailPage {...pub} />} />
+        <Route path="/status"         element={<StatusPage      {...pub} />} />
         <Route path="*"               element={<LandingPage    {...pub} />} />
       </Routes>
     )

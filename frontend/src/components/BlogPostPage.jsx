@@ -1,5 +1,6 @@
 import { Link, useParams, Navigate } from 'react-router-dom'
 import Navbar from './Navbar'
+import Footer from './Footer'
 import { getPost } from '../blog/posts'
 
 function TagBadge({ tag }) {
@@ -154,6 +155,7 @@ export default function BlogPostPage({ onSignIn }) {
           <span className="text-xs font-mono text-zinc-600">{post.author}</span>
         </div>
       </article>
+      <Footer />
     </div>
   )
 }

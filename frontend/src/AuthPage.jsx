@@ -132,8 +132,8 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
         {partialToken && (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="w-full max-w-sm">
-              <h2 className="text-zinc-100 text-xl font-semibold mb-1">Two-factor authentication</h2>
-              <p className="text-zinc-500 text-sm mb-7">Enter the 6-digit code from your authenticator app.</p>
+              <h2 className="text-zinc-100 text-xl font-semibold mb-1">{t('auth.twoFactorTitle')}</h2>
+              <p className="text-zinc-500 text-sm mb-7">{t('auth.twoFactorSubtitle')}</p>
               <form onSubmit={async e => {
                 e.preventDefault()
                 setLoading(true)
@@ -157,7 +157,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
                   setLoading(false)
                 }
               }} className="flex flex-col gap-4">
-                <Field label="Authenticator code">
+                <Field label={t('auth.authenticatorCode')}>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -176,12 +176,12 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
                   disabled={loading || totpCode.length !== 6}
                   className="bg-zinc-100 text-zinc-900 font-medium text-sm rounded px-4 py-2.5 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
                 >
-                  {loading ? t('common.loading') : 'Verify'}
+                  {loading ? t('common.loading') : t('auth.verify')}
                 </button>
               </form>
               <button onClick={() => { setPartial(null); setTotpCode(''); setError(null) }}
                 className="mt-4 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
-                ← Back to login
+                {t('auth.backToLogin')}
               </button>
             </div>
           </div>

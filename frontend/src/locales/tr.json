@@ -98,7 +98,8 @@
   },
   "epic": {
     "title": "EPIC — Çok Renkli Dünya Görüntüleme",
-    "frame": "Kare:"
+    "frame": "Kare:",
+    "latestAvailable": "mevcut en güncel"
   },
   "exo": {
     "title": "Öte Gezegen Kataloğu",
@@ -200,7 +201,30 @@
     "changePasswordBtn": "Şifreyi güncelle",
     "pwChanged": "Şifre başarıyla güncellendi.",
     "pwTooShort": "Yeni şifre en az 8 karakter olmalıdır",
-    "sessionTitle": "Oturum"
+    "sessionTitle": "Oturum",
+    "emailVerificationTitle": "E-posta doğrulama",
+    "emailVerified": "✓ Doğrulandı",
+    "emailNotVerified": "⚠ E-posta adresiniz doğrulanmamış.",
+    "emailVerificationSent": "Doğrulama e-postası gönderildi — gelen kutunuzu kontrol edin.",
+    "resendVerification": "Doğrulama e-postasını yeniden gönder",
+    "sending": "Gönderiliyor…",
+    "twoFactorTitle": "İki faktörlü kimlik doğrulama (TOTP)",
+    "twoFactorEnabledMsg": "✓ 2FA hesabınızda etkin.",
+    "twoFactorDesc": "TOTP kimlik doğrulama uygulamasıyla ekstra güvenlik katmanı ekleyin.",
+    "twoFactorDisable": "2FA'yı devre dışı bırak",
+    "twoFactorEnable": "2FA'yı etkinleştir",
+    "twoFactorSetupInstructions": "Bu QR kodunu kimlik doğrulama uygulamanızla tarayın (Google Authenticator, Authy vb.), ardından onaylamak için 6 haneli kodu girin.",
+    "manualEntryKey": "Manuel giriş anahtarı",
+    "confirmationCode": "Onay kodu",
+    "confirmEnable": "Onayla ve etkinleştir",
+    "verifying": "Doğrulanıyor…",
+    "cancel": "İptal",
+    "enterCodeToDisable": "2FA'yı devre dışı bırakmak için mevcut kimlik doğrulama kodunuzu girin.",
+    "authenticatorCode": "Kimlik doğrulama kodu",
+    "disabling": "Devre dışı bırakılıyor…",
+    "emailBannerPre": "E-posta adresiniz doğrulanmamış. Gelen kutunuzu kontrol edin veya",
+    "emailBannerLink": "Ayarlar",
+    "emailBannerPost": "sayfasına giderek doğrulama e-postasını yeniden gönderin."
   },
   "apiKeys": {
     "createTitle": "API Anahtarı Oluştur",
@@ -246,6 +270,53 @@
     "secretWarning": "İmzalama anahtarını şimdi kopyalayın — bir daha gösterilmeyecek.",
     "secretDismiss": "Anladım — kapat"
   },
+  "status": {
+    "eyebrow": "Sistem Durumu",
+    "title": "Tüm sistemlerin durumu",
+    "allOperational": "Tüm Sistemler Çalışıyor",
+    "partialOutage": "Kısmi Kesinti — bazı sistemler etkilendi",
+    "majorOutage": "Büyük Kesinti — sistemler erişilemez",
+    "components": "Bileşenler",
+    "operational": "Çalışıyor",
+    "degraded": "Bozuk",
+    "unknown": "Bilinmiyor",
+    "outage": "Kesinti",
+    "updatedAt": "Güncellendi:",
+    "autoRefresh": "Her 30 saniyede otomatik yenilenir",
+    "backendApi": "Backend API",
+    "backendApiDesc": "Axum HTTP sunucusu · Rust",
+    "mlForecast": "ML Tahmini",
+    "mlForecastDesc": "LSTM Kp tahmini · PyTorch",
+    "database": "Veritabanı",
+    "databaseDesc": "DuckDB · birincil veri deposu",
+    "noaa": "Uzay Hava Verisi",
+    "noaaDesc": "NOAA SWPC · Kp, güneş rüzgarı, X-ışını, uyarılar",
+    "nasa": "NASA Verisi",
+    "nasaDesc": "APOD, NEO, EPIC · 30 dk. yoklama",
+    "celestrak": "Uydu Verisi",
+    "celestrakDesc": "Celestrak TLE · Starlink takımyıldızı"
+  },
+  "footer": {
+    "tagline":   "Gerçek zamanlı uzay hava zekası.",
+    "products":  "Ürünler",
+    "dashboard": "Gösterge Paneli",
+    "api":       "API",
+    "alerts":    "Uyarılar",
+    "resources": "Kaynaklar",
+    "company":   "Şirket",
+    "contact":   "İletişim",
+    "bottomBar": "© 2026 Astraeusio · BSL 1.1 Lisansı · NOAA ve NASA açık verisi üzerine inşa edilmiştir"
+  },
+  "verifyEmail": {
+    "verifying": "E-postanız doğrulanıyor…",
+    "successTitle": "E-posta doğrulandı",
+    "successDesc": "E-posta adresiniz onaylandı.",
+    "goToDashboard": "Panele git",
+    "failTitle": "Doğrulama başarısız",
+    "failDesc": "Bağlantının süresi dolmuş veya daha önce kullanılmış olabilir.",
+    "backToHome": "Ana sayfaya dön",
+    "noToken": "URL'de doğrulama bağlantısı bulunamadı."
+  },
   "auth": {
     "tagline1": "Uzay Hava İstihbaratı",
     "tagline2": "Güneş fırtınaları · ISS · Yakın Dünya cisimleri",
@@ -267,7 +338,12 @@
     "networkError": "Ağ hatası — sunucu çalışıyor mu?",
     "unknownError": "Bir şeyler ters gitti",
     "accountCreated": "Hesap oluşturuldu. Lütfen giriş yapın.",
-    "loadingDashboard": "Gösterge paneli yükleniyor…"
+    "loadingDashboard": "Gösterge paneli yükleniyor…",
+    "twoFactorTitle": "İki faktörlü kimlik doğrulama",
+    "twoFactorSubtitle": "Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin.",
+    "authenticatorCode": "Kimlik doğrulama kodu",
+    "verify": "Doğrula",
+    "backToLogin": "← Girişe dön"
   },
   "plan": {
     "free": "Ücretsiz",
@@ -404,6 +480,7 @@
     "navDocs": "Belgeler",
     "navAbout": "Hakkında",
     "navBlog": "Blog",
+    "navStatus": "Durum",
     "heroEyebrow": "Uzay Hava İstihbaratı",
     "heroTitle": "Dünya'yı etkilemeden önce uzay hava durumunu görün.",
     "heroSub": "Güneş aktivitesi ve jeomanyetik fırtınaların gerçek zamanlı izlenmesi — uydular, GPS ve iletişimleri etkilemeden önce.",

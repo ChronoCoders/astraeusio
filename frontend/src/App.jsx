@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
-import { stormInfo, xrayClass, fmtNum, kpDesc, windDesc, xrayDesc, stormDesc } from './lib/utils'
+import { stormInfo, xrayClass, fmtNum } from './lib/utils'
 import Sidebar        from './components/Sidebar'
 import MetricCard     from './components/MetricCard'
 import KpChart        from './components/KpChart'
@@ -76,10 +76,6 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
   const latestXray = xray.data?.filter(r => r.energy === '0.1-0.8nm')?.at(-1)
   const xClass     = xrayClass(latestXray?.flux)
 
-  const kpDescInfo    = kpDesc(currentKp ?? 0)
-  const windDescInfo  = windDesc(latestWind?.proton_speed)
-  const xrayDescInfo  = xrayDesc(latestXray?.flux)
-  const stormDescInfo = stormDesc(currentKp ?? 0)
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -128,14 +124,14 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
             <div className="flex items-center gap-3 bg-yellow-950/40 border border-yellow-800/50 rounded px-4 py-2.5">
               <span className="text-yellow-400 text-xs">⚠</span>
               <p className="text-yellow-300 text-xs font-mono flex-1">
-                Your email address is not verified. Check your inbox or go to{' '}
+                {t('settings.emailBannerPre')}{' '}
                 <button
                   onClick={() => setPage('settings')}
                   className="underline hover:text-yellow-100 transition-colors"
                 >
-                  Settings
+                  {t('settings.emailBannerLink')}
                 </button>{' '}
-                to resend the verification email.
+                {t('settings.emailBannerPost')}
               </p>
             </div>
           )}
@@ -149,16 +145,12 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 value={currentKp != null ? fmtNum(currentKp, 2) : null}
                 sub={t(storm.key)}
                 valueCls={storm.cls}
-                desc={currentKp != null ? t(kpDescInfo.key) : null}
-                descCls={kpDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.solarWindSpeed')}
                 value={latestWind?.proton_speed != null ? fmtNum(latestWind.proton_speed, 0) : null}
                 unit="km/s"
                 sub={wind.loading ? t('common.loading') : wind.error ? t('common.unavailable') : null}
-                desc={latestWind?.proton_speed != null ? t(windDescInfo.key) : null}
-                descCls={windDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.protonDensity')}
@@ -171,16 +163,12 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 value={xClass.label}
                 sub={latestXray?.flux != null ? `${latestXray.flux.toExponential(1)} W/m²` : xray.loading ? t('common.loading') : xray.error ? t('common.unavailable') : null}
                 valueCls={xClass.cls}
-                desc={latestXray?.flux != null ? t(xrayDescInfo.key) : null}
-                descCls={xrayDescInfo.cls}
               />
               <MetricCard
                 label={t('metrics.stormLevel')}
                 value={t(storm.key)}
                 sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '—'}`}
                 valueCls={storm.cls}
-                desc={currentKp != null ? t(stormDescInfo.key) : null}
-                descCls={stormDescInfo.cls}
               />
             </div>
 

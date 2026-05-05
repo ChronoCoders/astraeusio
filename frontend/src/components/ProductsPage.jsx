@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 const IconDashboard = () => (
   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -163,14 +164,7 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
         </Link>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="border-t border-zinc-800 px-6 py-10 text-center">
-        <Link to="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
-          {t('products.backHome')}
-        </Link>
-        <p className="text-zinc-700 text-xs mt-4">{t('landing.footerNote')}</p>
-      </footer>
-
+      <Footer />
     </div>
   )
 }

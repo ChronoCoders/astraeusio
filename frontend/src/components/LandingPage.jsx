@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { stormInfo, fmtNum } from '../lib/utils'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 const HeroScene = lazy(() => import('./HeroScene'))
 
@@ -457,27 +458,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         </button>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="bg-zinc-950 border-t border-zinc-900 px-6 py-10">
-        <div className="max-w-5xl mx-auto flex flex-col items-center gap-6">
-          <nav className="flex flex-wrap justify-center gap-x-8 gap-y-2">
-            {[
-              ['/products', t('landing.navProducts')],
-              ['/pricing',  t('landing.navPricing')],
-              ['/docs',     t('landing.navDocs')],
-              ['/about',    t('landing.navAbout')],
-              ['/blog',     t('landing.navBlog')],
-            ].map(([to, label]) => (
-              <Link key={to} to={to} className="text-zinc-500 hover:text-zinc-300 text-xs font-mono tracking-wide transition-colors">
-                {label}
-              </Link>
-            ))}
-          </nav>
-          <p className="text-zinc-600 text-xs font-mono text-center">
-            {t('landing.footerNote')}
-          </p>
-        </div>
-      </footer>
+      <Footer />
 
     </div>
   )

@@ -1,6 +1,6 @@
 use tracing::warn;
 
-use crate::db::{Store, DbError};
+use crate::db::{DbError, Store};
 use crate::db_writer::{DbWriterHandle, WriteCmd};
 
 // Kp >= 5.0 = G1 storm, >= 8.0 = G4 severe

@@ -26,8 +26,8 @@ pub async fn send(
     });
     let body = payload.to_string();
 
-    let mut mac = HmacSha256::new_from_slice(hook.secret.as_bytes())
-        .expect("HMAC accepts any key size");
+    let mut mac =
+        HmacSha256::new_from_slice(hook.secret.as_bytes()).expect("HMAC accepts any key size");
     mac.update(body.as_bytes());
     let sig = hex::encode(mac.finalize().into_bytes());
 

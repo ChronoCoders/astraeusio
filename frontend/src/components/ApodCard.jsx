@@ -24,12 +24,37 @@ export default function ApodCard({ data }) {
           style={{ maxHeight: '280px' }}
           loading="lazy"
         />
-      ) : (
-        <div className="w-full bg-zinc-800 rounded flex items-center justify-center" style={{ height: '180px' }}>
-          <a href={data.url} target="_blank" rel="noreferrer" className="text-blue-400 text-sm underline">
-            {t('apod.viewMedia')}
-          </a>
+      ) : /\.(mp4|webm|ogg)(\?|$)/i.test(data.url) ? (
+        <video
+          src={data.url}
+          controls
+          className="w-full rounded"
+          style={{ maxHeight: '280px' }}
+        />
+      ) : data.url?.includes('youtube.com/embed') ? (
+        <div className="w-full rounded overflow-hidden" style={{ aspectRatio: '16/9' }}>
+          <iframe
+            src={data.url}
+            title={data.title}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
         </div>
+      ) : (
+        <a
+          href={data.url}
+          target="_blank"
+          rel="noreferrer"
+          className="w-full bg-zinc-800 hover:bg-zinc-700 rounded flex flex-col items-center justify-center gap-2 transition-colors"
+          style={{ height: '180px' }}
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
+          </svg>
+          <span className="text-zinc-400 text-xs">{t('apod.viewMedia')}</span>
+        </a>
       )}
 
       <h3 className="text-zinc-100 font-medium text-sm">{data.title}</h3>

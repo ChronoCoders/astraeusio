@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Navbar from './Navbar'
+import Footer from './Footer'
 import { posts } from '../blog/posts'
 
 function TagBadge({ tag }) {
@@ -66,6 +67,7 @@ export default function BlogPage({ onSignIn }) {
           ))}
         </div>
       </div>
+      <Footer />
     </div>
   )
 }

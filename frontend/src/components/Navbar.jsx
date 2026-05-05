@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { to: '/docs',     key: 'landing.navDocs'      },
   { to: '/about',    key: 'landing.navAbout'     },
   { to: '/blog',     key: 'landing.navBlog'      },
+  { to: '/status',   key: 'landing.navStatus'    },
 ]
 
 export default function Navbar({ onSignIn }) {

@@ -1,4 +1,4 @@
-export default function MetricCard({ label, value, unit, sub, valueCls = 'text-zinc-100', desc, descCls = 'text-zinc-500' }) {
+export default function MetricCard({ label, value, unit, sub, valueCls = 'text-zinc-100' }) {
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-1 min-w-0">
       <span className="text-zinc-500 text-xs uppercase tracking-widest truncate">{label}</span>
@@ -6,8 +6,7 @@ export default function MetricCard({ label, value, unit, sub, valueCls = 'text-z
         {value ?? '—'}
         {unit && <span className="text-sm font-normal text-zinc-500 ml-1">{unit}</span>}
       </span>
-      {sub  && <span className="text-zinc-400 text-xs truncate">{sub}</span>}
-      {desc && <span className={`text-xs leading-tight ${descCls}`}>{desc}</span>}
+      {sub && <span className="text-zinc-400 text-xs truncate">{sub}</span>}
     </div>
   )
 }
