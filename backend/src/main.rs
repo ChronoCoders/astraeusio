@@ -32,7 +32,9 @@ async fn main() -> Result<()> {
     let write_db = db::Store::open(&db_path)?;
     let read_db = write_db.try_clone()?;
     let http_timeout = std::env::var("HTTP_TIMEOUT")
-        .ok().and_then(|v| v.parse().ok()).unwrap_or(60u64);
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60u64);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(http_timeout))
         .build()?;
@@ -42,9 +44,22 @@ async fn main() -> Result<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let mailer_config = mailer::MailerConfig::from_env();
     let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
-    let state = routes::AppState::new(client, read_db, writer.clone(), ml_url, jwt_secret, mailer_config.clone(), app_url);
+    let state = routes::AppState::new(
+        client,
+        read_db,
+        writer.clone(),
+        ml_url,
+        jwt_secret,
+        mailer_config.clone(),
+        app_url,
+    );
 
-    poller::spawn(state.client.clone(), state.db.clone(), writer.clone(), mailer_config);
+    poller::spawn(
+        state.client.clone(),
+        state.db.clone(),
+        writer.clone(),
+        mailer_config,
+    );
     rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 
     let app = routes::router(state);
@@ -53,7 +68,34 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("listening on {addr}");
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
+    info!("shutdown complete");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c   => info!("received Ctrl+C, shutting down"),
+        _ = terminate => info!("received SIGTERM, shutting down"),
+    }
 }

@@ -28,8 +28,7 @@ pub async fn send_verification_email(config: &MailerConfig, to: &str, verify_url
 
 pub async fn send_alert_email(config: &MailerConfig, to: &str, subject: &str, body: &str) {
     let client = Resend::new(&config.api_key);
-    let email = CreateEmailBaseOptions::new(&config.from, [to], subject)
-        .with_text(body);
+    let email = CreateEmailBaseOptions::new(&config.from, [to], subject).with_text(body);
 
     match client.emails.send(email).await {
         Ok(_) => info!("mailer: alert sent to {to}"),

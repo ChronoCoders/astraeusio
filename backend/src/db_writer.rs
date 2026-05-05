@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 
 use crate::{
-    db::{Store, DbError},
+    db::{DbError, Store},
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
     noaa::{
@@ -215,7 +215,14 @@ impl DbWriterHandle {
     ) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::CreateWebhook { id, user_email, url, secret, events_json, reply: tx })
+            .send(WriteCmd::CreateWebhook {
+                id,
+                user_email,
+                url,
+                secret,
+                events_json,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -223,32 +230,52 @@ impl DbWriterHandle {
 
     pub async fn set_email_verified(&self, email: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
-        self.tx.send(WriteCmd::SetEmailVerified { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        self.tx
+            .send(WriteCmd::SetEmailVerified { email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
     pub async fn set_totp_secret(&self, email: String, secret: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
-        self.tx.send(WriteCmd::SetTotpSecret { email, secret, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        self.tx
+            .send(WriteCmd::SetTotpSecret {
+                email,
+                secret,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
     pub async fn enable_totp(&self, email: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
-        self.tx.send(WriteCmd::EnableTotp { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        self.tx
+            .send(WriteCmd::EnableTotp { email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
     pub async fn disable_totp(&self, email: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
-        self.tx.send(WriteCmd::DisableTotp { email, reply: tx }).await.map_err(|_| DbError::WriterClosed)?;
+        self.tx
+            .send(WriteCmd::DisableTotp { email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
     pub async fn delete_webhook(&self, id: String, user_email: String) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::DeleteWebhook { id, user_email, reply: tx })
+            .send(WriteCmd::DeleteWebhook {
+                id,
+                user_email,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -339,33 +366,29 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
             source_ref,
             severity,
             message,
-        } => {
-            match db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
-                Err(e) => error!(source = "db_writer", "anomaly: {e}"),
-                Ok(()) => {
-                    match db.list_active_webhooks_for_event(&anomaly_type) {
-                        Ok(hooks) if !hooks.is_empty() => {
-                            let ts = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs() as i64;
-                            for hook in hooks {
-                                let c = client.clone();
-                                let ev = anomaly_type.clone();
-                                let src = source_ref.clone();
-                                let sev = severity.clone();
-                                let msg = message.clone();
-                                tokio::spawn(async move {
-                                    crate::webhook_sender::send(&c, &hook, &ev, &src, &sev, &msg, ts).await;
-                                });
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(e) => error!(source = "db_writer", "webhooks-query: {e}"),
+        } => match db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
+            Err(e) => error!(source = "db_writer", "anomaly: {e}"),
+            Ok(()) => match db.list_active_webhooks_for_event(&anomaly_type) {
+                Ok(hooks) if !hooks.is_empty() => {
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64;
+                    for hook in hooks {
+                        let c = client.clone();
+                        let ev = anomaly_type.clone();
+                        let src = source_ref.clone();
+                        let sev = severity.clone();
+                        let msg = message.clone();
+                        tokio::spawn(async move {
+                            crate::webhook_sender::send(&c, &hook, &ev, &src, &sev, &msg, ts).await;
+                        });
                     }
                 }
-            }
-        }
+                Ok(_) => {}
+                Err(e) => error!(source = "db_writer", "webhooks-query: {e}"),
+            },
+        },
         WriteCmd::KpForecast { ts, kp_e2 } => {
             if let Err(e) = db.insert_kp_forecast(ts, kp_e2) {
                 error!(source = "db_writer", "kp-forecast: {e}");
@@ -439,13 +462,21 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         } => {
             let _ = reply.send(db.create_webhook(&id, &user_email, &url, &secret, &events_json));
         }
-        WriteCmd::DeleteWebhook { id, user_email, reply } => {
+        WriteCmd::DeleteWebhook {
+            id,
+            user_email,
+            reply,
+        } => {
             let _ = reply.send(db.delete_webhook(&id, &user_email));
         }
         WriteCmd::SetEmailVerified { email, reply } => {
             let _ = reply.send(db.set_email_verified(&email));
         }
-        WriteCmd::SetTotpSecret { email, secret, reply } => {
+        WriteCmd::SetTotpSecret {
+            email,
+            secret,
+            reply,
+        } => {
             let _ = reply.send(db.set_totp_secret(&email, &secret));
         }
         WriteCmd::EnableTotp { email, reply } => {

@@ -58,14 +58,31 @@ pub struct SolarWindRecord {
     pub proton_temperature: Option<f64>,
 }
 
+/// NOAA sometimes encodes numeric fields as JSON strings (same as IMF feed),
+/// so we parse via Value and coerce manually to tolerate both formats.
 pub async fn fetch_solar_wind(client: &Client) -> Result<Vec<SolarWindRecord>, NoaaError> {
-    Ok(client
+    let items: Vec<serde_json::Value> = client
         .get(format!("{SWPC}/json/rtsw/rtsw_wind_1m.json"))
         .send()
         .await?
         .error_for_status()?
-        .json::<Vec<SolarWindRecord>>()
-        .await?)
+        .json()
+        .await?;
+
+    let records = items
+        .into_iter()
+        .filter_map(|item| {
+            let time_tag = item.get("time_tag")?.as_str()?.to_owned();
+            Some(SolarWindRecord {
+                time_tag,
+                proton_speed:       item.get("proton_speed").and_then(parse_val),
+                proton_density:     item.get("proton_density").and_then(parse_val),
+                proton_temperature: item.get("proton_temperature").and_then(parse_val),
+            })
+        })
+        .collect();
+
+    Ok(records)
 }
 
 // ── X-ray flux ────────────────────────────────────────────────────────────────

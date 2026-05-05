@@ -17,12 +17,13 @@ use tracing::info;
 use dashmap::DashMap;
 
 use crate::{
-    api_keys, auth, email_alerts, mailer, webhooks,
+    api_keys, auth,
     auth::{AuthClaims, AuthType},
     db::Store,
     db_writer::{DbWriterHandle, WriteCmd},
-    plan,
+    email_alerts, mailer, plan,
     rate_limit::UsageCounter,
+    webhooks,
 };
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -140,13 +141,85 @@ async fn plan_gate(s: &AppState, email: &str, required: &'static str) -> Option<
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
-async fn health() -> impl IntoResponse {
-    Json(serde_json::json!({ "status": "ok" }))
+async fn health(State(s): State<AppState>) -> impl IntoResponse {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    // ── ML service ────────────────────────────────────────────────────────────
+    let ml_status = match s
+        .client
+        .get(format!("{}/health", s.ml_url))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        Ok(r) if r.status().is_success() => "operational",
+        Ok(_)                            => "degraded",
+        Err(_)                           => "degraded",
+    };
+
+    // ── DB freshness ─────────────────────────────────────────────────────────
+    let (noaa_ts, nasa_ts, celestrak_ts) = lock_db(&s.db).await.health_freshness();
+
+    fn component_status(last: Option<i64>, now: i64, stale_secs: i64) -> (&'static str, Option<i64>) {
+        match last {
+            None    => ("unknown", None),
+            Some(t) if now - t > stale_secs => ("degraded", Some(t)),
+            Some(t) => ("operational", Some(t)),
+        }
+    }
+
+    let (noaa_status,      noaa_last)      = component_status(noaa_ts,      now, 600);
+    let (nasa_status,      nasa_last)      = component_status(nasa_ts,      now, 14_400);
+    let (celestrak_status, celestrak_last) = component_status(celestrak_ts, now, 14_400);
+    let db_status = if noaa_ts.is_some() { "operational" } else { "unknown" };
+
+    // ── Overall ───────────────────────────────────────────────────────────────
+    let statuses = [ml_status, db_status, noaa_status, nasa_status, celestrak_status];
+    let overall = if statuses.iter().all(|&s| s == "operational") {
+        "operational"
+    } else {
+        "degraded"
+    };
+
+    Json(serde_json::json!({
+        "status":     overall,
+        "checked_at": now,
+        "components": {
+            "backend_api": {
+                "status":      "operational",
+                "last_checked": now
+            },
+            "ml_forecast": {
+                "status":      ml_status,
+                "last_checked": now
+            },
+            "database": {
+                "status":     db_status,
+                "last_write": noaa_last
+            },
+            "noaa": {
+                "status":      noaa_status,
+                "last_update": noaa_last
+            },
+            "nasa": {
+                "status":      nasa_status,
+                "last_update": nasa_last
+            },
+            "celestrak": {
+                "status":      celestrak_status,
+                "last_update": celestrak_last
+            }
+        }
+    }))
 }
 
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/health", get(health))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/change-password", post(auth::change_password))
@@ -358,7 +431,10 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
                     .unwrap_or_default()
                     .as_secs() as i64
                     + 3 * 3600;
-                s.writer.fire(WriteCmd::KpForecast { ts: forecast_ts, kp_e2: (kp * 100.0).round() as i64 });
+                s.writer.fire(WriteCmd::KpForecast {
+                    ts: forecast_ts,
+                    kp_e2: (kp * 100.0).round() as i64,
+                });
             }
             info!("kp-forecast: ML service returned prediction");
             Ok(payload)
@@ -396,9 +472,12 @@ async fn get_kp_forecast(
     if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
         return Ok(r);
     }
-    Ok(cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
-        call_ml_or_cached(&s).await
-    })
+    Ok(cached(
+        &s.cache,
+        "kp-forecast",
+        Duration::from_secs(180),
+        || async { call_ml_or_cached(&s).await },
+    )
     .await?
     .into_response())
 }
@@ -545,9 +624,12 @@ async fn get_public_solar_wind(State(s): State<AppState>) -> Result<impl IntoRes
 
 async fn get_public_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     // Shares cache key with /api/kp-forecast — no duplicate ML calls.
-    cached(&s.cache, "kp-forecast", Duration::from_secs(180), || async {
-        call_ml_or_cached(&s).await
-    })
+    cached(
+        &s.cache,
+        "kp-forecast",
+        Duration::from_secs(180),
+        || async { call_ml_or_cached(&s).await },
+    )
     .await
 }
 

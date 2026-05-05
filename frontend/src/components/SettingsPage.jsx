@@ -19,6 +19,7 @@ function Section({ title, children }) {
 // ── Email Verification ────────────────────────────────────────────────────────
 
 function EmailVerificationSection({ user }) {
+  const { t } = useTranslation()
   const [sending, setSending] = useState(false)
   const [sent, setSent]       = useState(false)
   const [err, setErr]         = useState(null)
@@ -36,10 +37,10 @@ function EmailVerificationSection({ user }) {
         setSent(true)
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? 'Failed to send verification email.')
+        setErr(d.error ?? t('auth.unknownError'))
       }
     } catch {
-      setErr('Network error.')
+      setErr(t('auth.networkError'))
     } finally {
       setSending(false)
     }
@@ -47,9 +48,9 @@ function EmailVerificationSection({ user }) {
 
   if (user?.email_verified) {
     return (
-      <Section title="Email verification">
+      <Section title={t('settings.emailVerificationTitle')}>
         <div className="flex items-center gap-2">
-          <span className="text-green-400 text-xs font-mono">✓ Verified</span>
+          <span className="text-green-400 text-xs font-mono">{t('settings.emailVerified')}</span>
           <span className="text-zinc-600 text-xs font-mono">{user.email}</span>
         </div>
       </Section>
@@ -57,16 +58,16 @@ function EmailVerificationSection({ user }) {
   }
 
   return (
-    <Section title="Email verification">
-      <p className="text-yellow-400 text-xs font-mono">⚠ Your email address is not verified.</p>
+    <Section title={t('settings.emailVerificationTitle')}>
+      <p className="text-yellow-400 text-xs font-mono">{t('settings.emailNotVerified')}</p>
       {err   && <p className="text-red-400 text-xs font-mono">{err}</p>}
-      {sent  && <p className="text-green-400 text-xs font-mono">Verification email sent — check your inbox.</p>}
+      {sent  && <p className="text-green-400 text-xs font-mono">{t('settings.emailVerificationSent')}</p>}
       <button
         onClick={resend}
         disabled={sending}
         className="self-start px-4 py-2 text-xs font-mono rounded bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors"
       >
-        {sending ? 'Sending…' : 'Resend verification email'}
+        {sending ? t('settings.sending') : t('settings.resendVerification')}
       </button>
     </Section>
   )
@@ -75,6 +76,7 @@ function EmailVerificationSection({ user }) {
 // ── 2FA ───────────────────────────────────────────────────────────────────────
 
 function TwoFactorSection({ user, onUserChange }) {
+  const { t } = useTranslation()
   const [step, setStep]       = useState('idle') // idle | setup | disable
   const [secret, setSecret]   = useState('')
   const [qrCode, setQrCode]   = useState('')
@@ -99,10 +101,10 @@ function TwoFactorSection({ user, onUserChange }) {
         setStep('setup')
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? 'Failed to start 2FA setup.')
+        setErr(d.error ?? t('auth.unknownError'))
       }
     } catch {
-      setErr('Network error.')
+      setErr(t('auth.networkError'))
     } finally {
       setLoading(false)
     }
@@ -125,10 +127,10 @@ function TwoFactorSection({ user, onUserChange }) {
         onUserChange?.({ ...user, totp_enabled: true })
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? 'Verification failed.')
+        setErr(d.error ?? t('auth.unknownError'))
       }
     } catch {
-      setErr('Network error.')
+      setErr(t('auth.networkError'))
     } finally {
       setLoading(false)
     }
@@ -149,10 +151,10 @@ function TwoFactorSection({ user, onUserChange }) {
         onUserChange?.({ ...user, totp_enabled: false })
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? 'Invalid code.')
+        setErr(d.error ?? t('auth.unknownError'))
       }
     } catch {
-      setErr('Network error.')
+      setErr(t('auth.networkError'))
     } finally {
       setLoading(false)
     }
@@ -161,26 +163,26 @@ function TwoFactorSection({ user, onUserChange }) {
   function cancel() { setStep('idle'); setCode(''); setErr(null); setSecret(''); setQrCode('') }
 
   return (
-    <Section title="Two-factor authentication (TOTP)">
+    <Section title={t('settings.twoFactorTitle')}>
       {/* Idle state */}
       {step === 'idle' && (
         <>
           {enabled
-            ? <p className="text-green-400 text-xs font-mono">✓ 2FA is enabled on your account.</p>
-            : <p className="text-zinc-400 text-xs font-mono">Add an extra layer of security with a TOTP authenticator app.</p>
+            ? <p className="text-green-400 text-xs font-mono">{t('settings.twoFactorEnabledMsg')}</p>
+            : <p className="text-zinc-400 text-xs font-mono">{t('settings.twoFactorDesc')}</p>
           }
           {err && <p className="text-red-400 text-xs font-mono">{err}</p>}
           {enabled
             ? (
               <button onClick={() => { setStep('disable'); setErr(null) }}
                 className="self-start px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-800 transition-colors">
-                Disable 2FA
+                {t('settings.twoFactorDisable')}
               </button>
             )
             : (
               <button onClick={startSetup} disabled={loading}
                 className="self-start px-4 py-2 text-xs font-mono rounded bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors">
-                {loading ? 'Loading…' : 'Enable 2FA'}
+                {loading ? t('common.loading') : t('settings.twoFactorEnable')}
               </button>
             )
           }
@@ -190,20 +192,18 @@ function TwoFactorSection({ user, onUserChange }) {
       {/* Setup step — show QR + secret */}
       {step === 'setup' && (
         <div className="flex flex-col gap-4">
-          <p className="text-zinc-400 text-xs">
-            Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm.
-          </p>
+          <p className="text-zinc-400 text-xs">{t('settings.twoFactorSetupInstructions')}</p>
           {qrCode && (
             <div className="self-start bg-white p-2 rounded">
               <img src={qrCode} alt="2FA QR code" className="w-40 h-40" />
             </div>
           )}
           <div className="flex flex-col gap-1">
-            <span className="text-zinc-600 text-xs font-mono">Manual entry key</span>
+            <span className="text-zinc-600 text-xs font-mono">{t('settings.manualEntryKey')}</span>
             <code className="text-zinc-300 text-xs font-mono bg-zinc-950 rounded px-3 py-2 break-all">{secret}</code>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-zinc-600 text-xs font-mono">Confirmation code</label>
+            <label className="text-zinc-600 text-xs font-mono">{t('settings.confirmationCode')}</label>
             <input
               type="text"
               inputMode="numeric"
@@ -218,10 +218,10 @@ function TwoFactorSection({ user, onUserChange }) {
           <div className="flex gap-2">
             <button onClick={confirmEnable} disabled={loading || code.length !== 6}
               className="px-4 py-2 text-xs font-mono rounded bg-zinc-700 text-zinc-100 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors">
-              {loading ? 'Verifying…' : 'Confirm & enable'}
+              {loading ? t('settings.verifying') : t('settings.confirmEnable')}
             </button>
             <button onClick={cancel} className="px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors">
-              Cancel
+              {t('settings.cancel')}
             </button>
           </div>
         </div>
@@ -230,9 +230,9 @@ function TwoFactorSection({ user, onUserChange }) {
       {/* Disable step */}
       {step === 'disable' && (
         <div className="flex flex-col gap-3">
-          <p className="text-zinc-400 text-xs">Enter your current authenticator code to disable 2FA.</p>
+          <p className="text-zinc-400 text-xs">{t('settings.enterCodeToDisable')}</p>
           <div className="flex flex-col gap-1">
-            <label className="text-zinc-600 text-xs font-mono">Authenticator code</label>
+            <label className="text-zinc-600 text-xs font-mono">{t('settings.authenticatorCode')}</label>
             <input
               type="text"
               inputMode="numeric"
@@ -247,10 +247,10 @@ function TwoFactorSection({ user, onUserChange }) {
           <div className="flex gap-2">
             <button onClick={confirmDisable} disabled={loading || code.length !== 6}
               className="px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-red-400 hover:bg-red-950/30 disabled:opacity-50 transition-colors">
-              {loading ? 'Disabling…' : 'Disable 2FA'}
+              {loading ? t('settings.disabling') : t('settings.twoFactorDisable')}
             </button>
             <button onClick={cancel} className="px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors">
-              Cancel
+              {t('settings.cancel')}
             </button>
           </div>
         </div>

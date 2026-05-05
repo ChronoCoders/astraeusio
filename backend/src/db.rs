@@ -940,7 +940,8 @@ impl Store {
     pub fn get_epic_latest(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT identifier, caption, image, date, centroid_lat_e6, centroid_lon_e6 FROM epic \
-             WHERE date = (SELECT MAX(date) FROM epic)",
+             WHERE date = (SELECT MAX(date) FROM epic) \
+             ORDER BY identifier ASC",
         )?;
         let rows = stmt
             .query_map([], |row| {
@@ -1095,11 +1096,11 @@ impl Store {
         let mut rows = stmt.query([email])?;
         if let Some(row) = rows.next()? {
             Ok(Some(User {
-                email:          row.get(0)?,
-                password_hash:  row.get(1)?,
+                email: row.get(0)?,
+                password_hash: row.get(1)?,
                 email_verified: row.get::<_, Option<bool>>(2)?.unwrap_or(false),
-                totp_secret:    row.get(3)?,
-                totp_enabled:   row.get::<_, Option<bool>>(4)?.unwrap_or(false),
+                totp_secret: row.get(3)?,
+                totp_enabled: row.get::<_, Option<bool>>(4)?.unwrap_or(false),
             }))
         } else {
             Ok(None)
@@ -1107,15 +1108,17 @@ impl Store {
     }
 
     pub fn get_user_me(&self, email: &str) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT plan, email_verified, totp_enabled FROM users WHERE email = ?",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT plan, email_verified, totp_enabled FROM users WHERE email = ?")?;
         let mut rows = stmt.query([email])?;
         match rows.next()? {
             Some(row) => {
-                let plan = row.get::<_, Option<String>>(0)?.unwrap_or_else(|| "starter".to_string());
+                let plan = row
+                    .get::<_, Option<String>>(0)?
+                    .unwrap_or_else(|| "starter".to_string());
                 let verified = row.get::<_, Option<bool>>(1)?.unwrap_or(false);
-                let totp_on  = row.get::<_, Option<bool>>(2)?.unwrap_or(false);
+                let totp_on = row.get::<_, Option<bool>>(2)?.unwrap_or(false);
                 Ok(serde_json::json!({
                     "email":          email,
                     "plan":           plan,
@@ -1166,9 +1169,9 @@ impl Store {
     }
 
     pub fn get_kp_forecast_latest(&self) -> Result<Option<(i64, i64)>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT ts, kp_e2 FROM kp_forecast ORDER BY fetched_at DESC LIMIT 1",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT ts, kp_e2 FROM kp_forecast ORDER BY fetched_at DESC LIMIT 1")?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
@@ -1733,7 +1736,13 @@ impl Store {
             .into_iter()
             .map(|(id, url, secret, events_json, created_at)| {
                 let events = serde_json::from_str(&events_json).unwrap_or_default();
-                WebhookRow { id, url, secret, events, created_at }
+                WebhookRow {
+                    id,
+                    url,
+                    secret,
+                    events,
+                    created_at,
+                }
             })
             .collect())
     }
@@ -1769,10 +1778,15 @@ impl Store {
         Ok(rows
             .into_iter()
             .filter_map(|(id, url, secret, events_json, created_at)| {
-                let events: Vec<String> =
-                    serde_json::from_str(&events_json).unwrap_or_default();
+                let events: Vec<String> = serde_json::from_str(&events_json).unwrap_or_default();
                 if events.iter().any(|e| e == event_type) {
-                    Some(WebhookRow { id, url, secret, events, created_at })
+                    Some(WebhookRow {
+                        id,
+                        url,
+                        secret,
+                        events,
+                        created_at,
+                    })
                 } else {
                     None
                 }
@@ -1866,7 +1880,14 @@ impl Store {
                  enabled           = excluded.enabled,
                  kp_threshold_e2   = excluded.kp_threshold_e2,
                  wind_threshold_e1 = excluded.wind_threshold_e1",
-            params![id, user_email, enabled, kp_threshold_e2, wind_threshold_e1, now()],
+            params![
+                id,
+                user_email,
+                enabled,
+                kp_threshold_e2,
+                wind_threshold_e1,
+                now()
+            ],
         )?;
         Ok(())
     }
@@ -1878,11 +1899,11 @@ impl Store {
         )?;
         match stmt.query_row([user_email], |row| {
             Ok(EmailAlertRow {
-                user_email:        row.get(0)?,
-                enabled:           row.get(1)?,
-                kp_threshold_e2:   row.get(2)?,
+                user_email: row.get(0)?,
+                enabled: row.get(1)?,
+                kp_threshold_e2: row.get(2)?,
                 wind_threshold_e1: row.get(3)?,
-                last_notified_at:  row.get(4)?,
+                last_notified_at: row.get(4)?,
             })
         }) {
             Ok(row) => Ok(Some(row)),
@@ -1899,11 +1920,11 @@ impl Store {
         let rows = stmt
             .query_map([], |row| {
                 Ok(EmailAlertRow {
-                    user_email:        row.get(0)?,
-                    enabled:           row.get(1)?,
-                    kp_threshold_e2:   row.get(2)?,
+                    user_email: row.get(0)?,
+                    enabled: row.get(1)?,
+                    kp_threshold_e2: row.get(2)?,
                     wind_threshold_e1: row.get(3)?,
-                    last_notified_at:  row.get(4)?,
+                    last_notified_at: row.get(4)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -1916,5 +1937,20 @@ impl Store {
             params![now(), user_email],
         )?;
         Ok(())
+    }
+
+    /// Returns (noaa_last_write, nasa_last_write, celestrak_last_write) as Unix timestamps.
+    /// Each is None if the table has no rows yet.
+    pub fn health_freshness(&self) -> (Option<i64>, Option<i64>, Option<i64>) {
+        let q = |sql: &str| -> Option<i64> {
+            self.conn
+                .query_row(sql, [], |row| row.get::<_, Option<i64>>(0))
+                .ok()
+                .flatten()
+        };
+        let noaa      = q("SELECT MAX(fetched_at) FROM kp");
+        let nasa      = q("SELECT MAX(fetched_at) FROM apod");
+        let celestrak = q("SELECT MAX(fetched_at) FROM starlink");
+        (noaa, nasa, celestrak)
     }
 }
