@@ -56,9 +56,9 @@ const PRODUCTS = [
     border: 'border-purple-500/30',
     iconBg: 'bg-purple-500/10',
     iconCls: 'text-purple-400',
-    live: false,
+    live: true,
     popular: false,
-    action: 'notify',
+    action: 'signup',
   },
 ]
 

@@ -333,7 +333,7 @@
     "resources": "Resources",
     "company":   "Company",
     "contact":   "Contact",
-    "bottomBar": "© 2026 Astraeusio · BSL 1.1 License · Built on NOAA and NASA open data"
+    "bottomBar": "© 2026 Astraeusio · Built on NOAA and NASA open data"
   },
   "verifyEmail": {
     "verifying": "Verifying your email…",
@@ -381,7 +381,7 @@
     "d3Title": "Alerts",
     "d3Sub": "Anomaly detection & notifications",
     "d3Desc": "Get alerted the moment space weather conditions change. Know when storms intensify, custom thresholds are exceeded, or satellite conditions shift — delivered via webhook or email the instant it happens.",
-    "d3Cta": "Get notified at launch",
+    "d3Cta": "Get started free",
     "backHome": "← Back to home",
     "seePricing": "See plans and pricing →"
   },

@@ -305,7 +305,7 @@
     "resources": "Kaynaklar",
     "company":   "Şirket",
     "contact":   "İletişim",
-    "bottomBar": "© 2026 Astraeusio · BSL 1.1 Lisansı · NOAA ve NASA açık verisi üzerine inşa edilmiştir"
+    "bottomBar": "© 2026 Astraeusio · NOAA ve NASA açık verisi üzerine inşa edilmiştir"
   },
   "verifyEmail": {
     "verifying": "E-postanız doğrulanıyor…",
@@ -381,7 +381,7 @@
     "d3Title": "Uyarılar",
     "d3Sub": "Anomali tespiti ve bildirimler",
     "d3Desc": "Uzay hava koşulları değiştiği anda uyarı alın. Fırtınalar yoğunlaştığında, özel eşikler aşıldığında veya uydu koşulları değiştiğinde — webhook veya e-posta ile anında bildirim.",
-    "d3Cta": "Lansmanda bildirim al",
+    "d3Cta": "Ücretsiz başla",
     "backHome": "← Ana sayfaya dön",
     "seePricing": "Plan ve fiyatları görün →"
   },
