@@ -30,17 +30,14 @@ function fmtAgo(ts) {
   return `${Math.floor(secs / 3600)}h ago`
 }
 
-function ComponentRow({ nameKey, descKey, status, lastUpdate }) {
+function ComponentRow({ nameKey, status, lastUpdate }) {
   const { t } = useTranslation()
   const meta = statusMeta(status)
   return (
     <div className="flex items-center justify-between py-4 border-b border-zinc-800/60 last:border-0">
       <div className="flex items-center gap-4">
         <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
-        <div>
-          <p className="text-sm text-zinc-200">{t(nameKey)}</p>
-          <p className="text-xs text-zinc-500 mt-0.5">{t(descKey)}</p>
-        </div>
+        <p className="text-sm text-zinc-200">{t(nameKey)}</p>
       </div>
       <div className="flex items-center gap-6 shrink-0 ml-4">
         {lastUpdate != null && (
@@ -75,12 +72,12 @@ export default function StatusPage({ onSignIn }) {
   const banner = overallBanner(error ? 'outage' : data?.status)
 
   const COMPONENTS = [
-    { nameKey: 'status.backendApi',  descKey: 'status.backendApiDesc',  status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
-    { nameKey: 'status.mlForecast',  descKey: 'status.mlForecastDesc',  status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
-    { nameKey: 'status.database',    descKey: 'status.databaseDesc',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
-    { nameKey: 'status.noaa',        descKey: 'status.noaaDesc',        status: error ? 'unknown': (c.noaa?.status         ?? 'unknown'), lastUpdate: c.noaa?.last_update          },
-    { nameKey: 'status.nasa',        descKey: 'status.nasaDesc',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
-    { nameKey: 'status.celestrak',   descKey: 'status.celestrakDesc',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
+    { nameKey: 'status.backendApi',  status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
+    { nameKey: 'status.mlForecast',  status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
+    { nameKey: 'status.database',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
+    { nameKey: 'status.noaa',        status: error ? 'unknown': (c.noaa?.status         ?? 'unknown'), lastUpdate: c.noaa?.last_update          },
+    { nameKey: 'status.nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
+    { nameKey: 'status.celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
   ]
 
   return (
