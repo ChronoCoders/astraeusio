@@ -21,10 +21,13 @@ export default function HeroScene() {
     camera.position.set(0, 0.8, 4.2)
     camera.lookAt(0, 0, 0)
 
-    scene.add(new THREE.AmbientLight(0x1a3a6a, 0.8))
+    scene.add(new THREE.AmbientLight(0x1a3a6a, 0.6))
     const sun = new THREE.DirectionalLight(0x6699cc, 1.5)
     sun.position.set(5, 3, 4)
     scene.add(sun)
+    const fill = new THREE.DirectionalLight(0x4477bb, 0.6)
+    fill.position.set(-5, 1, 2)
+    scene.add(fill)
 
     const STAR_COUNT = 2000
     const starPos    = new Float32Array(STAR_COUNT * 3)
@@ -37,14 +40,13 @@ export default function HeroScene() {
     world.position.set(0, 0, 0)
     scene.add(world)
 
+    const earthTex = new THREE.TextureLoader().load('/earth.jpg')
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 64, 64),
       new THREE.MeshPhongMaterial({
-        color:             0x0d1f3c,
-        emissive:          new THREE.Color(0x071428),
-        emissiveIntensity: 0.7,
-        shininess:         12,
-        specular:          new THREE.Color(0x224488),
+        map:       earthTex,
+        shininess: 8,
+        specular:  new THREE.Color(0x224488),
       }),
     )
     world.add(earth)
@@ -99,7 +101,7 @@ export default function HeroScene() {
     } else {
       function animate() {
         raf = requestAnimationFrame(animate)
-        earth.rotation.y += 0.0008
+        earth.rotation.y += 0.001
         sats.forEach(s => {
           s.angle += s.speed
           s.sat.position.x = s.radius * Math.cos(s.angle)
@@ -113,6 +115,7 @@ export default function HeroScene() {
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
+      earthTex.dispose()
       scene.traverse(obj => {
         if (obj.geometry) obj.geometry.dispose()
         if (obj.material) {
