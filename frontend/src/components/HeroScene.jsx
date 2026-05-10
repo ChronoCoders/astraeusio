@@ -21,13 +21,16 @@ export default function HeroScene() {
     camera.position.set(0, 0.8, 4.2)
     camera.lookAt(0, 0, 0)
 
-    scene.add(new THREE.AmbientLight(0x1a3a6a, 0.6))
+    scene.add(new THREE.AmbientLight(0x334466, 1.2))
     const sun = new THREE.DirectionalLight(0x6699cc, 1.5)
     sun.position.set(5, 3, 4)
     scene.add(sun)
-    const fill = new THREE.DirectionalLight(0x4477bb, 0.6)
+    const fill = new THREE.DirectionalLight(0x4477bb, 0.8)
     fill.position.set(-5, 1, 2)
     scene.add(fill)
+    const back = new THREE.DirectionalLight(0x112244, 0.4)
+    back.position.set(-3, -1, -4)
+    scene.add(back)
 
     const STAR_COUNT = 2000
     const starPos    = new Float32Array(STAR_COUNT * 3)
@@ -40,16 +43,17 @@ export default function HeroScene() {
     world.position.set(0, 0, 0)
     scene.add(world)
 
-    const earthTex = new THREE.TextureLoader().load('/earth.jpg')
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 64, 64),
-      new THREE.MeshPhongMaterial({
-        map:       earthTex,
-        shininess: 8,
-        specular:  new THREE.Color(0x224488),
-      }),
+      new THREE.MeshPhongMaterial({ shininess: 8, specular: new THREE.Color(0x224488) }),
     )
+    earth.visible = false
     world.add(earth)
+    new THREE.TextureLoader().load('/earth.jpg', tex => {
+      earth.material.map = tex
+      earth.material.needsUpdate = true
+      earth.visible = true
+    })
 
     ;[{ r: 1.05, c: 0x2255aa, o: 0.12 }, { r: 1.14, c: 0x1133cc, o: 0.05 }].forEach(({ r, c, o }) => {
       world.add(new THREE.Mesh(
@@ -115,7 +119,7 @@ export default function HeroScene() {
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
-      earthTex.dispose()
+      if (earth.material.map) earth.material.map.dispose()
       scene.traverse(obj => {
         if (obj.geometry) obj.geometry.dispose()
         if (obj.material) {
