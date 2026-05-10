@@ -6,7 +6,7 @@ use tokio::sync::{Mutex, MutexGuard};
 use anyhow::anyhow;
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
@@ -268,6 +268,12 @@ pub fn router(state: AppState) -> Router {
             "/api/email-alerts",
             get(email_alerts::get_email_alert).post(email_alerts::upsert_email_alert),
         )
+        .route(
+            "/api/custom-rules",
+            get(list_custom_rules).post(create_custom_rule),
+        )
+        .route("/api/custom-rules/{id}", delete(delete_custom_rule))
+        .route("/api/custom-rules/{id}/toggle", post(toggle_custom_rule))
         .with_state(state)
 }
 
@@ -738,4 +744,153 @@ async fn get_usage(
         "count":        count,
         "limit":        limit,
     })))
+}
+
+// ── Custom anomaly rules ──────────────────────────────────────────────────────
+
+const VALID_METRICS: &[&str] = &["kp", "solar_wind_speed", "xray_flux", "dst", "imf_bz"];
+const VALID_OPERATORS: &[&str] = &["gt", "lt", "gte", "lte"];
+const VALID_SEVERITIES: &[&str] = &["warning", "critical"];
+const MAX_CUSTOM_RULES: i64 = 20;
+
+#[derive(serde::Deserialize)]
+struct CreateCustomRuleBody {
+    name: String,
+    metric: String,
+    operator: String,
+    threshold: f64,
+    severity: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ToggleBody {
+    enabled: bool,
+}
+
+async fn list_custom_rules(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+) -> Result<impl IntoResponse, AppError> {
+    let rules = lock_db(&s.db).await.list_custom_rules(&claims.sub)?;
+    let json: Vec<_> = rules
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "id":         r.id,
+                "name":       r.name,
+                "metric":     r.metric,
+                "operator":   r.operator,
+                "threshold":  r.threshold,
+                "severity":   r.severity,
+                "enabled":    r.enabled,
+                "created_at": r.created_at,
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::Value::Array(json)))
+}
+
+async fn create_custom_rule(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Json(body): Json<CreateCustomRuleBody>,
+) -> Response {
+    if let Some(r) = plan_gate(&s, &claims.sub, "enterprise").await {
+        return r;
+    }
+
+    // Validate inputs
+    let name = body.name.trim().to_string();
+    if name.is_empty() || name.len() > 80 {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "name must be 1–80 characters" }))).into_response();
+    }
+    if !VALID_METRICS.contains(&body.metric.as_str()) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid metric" }))).into_response();
+    }
+    if !VALID_OPERATORS.contains(&body.operator.as_str()) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid operator" }))).into_response();
+    }
+    if !VALID_SEVERITIES.contains(&body.severity.as_str()) {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid severity" }))).into_response();
+    }
+    if !body.threshold.is_finite() {
+        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "threshold must be a finite number" }))).into_response();
+    }
+
+    // Enforce per-user rule cap
+    let count = match lock_db(&s.db).await.count_custom_rules_for_user(&claims.sub) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("count_custom_rules: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response();
+        }
+    };
+    if count >= MAX_CUSTOM_RULES {
+        return (StatusCode::CONFLICT, Json(serde_json::json!({ "error": "rule limit reached (max 20)" }))).into_response();
+    }
+
+    let id = format!("{:x}", rand::random::<u64>());
+    let now_ts = chrono::Utc::now().timestamp();
+    let rule = crate::db::CustomRule {
+        id: id.clone(),
+        user_email: claims.sub.clone(),
+        name: name.clone(),
+        metric: body.metric.clone(),
+        operator: body.operator.clone(),
+        threshold: body.threshold,
+        severity: body.severity.clone(),
+        enabled: true,
+        created_at: now_ts,
+    };
+
+    match s.writer.create_custom_rule(rule).await {
+        Ok(()) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "id":        id,
+                "name":      name,
+                "metric":    body.metric,
+                "operator":  body.operator,
+                "threshold": body.threshold,
+                "severity":  body.severity,
+                "enabled":   true,
+                "created_at": now_ts,
+            })),
+        ).into_response(),
+        Err(e) => {
+            tracing::error!("create_custom_rule: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+        }
+    }
+}
+
+async fn delete_custom_rule(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<String>,
+) -> Response {
+    match s.writer.delete_custom_rule(id, claims.sub).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "rule not found" }))).into_response(),
+        Err(e) => {
+            tracing::error!("delete_custom_rule: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+        }
+    }
+}
+
+async fn toggle_custom_rule(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<String>,
+    Json(body): Json<ToggleBody>,
+) -> Response {
+    match s.writer.toggle_custom_rule(id, claims.sub, body.enabled).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "rule not found" }))).into_response(),
+        Err(e) => {
+            tracing::error!("toggle_custom_rule: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+        }
+    }
 }

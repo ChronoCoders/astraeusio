@@ -113,6 +113,21 @@ pub enum WriteCmd {
         plan: String,
         reply: oneshot::Sender<Result<(), DbError>>,
     },
+    CreateCustomRule {
+        rule: crate::db::CustomRule,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
+    DeleteCustomRule {
+        id: String,
+        user_email: String,
+        reply: oneshot::Sender<Result<bool, DbError>>,
+    },
+    ToggleCustomRule {
+        id: String,
+        user_email: String,
+        enabled: bool,
+        reply: oneshot::Sender<Result<bool, DbError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -290,6 +305,45 @@ impl DbWriterHandle {
                 user_email,
                 reply: tx,
             })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn create_custom_rule(
+        &self,
+        rule: crate::db::CustomRule,
+    ) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::CreateCustomRule { rule, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn delete_custom_rule(
+        &self,
+        id: String,
+        user_email: String,
+    ) -> Result<bool, DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::DeleteCustomRule { id, user_email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn toggle_custom_rule(
+        &self,
+        id: String,
+        user_email: String,
+        enabled: bool,
+    ) -> Result<bool, DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::ToggleCustomRule { id, user_email, enabled, reply: tx })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -501,6 +555,15 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         }
         WriteCmd::UpdatePlan { email, plan, reply } => {
             let _ = reply.send(db.update_user_plan(&email, &plan));
+        }
+        WriteCmd::CreateCustomRule { rule, reply } => {
+            let _ = reply.send(db.insert_custom_rule(&rule));
+        }
+        WriteCmd::DeleteCustomRule { id, user_email, reply } => {
+            let _ = reply.send(db.delete_custom_rule(&id, &user_email));
+        }
+        WriteCmd::ToggleCustomRule { id, user_email, enabled, reply } => {
+            let _ = reply.send(db.toggle_custom_rule(&id, &user_email, enabled));
         }
     }
 }

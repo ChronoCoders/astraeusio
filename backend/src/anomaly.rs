@@ -29,6 +29,7 @@ pub fn detect_and_store(db: &Store, writer: &DbWriterHandle) -> Result<(), DbErr
     check_xray(db, writer)?;
     check_neo(db, writer)?;
     check_ml_forecast(db, writer)?;
+    check_custom_rules(db, writer)?;
     Ok(())
 }
 
@@ -141,6 +142,61 @@ fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError>
             message: msg.clone(),
         });
         warn!(anomaly = "ml_forecast_storm", kp, severity, "{msg}");
+    }
+    Ok(())
+}
+
+fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
+    let rules = db.get_enabled_custom_rules()?;
+    if rules.is_empty() {
+        return Ok(());
+    }
+    let hour_bucket = now() / 3600;
+    for rule in &rules {
+        let raw = match rule.metric.as_str() {
+            "kp" => db.latest_kp_raw()?.map(|(_, v)| v as f64 / 100.0),
+            "solar_wind_speed" => db.latest_solar_wind_speed_raw()?.map(|(_, v)| v as f64 / 10.0),
+            "xray_flux" => db.latest_xray_flux_raw()?.map(|(_, v)| v as f64 / 1e12),
+            "dst" => db.latest_dst_raw()?.map(|(_, v)| v as f64),
+            "imf_bz" => db.latest_imf_bz_raw()?.map(|(_, v)| v as f64 / 100.0),
+            _ => None,
+        };
+        let Some(val) = raw else { continue };
+        let triggered = match rule.operator.as_str() {
+            "gt" => val > rule.threshold,
+            "lt" => val < rule.threshold,
+            "gte" => val >= rule.threshold,
+            "lte" => val <= rule.threshold,
+            _ => false,
+        };
+        if !triggered {
+            continue;
+        }
+        let op_label = match rule.operator.as_str() {
+            "gt" => ">",
+            "lt" => "<",
+            "gte" => "≥",
+            "lte" => "≤",
+            _ => "?",
+        };
+        let metric_str = match rule.metric.as_str() {
+            "kp" => format!("Kp {val:.2}"),
+            "solar_wind_speed" => format!("Solar wind {val:.0} km/s"),
+            "xray_flux" => format!("X-ray {val:.2e} W/m²"),
+            "dst" => format!("Dst {val:.0} nT"),
+            "imf_bz" => format!("IMF Bz {val:.2} nT"),
+            m => format!("{m} = {val:.3}"),
+        };
+        let msg = format!(
+            "Custom rule '{}': {} {} {}",
+            rule.name, metric_str, op_label, rule.threshold
+        );
+        writer.fire(WriteCmd::Anomaly {
+            anomaly_type: format!("custom:{}", rule.id),
+            source_ref: format!("{}:{}", rule.id, hour_bucket),
+            severity: rule.severity.clone(),
+            message: msg,
+        });
     }
     Ok(())
 }

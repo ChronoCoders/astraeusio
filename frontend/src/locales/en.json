@@ -364,6 +364,7 @@
     "lockedCsvExport": "CSV export requires a Developer plan or higher.",
     "lockedEmailAlerts": "Email alerts require a Developer plan or higher.",
     "lockedWebhooks": "Webhooks are available on Pro and above.",
+    "lockedCustomRules": "Custom anomaly rules are available on Enterprise plans.",
     "lockedHistorical": "Historical data access requires a Business plan or higher.",
     "upgradeBtn": "Upgrade plan",
     "comingSoon": "Coming soon"

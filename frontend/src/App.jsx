@@ -19,9 +19,10 @@ import KpGauge        from './components/KpGauge'
 import ImfBzChart     from './components/ImfBzChart'
 import DstChart       from './components/DstChart'
 import StarlinkMap    from './components/StarlinkMap'
-import ReportsPage    from './components/ReportsPage'
-import ApiKeysPage    from './components/ApiKeysPage'
-import SettingsPage   from './components/SettingsPage'
+import ReportsPage      from './components/ReportsPage'
+import ApiKeysPage      from './components/ApiKeysPage'
+import SettingsPage     from './components/SettingsPage'
+import CustomRulesPanel from './components/CustomRulesPanel'
 
 const FAST     = 30_000       // 30 s — live data
 const SLOW     = 120_000      // 2 min — slower-changing data
@@ -257,6 +258,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {page === 'alerts' && (
             <div className="flex flex-col gap-3">
               <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} onNavigate={setPage} />
+              <CustomRulesPanel plan={user?.plan ?? null} onNavigate={setPage} />
               <AlertsList data={alerts.data} />
             </div>
           )}

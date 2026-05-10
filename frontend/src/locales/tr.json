@@ -364,6 +364,7 @@
     "lockedCsvExport": "CSV dışa aktarımı Geliştirici veya üzeri plan gerektirir.",
     "lockedEmailAlerts": "E-posta uyarıları Geliştirici veya üzeri plan gerektirir.",
     "lockedWebhooks": "Webhook'lar Pro ve üzeri planlarda kullanılabilir.",
+    "lockedCustomRules": "Özel anomali kuralları Enterprise planlarda kullanılabilir.",
     "lockedHistorical": "Geçmiş veri erişimi İş veya üzeri plan gerektirir.",
     "upgradeBtn": "Planı yükselt",
     "comingSoon": "Yakında"
