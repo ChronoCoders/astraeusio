@@ -46,6 +46,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
+      - /opt/astraeusio/selfsigned.crt:/etc/ssl/astraeusio/selfsigned.crt:ro
+      - /opt/astraeusio/selfsigned.key:/etc/ssl/astraeusio/selfsigned.key:ro
       - letsencrypt:/etc/letsencrypt
       - letsencrypt_www:/var/www/certbot
     depends_on:
