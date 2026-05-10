@@ -35,7 +35,7 @@ const PRODUCTS = [
     iconBg: 'bg-blue-500/10',
     iconCls: 'text-blue-400',
     live: true,
-    popular: true,
+    popular: false,
     action: 'signup',
   },
   {
