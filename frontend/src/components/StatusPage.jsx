@@ -85,11 +85,11 @@ export default function StatusPage({ onSignIn }) {
       <Navbar onSignIn={onSignIn} />
 
       {/* Hero */}
-      <section className="max-w-3xl mx-auto px-6 pt-36 pb-12">
-        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-6">
+      <section className="max-w-3xl mx-auto px-6 pt-36 pb-16">
+        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">
           {t('status.eyebrow')}
         </p>
-        <h1 className="text-4xl font-thin tracking-tight text-zinc-100">
+        <h1 className="text-4xl md:text-5xl font-thin tracking-tight text-zinc-100">
           {t('status.title')}
         </h1>
       </section>

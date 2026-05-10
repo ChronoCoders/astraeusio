@@ -71,7 +71,7 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
       <Navbar onSignIn={onSignIn} />
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="pt-40 pb-20 px-6 text-center">
+      <section className="pt-36 pb-16 px-6 text-center">
         <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">
           {t('products.heroEyebrow')}
         </p>

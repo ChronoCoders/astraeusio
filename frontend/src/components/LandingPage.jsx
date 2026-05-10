@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { stormInfo, fmtNum } from '../lib/utils'
@@ -6,6 +6,28 @@ import Navbar from './Navbar'
 import Footer from './Footer'
 
 const HeroScene = lazy(() => import('./HeroScene'))
+
+// ── Scroll fade hook ─────────────────────────────────────────────────────────
+
+function useFadeIn(delay = 0) {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect() } },
+      { threshold: 0.08 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  return [ref, {
+    opacity:    visible ? 1 : 0,
+    transform:  visible ? 'none' : 'translateY(28px)',
+    transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms`,
+  }]
+}
 
 // ── Live data hook ────────────────────────────────────────────────────────────
 
@@ -45,7 +67,7 @@ function useLiveWeather() {
     return () => clearInterval(id)
   }, [fetchedAt])
 
-  return { kpData, wind, forecastData, forecastLoading, age }
+  return { kpData, wind, forecastData, forecastLoading, age, fetchedAt }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -194,12 +216,28 @@ const TECH_SPECS = ['techModel', 'techTraining', 'techUncertainty', 'techRefresh
 
 export default function LandingPage({ onSignUp, onSignIn }) {
   const { t } = useTranslation()
-  const { kpData, wind, forecastData, forecastLoading, age } = useLiveWeather()
+  const { kpData, wind, forecastData, forecastLoading, age, fetchedAt } = useLiveWeather()
   const [techOpen, setTechOpen] = useState(false)
+  const [flash,    setFlash]    = useState(false)
+
+  useEffect(() => {
+    if (!fetchedAt) return
+    setFlash(true)
+    const t = setTimeout(() => setFlash(false), 600)
+    return () => clearTimeout(t)
+  }, [fetchedAt])
 
   const latestKp = kpData?.filter(r => r.estimated_kp > 0)?.at(-1)?.estimated_kp ?? null
   const storm    = stormInfo(latestKp ?? 0)
   const badge    = latestKp != null ? kpBadge(latestKp) : null
+
+  const [capRef,      capStyle]      = useFadeIn(0)
+  const [liveRef,     liveStyle]     = useFadeIn(0)
+  const [predRef,     predStyle]     = useFadeIn(0)
+  const [howRef,      howStyle]      = useFadeIn(0)
+  const [audienceRef, audienceStyle] = useFadeIn(0)
+  const [techRef,     techStyle]     = useFadeIn(0)
+  const [ctaRef,      ctaStyle]      = useFadeIn(0)
 
   return (
     <div className="bg-zinc-950 text-zinc-100">
@@ -235,7 +273,10 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
           {badge && (
             <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full border ${badge.border} bg-zinc-900/50 backdrop-blur-sm`}>
-              <span className={`w-2 h-2 rounded-full ${badge.dot} animate-pulse shrink-0`} />
+              <span className="relative shrink-0 w-2 h-2">
+                <span className={`absolute inset-0 rounded-full ${badge.dot} animate-pulse`} />
+                {flash && <span className={`absolute -inset-1 rounded-full ${badge.dot} opacity-40 animate-ping`} />}
+              </span>
               <span className={`text-sm font-mono ${badge.text}`}>
                 Live · Kp {fmtNum(latestKp, 1)} · {t(storm.key)}
               </span>
@@ -258,15 +299,10 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           </div>
         </div>
 
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-1.5 text-zinc-700 animate-bounce">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </div>
       </section>
 
       {/* ── What You Can Do (bg-zinc-900) ────────────────────────────────── */}
-      <section className="bg-zinc-900 py-20 px-6">
+      <section ref={capRef} style={capStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col gap-2 mb-10">
             <SectionLabel>{t('landing.capTitle')}</SectionLabel>
@@ -295,7 +331,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── Live Right Now (bg-zinc-950) ──────────────────────────────────── */}
-      <section className="bg-zinc-950 py-20 px-6">
+      <section ref={liveRef} style={liveStyle} className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-end justify-between mb-8">
             <SectionLabel>{t('landing.liveTitle')}</SectionLabel>
@@ -335,7 +371,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── Predictive Intelligence (bg-zinc-900) ────────────────────────── */}
-      <section className="bg-zinc-900 py-20 px-6">
+      <section ref={predRef} style={predStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <SectionLabel>{t('landing.predTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-10">
@@ -357,7 +393,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── How It Works (bg-zinc-950) ────────────────────────────────────── */}
-      <section className="bg-zinc-950 py-20 px-6">
+      <section ref={howRef} style={howStyle} className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-14">
           <div className="flex flex-col gap-5">
             <SectionLabel>{t('landing.howTitle')}</SectionLabel>
@@ -384,7 +420,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── Who It's For (bg-zinc-900) ───────────────────────────────────── */}
-      <section className="bg-zinc-900 py-20 px-6">
+      <section ref={audienceRef} style={audienceStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <SectionLabel>{t('landing.audienceTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-5 mt-10">
@@ -406,7 +442,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── Technical Overview (collapsed, bg-zinc-950) ───────────────────── */}
-      <section className="bg-zinc-950 py-14 px-6 border-t border-zinc-900">
+      <section ref={techRef} style={techStyle} className="bg-zinc-950 py-14 px-6 border-t border-zinc-900">
         <div className="max-w-5xl mx-auto">
           <button
             onClick={() => setTechOpen(o => !o)}
@@ -443,7 +479,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       </section>
 
       {/* ── CTA (full-width light) ────────────────────────────────────────── */}
-      <section className="bg-zinc-100 px-6 py-28 flex flex-col items-center text-center gap-6">
+      <section ref={ctaRef} style={ctaStyle} className="bg-zinc-100 px-6 py-28 flex flex-col items-center text-center gap-6">
         <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-zinc-950 max-w-2xl leading-tight">
           {t('landing.ctaTitle')}
         </h2>

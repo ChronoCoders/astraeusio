@@ -121,7 +121,13 @@ function PlanCard({ plan, annual, onCta }) {
             </span>
           ) : (
             <div className="flex items-end gap-1">
-              <span className="text-3xl font-thin text-zinc-100">${price}</span>
+              <span
+                key={price}
+                className="text-3xl font-thin text-zinc-100 tabular-nums"
+                style={{ animation: 'priceFade 0.25s ease' }}
+              >
+                ${price}
+              </span>
               <span className="text-zinc-500 text-xs mb-1.5">{t('pricing.perMo')}</span>
             </div>
           )}
@@ -183,7 +189,7 @@ export default function PricingPage({ onSignIn, onSignUp }) {
       <Navbar onSignIn={onSignIn} />
 
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
-      <section className="pt-36 pb-14 px-6 text-center">
+      <section className="pt-36 pb-16 px-6 text-center">
         <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">
           {t('pricing.eyebrow')}
         </p>
