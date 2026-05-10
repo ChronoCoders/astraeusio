@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import App from './App.jsx'
 import AuthPage from './AuthPage.jsx'
 import LandingPage from './components/LandingPage.jsx'
@@ -19,6 +19,7 @@ export default function Root() {
   const [user,     setUser]     = useState(null)   // null while loading, then { email, plan }
   const [booting,  setBooting]  = useState(false)
   const [authMode, setAuthMode] = useState(null)   // null | 'login' | 'signup'
+  const location = useLocation()
 
   // Fetch /api/user/me whenever token is set (login or page reload with stored token).
   // On 401, clear the stale/expired token so the user is returned to the login page.
@@ -89,9 +90,20 @@ export default function Root() {
         <Route path="/about"    element={<AboutPage    {...pub} />} />
         <Route path="/blog"           element={<BlogPage       {...pub} />} />
         <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
-        <Route path="/verify-email"   element={<VerifyEmailPage {...pub} />} />
+        <Route path="/verify-email"   element={<VerifyEmailPage {...pub} onUserChange={setUser} />} />
         <Route path="/status"         element={<StatusPage      {...pub} />} />
         <Route path="*"               element={<NotFoundPage   {...pub} />} />
+      </Routes>
+    )
+  }
+
+  // Logged-in user navigating to /verify-email (clicked link while already signed in)
+  if (location.pathname === '/verify-email') {
+    return (
+      <Routes>
+        <Route path="/verify-email" element={
+          <VerifyEmailPage onSignIn={() => {}} onSignUp={() => {}} onUserChange={setUser} token={token} />
+        } />
       </Routes>
     )
   }

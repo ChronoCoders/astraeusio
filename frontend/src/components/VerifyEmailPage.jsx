@@ -3,19 +3,27 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 
-export default function VerifyEmailPage({ onSignIn }) {
+export default function VerifyEmailPage({ onSignIn, onUserChange, token: authToken }) {
   const { t } = useTranslation()
   const [params] = useSearchParams()
-  const token = params.get('token')
-  const [status, setStatus] = useState(token ? 'pending' : 'error')
-  const [msg, setMsg]       = useState(token ? '' : t('verifyEmail.noToken'))
+  const emailToken = params.get('token')
+  const [status, setStatus] = useState(emailToken ? 'pending' : 'error')
+  const [msg, setMsg]       = useState(emailToken ? '' : t('verifyEmail.noToken'))
 
   useEffect(() => {
-    if (!token) return
+    if (!emailToken) return
 
-    fetch(`/auth/verify-email/${encodeURIComponent(token)}`, { method: 'POST' })
+    fetch(`/auth/verify-email/${encodeURIComponent(emailToken)}`, { method: 'POST' })
       .then(async r => {
         if (r.status === 204) {
+          // Refresh user state if we have an auth token so the banner clears immediately
+          const storedToken = authToken ?? localStorage.getItem('token')
+          if (storedToken && onUserChange) {
+            fetch('/api/user/me', { headers: { Authorization: `Bearer ${storedToken}` } })
+              .then(res => res.ok ? res.json() : null)
+              .then(d => { if (d) onUserChange(d) })
+              .catch(() => {})
+          }
           setStatus('success')
         } else {
           const d = await r.json().catch(() => ({}))
