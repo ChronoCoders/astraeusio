@@ -16,9 +16,9 @@ export default function BlogPage({ onSignIn }) {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Navbar onSignIn={onSignIn} />
 
-      <div className="max-w-4xl mx-auto px-6 pt-36 pb-24">
-        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-6">Blog</p>
-        <h1 className="text-4xl font-thin tracking-tight text-zinc-100 mb-16">
+      <div className="max-w-4xl mx-auto px-6 pt-36 pb-16">
+        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">Blog</p>
+        <h1 className="text-4xl md:text-5xl font-thin tracking-tight text-zinc-100 mb-16">
           Space weather, explained.
         </h1>
 

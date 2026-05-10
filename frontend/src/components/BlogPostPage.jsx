@@ -1,7 +1,13 @@
+import { useState, useEffect } from 'react'
 import { Link, useParams, Navigate } from 'react-router-dom'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { getPost } from '../blog/posts'
+
+function readTime(text) {
+  const words = text.trim().split(/\s+/).length
+  return Math.max(1, Math.ceil(words / 200))
+}
 
 function TagBadge({ tag }) {
   return (
@@ -29,7 +35,6 @@ function renderContent(text) {
       continue
     }
 
-    // Table — collect all rows
     if (line.startsWith('|')) {
       const rows = []
       while (i < lines.length && lines[i].startsWith('|')) {
@@ -63,12 +68,8 @@ function renderContent(text) {
       continue
     }
 
-    if (line === '') {
-      i++
-      continue
-    }
+    if (line === '') { i++; continue }
 
-    // Paragraph — collect consecutive non-special lines
     const paraLines = []
     while (i < lines.length && lines[i] !== '' && !lines[i].startsWith('## ') && !lines[i].startsWith('|')) {
       paraLines.push(lines[i])
@@ -76,7 +77,6 @@ function renderContent(text) {
     }
     if (paraLines.length > 0) {
       const raw = paraLines.join(' ')
-      // Inline bold (**text**)
       const parts = raw.split(/(\*\*[^*]+\*\*)/)
       elements.push(
         <p key={`p-${i}`} className="text-zinc-400 text-sm leading-relaxed mb-4">
@@ -96,11 +96,34 @@ function renderContent(text) {
 export default function BlogPostPage({ onSignIn }) {
   const { slug } = useParams()
   const post = getPost(slug)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (!post) return
+    function onScroll() {
+      const el = document.documentElement
+      const scrolled = el.scrollTop
+      const total = el.scrollHeight - el.clientHeight
+      setProgress(total > 0 ? Math.min(100, (scrolled / total) * 100) : 0)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [post])
 
   if (!post) return <Navigate to="/blog" replace />
 
+  const mins = readTime(post.content)
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Reading progress bar */}
+      <div className="fixed top-0 left-0 right-0 z-[60] h-0.5 bg-zinc-800">
+        <div
+          className="h-full bg-orange-400 transition-all duration-75"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
       <Navbar onSignIn={onSignIn} />
 
       {/* Hero image */}
@@ -114,19 +137,22 @@ export default function BlogPostPage({ onSignIn }) {
       </div>
 
       <article className="max-w-2xl mx-auto px-6 pt-10 pb-24">
-        {/* Back */}
-        <Link
-          to="/blog"
-          className="inline-block text-xs font-mono text-zinc-600 hover:text-zinc-400 transition-colors mb-10"
-        >
-          ← All posts
-        </Link>
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-xs font-mono text-zinc-600 mb-10">
+          <Link to="/" className="hover:text-zinc-400 transition-colors">Home</Link>
+          <span>/</span>
+          <Link to="/blog" className="hover:text-zinc-400 transition-colors">Blog</Link>
+          <span>/</span>
+          <span className="text-zinc-500 truncate max-w-[200px]">{post.title}</span>
+        </nav>
 
         {/* Meta */}
         <div className="flex items-center gap-3 mb-6">
           <time className="text-xs font-mono text-zinc-500">{post.date}</time>
           <span className="text-zinc-700">·</span>
           <span className="text-xs font-mono text-zinc-500">{post.author}</span>
+          <span className="text-zinc-700">·</span>
+          <span className="text-xs font-mono text-zinc-500">{mins} min read</span>
         </div>
 
         {/* Title */}
@@ -144,7 +170,7 @@ export default function BlogPostPage({ onSignIn }) {
           {renderContent(post.content)}
         </div>
 
-        {/* Footer */}
+        {/* Footer nav */}
         <div className="mt-16 pt-8 border-t border-zinc-800 flex items-center justify-between">
           <Link
             to="/blog"
@@ -155,6 +181,7 @@ export default function BlogPostPage({ onSignIn }) {
           <span className="text-xs font-mono text-zinc-600">{post.author}</span>
         </div>
       </article>
+
       <Footer />
     </div>
   )

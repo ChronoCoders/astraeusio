@@ -25,9 +25,9 @@ export default function AboutPage({ onSignIn }) {
       <Navbar onSignIn={onSignIn} />
 
       {/* Hero */}
-      <section className="max-w-3xl mx-auto px-6 pt-36 pb-24">
-        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-6">About</p>
-        <h1 className="text-4xl sm:text-5xl font-thin tracking-tight text-zinc-100 leading-tight">
+      <section className="max-w-3xl mx-auto px-6 pt-36 pb-16">
+        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">About</p>
+        <h1 className="text-4xl md:text-5xl font-thin tracking-tight text-zinc-100 leading-tight">
           Built for those who need to know what's happening in space before it affects Earth.
         </h1>
       </section>
