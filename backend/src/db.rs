@@ -196,6 +196,18 @@ CREATE TABLE IF NOT EXISTS email_alerts (
     last_notified_at  BIGINT,
     created_at        BIGINT  NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS custom_anomaly_rules (
+    id         TEXT    NOT NULL PRIMARY KEY,
+    user_email TEXT    NOT NULL,
+    name       TEXT    NOT NULL,
+    metric     TEXT    NOT NULL,
+    operator   TEXT    NOT NULL,
+    threshold  DOUBLE  NOT NULL,
+    severity   TEXT    NOT NULL,
+    enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at BIGINT  NOT NULL
+);
 ";
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -1307,6 +1319,144 @@ impl Store {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    pub fn latest_dst_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, dst_nt FROM dst WHERE dst_nt IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get::<_, i32>(1)? as i64)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn latest_imf_bz_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, bz_e2 FROM imf WHERE bz_e2 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+// ── Custom anomaly rules ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct CustomRule {
+    pub id: String,
+    pub user_email: String,
+    pub name: String,
+    pub metric: String,
+    pub operator: String,
+    pub threshold: f64,
+    pub severity: String,
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+impl Store {
+    pub fn insert_custom_rule(&self, rule: &CustomRule) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO custom_anomaly_rules
+             (id, user_email, name, metric, operator, threshold, severity, enabled, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![
+                rule.id,
+                rule.user_email,
+                rule.name,
+                rule.metric,
+                rule.operator,
+                rule.threshold,
+                rule.severity,
+                rule.enabled,
+                rule.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_custom_rules(&self, user_email: &str) -> Result<Vec<CustomRule>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, user_email, name, metric, operator, threshold, severity, enabled, created_at
+             FROM custom_anomaly_rules WHERE user_email = ? ORDER BY created_at ASC",
+        )?;
+        let rows = stmt
+            .query_map([user_email], |row| {
+                Ok(CustomRule {
+                    id: row.get(0)?,
+                    user_email: row.get(1)?,
+                    name: row.get(2)?,
+                    metric: row.get(3)?,
+                    operator: row.get(4)?,
+                    threshold: row.get(5)?,
+                    severity: row.get(6)?,
+                    enabled: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn delete_custom_rule(&self, id: &str, user_email: &str) -> Result<bool, DbError> {
+        let n = self.conn.execute(
+            "DELETE FROM custom_anomaly_rules WHERE id = ? AND user_email = ?",
+            params![id, user_email],
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn toggle_custom_rule(
+        &self,
+        id: &str,
+        user_email: &str,
+        enabled: bool,
+    ) -> Result<bool, DbError> {
+        let n = self.conn.execute(
+            "UPDATE custom_anomaly_rules SET enabled = ? WHERE id = ? AND user_email = ?",
+            params![enabled, id, user_email],
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn get_enabled_custom_rules(&self) -> Result<Vec<CustomRule>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, user_email, name, metric, operator, threshold, severity, enabled, created_at
+             FROM custom_anomaly_rules WHERE enabled = TRUE",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(CustomRule {
+                    id: row.get(0)?,
+                    user_email: row.get(1)?,
+                    name: row.get(2)?,
+                    metric: row.get(3)?,
+                    operator: row.get(4)?,
+                    threshold: row.get(5)?,
+                    severity: row.get(6)?,
+                    enabled: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn count_custom_rules_for_user(&self, user_email: &str) -> Result<i64, DbError> {
+        self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM custom_anomaly_rules WHERE user_email = ?",
+                [user_email],
+                |row| row.get(0),
+            )
+            .map_err(DbError::Duckdb)
     }
 }
 
