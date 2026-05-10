@@ -1,6 +1,42 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const PLANS = [
+  {
+    id: 'free',
+    features: ['Public API access', 'Basic Kp data'],
+  },
+  {
+    id: 'starter',
+    features: ['Dashboard access', 'Live space weather data', 'ISS tracking'],
+  },
+  {
+    id: 'developer',
+    features: ['API keys', 'ML Kp forecast', 'Anomaly detection', 'Email alerts', 'CSV export'],
+  },
+  {
+    id: 'pro',
+    features: ['Everything in Developer', 'Webhooks', 'Priority support'],
+  },
+  {
+    id: 'business',
+    features: ['Everything in Pro', 'Historical data access', 'Team seats'],
+  },
+  {
+    id: 'enterprise',
+    features: ['Everything in Business', 'SLA', 'Custom integrations'],
+  },
+]
+
+const PLAN_COLOR = {
+  free:       'border-zinc-700 text-zinc-400',
+  starter:    'border-zinc-600 text-zinc-300',
+  developer:  'border-blue-700 text-blue-400',
+  pro:        'border-purple-700 text-purple-400',
+  business:   'border-amber-700 text-amber-400',
+  enterprise: 'border-orange-600 text-orange-400',
+}
+
 const LANGS = ['en', 'tr']
 
 function authHeader() {
@@ -259,6 +295,124 @@ function TwoFactorSection({ user, onUserChange }) {
   )
 }
 
+// ── Plan ──────────────────────────────────────────────────────────────────────
+
+function PlanSection({ user, onUserChange }) {
+  const { t } = useTranslation()
+  const plan = user?.plan ?? 'starter'
+  const [open, setOpen]       = useState(false)
+  const [selected, setSelected] = useState(plan)
+  const [saving, setSaving]   = useState(false)
+  const [err, setErr]         = useState(null)
+
+  async function handleSave() {
+    if (selected === plan) { setOpen(false); return }
+    setSaving(true)
+    setErr(null)
+    try {
+      const r = await fetch('/api/user/plan', {
+        method: 'POST',
+        headers: { ...authHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: selected }),
+      })
+      if (r.status === 204) {
+        onUserChange?.({ ...user, plan: selected })
+        setOpen(false)
+      } else {
+        const d = await r.json().catch(() => ({}))
+        setErr(d.error ?? t('auth.unknownError'))
+      }
+    } catch {
+      setErr(t('auth.networkError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const current = PLANS.find(p => p.id === plan) ?? PLANS[1]
+  const planCls = PLAN_COLOR[plan] ?? PLAN_COLOR.starter
+
+  return (
+    <Section title={t('settings.planTitle')}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-mono border rounded px-2 py-0.5 ${planCls}`}>
+            {t(`plan.${plan}`)}
+          </span>
+          <span className="text-zinc-500 text-xs font-mono">{t('settings.currentPlan')}</span>
+        </div>
+        <button
+          onClick={() => { setSelected(plan); setErr(null); setOpen(true) }}
+          className="px-3 py-1.5 text-xs font-mono rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+        >
+          {t('settings.changePlan')}
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        {current.features.map(f => (
+          <span key={f} className="text-zinc-500 text-xs font-mono">· {f}</span>
+        ))}
+      </div>
+
+      {/* Modal */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-sm mx-4 flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-100 text-sm font-mono">{t('settings.selectPlan')}</span>
+              <button onClick={() => setOpen(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors text-lg leading-none">×</button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {PLANS.map(p => {
+                const cls = PLAN_COLOR[p.id] ?? PLAN_COLOR.starter
+                const isSelected = selected === p.id
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelected(p.id)}
+                    className={[
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors',
+                      isSelected
+                        ? 'border-zinc-400 bg-zinc-800'
+                        : 'border-zinc-800 hover:border-zinc-600',
+                    ].join(' ')}
+                  >
+                    <span className={`text-xs font-mono border rounded px-1.5 py-0.5 shrink-0 ${cls}`}>
+                      {t(`plan.${p.id}`)}
+                    </span>
+                    <span className="text-zinc-400 text-xs">{p.features[0]}{p.features.length > 1 ? ` +${p.features.length - 1} more` : ''}</span>
+                    {isSelected && <span className="ml-auto text-zinc-300 text-xs">✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+
+            {err && <p className="text-red-400 text-xs font-mono">{err}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-2 text-xs font-mono rounded bg-zinc-100 text-zinc-950 hover:bg-white disabled:bg-zinc-700 disabled:text-zinc-500 transition-colors"
+              >
+                {saving ? t('common.loading') : t('settings.savePlan')}
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                {t('settings.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage({ onLogout, user, onUserChange }) {
@@ -313,6 +467,9 @@ export default function SettingsPage({ onLogout, user, onUserChange }) {
 
       {/* ── Email verification ───────────────────────────────────────── */}
       <EmailVerificationSection user={user} />
+
+      {/* ── Plan ─────────────────────────────────────────────────────── */}
+      <PlanSection user={user} onUserChange={onUserChange} />
 
       {/* ── 2FA ─────────────────────────────────────────────────────── */}
       <TwoFactorSection user={user} onUserChange={onUserChange} />

@@ -224,7 +224,12 @@
     "disabling": "Disabling…",
     "emailBannerPre": "Your email address is not verified. Check your inbox or go to",
     "emailBannerLink": "Settings",
-    "emailBannerPost": "to resend the verification email."
+    "emailBannerPost": "to resend the verification email.",
+    "planTitle": "Plan",
+    "currentPlan": "Current plan",
+    "changePlan": "Change plan",
+    "selectPlan": "Select a plan",
+    "savePlan": "Save"
   },
   "apiKeys": {
     "createTitle": "Generate API Key",
@@ -360,7 +365,7 @@
     "lockedEmailAlerts": "Email alerts require a Developer plan or higher.",
     "lockedWebhooks": "Webhooks are available on Pro and above.",
     "lockedHistorical": "Historical data access requires a Business plan or higher.",
-    "upgradeBtn": "View pricing",
+    "upgradeBtn": "Upgrade plan",
     "comingSoon": "Coming soon"
   },
   "products": {

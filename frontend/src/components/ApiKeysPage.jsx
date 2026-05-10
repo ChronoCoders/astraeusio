@@ -36,7 +36,7 @@ const ENDPOINTS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ApiKeysPage({ plan }) {
+export default function ApiKeysPage({ plan, onNavigate }) {
   const { t } = useTranslation()
   const [{ keys, error, loadedSeq }, setListState] = useState({ keys: [], error: null, loadedSeq: -1 })
   const [name, setName]           = useState('')
@@ -113,10 +113,10 @@ export default function ApiKeysPage({ plan }) {
     return (
       <div className="flex flex-col gap-6 max-w-4xl">
         <div className="bg-zinc-900 border border-zinc-800 rounded">
-          <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="developer" />
+          <UpgradePrompt messageKey="plan.lockedApiKeys" requiredPlan="developer" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} />
         </div>
-        <EmailAlertsSection plan={plan} />
-        <WebhooksSection plan={plan} />
+        <EmailAlertsSection plan={plan} onNavigate={onNavigate} />
+        <WebhooksSection plan={plan} onNavigate={onNavigate} />
         <ApiDocsSection t={t} />
       </div>
     )
@@ -261,7 +261,7 @@ export default function ApiKeysPage({ plan }) {
 
 // ── Email Alerts ──────────────────────────────────────────────────────────────
 
-function EmailAlertsSection({ plan }) {
+function EmailAlertsSection({ plan, onNavigate }) {
   const { t } = useTranslation()
   const isDev = plan === null || planSatisfies(plan, 'developer')
 
@@ -288,7 +288,7 @@ function EmailAlertsSection({ plan }) {
   if (!isDev) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded">
-        <UpgradePrompt messageKey="plan.lockedEmailAlerts" requiredPlan="developer" />
+        <UpgradePrompt messageKey="plan.lockedEmailAlerts" requiredPlan="developer" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} />
       </div>
     )
   }
@@ -395,14 +395,14 @@ const WEBHOOK_EVENTS = [
   { id: 'ml_forecast_storm', label: 'ML Storm Forecast' },
 ]
 
-function WebhooksSection({ plan }) {
+function WebhooksSection({ plan, onNavigate }) {
   const { t } = useTranslation()
   const isPro = plan === null || planSatisfies(plan, 'pro')
 
   if (!isPro) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded">
-        <UpgradePrompt messageKey="plan.lockedWebhooks" requiredPlan="pro" />
+        <UpgradePrompt messageKey="plan.lockedWebhooks" requiredPlan="pro" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} />
       </div>
     )
   }

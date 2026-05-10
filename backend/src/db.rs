@@ -1088,6 +1088,14 @@ impl Store {
         Ok(())
     }
 
+    pub fn update_user_plan(&self, email: &str, plan: &str) -> Result<(), DbError> {
+        self.conn.execute(
+            "UPDATE users SET plan = ? WHERE email = ?",
+            params![plan, email],
+        )?;
+        Ok(())
+    }
+
     pub fn find_user_by_email(&self, email: &str) -> Result<Option<User>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT email, password_hash, email_verified, totp_secret, totp_enabled \

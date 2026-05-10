@@ -252,6 +252,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/public/solar-wind", get(get_public_solar_wind))
         .route("/api/public/forecast", get(get_public_forecast))
         .route("/api/user/me", get(get_user_me))
+        .route("/api/user/plan", post(update_user_plan))
         .route("/api/usage", get(get_usage))
         .route(
             "/api/keys",
@@ -641,6 +642,40 @@ async fn get_user_me(
 ) -> Result<impl IntoResponse, AppError> {
     let val = lock_db(&s.db).await.get_user_me(&claims.sub)?;
     Ok(Json(val))
+}
+
+#[derive(serde::Deserialize)]
+struct UpdatePlanBody {
+    plan: String,
+}
+
+async fn update_user_plan(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Json(body): Json<UpdatePlanBody>,
+) -> Response {
+    const VALID_PLANS: &[&str] = &["free", "starter", "developer", "pro", "business", "enterprise"];
+    if !VALID_PLANS.contains(&body.plan.as_str()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "invalid plan" })),
+        )
+            .into_response();
+    }
+    match s.writer.update_user_plan(claims.sub.clone(), body.plan).await {
+        Ok(()) => {
+            s.usage_counter.remove(&claims.sub);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => {
+            tracing::error!("update_user_plan: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
 }
 
 // ── Anomaly handler ───────────────────────────────────────────────────────────

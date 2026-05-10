@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-export default function UpgradePrompt({ messageKey, requiredPlan }) {
+export default function UpgradePrompt({ messageKey, requiredPlan, onUpgrade }) {
   const { t } = useTranslation()
 
   return (
@@ -20,14 +20,23 @@ export default function UpgradePrompt({ messageKey, requiredPlan }) {
           {t(`plan.${requiredPlan}`)}+
         </span>
       )}
-      <a
-        href="/pricing"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
-      >
-        {t('plan.upgradeBtn')} →
-      </a>
+      {onUpgrade ? (
+        <button
+          onClick={onUpgrade}
+          className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+        >
+          {t('plan.upgradeBtn')} →
+        </button>
+      ) : (
+        <a
+          href="/pricing"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
+        >
+          {t('plan.upgradeBtn')} →
+        </a>
+      )}
     </div>
   )
 }
