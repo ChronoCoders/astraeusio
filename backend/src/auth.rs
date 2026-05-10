@@ -24,7 +24,7 @@ pub enum AuthType {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthClaims {
     pub sub: String,
-    pub exp: usize,
+    pub exp: u64,
     #[serde(skip)]
     pub auth_type: AuthType,
 }
@@ -33,7 +33,7 @@ pub struct AuthClaims {
 #[derive(Serialize, Deserialize)]
 struct PurposeClaims {
     sub: String,
-    exp: usize,
+    exp: u64,
     purpose: String,
 }
 
@@ -79,7 +79,7 @@ fn purpose_token(
     ttl: i64,
     secret: &str,
 ) -> Result<String, jsonwebtoken::errors::Error> {
-    let exp = (chrono::Utc::now().timestamp() + ttl) as usize;
+    let exp = (chrono::Utc::now().timestamp() + ttl) as u64;
     encode(
         &Header::default(),
         &PurposeClaims {
@@ -733,7 +733,7 @@ fn sha256_hex(input: &str) -> String {
 }
 
 fn issue_jwt(email: &str, secret: &str) -> Response {
-    let exp = (chrono::Utc::now().timestamp() + 86_400) as usize;
+    let exp = (chrono::Utc::now().timestamp() + 86_400) as u64;
     let claims = AuthClaims {
         sub: email.to_string(),
         exp,
@@ -799,7 +799,7 @@ impl FromRequestParts<AppState> for AuthClaims {
                     rate_limit::check_and_increment(&state.usage_counter, &state.db, &sub).await?;
                     return Ok(AuthClaims {
                         sub,
-                        exp: usize::MAX,
+                        exp: u64::MAX,
                         auth_type: AuthType::ApiKey,
                     });
                 }
