@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { flattenNeo, fmtNum, planSatisfies } from '../lib/utils'
 import UpgradePrompt from './UpgradePrompt'
 
 const RANGES = ['24h', '7d', '30d']
+const NEO_PAGE_SIZE = 10
+const TODAY = new Date().toISOString().slice(0, 10)
+const IN_3_DAYS = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
 const RANGE_SECS = { '24h': 86_400, '7d': 604_800, '30d': 2_592_000 }
 const BOOT_SEC = Math.floor(Date.now() / 1000)
 
@@ -153,6 +156,10 @@ export default function ReportsPage({ plan, onNavigate }) {
 
   // NEO (fetched once)
   const [neo, setNeo] = useState(null)
+  const [neoPage, setNeoPage] = useState(1)
+  const [neoDistFilter, setNeoDistFilter] = useState('all')
+  const [neoDateFilter, setNeoDateFilter] = useState('all')
+  const [neoHazOnly, setNeoHazOnly] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -222,7 +229,34 @@ export default function ReportsPage({ plan, onNavigate }) {
   const cutoffSec = BOOT_SEC - rangeSecs
   const filteredAnomalies = (anomalies ?? []).filter(a => a.detected_at >= cutoffSec)
 
-  const neoRows = flattenNeo(neo)
+  const allNeoRows = useMemo(() => flattenNeo(neo), [neo])
+
+  const filteredNeoRows = useMemo(() => {
+    let rows = allNeoRows
+    if (neoHazOnly) rows = rows.filter(r => r.hazardous)
+    if (neoDistFilter === 'lt1') rows = rows.filter(r => r.lunar < 1)
+    if (neoDistFilter === 'lt05') rows = rows.filter(r => r.lunar < 0.5)
+    if (neoDateFilter === 'today') rows = rows.filter(r => r.date === TODAY)
+    if (neoDateFilter === '3d') rows = rows.filter(r => r.date <= IN_3_DAYS)
+    return rows
+  }, [allNeoRows, neoHazOnly, neoDistFilter, neoDateFilter])
+
+  const neoTotalPages = Math.max(1, Math.ceil(filteredNeoRows.length / NEO_PAGE_SIZE))
+  const neoSafePage = Math.min(neoPage, neoTotalPages)
+  const neoRows = filteredNeoRows.slice((neoSafePage - 1) * NEO_PAGE_SIZE, neoSafePage * NEO_PAGE_SIZE)
+
+  function handleNeoFilter(setter) {
+    return val => { setter(val); setNeoPage(1) }
+  }
+
+  function neoPageNums() {
+    const pages = []
+    for (let i = 1; i <= neoTotalPages; i++) {
+      if (i === 1 || i === neoTotalPages || Math.abs(i - neoSafePage) <= 1) pages.push(i)
+      else if (pages[pages.length - 1] !== '…') pages.push('…')
+    }
+    return pages
+  }
 
   const fmtKp  = v => (v != null ? v.toFixed(2) : null)
   const fmtSpd = v => (v != null ? Math.round(v).toString() : null)
@@ -382,44 +416,104 @@ export default function ReportsPage({ plan, onNavigate }) {
           <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
             {t('reports.neoTitle')}
           </span>
-          <span className="text-zinc-700 text-xs font-mono">{neoRows.length}</span>
+          <span className="text-zinc-700 text-xs font-mono">{filteredNeoRows.length} / {allNeoRows.length}</span>
         </div>
+
+        <div className="px-4 py-2 border-b border-zinc-800/50 flex flex-wrap gap-2 items-center">
+          <select
+            value={neoDateFilter}
+            onChange={e => handleNeoFilter(setNeoDateFilter)(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="all">All dates</option>
+            <option value="today">Today</option>
+            <option value="3d">Next 3 days</option>
+          </select>
+          <select
+            value={neoDistFilter}
+            onChange={e => handleNeoFilter(setNeoDistFilter)(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="all">All distances</option>
+            <option value="lt1">&lt; 1 LD</option>
+            <option value="lt05">&lt; 0.5 LD</option>
+          </select>
+          <button
+            onClick={() => handleNeoFilter(setNeoHazOnly)(!neoHazOnly)}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${neoHazOnly ? 'bg-red-900/40 border-red-700 text-red-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}
+          >
+            Hazardous only
+          </button>
+        </div>
+
         {neo == null ? (
           <p className="text-zinc-600 text-xs font-mono p-4">{t('common.loading')}</p>
         ) : neoRows.length === 0 ? (
           <p className="text-zinc-600 text-xs font-mono p-4">{t('reports.noApproaches')}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
-              <thead>
-                <tr className="border-b border-zinc-800 text-zinc-600">
-                  <th className="text-left px-4 py-2 font-normal">{t('neo.colName')}</th>
-                  <th className="text-left px-4 py-2 font-normal">{t('neo.colDate')}</th>
-                  <th className="text-right px-4 py-2 font-normal">{t('neo.colDistance')}</th>
-                  <th className="text-right px-4 py-2 font-normal">{t('neo.colDiameter')}</th>
-                  <th className="px-4 py-2 font-normal">{t('neo.colStatus')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {neoRows.map(r => (
-                  <tr key={r.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                    <td className="px-4 py-2 text-zinc-200 max-w-[200px] truncate" title={r.name}>{r.name}</td>
-                    <td className="px-4 py-2 text-zinc-500 whitespace-nowrap">{r.date}</td>
-                    <td className="px-4 py-2 text-right text-zinc-200 tabular-nums">{fmtNum(r.lunar, 2)}</td>
-                    <td className="px-4 py-2 text-right text-zinc-400 whitespace-nowrap tabular-nums">
-                      {fmtNum(r.diamMin * 1000, 0)}–{fmtNum(r.diamMax * 1000, 0)} m
-                    </td>
-                    <td className="px-4 py-2">
-                      {r.hazardous
-                        ? <span className="text-red-400 border border-red-800 rounded px-1.5 py-0.5">{t('neo.hazardous')}</span>
-                        : <span className="text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">{t('neo.safe')}</span>
-                      }
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-600">
+                    <th className="text-left px-4 py-2 font-normal">{t('neo.colName')}</th>
+                    <th className="text-left px-4 py-2 font-normal">{t('neo.colDate')}</th>
+                    <th className="text-right px-4 py-2 font-normal">{t('neo.colDistance')}</th>
+                    <th className="text-right px-4 py-2 font-normal">{t('neo.colDiameter')}</th>
+                    <th className="px-4 py-2 font-normal">{t('neo.colStatus')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {neoRows.map(r => (
+                    <tr key={r.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                      <td className="px-4 py-2 text-zinc-200 max-w-[200px] truncate" title={r.name}>{r.name}</td>
+                      <td className="px-4 py-2 text-zinc-500 whitespace-nowrap">{r.date}</td>
+                      <td className="px-4 py-2 text-right text-zinc-200 tabular-nums">{fmtNum(r.lunar, 2)}</td>
+                      <td className="px-4 py-2 text-right text-zinc-400 whitespace-nowrap tabular-nums">
+                        {fmtNum(r.diamMin * 1000, 0)}–{fmtNum(r.diamMax * 1000, 0)} m
+                      </td>
+                      <td className="px-4 py-2">
+                        {r.hazardous
+                          ? <span className="text-red-400 border border-red-800 rounded px-1.5 py-0.5">{t('neo.hazardous')}</span>
+                          : <span className="text-zinc-500 border border-zinc-700 rounded px-1.5 py-0.5">{t('neo.safe')}</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {neoTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-1 px-4 py-3 border-t border-zinc-800/50">
+                <button
+                  onClick={() => setNeoPage(p => Math.max(1, p - 1))}
+                  disabled={neoSafePage === 1}
+                  className="text-xs px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ‹
+                </button>
+                {neoPageNums().map((n, i) =>
+                  n === '…'
+                    ? <span key={`ellipsis-${i}`} className="text-zinc-600 text-xs px-1">…</span>
+                    : <button
+                        key={n}
+                        onClick={() => setNeoPage(n)}
+                        className={`text-xs w-7 h-7 rounded border transition-colors ${neoSafePage === n ? 'bg-orange-500/20 border-orange-600 text-orange-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}
+                      >
+                        {n}
+                      </button>
+                )}
+                <button
+                  onClick={() => setNeoPage(p => Math.min(neoTotalPages, p + 1))}
+                  disabled={neoSafePage === neoTotalPages}
+                  className="text-xs px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
