@@ -1,5 +1,5 @@
 # ── Build stage ───────────────────────────────────────────────────────────────
-FROM rust:latest AS builder
+FROM rust:1.86-bookworm AS builder
 WORKDIR /build
 
 # Cache dependency compilation separately from source changes
