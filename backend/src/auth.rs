@@ -325,8 +325,17 @@ pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) 
         }
     };
 
-    match s.writer.set_email_verified(email).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+    match s.writer.set_email_verified(email.clone()).await {
+        Ok(()) => {
+            if let Some(ref mc) = s.mailer {
+                let mc      = mc.clone();
+                let app_url = s.app_url.clone();
+                tokio::spawn(async move {
+                    mailer::send_welcome_email(&mc, &email, &app_url).await;
+                });
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => {
             warn!("set_email_verified: {e}");
             (
