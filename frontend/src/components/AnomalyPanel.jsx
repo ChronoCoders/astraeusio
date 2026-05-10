@@ -34,14 +34,14 @@ function Badge({ severity }) {
   )
 }
 
-export default function AnomalyPanel({ data, loading, error }) {
+export default function AnomalyPanel({ data, loading, error, onNavigate }) {
   const { t } = useTranslation()
   const items = (data ?? []).slice(0, 30)
 
   if (error === 'HTTP 403') {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-        <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" />
+        <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} />
       </div>
     )
   }

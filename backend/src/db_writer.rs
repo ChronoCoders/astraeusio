@@ -108,6 +108,11 @@ pub enum WriteCmd {
         email: String,
         reply: oneshot::Sender<Result<(), DbError>>,
     },
+    UpdatePlan {
+        email: String,
+        plan: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
 }
 
 #[derive(Clone)]
@@ -263,6 +268,15 @@ impl DbWriterHandle {
         let (tx, rx) = oneshot::channel();
         self.tx
             .send(WriteCmd::DisableTotp { email, reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn update_user_plan(&self, email: String, plan: String) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::UpdatePlan { email, plan, reply: tx })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -484,6 +498,9 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         }
         WriteCmd::DisableTotp { email, reply } => {
             let _ = reply.send(db.disable_totp(&email));
+        }
+        WriteCmd::UpdatePlan { email, plan, reply } => {
+            let _ = reply.send(db.update_user_plan(&email, &plan));
         }
     }
 }

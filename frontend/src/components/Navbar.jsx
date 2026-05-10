@@ -30,6 +30,7 @@ export default function Navbar({ onSignIn }) {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setOpen(false) }, [pathname])
 
   useEffect(() => {

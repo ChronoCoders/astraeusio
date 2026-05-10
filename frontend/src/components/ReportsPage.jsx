@@ -130,7 +130,7 @@ function fmtTs(unixSec) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ReportsPage({ plan }) {
+export default function ReportsPage({ plan, onNavigate }) {
   const { t } = useTranslation()
   const csvLocked = plan !== null && !planSatisfies(plan, 'developer')
   const [range, setRange] = useState('24h')
@@ -341,7 +341,7 @@ export default function ReportsPage({ plan }) {
           <span className="text-zinc-700 text-xs font-mono">{filteredAnomalies.length}</span>
         </div>
         {anomaliesForbidden ? (
-          <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" />
+          <UpgradePrompt messageKey="plan.lockedAnomalies" requiredPlan="developer" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} />
         ) : anomalies == null ? (
           <p className="text-zinc-600 text-xs font-mono p-4">{t('common.loading')}</p>
         ) : filteredAnomalies.length === 0 ? (

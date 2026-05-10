@@ -176,13 +176,13 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               <div className="col-span-2">
                 <KpChart records={kp.data} />
               </div>
-              <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} />
+              <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} onNavigate={setPage} />
             </div>
 
             <div className="flex flex-col gap-3">
               <AsteroidTable data={neo.data} />
               <div className="grid grid-cols-2 gap-3">
-                <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} />
+                <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} onNavigate={setPage} />
                 <AlertsList data={alerts.data} />
               </div>
             </div>
@@ -245,10 +245,10 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           )}
 
           {/* ── Reports ────────────────────────────────────────────────── */}
-          {page === 'reports' && <ReportsPage plan={user?.plan ?? null} />}
+          {page === 'reports' && <ReportsPage plan={user?.plan ?? null} onNavigate={setPage} />}
 
           {/* ── API Keys ───────────────────────────────────────────────── */}
-          {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} />}
+          {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} onNavigate={setPage} />}
 
           {/* ── Settings ───────────────────────────────────────────────── */}
           {page === 'settings' && <SettingsPage onLogout={onLogout} user={user} onUserChange={onUserChange} />}
@@ -256,7 +256,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {/* ── Alerts ─────────────────────────────────────────────────── */}
           {page === 'alerts' && (
             <div className="flex flex-col gap-3">
-              <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} />
+              <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} onNavigate={setPage} />
               <AlertsList data={alerts.data} />
             </div>
           )}

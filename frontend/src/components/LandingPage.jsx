@@ -222,6 +222,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
   useEffect(() => {
     if (!fetchedAt) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFlash(true)
     const t = setTimeout(() => setFlash(false), 600)
     return () => clearTimeout(t)

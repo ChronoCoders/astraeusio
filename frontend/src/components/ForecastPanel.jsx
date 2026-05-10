@@ -23,11 +23,11 @@ function Row({ label, children }) {
   )
 }
 
-export default function ForecastPanel({ data, loading, error }) {
+export default function ForecastPanel({ data, loading, error, onNavigate }) {
   const { t } = useTranslation()
 
   if (loading) return <Panel><p className="text-zinc-600 text-sm">{t('forecast.loading')}</p></Panel>
-  if (error === 'HTTP 403') return <Panel><UpgradePrompt messageKey="plan.lockedKpForecast" requiredPlan="developer" /></Panel>
+  if (error === 'HTTP 403') return <Panel><UpgradePrompt messageKey="plan.lockedKpForecast" requiredPlan="developer" onUpgrade={onNavigate ? () => onNavigate('settings') : undefined} /></Panel>
   if (error)   return <Panel><p className="text-red-500 text-sm">{error}</p></Panel>
   if (!data)   return <Panel><p className="text-zinc-600 text-sm">{t('forecast.noData')}</p></Panel>
 
