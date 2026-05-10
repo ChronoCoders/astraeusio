@@ -151,18 +151,25 @@ function PlanCard({ plan, annual, onCta }) {
         </ul>
 
         <div className="flex flex-col gap-2 mt-auto">
+          {isEnterprise ? (
+            <a
+              href="mailto:altug@bytus.io?subject=Astraeusio Enterprise Inquiry"
+              className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors border border-zinc-600 hover:border-zinc-400 text-zinc-300 hover:text-zinc-100 bg-transparent text-center"
+            >
+              {t(`pricing.plans.${plan.key}.cta`)}
+            </a>
+          ) : (
           <button
             onClick={onCta}
             className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
               plan.highlight
                 ? 'bg-orange-500 hover:bg-orange-400 text-white'
-                : isEnterprise
-                ? 'border border-zinc-600 hover:border-zinc-400 text-zinc-300 hover:text-zinc-100 bg-transparent'
                 : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100'
             }`}
           >
             {t(`pricing.plans.${plan.key}.cta`)}
           </button>
+          )}
 
           {trust.length > 0 && (
             <div className="flex flex-col gap-1 pt-1">
