@@ -438,7 +438,10 @@ impl Store {
             let mut stmt = self.conn.prepare(
                 "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at)
                  VALUES (?, ?, ?, ?)
-                 ON CONFLICT (time_tag) DO NOTHING",
+                 ON CONFLICT (time_tag) DO UPDATE SET
+                   kp_index = CASE WHEN excluded.kp_index > 0 THEN excluded.kp_index ELSE kp.kp_index END,
+                   estimated_kp_e2 = CASE WHEN excluded.estimated_kp_e2 > 0 THEN excluded.estimated_kp_e2 ELSE kp.estimated_kp_e2 END,
+                   fetched_at = excluded.fetched_at",
             )?;
             for r in to_insert {
                 stmt.execute(params![
