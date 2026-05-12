@@ -79,11 +79,11 @@ function kpBadge(kp) {
   return              { text: 'text-emerald-400', border: 'border-emerald-900/60', dot: 'bg-emerald-400' }
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, as: Tag = 'span' }) {
   return (
-    <span className="text-xs font-mono tracking-[0.3em] text-zinc-500 uppercase">
+    <Tag className="text-xs font-mono tracking-[0.3em] text-zinc-500 uppercase">
       {children}
-    </span>
+    </Tag>
   )
 }
 
@@ -306,7 +306,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section ref={capRef} style={capStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col gap-2 mb-10">
-            <SectionLabel>{t('landing.capTitle')}</SectionLabel>
+            <SectionLabel as="h2">{t('landing.capTitle')}</SectionLabel>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {CAP_CONFIG.map(({ key, Icon, topBorder, iconBg, iconCls }) => (
@@ -328,6 +328,11 @@ export default function LandingPage({ onSignUp, onSignIn }) {
               </div>
             ))}
           </div>
+          <div className="mt-8 flex justify-end">
+            <Link to="/products" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
+              {t('landing.allFeatures')} →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -335,7 +340,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section ref={liveRef} style={liveStyle} className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-end justify-between mb-8">
-            <SectionLabel>{t('landing.liveTitle')}</SectionLabel>
+            <SectionLabel as="h2">{t('landing.liveTitle')}</SectionLabel>
             {age != null && (
               <span className="text-zinc-600 text-xs font-mono">
                 {age === 0
@@ -374,7 +379,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       {/* ── Predictive Intelligence (bg-zinc-900) ────────────────────────── */}
       <section ref={predRef} style={predStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <SectionLabel>{t('landing.predTitle')}</SectionLabel>
+          <SectionLabel as="h2">{t('landing.predTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-10">
             {['p1', 'p2', 'p3'].map((pk, i) => (
               <div key={pk} className="flex flex-col gap-3">
@@ -397,7 +402,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <section ref={howRef} style={howStyle} className="bg-zinc-950 py-20 px-6">
         <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-14">
           <div className="flex flex-col gap-5">
-            <SectionLabel>{t('landing.howTitle')}</SectionLabel>
+            <SectionLabel as="h2">{t('landing.howTitle')}</SectionLabel>
             <p className="text-zinc-400 text-sm leading-relaxed">
               {t('landing.howBody')}
             </p>
@@ -406,7 +411,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
             </p>
           </div>
           <div className="flex flex-col gap-5">
-            <SectionLabel>{t('landing.sourcesTitle')}</SectionLabel>
+            <SectionLabel as="h2">{t('landing.sourcesTitle')}</SectionLabel>
             <p className="text-zinc-600 text-xs font-mono">{t('landing.sourcesNote')}</p>
             <ul className="flex flex-col gap-3">
               {SOURCE_KEYS.map(k => (
@@ -416,6 +421,9 @@ export default function LandingPage({ onSignUp, onSignIn }) {
                 </li>
               ))}
             </ul>
+            <Link to="/docs" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide self-start">
+              {t('landing.apiDocs')} →
+            </Link>
           </div>
         </div>
       </section>
@@ -423,7 +431,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       {/* ── Who It's For (bg-zinc-900) ───────────────────────────────────── */}
       <section ref={audienceRef} style={audienceStyle} className="bg-zinc-900 py-20 px-6">
         <div className="max-w-5xl mx-auto">
-          <SectionLabel>{t('landing.audienceTitle')}</SectionLabel>
+          <SectionLabel as="h2">{t('landing.audienceTitle')}</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-5 mt-10">
             {AUDIENCE_CONFIG.map(({ key, Icon, iconBg, iconCls }, i) => (
               <div key={key} className={`sm:col-span-2${i === 3 ? ' sm:col-start-2' : ''}`}>
@@ -493,6 +501,9 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         >
           {t('landing.ctaBtn')}
         </button>
+        <Link to="/pricing" className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors font-mono">
+          {t('landing.comparePlans')} →
+        </Link>
       </section>
 
       <Footer />
