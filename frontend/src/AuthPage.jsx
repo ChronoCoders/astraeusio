@@ -160,6 +160,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
                 <Field label={t('auth.authenticatorCode')}>
                   <input
                     type="text"
+                    name="totp-code"
                     inputMode="numeric"
                     maxLength={6}
                     value={totpCode}
@@ -207,6 +208,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               <Field label={t('auth.email')}>
                 <input
                   type="email"
+                  name="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
@@ -219,6 +221,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               <Field label={t('auth.password')}>
                 <input
                   type="password"
+                  name="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
@@ -232,6 +235,7 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
                 <Field label={t('auth.confirmPassword')}>
                   <input
                     type="password"
+                    name="confirm-password"
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     required

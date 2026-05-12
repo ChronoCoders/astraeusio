@@ -146,6 +146,7 @@ export default function CustomRulesPanel({ plan, onNavigate }) {
           <p className="text-xs text-zinc-400 font-mono mb-1">New Rule</p>
           <input
             type="text"
+            name="rule-name"
             placeholder="Rule name"
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -154,6 +155,7 @@ export default function CustomRulesPanel({ plan, onNavigate }) {
           />
           <div className="flex gap-2 flex-wrap">
             <select
+              name="rule-metric"
               value={form.metric}
               onChange={e => setForm(f => ({ ...f, metric: e.target.value }))}
               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500 flex-1 min-w-0"
@@ -163,6 +165,7 @@ export default function CustomRulesPanel({ plan, onNavigate }) {
               ))}
             </select>
             <select
+              name="rule-operator"
               value={form.operator}
               onChange={e => setForm(f => ({ ...f, operator: e.target.value }))}
               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500"
@@ -173,6 +176,7 @@ export default function CustomRulesPanel({ plan, onNavigate }) {
             </select>
             <input
               type="number"
+              name="rule-threshold"
               step="any"
               placeholder="Threshold"
               value={form.threshold}
@@ -180,6 +184,7 @@ export default function CustomRulesPanel({ plan, onNavigate }) {
               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-32"
             />
             <select
+              name="rule-severity"
               value={form.severity}
               onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-500"
