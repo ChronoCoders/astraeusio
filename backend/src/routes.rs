@@ -475,11 +475,8 @@ async fn ml_cache_fallback(s: &AppState) -> Result<serde_json::Value, AppError> 
 
 async fn get_kp_forecast(
     State(s): State<AppState>,
-    claims: AuthClaims,
+    _claims: AuthClaims,
 ) -> Result<Response, AppError> {
-    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
-        return Ok(r);
-    }
     Ok(cached(
         &s.cache,
         "kp-forecast",
@@ -689,11 +686,8 @@ async fn update_user_plan(
 
 async fn get_anomalies(
     State(s): State<AppState>,
-    claims: AuthClaims,
+    _claims: AuthClaims,
 ) -> Result<Response, AppError> {
-    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
-        return Ok(r);
-    }
     Ok(
         cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
             let val = lock_db(&s.db).await.get_anomalies_recent()?;
