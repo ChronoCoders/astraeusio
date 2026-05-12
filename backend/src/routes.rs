@@ -172,7 +172,7 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     }
 
     let (noaa_status,      noaa_last)      = component_status(noaa_ts,      now, 600);
-    let (nasa_status,      nasa_last)      = component_status(nasa_ts,      now, 14_400);
+    let (nasa_status,      nasa_last)      = component_status(nasa_ts,      now, 90_000);
     let (celestrak_status, celestrak_last) = component_status(celestrak_ts, now, 14_400);
     let db_status = if noaa_ts.is_some() { "operational" } else { "unknown" };
 

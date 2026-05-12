@@ -2110,7 +2110,7 @@ impl Store {
                 .flatten()
         };
         let noaa      = q("SELECT MAX(fetched_at) FROM kp");
-        let nasa      = q("SELECT MAX(fetched_at) FROM apod");
+        let nasa      = q("SELECT MAX(m) FROM (SELECT MAX(fetched_at) AS m FROM apod UNION ALL SELECT MAX(fetched_at) FROM neo UNION ALL SELECT MAX(fetched_at) FROM epic)");
         let celestrak = q("SELECT MAX(fetched_at) FROM starlink");
         (noaa, nasa, celestrak)
     }
