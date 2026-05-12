@@ -11,4 +11,4 @@ EXPOSE 8000
 CMD ["sh", "-c", \
   "mkdir -p /data/models && \
    test -f /data/models/kp_lstm.pt || cp /app/models/kp_lstm.pt /data/models/kp_lstm.pt && \
-   exec uvicorn ml.serve:app --host 0.0.0.0 --port 8000"]
+   exec uvicorn serve:app --host 0.0.0.0 --port 8000"]
