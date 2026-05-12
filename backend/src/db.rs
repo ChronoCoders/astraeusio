@@ -1301,6 +1301,22 @@ impl Store {
         }
     }
 
+    /// Returns the (time_tag, peak flux_e12) of the highest X-ray reading in the 0.1-0.8 nm band
+    /// since `since` (Unix seconds, compared against fetched_at).
+    pub fn xray_peak_recent(&self, since: i64) -> Result<Option<(String, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, flux_e12 FROM xray \
+             WHERE energy = '0.1-0.8nm' AND fetched_at > ? \
+             ORDER BY flux_e12 DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([since])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Returns (id, close_approach_date, miss_distance_m) for NEO approaches under `max_dist_scaled`
     /// fetched within the last `since` seconds window.
     pub fn neo_close_approaches_raw(
