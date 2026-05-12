@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agentskills.io/schema/v0.2.0/index.json",
+  "skills": [
+    {
+      "name": "get-space-weather",
+      "type": "api",
+      "description": "Retrieve real-time space weather data: Kp index, solar wind, X-ray flux, IMF Bz, Dst index, and NOAA alerts.",
+      "url": "https://astraeusio.com/.well-known/agent-skills/get-space-weather/SKILL.md",
+      "sha256": "e92260a2476f9b520ff3031c3f95c968ca452482c72cf64b738ba3806fe73e9a"
+    },
+    {
+      "name": "get-kp-forecast",
+      "type": "api",
+      "description": "Get a 3-hour ML-powered Kp forecast with 95% confidence interval from an LSTM model trained on 20+ years of NOAA data.",
+      "url": "https://astraeusio.com/.well-known/agent-skills/get-kp-forecast/SKILL.md",
+      "sha256": "3d2da9a50e9a1d5e14dd915425d6056fd47ba6f7863e5753b67c94fff08bad85"
+    },
+    {
+      "name": "get-neo",
+      "type": "api",
+      "description": "Get NASA near-Earth object close approaches for the next 7 days, with miss distance, velocity, diameter, and hazard classification.",
+      "url": "https://astraeusio.com/.well-known/agent-skills/get-neo/SKILL.md",
+      "sha256": "f336efb836a2bf0611807a4ec87be68c02db5c1bf1946d1c2a22b6d48a234364"
+    },
+    {
+      "name": "get-anomalies",
+      "type": "api",
+      "description": "Get automatically detected space weather anomalies: geomagnetic storms, solar flares, solar wind spikes, asteroid close approaches, and ML forecast alerts.",
+      "url": "https://astraeusio.com/.well-known/agent-skills/get-anomalies/SKILL.md",
+      "sha256": "f8977e19bf173e999e7de21c31272e6fb508785ea2aa193c17b6d6d79b19862c"
+    }
+  ]
+}
