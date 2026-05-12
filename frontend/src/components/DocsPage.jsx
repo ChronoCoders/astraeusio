@@ -130,6 +130,7 @@ function Table({ headers, rows }) {
 }
 
 function Endpoint({ method, path, plan, desc, params, response }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <div className="border border-zinc-800 rounded-md mb-3 overflow-hidden">
@@ -153,13 +154,13 @@ function Endpoint({ method, path, plan, desc, params, response }) {
           <p className="text-zinc-400 text-sm mb-3">{desc}</p>
           {params && (
             <>
-              <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-widest mb-2">Parameters</p>
-              <Table headers={['Name', 'Type', 'Description']} rows={params} />
+              <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-widest mb-2">{t('docs.paramLabel')}</p>
+              <Table headers={[t('docs.thName'), t('docs.thType'), t('docs.thDesc')]} rows={params} />
             </>
           )}
           {response && (
             <>
-              <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-widest mb-1">Example Response</p>
+              <p className="text-zinc-500 text-[11px] font-mono uppercase tracking-widest mb-1">{t('docs.responseLabel')}</p>
               <Code lang="json">{response}</Code>
             </>
           )}
@@ -243,37 +244,25 @@ export default function DocsPage({ onSignIn }) {
           <H2 id="getting-started">{t('docs.navGettingStarted')}</H2>
 
           <H3 id="authentication">{t('docs.navAuthentication')}</H3>
-          <P>
-            All API endpoints (except public ones) require authentication. Astraeusio supports
-            two authentication methods.
-          </P>
+          <P>{t('docs.authIntro')}</P>
 
-          <H4>JWT Bearer Token</H4>
-          <P>
-            Obtained via <Ic>POST /auth/login</Ic>. Valid for 24 hours. Use for dashboard access
-            and personal scripts. JWT requests do <strong className="text-zinc-300">not</strong> consume your API quota.
-          </P>
+          <H4>{t('docs.authJwtTitle')}</H4>
+          <P>{t('docs.authJwtDesc')}</P>
           <Code lang="http">{`Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`}</Code>
 
-          <H4>API Key</H4>
-          <P>
-            Generated from the API Keys page in your dashboard. Prefixed with <Ic>ast_</Ic>.
-            API key requests count against your plan quota. Suitable for server-to-server integrations.
-          </P>
+          <H4>{t('docs.authApiKeyTitle')}</H4>
+          <P>{t('docs.authApiKeyDesc')}</P>
           <Code lang="http">{`Authorization: Bearer ast_a3f2c8e1d4b7...`}</Code>
 
-          <P>
-            Public endpoints (<Ic>/api/public/*</Ic>) require no authentication and are not
-            rate-limited — they return single latest readings for live widgets.
-          </P>
+          <P>{t('docs.authPublicNote')}</P>
 
           <H3 id="base-url">{t('docs.navBaseUrl')}</H3>
-          <P>All API requests are made to:</P>
+          <P>{t('docs.baseUrlIntro')}</P>
           <Code>{`https://your-domain.com`}</Code>
-          <P>During local development the server runs on <Ic>http://localhost:3000</Ic>.</P>
+          <P>{t('docs.baseUrlDevNote')}</P>
 
           <H3 id="quick-start">{t('docs.navQuickStart')}</H3>
-          <P>Fetch the latest Kp index using curl with a JWT token:</P>
+          <P>{t('docs.quickStartIntro')}</P>
           <Code lang="bash">{`# 1. Authenticate and get a token
 curl -X POST https://your-domain.com/auth/login \\
   -H "Content-Type: application/json" \\
@@ -286,22 +275,19 @@ curl -X POST https://your-domain.com/auth/login \\
 curl -H "Authorization: Bearer eyJhbGci..." \\
   https://your-domain.com/api/kp`}</Code>
 
-          <P>Using an API key instead:</P>
+          <P>{t('docs.quickStartApiKeyNote')}</P>
           <Code lang="bash">{`curl -H "Authorization: Bearer ast_a3f2c8e1..." \\
   https://your-domain.com/api/kp`}</Code>
 
           {/* ── API Reference ────────────────────────────────────────────── */}
           <H2 id="api-reference">{t('docs.navApiReference')}</H2>
-          <P>
-            All data endpoints return JSON. Timestamps in <Ic>time_tag</Ic> fields are ISO-8601 UTC strings.
-            Numeric values use scaled integers to avoid floating-point storage — see field descriptions below.
-          </P>
+          <P>{t('docs.apiRefIntro')}</P>
 
           <H3 id="ref-space-weather">{t('docs.navSpaceWeather')}</H3>
 
           <Endpoint
             method="GET" path="/api/kp"
-            desc="Returns the last 24 hours of 1-minute Kp index readings from NOAA SWPC. kp_index is the integer class; estimated_kp is the precise value (÷100 = Kp)."
+            desc={t('docs.epKp')}
             response={`[
   {
     "time_tag": "2026-05-02T18:00:00Z",
@@ -314,7 +300,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/kp-3h"
-            desc="Official NOAA 3-hour Kp values for the last 7 days. These are the definitive planetary Kp values, revised as new data arrives."
+            desc={t('docs.epKp3h')}
             response={`[
   {
     "time_tag": "2026-05-02T15:00:00Z",
@@ -327,7 +313,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/solar-wind"
-            desc="1-minute real-time solar wind measurements from the NOAA DSCOVR/ACE spacecraft at L1. Speed in km/s, density in p/cm³, temperature in K."
+            desc={t('docs.epSolarWind')}
             response={`[
   {
     "time_tag":    "2026-05-02T18:01:00Z",
@@ -341,7 +327,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/xray"
-            desc="GOES X-ray flux from the primary satellite, 2-minute cadence. Two energy channels: 0.1–0.8 nm (long) and 0.05–0.4 nm (short). Flux in W/m²."
+            desc={t('docs.epXray')}
             response={`[
   {
     "time_tag":  "2026-05-02T18:00:00Z",
@@ -355,7 +341,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/imf"
-            desc="Interplanetary Magnetic Field measurements from DSCOVR. Bz is the north-south component (negative = southward = geoeffective). Values in nT."
+            desc={t('docs.epImf')}
             response={`[
   {
     "time_tag": "2026-05-02T18:01:00Z",
@@ -368,7 +354,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/dst"
-            desc="Dst (Disturbance Storm Time) index from the Kyoto World Data Center via NOAA. Measures ring current strength. Values in nT; negative = geomagnetic storm."
+            desc={t('docs.epDst')}
             response={`[
   {
     "time_tag": "2026-05-02T18:00:00Z",
@@ -380,7 +366,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/alerts"
-            desc="NOAA SWPC space weather alerts, watches, and warnings. Returns all active products from the last 7 days."
+            desc={t('docs.epAlerts')}
             response={`[
   {
     "product_id":     "WATA20",
@@ -396,7 +382,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           <Endpoint
             method="GET" path="/api/kp-forecast"
             plan="developer"
-            desc="ML-generated Kp forecast for the next 3 hours. Uses an LSTM neural network with Monte Carlo Dropout for uncertainty estimation (50 inference passes). Returns predicted Kp with 95% confidence interval."
+            desc={t('docs.epForecast')}
             response={`{
   "predicted_kp": 4.2,
   "ci_lower":     3.1,
@@ -411,7 +397,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/iss"
-            desc="Current ISS position from Open Notify. Updated every 5 seconds. Altitude in km, velocity in km/h."
+            desc={t('docs.epIss')}
             response={`{
   "latitude":   51.6,
   "longitude": -12.3,
@@ -422,7 +408,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/apod"
-            desc="NASA Astronomy Picture of the Day. Returns the current day's image or video with title and explanation."
+            desc={t('docs.epApod')}
             response={`{
   "date":        "2026-05-02",
   "title":       "The Pillars of Creation",
@@ -435,7 +421,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/neo"
-            desc="Near-Earth objects from NASA NeoWs for the current 7-day window. Includes close approach distance (in lunar distances and km), diameter, velocity, and hazard status."
+            desc={t('docs.epNeo')}
             response={`[
   {
     "id":                  "3542519",
@@ -454,7 +440,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/epic"
-            desc="Latest NASA EPIC (Earth Polychromatic Imaging Camera) images from DSCOVR. Returns up to 20 most recent frames with centroid coordinates."
+            desc={t('docs.epEpic')}
             response={`[
   {
     "identifier":    "20260502003412",
@@ -470,7 +456,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/exoplanets"
-            desc="Top 100 confirmed exoplanets from the NASA Exoplanet Archive, ordered by shortest orbital period. Includes host star, orbital period, radius, and mass."
+            desc={t('docs.epExoplanets')}
             response={`[
   {
     "pl_name":        "55 Cnc e",
@@ -486,7 +472,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           <Endpoint
             method="GET" path="/api/starlink"
-            desc="Full Starlink constellation TLE data from Celestrak. Returns NORAD catalog ID, name, and two TLE lines for orbital propagation. Updated hourly."
+            desc={t('docs.epStarlink')}
             response={`[
   {
     "norad_id": 44713,
@@ -503,7 +489,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           <Endpoint
             method="GET" path="/api/anomalies"
             plan="developer"
-            desc="Locally detected space weather anomalies. Five checks run every 60 seconds: Kp storm (≥G1/G4), solar wind speed (>700/>900 km/s), X-ray flare (M/X class), asteroid close approach (<1 LD), and ML storm forecast."
+            desc={t('docs.epAnomalies')}
             response={`[
   {
     "anomaly_type": "kp_storm",
@@ -521,7 +507,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           <Endpoint
             method="GET" path="/api/reports/summary"
             params={[['range', 'string', '24h (default), 7d, or 30d']]}
-            desc="Aggregated space weather statistics for the selected time range. Includes average and peak Kp, peak solar wind, X-ray class summary, anomaly count, and asteroid approaches."
+            desc={t('docs.epSummary')}
             response={`{
   "range": "24h",
   "avg_kp":           2.8,
@@ -537,7 +523,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
             method="GET" path="/api/reports/export"
             plan="developer"
             params={[['range', 'string', '24h (default), 7d, or 30d']]}
-            desc="CSV export of raw Kp, solar wind, and X-ray readings for the selected time range. Returns Content-Type: text/csv with a filename attachment header."
+            desc={t('docs.epExport')}
             response={`time_tag,kp,solar_wind_km_s,xray_flux
 2026-05-02T00:00:00Z,2.33,423.1,3.2e-08
 2026-05-02T00:01:00Z,2.33,421.8,3.1e-08
@@ -546,13 +532,10 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 
           {/* ── Rate Limits ──────────────────────────────────────────────── */}
           <H2 id="rate-limits">{t('docs.navRateLimits')}</H2>
-          <P>
-            Rate limits apply only to requests authenticated with an <strong className="text-zinc-300">API key</strong> (<Ic>ast_</Ic> prefix).
-            JWT dashboard requests are unmetered and do not consume quota.
-          </P>
+          <P>{t('docs.rateLimitsIntro')}</P>
 
           <Table
-            headers={['Plan', 'Limit', 'Window', 'Reset']}
+            headers={[t('docs.thPlan'), t('docs.thLimit'), t('docs.thWindow'), t('docs.thReset')]}
             rows={[
               ['Free',       '100 requests',         'Daily',   'Midnight UTC'],
               ['Starter',    '100 requests',         'Daily',   'Midnight UTC'],
@@ -563,15 +546,11 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
             ]}
           />
 
-          <H4>What counts as a request?</H4>
-          <P>
-            Every successful API call authenticated with an <Ic>ast_</Ic> API key increments your counter.
-            Requests that return <Ic>401</Ic> or <Ic>403</Ic> before reaching the route handler do not count.
-            The <Ic>/api/public/*</Ic> endpoints are always free and unmetered.
-          </P>
+          <H4>{t('docs.rateLimitsWhatTitle')}</H4>
+          <P>{t('docs.rateLimitsWhatDesc')}</P>
 
-          <H4>Rate limit headers</H4>
-          <P>When a limit is exceeded the server returns <Ic>429 Too Many Requests</Ic>:</P>
+          <H4>{t('docs.rateLimitsHeaderTitle')}</H4>
+          <P>{t('docs.rateLimitsHeaderDesc')}</P>
           <Code lang="json">{`{
   "error":        "rate_limit_exceeded",
   "limit":        10000,
@@ -580,19 +559,16 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
   "period_end":   1748736000
 }`}</Code>
 
-          <P>Monitor your usage at any time:</P>
+          <P>{t('docs.rateLimitsMonitorNote')}</P>
           <Code lang="bash">{`curl -H "Authorization: Bearer ast_..." \\
   https://your-domain.com/api/usage`}</Code>
 
           {/* ── Webhooks ─────────────────────────────────────────────────── */}
           <H2 id="webhooks">{t('docs.navWebhooks')}</H2>
-          <P>
-            Webhooks let you receive real-time HTTP POST notifications when space weather anomalies
-            are detected. Requires a <strong className="text-zinc-300">Pro</strong> plan or higher.
-          </P>
+          <P>{t('docs.webhooksIntro')}</P>
 
           <H3 id="webhook-setup">{t('docs.navWebhookSetup')}</H3>
-          <P>Register a webhook endpoint from the API Keys page in your dashboard, or via the API:</P>
+          <P>{t('docs.webhookSetupDesc')}</P>
           <Code lang="bash">{`curl -X POST https://your-domain.com/api/webhooks \\
   -H "Authorization: Bearer <token>" \\
   -H "Content-Type: application/json" \\
@@ -601,7 +577,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
     "events": ["kp_storm", "xray_flare"]
   }'`}</Code>
 
-          <P>Response includes your signing secret — <strong className="text-red-400">save it immediately</strong>, it is shown only once:</P>
+          <P>{t('docs.webhookSecretNote')}</P>
           <Code lang="json">{`{
   "id":     "a3f2c8e1d4b79012",
   "secret": "f1e2d3c4b5a69078...",
@@ -609,7 +585,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 }`}</Code>
 
           <H3 id="webhook-payload">{t('docs.navWebhookPayload')}</H3>
-          <P>Astraeusio sends a JSON POST to your endpoint with the following structure:</P>
+          <P>{t('docs.webhookPayloadNote')}</P>
           <Code lang="json">{`{
   "event":     "kp_storm",
   "severity":  "warning",
@@ -620,9 +596,9 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
   }
 }`}</Code>
 
-          <P>Headers sent with each delivery:</P>
+          <P>{t('docs.webhookHeadersNote')}</P>
           <Table
-            headers={['Header', 'Value']}
+            headers={[t('docs.thHeader'), t('docs.thValue')]}
             rows={[
               ['Content-Type',          'application/json'],
               ['X-Astraeus-Signature',  'sha256=<hex-hmac>'],
@@ -631,10 +607,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           />
 
           <H3 id="webhook-hmac">{t('docs.navWebhookHmac')}</H3>
-          <P>
-            Every delivery is signed with HMAC-SHA256 using your webhook secret.
-            Always verify the signature before processing the payload.
-          </P>
+          <P>{t('docs.webhookHmacDesc')}</P>
 
           <Code lang="javascript">{`// Node.js verification example
 const crypto = require('crypto')
@@ -677,7 +650,7 @@ def verify_webhook(raw_body: bytes, signature: str, secret: str) -> bool:
 
           <H3 id="webhook-events">{t('docs.navWebhookEvents')}</H3>
           <Table
-            headers={['Event', 'Trigger', 'Severity']}
+            headers={[t('docs.thEvent'), t('docs.thTrigger'), t('docs.thSeverity')]}
             rows={[
               ['kp_storm',          'Kp index ≥ 5.0 (G1 storm)',                'warning / critical (≥8.0)'],
               ['solar_wind_speed',  'Solar wind > 700 km/s',                    'warning / critical (>900 km/s)'],
@@ -687,27 +660,16 @@ def verify_webhook(raw_body: bytes, signature: str, secret: str) -> bool:
             ]}
           />
 
-          <P>
-            Webhook deliveries use a 5-second timeout. Failed deliveries are not retried automatically.
-            You can re-register the endpoint if needed.
-          </P>
+          <P>{t('docs.webhookTimeoutNote')}</P>
 
           {/* ── Email Alerts ─────────────────────────────────────────────── */}
           <H2 id="email-alerts">{t('docs.navEmailAlerts')}</H2>
-          <P>
-            Email alerts send you a notification when live space weather readings exceed your personal
-            thresholds. Requires a <strong className="text-zinc-300">Developer</strong> plan or higher.
-            Alerts are throttled to at most <strong className="text-zinc-300">one email per hour</strong> regardless
-            of how many thresholds are exceeded simultaneously.
-          </P>
+          <P>{t('docs.emailAlertsIntro')}</P>
 
-          <H4>Configure via Dashboard</H4>
-          <P>
-            Go to <strong className="text-zinc-300">API Keys → Email Alerts</strong> in your dashboard.
-            Enable the toggle, set your Kp and solar wind thresholds, then click Save.
-          </P>
+          <H4>{t('docs.emailAlertsDashTitle')}</H4>
+          <P>{t('docs.emailAlertsDashDesc')}</P>
 
-          <H4>Configure via API</H4>
+          <H4>{t('docs.emailAlertsApiTitle')}</H4>
           <Code lang="bash">{`# Get current settings
 curl -H "Authorization: Bearer <token>" \\
   https://your-domain.com/api/email-alerts
@@ -722,26 +684,25 @@ curl -X POST https://your-domain.com/api/email-alerts \\
     "wind_threshold": 700
   }'`}</Code>
 
-          <H4>Threshold reference</H4>
+          <H4>{t('docs.emailAlertsThresholdTitle')}</H4>
           <Table
-            headers={['Parameter', 'Unit', 'Range', 'Default', 'Description']}
+            headers={[t('docs.thParameter'), t('docs.thUnit'), t('docs.thRange'), t('docs.thDefault'), t('docs.thDesc')]}
             rows={[
               ['kp_threshold',   'Kp',   '1.0 – 9.0',   '5.0', 'Alert when Kp reaches or exceeds this value'],
               ['wind_threshold',  'km/s', '100 – 2000', '700',  'Alert when solar wind speed reaches or exceeds this value'],
             ]}
           />
 
-          <H4>Email format</H4>
-          <P>Alert emails are sent from the configured <Ic>SMTP_FROM</Ic> address with subject
-            <Ic>Astraeusio Space Weather Alert</Ic> and list which thresholds were exceeded along with the measured values.</P>
+          <H4>{t('docs.emailAlertsFormatTitle')}</H4>
+          <P>{t('docs.emailAlertsFormatDesc')}</P>
 
           {/* ── Error Codes ──────────────────────────────────────────────── */}
           <H2 id="error-codes">{t('docs.navErrorCodes')}</H2>
-          <P>All error responses have a consistent JSON body:</P>
+          <P>{t('docs.errorCodesIntro')}</P>
           <Code lang="json">{`{ "error": "description of the error" }`}</Code>
 
           <Table
-            headers={['Status', 'Code', 'Cause', 'Resolution']}
+            headers={[t('docs.thStatus'), t('docs.thCode'), t('docs.thCause'), t('docs.thResolution')]}
             rows={[
               [
                 '401',
