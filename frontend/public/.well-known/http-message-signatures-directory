@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "use": "sig",
+      "alg": "EdDSA",
+      "kid": "astraeusio-bot-2026",
+      "x": "E0FIZUMCZjSAQWR_MFUVT-QiUQPUeeoqoJS23yRnXY4"
+    }
+  ]
+}
