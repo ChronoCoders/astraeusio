@@ -46,7 +46,7 @@ export default function Footer() {
           <a
             href="https://github.com/ChronoCoders/astraeusio"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-xs font-mono transition-colors w-fit"
           >
             <GitHubIcon />
