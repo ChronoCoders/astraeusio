@@ -1,0 +1,10 @@
+{
+  "resource": "https://astraeusio.com/api/",
+  "authorization_servers": [
+    "https://astraeusio.com"
+  ],
+  "scopes_supported": ["api"],
+  "bearer_methods_supported": ["header"],
+  "resource_documentation": "https://astraeusio.com/docs",
+  "resource_signing_alg_values_supported": ["HS256"]
+}
