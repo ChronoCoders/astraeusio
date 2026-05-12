@@ -51,6 +51,7 @@ export default function AsteroidTable({ data }) {
 
       <div className="flex flex-wrap gap-2 items-center">
         <select
+          name="asteroid-date-filter"
           value={dateFilter}
           onChange={e => handleFilter(setDateFilter)(e.target.value)}
           className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"
@@ -61,6 +62,7 @@ export default function AsteroidTable({ data }) {
         </select>
 
         <select
+          name="asteroid-dist-filter"
           value={distFilter}
           onChange={e => handleFilter(setDistFilter)(e.target.value)}
           className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"

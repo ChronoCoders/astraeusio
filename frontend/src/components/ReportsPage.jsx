@@ -421,6 +421,7 @@ export default function ReportsPage({ plan, onNavigate }) {
 
         <div className="px-4 py-2 border-b border-zinc-800/50 flex flex-wrap gap-2 items-center">
           <select
+            name="neo-date-filter"
             value={neoDateFilter}
             onChange={e => handleNeoFilter(setNeoDateFilter)(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"
@@ -430,6 +431,7 @@ export default function ReportsPage({ plan, onNavigate }) {
             <option value="3d">Next 3 days</option>
           </select>
           <select
+            name="neo-dist-filter"
             value={neoDistFilter}
             onChange={e => handleNeoFilter(setNeoDistFilter)(e.target.value)}
             className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-zinc-500"
