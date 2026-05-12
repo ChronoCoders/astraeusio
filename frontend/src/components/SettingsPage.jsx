@@ -242,6 +242,7 @@ function TwoFactorSection({ user, onUserChange }) {
             <label className="text-zinc-600 text-xs font-mono">{t('settings.confirmationCode')}</label>
             <input
               type="text"
+              name="totp-confirm-code"
               inputMode="numeric"
               maxLength={6}
               value={code}
@@ -271,6 +272,7 @@ function TwoFactorSection({ user, onUserChange }) {
             <label className="text-zinc-600 text-xs font-mono">{t('settings.authenticatorCode')}</label>
             <input
               type="text"
+              name="totp-disable-code"
               inputMode="numeric"
               maxLength={6}
               value={code}
@@ -502,17 +504,17 @@ export default function SettingsPage({ onLogout, user, onUserChange }) {
         <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-zinc-600 text-xs font-mono">{t('settings.currentPassword')}</label>
-            <input type="password" value={current} onChange={e => setCurrent(e.target.value)} required
+            <input type="password" name="current-password" value={current} onChange={e => setCurrent(e.target.value)} required
               className="bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-zinc-600 text-xs font-mono">{t('settings.newPassword')}</label>
-            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} required
+            <input type="password" name="new-password" value={newPw} onChange={e => setNewPw(e.target.value)} required
               className="bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500" />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-zinc-600 text-xs font-mono">{t('settings.confirmNewPassword')}</label>
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
+            <input type="password" name="confirm-new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required
               className="bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500" />
           </div>
           {pwError   && <p className="text-red-400 text-xs font-mono">{pwError}</p>}

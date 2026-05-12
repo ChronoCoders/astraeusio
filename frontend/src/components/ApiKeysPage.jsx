@@ -148,6 +148,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
+              name="key-copied-confirm"
               checked={confirmed}
               onChange={e => setConfirmed(e.target.checked)}
               className="accent-amber-500"
@@ -177,6 +178,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
         <form onSubmit={handleCreate} className="flex items-center gap-3">
           <input
             type="text"
+            name="api-key-name"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder={t('apiKeys.namePlaceholder')}
@@ -333,6 +335,7 @@ function EmailAlertsSection({ plan, onNavigate }) {
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
+            name="email-alerts-enabled"
             checked={enabled}
             onChange={e => setEnabled(e.target.checked)}
             className="accent-indigo-500"
@@ -344,6 +347,7 @@ function EmailAlertsSection({ plan, onNavigate }) {
             <label className="text-zinc-500 text-[11px] font-mono">{t('emailAlerts.kpThreshold')}</label>
             <input
               type="number"
+              name="kp-threshold"
               min="1"
               max="9"
               step="0.1"
@@ -356,6 +360,7 @@ function EmailAlertsSection({ plan, onNavigate }) {
             <label className="text-zinc-500 text-[11px] font-mono">{t('emailAlerts.windThreshold')}</label>
             <input
               type="number"
+              name="wind-threshold"
               min="100"
               max="2000"
               step="10"
@@ -507,6 +512,7 @@ function WebhooksCrud({ t }) {
         <form onSubmit={handleCreate} className="flex flex-col gap-3">
           <input
             type="url"
+            name="webhook-url"
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder={t('webhooks.urlPlaceholder')}
@@ -517,6 +523,7 @@ function WebhooksCrud({ t }) {
               <label key={ev.id} className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
+                  name={`webhook-event-${ev.id}`}
                   checked={events.includes(ev.id)}
                   onChange={() => toggleEvent(ev.id)}
                   className="accent-indigo-500"
