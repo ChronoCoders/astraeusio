@@ -49,7 +49,7 @@ export default function HeroScene() {
     )
     earth.visible = false
     world.add(earth)
-    new THREE.TextureLoader().load('/earth.jpg', tex => {
+    new THREE.TextureLoader().load('/earth.webp', tex => {
       earth.material.map = tex
       earth.material.needsUpdate = true
       earth.visible = true
