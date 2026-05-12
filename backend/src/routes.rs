@@ -7,7 +7,7 @@ use anyhow::anyhow;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
@@ -274,6 +274,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/custom-rules/{id}", delete(delete_custom_rule))
         .route("/api/custom-rules/{id}/toggle", post(toggle_custom_rule))
+        .route("/mcp", post(mcp_handler))
         .with_state(state)
 }
 
@@ -892,5 +893,151 @@ async fn toggle_custom_rule(
             tracing::error!("toggle_custom_rule: {e}");
             (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
         }
+    }
+}
+
+// ── MCP (Model Context Protocol) ──────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct McpRequest {
+    id:     Option<serde_json::Value>,
+    method: String,
+    params: Option<serde_json::Value>,
+}
+
+#[derive(serde::Serialize)]
+struct McpResp {
+    jsonrpc: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id:     Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error:  Option<serde_json::Value>,
+}
+
+impl McpResp {
+    fn ok(id: Option<serde_json::Value>, result: serde_json::Value) -> Response {
+        Json(Self { jsonrpc: "2.0", id, result: Some(result), error: None }).into_response()
+    }
+    fn err(id: Option<serde_json::Value>, code: i32, msg: &str) -> Response {
+        Json(Self {
+            jsonrpc: "2.0", id, result: None,
+            error: Some(serde_json::json!({ "code": code, "message": msg })),
+        }).into_response()
+    }
+}
+
+fn mcp_text(data: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({ "content": [{ "type": "text", "text": data.to_string() }] })
+}
+
+const MCP_TOOLS: &str = r#"{"tools":[
+  {"name":"get_current_kp","description":"Get the current Kp index and recent readings from NOAA (no auth required).","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_solar_wind","description":"Get the latest solar wind speed and density from NOAA DSCOVR (no auth required).","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_kp_forecast","description":"Get the ML 3-hour Kp forecast with 95% confidence interval (no auth required).","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_health","description":"Get service health status for all data sources (no auth required).","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_anomalies","description":"Get detected space weather anomalies: storms, flares, solar wind spikes, asteroid close approaches. Requires Bearer token.","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_neo","description":"Get NASA near-Earth object close approaches for the next 7 days with hazard flags. Requires Bearer token.","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_iss_position","description":"Get current ISS position, altitude, and velocity. Requires Bearer token.","inputSchema":{"type":"object","properties":{}}}
+]}"#;
+
+async fn mcp_handler(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<McpRequest>,
+) -> Response {
+    // Notifications have no id and require no response body.
+    if req.method.starts_with("notifications/") {
+        return StatusCode::NO_CONTENT.into_response();
+    }
+
+    let id = req.id.clone();
+
+    match req.method.as_str() {
+        "initialize" => McpResp::ok(id, serde_json::json!({
+            "protocolVersion": "2024-11-05",
+            "serverInfo": { "name": "Astraeusio Space Weather", "version": "1.0.0" },
+            "capabilities": { "tools": {} }
+        })),
+
+        "tools/list" => {
+            let tools: serde_json::Value = serde_json::from_str(MCP_TOOLS).unwrap();
+            McpResp::ok(id, tools)
+        }
+
+        "tools/call" => {
+            let name = req.params.as_ref()
+                .and_then(|p| p.get("name"))
+                .and_then(|n| n.as_str())
+                .unwrap_or("");
+
+            // Extract JWT from Authorization header.
+            let token_opt = headers
+                .get("Authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "));
+
+            match name {
+                "get_current_kp" => match lock_db(&s.db).await.get_kp_array_public() {
+                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                },
+                "get_solar_wind" => match lock_db(&s.db).await.get_solar_wind_latest_public() {
+                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                },
+                "get_kp_forecast" => match call_ml_or_cached(&s).await {
+                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Err(e) => McpResp::err(id, -32603, &format!("{}", e.0)),
+                },
+                "get_health" => {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64;
+                    let (noaa_ts, nasa_ts, _) = lock_db(&s.db).await.health_freshness();
+                    let noaa_ok = noaa_ts.is_some_and(|t| now - t < 600);
+                    let nasa_ok = nasa_ts.is_some_and(|t| now - t < 90_000);
+                    McpResp::ok(id, mcp_text(serde_json::json!({
+                        "status": if noaa_ok && nasa_ok { "operational" } else { "degraded" },
+                        "noaa":   if noaa_ok { "operational" } else { "degraded" },
+                        "nasa":   if nasa_ok { "operational" } else { "degraded" },
+                        "checked_at": now,
+                    })))
+                }
+                "get_anomalies" | "get_neo" | "get_iss_position" => {
+                    let authed = token_opt.is_some_and(|t| {
+                        use jsonwebtoken::{DecodingKey, Validation, decode};
+                        decode::<serde_json::Value>(
+                            t,
+                            &DecodingKey::from_secret(s.jwt_secret.as_bytes()),
+                            &Validation::default(),
+                        ).is_ok()
+                    });
+                    if !authed {
+                        return McpResp::err(id, -32001,
+                            "authentication required: provide Authorization: Bearer <token>");
+                    }
+                    match name {
+                        "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent() {
+                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                        },
+                        "get_neo" => match lock_db(&s.db).await.get_neo_recent() {
+                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                        },
+                        _ => match lock_db(&s.db).await.get_iss_latest() {
+                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                        },
+                    }
+                }
+                _ => McpResp::err(id, -32601, &format!("unknown tool: {name}")),
+            }
+        }
+
+        _ => McpResp::err(id, -32601, &format!("method not found: {}", req.method)),
     }
 }
