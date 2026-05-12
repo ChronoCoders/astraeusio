@@ -495,7 +495,10 @@
   "blog": {
     "eyebrow": "Blog",
     "heroTitle": "Uzay hava durumu, açıklandı.",
-    "readMore": "Devamını oku →"
+    "readMore": "Devamını oku →",
+    "home": "Ana Sayfa",
+    "allPosts": "← Tüm yazılar",
+    "minRead": "{{mins}} dk okuma"
   },
   "pricing": {
     "eyebrow": "Fiyatlandırma",

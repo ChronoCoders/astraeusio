@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
-import { posts } from '../blog/posts'
+import { getPosts } from '../blog/posts'
 
 function TagBadge({ tag }) {
   return (
@@ -13,7 +13,8 @@ function TagBadge({ tag }) {
 }
 
 export default function BlogPage({ onSignIn }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const localizedPosts = getPosts(i18n.language)
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -26,7 +27,7 @@ export default function BlogPage({ onSignIn }) {
         </h1>
 
         <div className="flex flex-col divide-y divide-zinc-800">
-          {posts.map(post => (
+          {localizedPosts.map(post => (
             <article key={post.slug} className="py-10 first:pt-0">
               <Link to={`/blog/${post.slug}`} className="block mb-5 overflow-hidden rounded-md">
                 <img
