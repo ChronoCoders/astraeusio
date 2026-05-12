@@ -14,32 +14,42 @@ async function apiFetch(path) {
 const TOOLS = [
   {
     name: 'get_current_kp',
+    title: 'Current Kp Index',
     description: 'Get the current Kp index and recent 1-minute Kp readings from NOAA. Kp ≥ 5 = geomagnetic storm.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/kp').then(r => r.json()),
   },
   {
     name: 'get_solar_wind',
+    title: 'Solar Wind Data',
     description: 'Get the latest solar wind speed (km/s) and density (p/cm³) from NOAA DSCOVR.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/solar-wind').then(r => r.json()),
   },
   {
     name: 'get_kp_forecast',
-    description: 'Get the 3-hour ML Kp forecast with 95% confidence interval from an LSTM model.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    title: 'Kp Forecast',
+    description: 'Get the 3-hour ML Kp forecast with 95% confidence interval from an LSTM model trained on 20+ years of NOAA data.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/forecast').then(r => r.json()),
   },
   {
     name: 'get_health',
+    title: 'Service Health',
     description: 'Get the operational health status of all Astraeusio data sources (NOAA, NASA, ML service, database).',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => fetch('/api/health').then(r => r.json()),
   },
   {
     name: 'get_space_weather_summary',
-    description: 'Get a combined summary of current space weather: Kp index, solar wind, IMF Bz, X-ray flux, and active alerts.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    title: 'Space Weather Summary',
+    description: 'Get a combined summary of current space weather: Kp index, solar wind, X-ray flux, and active alerts.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: async () => {
       const [kp, wind, forecast, alerts] = await Promise.all([
         fetch('/api/public/kp').then(r => r.json()).catch(() => null),
@@ -52,28 +62,42 @@ const TOOLS = [
   },
   {
     name: 'get_anomalies',
+    title: 'Space Weather Anomalies',
     description: 'Get detected space weather anomalies: geomagnetic storms, solar flares, solar wind spikes, asteroid close approaches, and ML storm forecasts. Requires authentication.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => apiFetch('/api/anomalies'),
   },
   {
     name: 'get_neo_close_approaches',
+    title: 'Near-Earth Object Approaches',
     description: 'Get NASA near-Earth object close approaches for the next 7 days with miss distance (lunar), diameter, velocity, and hazard flag. Requires authentication.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => apiFetch('/api/neo'),
   },
   {
     name: 'get_iss_position',
+    title: 'ISS Position',
     description: 'Get the current position of the International Space Station (latitude, longitude, altitude, velocity). Requires authentication.',
-    inputSchema: { type: 'object', properties: {}, required: [] },
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
     execute: () => apiFetch('/api/iss'),
   },
 ]
 
 export function useWebMCP() {
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.modelContext?.provideContext) return
+    if (typeof navigator === 'undefined' || !navigator.modelContext?.registerTool) return
 
-    navigator.modelContext.provideContext({ tools: TOOLS }).catch(() => {})
+    const ac = new AbortController()
+    for (const tool of TOOLS) {
+      try {
+        navigator.modelContext.registerTool(tool, { signal: ac.signal })
+      } catch {
+        // browser may not support this tool shape yet
+      }
+    }
+    return () => ac.abort()
   }, [])
 }
