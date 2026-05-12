@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
-import { useWebMCP }       from './lib/useWebMCP'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
 import Sidebar        from './components/Sidebar'
 import MetricCard     from './components/MetricCard'
@@ -42,8 +41,6 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
   const [utcNow, setUtcNow]       = useState(() => fmtUtc(new Date()))
   const [page, setPage]           = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
-
-  useWebMCP()
 
   useEffect(() => {
     onReady?.()
