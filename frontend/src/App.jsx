@@ -229,6 +229,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                     src={`https://services.swpc.noaa.gov/images/aurora-forecast-northern-hemisphere.jpg?v=${AURORA_V}`}
                     alt="Northern hemisphere auroral oval forecast"
                     className="w-full rounded"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
                 <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
@@ -237,6 +238,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                     src={`https://services.swpc.noaa.gov/images/aurora-forecast-southern-hemisphere.jpg?v=${AURORA_V}`}
                     alt="Southern hemisphere auroral oval forecast"
                     className="w-full rounded"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
               </div>
