@@ -78,7 +78,10 @@ fn check_solar_wind(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> 
 }
 
 fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
-    if let Some((time_tag, flux_e12)) = db.latest_xray_flux_raw()?
+    // Scan the last 3 hours for the peak reading so flares that have already
+    // peaked and decayed are still caught on the next detection cycle.
+    let since = now() - 3 * 3600;
+    if let Some((time_tag, flux_e12)) = db.xray_peak_recent(since)?
         && flux_e12 >= XRAY_M_E12
     {
         let (severity, class) = if flux_e12 >= XRAY_X_E12 {
