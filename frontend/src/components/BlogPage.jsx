@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { posts } from '../blog/posts'
@@ -12,14 +13,16 @@ function TagBadge({ tag }) {
 }
 
 export default function BlogPage({ onSignIn }) {
+  const { t } = useTranslation()
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Navbar onSignIn={onSignIn} />
 
       <div className="max-w-4xl mx-auto px-6 pt-36 pb-16">
-        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">Blog</p>
+        <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase mb-4">{t('blog.eyebrow')}</p>
         <h1 className="text-4xl md:text-5xl font-thin tracking-tight text-zinc-100 mb-16">
-          Space weather, explained.
+          {t('blog.heroTitle')}
         </h1>
 
         <div className="flex flex-col divide-y divide-zinc-800">
@@ -60,7 +63,7 @@ export default function BlogPage({ onSignIn }) {
                   to={`/blog/${post.slug}`}
                   className="text-xs font-mono text-zinc-500 hover:text-zinc-200 transition-colors ml-auto shrink-0"
                 >
-                  Read more →
+                  {t('blog.readMore')}
                 </Link>
               </div>
             </article>

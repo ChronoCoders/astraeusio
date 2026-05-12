@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
 
@@ -6,35 +7,35 @@ import Footer from './Footer'
 
 const NAV = [
   {
-    id: 'getting-started', label: 'Getting Started',
+    id: 'getting-started', labelKey: 'docs.navGettingStarted',
     children: [
-      { id: 'authentication', label: 'Authentication' },
-      { id: 'base-url',       label: 'Base URL' },
-      { id: 'quick-start',    label: 'Quick Start' },
+      { id: 'authentication', labelKey: 'docs.navAuthentication' },
+      { id: 'base-url',       labelKey: 'docs.navBaseUrl' },
+      { id: 'quick-start',    labelKey: 'docs.navQuickStart' },
     ],
   },
   {
-    id: 'api-reference', label: 'API Reference',
+    id: 'api-reference', labelKey: 'docs.navApiReference',
     children: [
-      { id: 'ref-space-weather', label: 'Space Weather' },
-      { id: 'ref-forecasting',   label: 'Forecasting' },
-      { id: 'ref-celestial',     label: 'Celestial' },
-      { id: 'ref-anomalies',     label: 'Anomalies & Alerts' },
-      { id: 'ref-account',       label: 'Account' },
+      { id: 'ref-space-weather', labelKey: 'docs.navSpaceWeather' },
+      { id: 'ref-forecasting',   labelKey: 'docs.navForecasting' },
+      { id: 'ref-celestial',     labelKey: 'docs.navCelestial' },
+      { id: 'ref-anomalies',     labelKey: 'docs.navAnomalies' },
+      { id: 'ref-account',       labelKey: 'docs.navAccount' },
     ],
   },
-  { id: 'rate-limits',   label: 'Rate Limits',   children: [] },
+  { id: 'rate-limits',   labelKey: 'docs.navRateLimits',   children: [] },
   {
-    id: 'webhooks', label: 'Webhooks',
+    id: 'webhooks', labelKey: 'docs.navWebhooks',
     children: [
-      { id: 'webhook-setup',   label: 'Setup' },
-      { id: 'webhook-payload', label: 'Payload Format' },
-      { id: 'webhook-hmac',    label: 'HMAC Verification' },
-      { id: 'webhook-events',  label: 'Event Types' },
+      { id: 'webhook-setup',   labelKey: 'docs.navWebhookSetup' },
+      { id: 'webhook-payload', labelKey: 'docs.navWebhookPayload' },
+      { id: 'webhook-hmac',    labelKey: 'docs.navWebhookHmac' },
+      { id: 'webhook-events',  labelKey: 'docs.navWebhookEvents' },
     ],
   },
-  { id: 'email-alerts',  label: 'Email Alerts',  children: [] },
-  { id: 'error-codes',   label: 'Error Codes',   children: [] },
+  { id: 'email-alerts',  labelKey: 'docs.navEmailAlerts',  children: [] },
+  { id: 'error-codes',   labelKey: 'docs.navErrorCodes',   children: [] },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -170,7 +171,7 @@ function Endpoint({ method, path, plan, desc, params, response }) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-function Sidebar({ active }) {
+function Sidebar({ active, t }) {
   return (
     <aside className="hidden lg:block w-52 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto py-8 pr-2 border-r border-zinc-800/60">
       <nav className="flex flex-col gap-0.5">
@@ -184,7 +185,7 @@ function Sidebar({ active }) {
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
               }`}
             >
-              {section.label}
+              {t(section.labelKey)}
             </button>
             {section.children.map(child => (
               <button
@@ -196,7 +197,7 @@ function Sidebar({ active }) {
                     : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
-                {child.label}
+                {t(child.labelKey)}
               </button>
             ))}
           </div>
@@ -209,6 +210,7 @@ function Sidebar({ active }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DocsPage({ onSignIn }) {
+  const { t } = useTranslation()
   const [active, setActive] = useState('getting-started')
 
   useEffect(() => {
@@ -232,15 +234,15 @@ export default function DocsPage({ onSignIn }) {
       <Navbar onSignIn={onSignIn} />
 
       <div className="flex pt-16 max-w-7xl mx-auto">
-        <Sidebar active={active} />
+        <Sidebar active={active} t={t} />
 
         {/* ── Content ───────────────────────────────────────────────────── */}
         <main className="flex-1 min-w-0 px-8 lg:px-12 py-10 max-w-4xl">
 
           {/* ── Getting Started ──────────────────────────────────────────── */}
-          <H2 id="getting-started">Getting Started</H2>
+          <H2 id="getting-started">{t('docs.navGettingStarted')}</H2>
 
-          <H3 id="authentication">Authentication</H3>
+          <H3 id="authentication">{t('docs.navAuthentication')}</H3>
           <P>
             All API endpoints (except public ones) require authentication. Astraeusio supports
             two authentication methods.
@@ -265,12 +267,12 @@ export default function DocsPage({ onSignIn }) {
             rate-limited — they return single latest readings for live widgets.
           </P>
 
-          <H3 id="base-url">Base URL</H3>
+          <H3 id="base-url">{t('docs.navBaseUrl')}</H3>
           <P>All API requests are made to:</P>
           <Code>{`https://your-domain.com`}</Code>
           <P>During local development the server runs on <Ic>http://localhost:3000</Ic>.</P>
 
-          <H3 id="quick-start">Quick Start</H3>
+          <H3 id="quick-start">{t('docs.navQuickStart')}</H3>
           <P>Fetch the latest Kp index using curl with a JWT token:</P>
           <Code lang="bash">{`# 1. Authenticate and get a token
 curl -X POST https://your-domain.com/auth/login \\
@@ -289,13 +291,13 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
   https://your-domain.com/api/kp`}</Code>
 
           {/* ── API Reference ────────────────────────────────────────────── */}
-          <H2 id="api-reference">API Reference</H2>
+          <H2 id="api-reference">{t('docs.navApiReference')}</H2>
           <P>
             All data endpoints return JSON. Timestamps in <Ic>time_tag</Ic> fields are ISO-8601 UTC strings.
             Numeric values use scaled integers to avoid floating-point storage — see field descriptions below.
           </P>
 
-          <H3 id="ref-space-weather">Space Weather</H3>
+          <H3 id="ref-space-weather">{t('docs.navSpaceWeather')}</H3>
 
           <Endpoint
             method="GET" path="/api/kp"
@@ -389,7 +391,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 ]`}
           />
 
-          <H3 id="ref-forecasting">Forecasting</H3>
+          <H3 id="ref-forecasting">{t('docs.navForecasting')}</H3>
 
           <Endpoint
             method="GET" path="/api/kp-forecast"
@@ -405,7 +407,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 }`}
           />
 
-          <H3 id="ref-celestial">Celestial</H3>
+          <H3 id="ref-celestial">{t('docs.navCelestial')}</H3>
 
           <Endpoint
             method="GET" path="/api/iss"
@@ -496,7 +498,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 ]`}
           />
 
-          <H3 id="ref-anomalies">Anomalies & Alerts</H3>
+          <H3 id="ref-anomalies">{t('docs.navAnomalies')}</H3>
 
           <Endpoint
             method="GET" path="/api/anomalies"
@@ -514,7 +516,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
 ]`}
           />
 
-          <H3 id="ref-account">Account</H3>
+          <H3 id="ref-account">{t('docs.navAccount')}</H3>
 
           <Endpoint
             method="GET" path="/api/reports/summary"
@@ -543,7 +545,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           />
 
           {/* ── Rate Limits ──────────────────────────────────────────────── */}
-          <H2 id="rate-limits">Rate Limits</H2>
+          <H2 id="rate-limits">{t('docs.navRateLimits')}</H2>
           <P>
             Rate limits apply only to requests authenticated with an <strong className="text-zinc-300">API key</strong> (<Ic>ast_</Ic> prefix).
             JWT dashboard requests are unmetered and do not consume quota.
@@ -583,13 +585,13 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
   https://your-domain.com/api/usage`}</Code>
 
           {/* ── Webhooks ─────────────────────────────────────────────────── */}
-          <H2 id="webhooks">Webhooks</H2>
+          <H2 id="webhooks">{t('docs.navWebhooks')}</H2>
           <P>
             Webhooks let you receive real-time HTTP POST notifications when space weather anomalies
             are detected. Requires a <strong className="text-zinc-300">Pro</strong> plan or higher.
           </P>
 
-          <H3 id="webhook-setup">Setup</H3>
+          <H3 id="webhook-setup">{t('docs.navWebhookSetup')}</H3>
           <P>Register a webhook endpoint from the API Keys page in your dashboard, or via the API:</P>
           <Code lang="bash">{`curl -X POST https://your-domain.com/api/webhooks \\
   -H "Authorization: Bearer <token>" \\
@@ -606,7 +608,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
   "events": ["kp_storm", "xray_flare"]
 }`}</Code>
 
-          <H3 id="webhook-payload">Payload Format</H3>
+          <H3 id="webhook-payload">{t('docs.navWebhookPayload')}</H3>
           <P>Astraeusio sends a JSON POST to your endpoint with the following structure:</P>
           <Code lang="json">{`{
   "event":     "kp_storm",
@@ -628,7 +630,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
             ]}
           />
 
-          <H3 id="webhook-hmac">HMAC Verification</H3>
+          <H3 id="webhook-hmac">{t('docs.navWebhookHmac')}</H3>
           <P>
             Every delivery is signed with HMAC-SHA256 using your webhook secret.
             Always verify the signature before processing the payload.
@@ -673,7 +675,7 @@ def verify_webhook(raw_body: bytes, signature: str, secret: str) -> bool:
     ).hexdigest()
     return hmac.compare_digest(signature, expected)`}</Code>
 
-          <H3 id="webhook-events">Event Types</H3>
+          <H3 id="webhook-events">{t('docs.navWebhookEvents')}</H3>
           <Table
             headers={['Event', 'Trigger', 'Severity']}
             rows={[
@@ -691,7 +693,7 @@ def verify_webhook(raw_body: bytes, signature: str, secret: str) -> bool:
           </P>
 
           {/* ── Email Alerts ─────────────────────────────────────────────── */}
-          <H2 id="email-alerts">Email Alerts</H2>
+          <H2 id="email-alerts">{t('docs.navEmailAlerts')}</H2>
           <P>
             Email alerts send you a notification when live space weather readings exceed your personal
             thresholds. Requires a <strong className="text-zinc-300">Developer</strong> plan or higher.
@@ -734,7 +736,7 @@ curl -X POST https://your-domain.com/api/email-alerts \\
             <Ic>Astraeusio Space Weather Alert</Ic> and list which thresholds were exceeded along with the measured values.</P>
 
           {/* ── Error Codes ──────────────────────────────────────────────── */}
-          <H2 id="error-codes">Error Codes</H2>
+          <H2 id="error-codes">{t('docs.navErrorCodes')}</H2>
           <P>All error responses have a consistent JSON body:</P>
           <Code lang="json">{`{ "error": "description of the error" }`}</Code>
 

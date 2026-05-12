@@ -392,13 +392,53 @@
     "seePricing": "Plan ve fiyatları görün →"
   },
   "about": {
-    "comingSoonSub": "Hikayemiz ve misyonumuz yakında paylaşılacak."
+    "eyebrow": "Hakkında",
+    "heroTitle": "Uzayda neler olduğunu Dünya'yı etkilemeden önce bilmesi gerekenlere yönelik inşa edildi.",
+    "missionLabel": "Misyon",
+    "missionTitle": "Astraeusio neden var",
+    "missionP1": "Uzay hava durumu soyut bir kavram değildir. Jeomanyetik fırtınalar elektrik şebekelerini sekteye uğratır, GPS hassasiyetini düşürür ve uydu iletişimlerini doygunluğa ulaştırır — bazen bir saatin altında uyarı süresiyle. Güneş patlamaları tüm yarımkürelerde KF radyo iletişimini kesintiye uğratabilir. Zamanlaması kötü bir koronal kütle fırlatılması bir kıtanın altyapısını felç edebilir.",
+    "missionP2": "Tüm bunların geleceğini görmek için gerekli veri her zaman mevcut olmuştur. NOAA'nın Uzay Hava Tahmin Merkezi, NASA'nın gerçek zamanlı veri akışları, Kyoto Dünya Veri Merkezi — bunlar sürekli yayın yapar. Sorun, verinin dağınık olması, araştırmacılar için formatlanmış olması ve şu an net bir yanıt ihtiyacında olan herkes için fazla ham gelmesidir.",
+    "missionP3": "Astraeusio, ham veri ile ona göre hareket etmesi gereken insanlar arasındaki katmandır: uydu operatörleri, şebeke mühendisleri, amatör telsiz operatörleri, havacılık ekipleri, araştırmacılar ve altyapıyı ciddiye alan herkes. Her şeyi gerçek zamanlı olarak alıyor, NOAA'nın yirmi yıllık tarihiyle eğitilmiş bir LSTM modelinden geçiriyor ve önemli olanı öne çıkarıyoruz.",
+    "builtLabel": "Nasıl inşa edildi",
+    "builtTitle": "Performans ve güvenilirlik, pazarlama değil",
+    "builtP1": "Arka uç Rust ile yazıldı. Bu bir iş ilanı için yapılmış bir teknoloji seçimi değil — aynı anda bir düzine canlı veri akışını içe aktaran, yük altında API yanıtları sunan, bellek sızıntısı ve beklenmedik çöküşleri olmayan bir sürece ihtiyaç duyduğunuzda doğru araçtır. Tokio ile Axum kullanıyoruz, her şeyi DuckDB'de depoluyoruz ve ikili dosyayı küçük ve bağımsız tutuyoruz.",
+    "builtP2": "Tahmin modeli, 20 yılı aşkın NOAA Kp endeksi ölçümü üzerinde eğitilmiş bir PyTorch LSTM'dir. Her tahminin yanında kalibreli belirsizlik tahminleri üretmek için Monte Carlo Dropout kullanır — yani Kp 6,2 ± 0,8 dediğinde o aralığın bir anlamı vardır. Model ayrı bir FastAPI servisi olarak çalışır; erişilemez hale gelirse API son önbelleğe alınmış tahmini döndürür ve bunu bildirir.",
+    "builtP3": "Veri NOAA, NASA, Celestrak ve Kyoto WDC'den sürekli olarak içe aktarılır. Her kaynak kendi yoklama döngüsünde çalışır. Hiçbir şey başka bir şeyle bağlantı havuzu paylaşmaz. Eklemeler artımlıdır — yalnızca veritabanında henüz bulunmayan satırları yazarız, bu sayede sistem ne kadar süredir çalışıyor olursa olsun hızlı kalır.",
+    "sourcesLabel": "Veri Kaynakları",
+    "sourcesTitle": "Veriler nereden geliyor",
+    "src1Desc": "Gerçek zamanlı Kp endeksi, güneş rüzgarı (DSCOVR uydusu), X-ışını akısı (GOES), IMF Bz, Dst endeksi ve uzay hava uyarıları. SWPC, ABD'de uzay hava durumu için yetkili operasyonel kaynaktır — G3 fırtınası sürerken bu sınıflandırma buradan gelir.",
+    "src2Desc": "Yakın Dünya Cisimleri akışı (NeoWs), Günün Astronomi Fotoğrafı ve DSCOVR uzay aracından EPIC Dünya görüntüleri. NASA'nın açık API programı bu verileri makul kullanım için oran kısıtlaması olmaksızın erişilebilir kılar.",
+    "src3Desc": "Tüm Starlink takımyıldızı için her yoklama döngüsünde güncellenen iki satırlı eleman kümeleri. TLE'ler uydu takibi için standart formattır — Celestrak en güvenilir genel aynalardan birini barındırır.",
+    "src4Desc": "Dst (Disturbance Storm Time) endeksi, jeomanyetik fırtınalar sırasında Dünya çevresindeki halka akımı yoğunluğunun bir ölçüsüdür. Kyoto WDC, Dst için küresel referanstır — endeks burada hesaplanır ve NOAA aracılığıyla dağıtılır.",
+    "contactLabel": "İletişim",
+    "contactTitle": "Bize ulaşın",
+    "contactDesc": "API, veri doğruluğu, lisanslama veya başka herhangi bir konu hakkındaki sorular için e-posta en hızlı yoldur."
   },
   "docs": {
-    "comingSoonSub": "API belgeleri ve entegrasyon rehberleri yakında eklenecek."
+    "eyebrow": "API Belgeleri",
+    "navGettingStarted": "Başlarken",
+    "navAuthentication": "Kimlik Doğrulama",
+    "navBaseUrl": "Temel URL",
+    "navQuickStart": "Hızlı Başlangıç",
+    "navApiReference": "API Referansı",
+    "navSpaceWeather": "Uzay Hava Durumu",
+    "navForecasting": "Tahminleme",
+    "navCelestial": "Göksel",
+    "navAnomalies": "Anomaliler & Uyarılar",
+    "navAccount": "Hesap",
+    "navRateLimits": "Hız Limitleri",
+    "navWebhooks": "Webhooklar",
+    "navWebhookSetup": "Kurulum",
+    "navWebhookPayload": "Yük Formatı",
+    "navWebhookHmac": "HMAC Doğrulama",
+    "navWebhookEvents": "Olay Türleri",
+    "navEmailAlerts": "E-posta Uyarıları",
+    "navErrorCodes": "Hata Kodları"
   },
   "blog": {
-    "comingSoonSub": "Uzay hava durumu ve platform haberleri hakkında yazılar ve güncellemeler yakında."
+    "eyebrow": "Blog",
+    "heroTitle": "Uzay hava durumu, açıklandı.",
+    "readMore": "Devamını oku →"
   },
   "pricing": {
     "eyebrow": "Fiyatlandırma",
