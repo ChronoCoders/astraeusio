@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './i18n'
 import './index.css'
+import './lib/webmcp-init.js'
 import Root from './Root.jsx'
 import ScrollToTop from './ScrollToTop.jsx'
 
