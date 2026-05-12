@@ -1,0 +1,269 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Astraeusio Space Weather API",
+    "version": "1.0.0",
+    "description": "Real-time space weather data: Kp index, solar wind, X-ray flux, IMF, Dst, ISS position, near-Earth objects, aurora forecasts, and ML-powered geomagnetic storm predictions.",
+    "contact": {
+      "url": "https://astraeusio.com/docs"
+    },
+    "license": {
+      "name": "BSL 1.1",
+      "url": "https://astraeusio.com/pricing"
+    }
+  },
+  "servers": [
+    { "url": "https://astraeusio.com" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/public/kp": {
+      "get": {
+        "summary": "Latest Kp reading",
+        "description": "Returns the most recent 1-minute estimated Kp index from NOAA.",
+        "tags": ["Public"],
+        "responses": {
+          "200": { "description": "Latest Kp data" }
+        }
+      }
+    },
+    "/api/public/solar-wind": {
+      "get": {
+        "summary": "Latest solar wind reading",
+        "description": "Returns the most recent solar wind speed and density from NOAA DSCOVR.",
+        "tags": ["Public"],
+        "responses": {
+          "200": { "description": "Latest solar wind data" }
+        }
+      }
+    },
+    "/api/public/forecast": {
+      "get": {
+        "summary": "Latest ML Kp forecast",
+        "description": "Returns the ML-generated Kp forecast with 95% confidence interval.",
+        "tags": ["Public"],
+        "responses": {
+          "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Service health status",
+        "description": "Returns operational status of all components: backend, database, ML service, NOAA, NASA, Celestrak.",
+        "tags": ["Public"],
+        "responses": {
+          "200": { "description": "Component health statuses and last update timestamps" }
+        }
+      }
+    },
+    "/api/kp": {
+      "get": {
+        "summary": "1-minute Kp time series",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of Kp readings" } }
+      }
+    },
+    "/api/kp-3h": {
+      "get": {
+        "summary": "Official 3-hour Kp index",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of 3-hour official Kp values" } }
+      }
+    },
+    "/api/kp-forecast": {
+      "get": {
+        "summary": "ML storm forecast",
+        "description": "3-hour Kp prediction with 95% confidence interval from LSTM model.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" } }
+      }
+    },
+    "/api/solar-wind": {
+      "get": {
+        "summary": "Solar wind time series",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of solar wind readings (speed, density)" } }
+      }
+    },
+    "/api/xray": {
+      "get": {
+        "summary": "X-ray flux time series",
+        "description": "GOES satellite X-ray flux. M-class ≥ 1×10⁻⁵ W/m², X-class ≥ 1×10⁻⁴ W/m².",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of X-ray flux readings" } }
+      }
+    },
+    "/api/imf": {
+      "get": {
+        "summary": "IMF magnetometer data",
+        "description": "Interplanetary magnetic field Bz and Bt from NOAA DSCOVR.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of IMF readings" } }
+      }
+    },
+    "/api/dst": {
+      "get": {
+        "summary": "Dst index",
+        "description": "Disturbance Storm Time index from Kyoto WDC. Measures ring current energy.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of Dst readings" } }
+      }
+    },
+    "/api/alerts": {
+      "get": {
+        "summary": "Space weather alerts",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of NOAA space weather alert messages" } }
+      }
+    },
+    "/api/anomalies": {
+      "get": {
+        "summary": "Detected anomalies",
+        "description": "Automated anomaly detections: Kp storms, solar wind spikes, X-ray flares, asteroid close approaches, ML forecast storms.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Space Weather"],
+        "responses": { "200": { "description": "Array of anomaly events with severity and timestamp" } }
+      }
+    },
+    "/api/iss": {
+      "get": {
+        "summary": "ISS live position",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "ISS latitude, longitude, altitude, velocity" } }
+      }
+    },
+    "/api/neo": {
+      "get": {
+        "summary": "Near-Earth object close approaches",
+        "description": "NASA NeoWs 7-day close approach data with diameter, velocity, miss distance, and hazard flag.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "NEO feed with element_count and near_earth_objects" } }
+      }
+    },
+    "/api/apod": {
+      "get": {
+        "summary": "NASA Astronomy Picture of the Day",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "APOD title, URL, date, media type, explanation" } }
+      }
+    },
+    "/api/epic": {
+      "get": {
+        "summary": "NASA EPIC Earth imagery",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "Array of EPIC images with coordinates and timestamps" } }
+      }
+    },
+    "/api/exoplanets": {
+      "get": {
+        "summary": "Exoplanet catalog",
+        "description": "NASA Exoplanet Archive data including orbital period, radius, and host star.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "Array of exoplanet records" } }
+      }
+    },
+    "/api/starlink": {
+      "get": {
+        "summary": "Starlink constellation TLEs",
+        "description": "Live TLE data for the Starlink constellation from Celestrak.",
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Astronomy"],
+        "responses": { "200": { "description": "Array of Starlink satellite TLE records" } }
+      }
+    },
+    "/api/reports/summary": {
+      "get": {
+        "summary": "Summary statistics",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["24h", "7d", "30d"] },
+            "required": true
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Reports"],
+        "responses": { "200": { "description": "Aggregated stats: avg/max Kp, max solar wind, anomaly count, asteroid approaches" } }
+      }
+    },
+    "/api/reports/export": {
+      "get": {
+        "summary": "CSV export",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["24h", "7d", "30d"] },
+            "required": true
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "tags": ["Reports"],
+        "responses": { "200": { "description": "CSV file download", "content": { "text/csv": {} } } }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Create account",
+        "tags": ["Auth"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Account created" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login and get JWT",
+        "tags": ["Auth"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "JWT token (24h expiry)" } }
+      }
+    }
+  }
+}
