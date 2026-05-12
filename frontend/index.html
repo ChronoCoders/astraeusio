@@ -9,6 +9,72 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <style>
+        body { font-family: sans-serif; max-width: 860px; margin: 0 auto; padding: 2rem; color: #e4e4e7; background: #09090b; line-height: 1.7; }
+        h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; }
+        p, li { color: #a1a1aa; }
+        ul { padding-left: 1.25rem; }
+        a { color: #e4e4e7; }
+      </style>
+      <h1>Astraeusio — Real-Time Space Weather Intelligence</h1>
+      <p>
+        Astraeusio is a real-time space weather monitoring and prediction platform that aggregates data
+        from NOAA, NASA, and open-access scientific APIs to deliver live geomagnetic storm tracking,
+        solar wind analysis, X-ray flux monitoring, and ML-powered Kp forecasts — all in one dashboard.
+      </p>
+
+      <h2>Live Space Weather Data</h2>
+      <p>
+        The platform ingests and displays real-time measurements updated every 60 seconds, including
+        the Kp geomagnetic index, solar wind speed and proton density from NOAA DSCOVR, X-ray flux
+        from GOES satellites, IMF Bz component, and the Dst storm-time index from the Kyoto World
+        Data Center. Aurora oval forecast images are refreshed every 30 minutes from NOAA Space
+        Weather Prediction Center.
+      </p>
+
+      <h2>ML-Powered Storm Prediction</h2>
+      <p>
+        An LSTM neural network trained on over 20 years of NOAA Kp data produces 3-hour geomagnetic
+        storm forecasts with 95% confidence intervals. The model uses Monte Carlo Dropout to quantify
+        prediction uncertainty, giving operators a probabilistic view of storm likelihood rather than
+        a single point estimate. Forecasts are refreshed on demand and cached for fast delivery.
+      </p>
+
+      <h2>Automated Anomaly Detection</h2>
+      <p>
+        Astraeusio runs continuous anomaly detection every 60 seconds across five event types:
+        geomagnetic storms (Kp ≥ 5), high-speed solar wind (speed &gt; 700 km/s), solar flares
+        (M-class and X-class), near-Earth asteroid close approaches within one lunar distance, and
+        ML-forecast storm alerts. Detected anomalies are logged and surfaced in the alerts dashboard.
+      </p>
+
+      <h2>Near-Earth Object Tracking</h2>
+      <p>
+        NASA NeoWs data is polled every 30 minutes to display asteroid close approaches for the
+        next 7 days, including miss distance in lunar distances, estimated diameter, relative velocity,
+        and NASA's potentially hazardous object classification.
+      </p>
+
+      <h2>Who Uses Astraeusio</h2>
+      <ul>
+        <li>Satellite and spacecraft operators monitoring geomagnetic storm risk</li>
+        <li>Amateur astronomers and aurora chasers planning observation sessions</li>
+        <li>Power grid and pipeline operators tracking storm-induced current events</li>
+        <li>Developers and researchers integrating space weather data via REST API</li>
+        <li>HF radio operators and aviators on polar routes tracking ionospheric conditions</li>
+      </ul>
+
+      <h2>API Access</h2>
+      <p>
+        A public REST API provides access to current Kp index, solar wind readings, and Kp forecasts
+        without authentication. Authenticated endpoints cover anomaly history, near-Earth object data,
+        ISS position, full Kp time series, X-ray flux, IMF, Dst, NOAA space weather alerts, and
+        Starlink constellation TLE data. See <a href="/docs">API documentation</a> for details,
+        or visit <a href="/pricing">pricing</a> to compare plans.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
     <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"f679612bca554d4495e62a66868d74b7"}'></script>
   </body>
