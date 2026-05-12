@@ -45,7 +45,7 @@ export default function ApodCard({ data }) {
         <a
           href={data.url}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="w-full bg-zinc-800 hover:bg-zinc-700 rounded flex flex-col items-center justify-center gap-2 transition-colors"
           style={{ height: '180px' }}
         >
