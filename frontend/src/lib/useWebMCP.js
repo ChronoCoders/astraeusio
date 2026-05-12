@@ -88,16 +88,27 @@ const TOOLS = [
 
 export function useWebMCP() {
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.modelContext?.registerTool) return
+    if (typeof navigator === 'undefined' || !navigator.modelContext) return
 
-    const ac = new AbortController()
-    for (const tool of TOOLS) {
-      try {
-        navigator.modelContext.registerTool(tool, { signal: ac.signal })
-      } catch {
-        // browser may not support this tool shape yet
-      }
+    const mc = navigator.modelContext
+
+    // Chrome EPP API: provideContext({ tools })
+    if (typeof mc.provideContext === 'function') {
+      mc.provideContext({ tools: TOOLS }).catch(() => {})
+      return
     }
-    return () => ac.abort()
+
+    // W3C draft API: registerTool() per tool with AbortSignal cleanup
+    if (typeof mc.registerTool === 'function') {
+      const ac = new AbortController()
+      for (const tool of TOOLS) {
+        try {
+          mc.registerTool(tool, { signal: ac.signal })
+        } catch {
+          // ignore — browser may not support this tool shape yet
+        }
+      }
+      return () => ac.abort()
+    }
   }, [])
 }
