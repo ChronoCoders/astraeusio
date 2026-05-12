@@ -1,3 +1,5 @@
+Sitemap: https://astraeusio.com/sitemap.xml
+
 User-agent: *
 Disallow: /api/
 Disallow: /auth/
