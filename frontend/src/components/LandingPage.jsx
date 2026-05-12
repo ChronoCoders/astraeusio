@@ -519,40 +519,165 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
       {/* ── SEO text block — visually hidden, crawler-visible ───────────── */}
       <div aria-hidden="true" style={{position:'absolute',width:'1px',height:'1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap',border:0}}>
-        <h2>Real-Time Space Weather Monitoring</h2>
+
+        <h2>About Astraeusio</h2>
         <p>
-          Astraeusio is a real-time space weather monitoring platform that tracks geomagnetic activity,
-          solar wind conditions, and X-ray flux from space-based instruments. The platform aggregates
-          data from NOAA, NASA, and the Kyoto World Data Center to deliver a unified view of space
-          weather conditions affecting Earth.
+          Astraeusio is a real-time space weather monitoring and prediction platform. It aggregates
+          data from NOAA, NASA, and the Kyoto World Data Center to deliver live geomagnetic storm
+          tracking, solar wind analysis, X-ray flux monitoring, and ML-powered Kp forecasts from a
+          single dashboard. The platform is designed for satellite operators, HF radio operators,
+          aurora chasers, power grid engineers, researchers, and developers who need reliable,
+          continuously updated space weather intelligence.
         </p>
+
+        <h2>Dashboard Product</h2>
+        <p>
+          The Astraeusio dashboard provides real-time monitoring of all major space weather parameters.
+          It displays the Kp geomagnetic index updated every 60 seconds, solar wind speed and proton
+          density from NOAA DSCOVR, X-ray flux from GOES satellites, the interplanetary magnetic field
+          Bz component, the Dst storm-time disturbance index, NOAA space weather alerts, aurora oval
+          forecast images, ISS orbital position, NASA Astronomy Picture of the Day, NASA EPIC Earth
+          imagery, near-Earth asteroid tracking, Starlink constellation orbital data, and exoplanet
+          catalog data. The dashboard runs continuous anomaly detection every 60 seconds across five
+          event types and surfaces detected events in a dedicated alerts panel.
+        </p>
+
+        <h2>API Product</h2>
+        <p>
+          The Astraeusio REST API provides programmatic access to all space weather data streams.
+          Public endpoints require no authentication and return the latest Kp index, solar wind
+          readings, and ML Kp forecast. Authenticated endpoints, accessed via API key or JWT token,
+          cover the full Kp time series, 3-hour official Kp, solar wind history, X-ray flux, IMF
+          magnetometer data, Dst index, NOAA space weather alerts, anomaly detection results,
+          near-Earth object close approaches, ISS position, NASA APOD, NASA EPIC imagery, exoplanet
+          catalog, Starlink TLE data, and summary reports with CSV export. The API follows REST
+          conventions with JSON responses and uses Bearer token authentication. Rate limits and
+          available endpoints vary by pricing plan.
+        </p>
+
+        <h2>Alerts Product</h2>
+        <p>
+          The Astraeusio alerts system runs automated anomaly detection every 60 seconds. It checks
+          five conditions: geomagnetic storm onset when Kp reaches 5 or above, high-speed solar wind
+          when speed exceeds 700 km/s, solar flares when X-ray flux reaches M-class or X-class levels,
+          near-Earth asteroid close approaches within one lunar distance, and ML forecast storm
+          warnings when the model predicts Kp 5 or above within 3 hours. All detected events are
+          logged with severity levels and timestamps. Users can receive notifications via email alerts
+          with configurable Kp and solar wind thresholds, or via webhook for automated integration
+          into monitoring pipelines and operations tools.
+        </p>
+
+        <h2>ML-Powered Storm Prediction</h2>
+        <p>
+          The machine learning forecast system uses an LSTM neural network trained on over 20 years
+          of historical NOAA Kp index data. The model ingests a 7-feature input vector including
+          normalized Kp, hour of day encoded as sine and cosine, month of year encoded as sine and
+          cosine, and solar cycle phase. During inference, Monte Carlo Dropout sampling runs 50
+          forward passes to produce a probabilistic output: a predicted Kp value for 3 hours ahead,
+          a lower confidence bound, an upper confidence bound at 95%, and an uncertainty estimate.
+          The model was trained with early stopping and validated on a held-out test set. Forecasts
+          are cached for 3 minutes and refreshed on demand via the API.
+        </p>
+
         <h2>Kp Geomagnetic Index</h2>
         <p>
-          The Kp geomagnetic index is updated every 60 seconds using data from NOAA ground-based
-          magnetometers. Kp values range from 0 (quiet) to 9 (extreme storm), with G1 storm conditions
-          beginning at Kp 5. The dashboard shows both the real-time 1-minute estimated Kp and the
-          official 3-hour planetary Kp index.
+          The planetary Kp index measures global geomagnetic activity on a scale from 0 to 9. Values
+          below 2 indicate quiet conditions with no significant aurora activity. Kp 3 to 4 is
+          unsettled, with minor disturbances possible at high latitudes. Kp 5 marks the onset of a
+          G1 minor geomagnetic storm, when auroras become visible above 60 degrees latitude and
+          minor power grid fluctuations may occur. Kp 6 is G2 moderate, with possible long-duration
+          power system effects and auroras above 55 degrees. Kp 7 is G3 strong, with voltage
+          corrections needed on power systems and possible GPS degradation. Kp 8 is G4 severe with
+          widespread power control issues. Kp 9 is G5 extreme, the highest level, with potential
+          for complete HF radio blackout and major grid instability. Astraeusio tracks both the
+          1-minute estimated Kp from real-time magnetometer data and the official 3-hour planetary
+          Kp index published by NOAA.
         </p>
-        <h2>Solar Wind and IMF Data</h2>
+
+        <h2>Solar Wind and Interplanetary Magnetic Field</h2>
         <p>
-          Solar wind data comes from NOAA DSCOVR at the L1 Lagrange point, measuring solar wind speed,
-          proton density, and the interplanetary magnetic field Bz component. High-speed solar wind
-          above 700 km/s and southward Bz are key precursors to geomagnetic storms. IMF and Dst storm
-          index data are also tracked continuously.
+          Solar wind measurements come from NOAA DSCOVR, a satellite positioned at the L1 Lagrange
+          point approximately 1.5 million kilometers from Earth. DSCOVR measures solar wind speed in
+          km/s, proton density in particles per cubic centimeter, and the interplanetary magnetic
+          field vector. The southward component of the IMF, known as Bz, is a critical storm driver:
+          sustained negative Bz allows solar wind energy to couple into Earth's magnetosphere,
+          intensifying geomagnetic storm conditions. The platform also tracks the Dst disturbance
+          storm-time index from the Kyoto World Data Center, which measures the global suppression
+          of Earth's horizontal magnetic field caused by ring current intensification during storms.
         </p>
-        <h2>ML Storm Prediction</h2>
+
+        <h2>X-Ray Flux and Solar Flares</h2>
         <p>
-          The ML prediction engine uses an LSTM neural network trained on over 20 years of historical
-          NOAA Kp data to forecast geomagnetic conditions 3 hours ahead. Monte Carlo Dropout produces
-          95% confidence intervals alongside each forecast, giving operators a probabilistic storm
-          likelihood rather than a single point estimate.
+          X-ray flux data comes from NOAA GOES geostationary satellites. Solar flares are classified
+          by peak X-ray flux: A and B class flares are minor with no significant effects. C-class
+          flares may cause weak radio interference. M-class flares, with flux above 10 to the minus
+          5 watts per square meter, can cause HF radio blackouts on the sunlit side of Earth.
+          X-class flares, with flux above 10 to the minus 4 watts per square meter, are the most
+          powerful and can cause widespread radio blackouts, radiation storms, and are often
+          associated with coronal mass ejections that drive geomagnetic storms one to three days later.
         </p>
-        <h2>Solar Flare and Asteroid Alerts</h2>
+
+        <h2>Data Sources</h2>
         <p>
-          X-ray flux from NOAA GOES satellites enables real-time solar flare detection. M-class and
-          X-class flares trigger automated alerts. Near-Earth asteroid close approaches from NASA NeoWs
-          are tracked daily, flagging objects passing within one lunar distance.
+          Astraeusio ingests data from the following sources: NOAA Space Weather Prediction Center
+          for Kp index, solar wind, X-ray flux, and space weather alert text products; NASA NeoWs
+          API for near-Earth asteroid close approach data updated every 30 minutes; NASA APOD for
+          the daily astronomy picture; NASA EPIC for full-disk Earth imagery from DSCOVR; NASA
+          Exoplanet Archive for confirmed exoplanet catalog data; Open Notify for ISS orbital
+          position updated every 5 seconds; Celestrak for Starlink TLE orbital elements updated
+          every hour; and the Kyoto World Data Center for the Dst geomagnetic disturbance index.
+          All data is fetched with retry logic, cached at the backend layer, and persisted in a
+          DuckDB database for historical queries and report generation.
         </p>
+
+        <h2>Who Uses Astraeusio</h2>
+        <p>
+          Satellite operators use Astraeusio to monitor geomagnetic storm risk and receive advance
+          warnings before conditions intensify enough to affect orbital operations or onboard
+          electronics. HF radio operators and aviators on polar routes rely on X-ray flux and Kp
+          data to anticipate radio blackout conditions and plan frequency changes. Aurora chasers
+          use the Kp index and aurora oval forecast images to determine visibility likelihood at
+          their latitude and plan observation sessions. Power grid and pipeline operators monitor
+          Kp and Dst to anticipate geomagnetically induced currents that can affect infrastructure.
+          Researchers and data scientists access the API and CSV export features to build datasets
+          for analysis and modeling. Developers integrate the REST API into applications, monitoring
+          dashboards, and automated alert systems using webhook delivery.
+        </p>
+
+        <h2>Pricing Plans</h2>
+        <p>
+          Astraeusio offers five pricing tiers. The Free plan provides 100 API requests per day
+          with a 60-second data delay and access to Kp and solar wind data. The Developer plan
+          provides 10,000 requests per month with real-time data, ML Kp forecast with confidence
+          intervals, basic anomaly detection, and limited email alerts. The Pro plan provides
+          100,000 requests per month, full anomaly detection, webhook alerts, and priority support.
+          The Business plan provides 1,000,000 requests per month, advanced alerting with custom
+          thresholds, multi-channel notifications, and SLA-backed uptime. The Enterprise plan
+          provides unlimited requests with dedicated infrastructure, custom anomaly models, and
+          dedicated support. All plans start with a free tier requiring no credit card.
+        </p>
+
+        <h2>API Endpoints</h2>
+        <p>
+          Public API endpoints available without authentication: GET /api/public/kp returns the
+          latest Kp reading; GET /api/public/solar-wind returns the latest solar wind speed and
+          proton density; GET /api/public/forecast returns the latest ML Kp forecast with
+          confidence interval. Authenticated endpoints require a Bearer token: GET /api/kp returns
+          the full 1-minute Kp time series; GET /api/kp-3h returns the official 3-hour Kp index;
+          GET /api/kp-forecast returns the cached ML forecast; GET /api/solar-wind returns the
+          full solar wind history; GET /api/xray returns X-ray flux readings; GET /api/imf returns
+          IMF magnetometer data; GET /api/dst returns the Dst index; GET /api/alerts returns NOAA
+          space weather alert text; GET /api/anomalies returns detected anomaly events;
+          GET /api/neo returns near-Earth asteroid close approaches for the next 7 days;
+          GET /api/iss returns current ISS position; GET /api/apod returns the NASA astronomy
+          picture; GET /api/epic returns NASA EPIC Earth imagery; GET /api/starlink returns
+          Starlink TLE data; GET /api/exoplanets returns the exoplanet catalog;
+          GET /api/reports/summary with a range parameter of 24h, 7d, or 30d returns aggregated
+          statistics; GET /api/reports/export returns a CSV file of readings for the selected period.
+          Authentication endpoints: POST /auth/register creates a new account; POST /auth/login
+          returns a JWT token valid for 24 hours.
+        </p>
+
         <p>
           <a href="/products">View all products</a> ·{' '}
           <a href="/pricing">Compare pricing plans</a> ·{' '}
