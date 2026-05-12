@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const PLAN_BADGE = {
@@ -17,10 +18,15 @@ const NAV = [
   { id: 'settings',  icon: IconSettings },
 ]
 
-export default function Sidebar({ page, onNavigate, open, onClose, onLogout, user }) {
+const Sidebar = memo(function Sidebar({ page, onNavigate, open, onClose, onLogout, user }) {
   const { t } = useTranslation()
   const plan = user?.plan ?? 'starter'
   const planCls = PLAN_BADGE[plan] ?? PLAN_BADGE.starter
+
+  const handleNav = useCallback((id) => {
+    onNavigate(id)
+    onClose()
+  }, [onNavigate, onClose])
 
   return (
     <>
@@ -53,7 +59,7 @@ export default function Sidebar({ page, onNavigate, open, onClose, onLogout, use
           {NAV.map(({ id, icon: Icon, soon }) => (
             <button
               key={id}
-              onClick={() => { if (!soon) { onNavigate(id); onClose() } }}
+              onClick={soon ? undefined : () => handleNav(id)}
               disabled={soon}
               className={[
                 'w-full flex items-center gap-3 px-5 py-3',
@@ -96,7 +102,9 @@ export default function Sidebar({ page, onNavigate, open, onClose, onLogout, use
       </aside>
     </>
   )
-}
+})
+
+export default Sidebar
 
 /* ── Inline SVG icons (stroke-based, 16×16 viewport) ────────────────────── */
 

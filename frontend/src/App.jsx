@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
@@ -42,6 +42,11 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
   const [page, setPage]           = useState('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
 
+  const handleNavigate = useCallback((p) => {
+    startTransition(() => setPage(p))
+  }, [])
+  const handleCloseSidebar = useCallback(() => setSidebar(false), [])
+
   useEffect(() => {
     onReady?.()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,9 +88,9 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
 
       <Sidebar
         page={page}
-        onNavigate={setPage}
+        onNavigate={handleNavigate}
         open={sidebarOpen}
-        onClose={() => setSidebar(false)}
+        onClose={handleCloseSidebar}
         onLogout={onLogout}
         user={user}
       />
