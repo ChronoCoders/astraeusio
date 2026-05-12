@@ -328,7 +328,10 @@ export default function LandingPage({ onSignUp, onSignIn }) {
               </div>
             ))}
           </div>
-          <div className="mt-8 flex justify-end">
+          <div className="mt-8 flex items-center justify-between">
+            <Link to="/about" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
+              {t('landing.aboutUs')} →
+            </Link>
             <Link to="/products" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
               {t('landing.allFeatures')} →
             </Link>
@@ -421,9 +424,17 @@ export default function LandingPage({ onSignUp, onSignIn }) {
                 </li>
               ))}
             </ul>
-            <Link to="/docs" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide self-start">
-              {t('landing.apiDocs')} →
-            </Link>
+            <div className="flex flex-col gap-2 self-start">
+              <Link to="/docs" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
+                {t('landing.apiDocs')} →
+              </Link>
+              <Link to="/blog" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
+                {t('landing.blog')} →
+              </Link>
+              <Link to="/status" className="text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors tracking-wide">
+                {t('landing.status')} →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -505,6 +516,52 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           {t('landing.comparePlans')} →
         </Link>
       </section>
+
+      {/* ── SEO text block — visually hidden, crawler-visible ───────────── */}
+      <div aria-hidden="true" style={{position:'absolute',width:'1px',height:'1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap',border:0}}>
+        <h2>Real-Time Space Weather Monitoring</h2>
+        <p>
+          Astraeusio is a real-time space weather monitoring platform that tracks geomagnetic activity,
+          solar wind conditions, and X-ray flux from space-based instruments. The platform aggregates
+          data from NOAA, NASA, and the Kyoto World Data Center to deliver a unified view of space
+          weather conditions affecting Earth.
+        </p>
+        <h2>Kp Geomagnetic Index</h2>
+        <p>
+          The Kp geomagnetic index is updated every 60 seconds using data from NOAA ground-based
+          magnetometers. Kp values range from 0 (quiet) to 9 (extreme storm), with G1 storm conditions
+          beginning at Kp 5. The dashboard shows both the real-time 1-minute estimated Kp and the
+          official 3-hour planetary Kp index.
+        </p>
+        <h2>Solar Wind and IMF Data</h2>
+        <p>
+          Solar wind data comes from NOAA DSCOVR at the L1 Lagrange point, measuring solar wind speed,
+          proton density, and the interplanetary magnetic field Bz component. High-speed solar wind
+          above 700 km/s and southward Bz are key precursors to geomagnetic storms. IMF and Dst storm
+          index data are also tracked continuously.
+        </p>
+        <h2>ML Storm Prediction</h2>
+        <p>
+          The ML prediction engine uses an LSTM neural network trained on over 20 years of historical
+          NOAA Kp data to forecast geomagnetic conditions 3 hours ahead. Monte Carlo Dropout produces
+          95% confidence intervals alongside each forecast, giving operators a probabilistic storm
+          likelihood rather than a single point estimate.
+        </p>
+        <h2>Solar Flare and Asteroid Alerts</h2>
+        <p>
+          X-ray flux from NOAA GOES satellites enables real-time solar flare detection. M-class and
+          X-class flares trigger automated alerts. Near-Earth asteroid close approaches from NASA NeoWs
+          are tracked daily, flagging objects passing within one lunar distance.
+        </p>
+        <p>
+          <a href="/products">View all products</a> ·{' '}
+          <a href="/pricing">Compare pricing plans</a> ·{' '}
+          <a href="/docs">API documentation</a> ·{' '}
+          <a href="/about">About Astraeusio</a> ·{' '}
+          <a href="/blog">Space weather blog</a> ·{' '}
+          <a href="/status">Platform status</a>
+        </p>
+      </div>
 
       <Footer />
 
