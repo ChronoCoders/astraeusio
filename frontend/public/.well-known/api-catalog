@@ -1,12 +1,24 @@
 {
-  "apis": [
+  "linkset": [
     {
-      "id": "https://astraeusio.com/api/",
-      "title": "Astraeusio Space Weather API",
-      "summary": "Real-time space weather data: Kp index, solar wind, X-ray flux, IMF, Dst, ISS position, NEO close approaches, aurora forecasts, and ML-powered geomagnetic storm predictions.",
-      "service-doc": "https://astraeusio.com/docs",
-      "license": "https://astraeusio.com/pricing",
-      "tags": ["space-weather", "astronomy", "geomagnetic", "solar", "real-time"]
+      "anchor": "https://astraeusio.com/api/",
+      "service-doc": [
+        {
+          "href": "https://astraeusio.com/docs",
+          "type": "text/html"
+        }
+      ],
+      "service-desc": [
+        {
+          "href": "https://astraeusio.com/openapi.json",
+          "type": "application/openapi+json"
+        }
+      ],
+      "status": [
+        {
+          "href": "https://astraeusio.com/api/health"
+        }
+      ]
     }
   ]
 }
