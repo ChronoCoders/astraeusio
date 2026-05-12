@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, Navigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { getPost } from '../blog/posts'
@@ -95,7 +96,8 @@ function renderContent(text) {
 
 export default function BlogPostPage({ onSignIn }) {
   const { slug } = useParams()
-  const post = getPost(slug)
+  const { t, i18n } = useTranslation()
+  const post = getPost(slug, i18n.language)
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
@@ -139,9 +141,9 @@ export default function BlogPostPage({ onSignIn }) {
       <article className="max-w-2xl mx-auto px-6 pt-10 pb-24">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs font-mono text-zinc-600 mb-10">
-          <Link to="/" className="hover:text-zinc-400 transition-colors">Home</Link>
+          <Link to="/" className="hover:text-zinc-400 transition-colors">{t('blog.home')}</Link>
           <span>/</span>
-          <Link to="/blog" className="hover:text-zinc-400 transition-colors">Blog</Link>
+          <Link to="/blog" className="hover:text-zinc-400 transition-colors">{t('blog.eyebrow')}</Link>
           <span>/</span>
           <span className="text-zinc-500 truncate max-w-[200px]">{post.title}</span>
         </nav>
@@ -152,7 +154,7 @@ export default function BlogPostPage({ onSignIn }) {
           <span className="text-zinc-700">·</span>
           <span className="text-xs font-mono text-zinc-500">{post.author}</span>
           <span className="text-zinc-700">·</span>
-          <span className="text-xs font-mono text-zinc-500">{mins} min read</span>
+          <span className="text-xs font-mono text-zinc-500">{t('blog.minRead', { mins })}</span>
         </div>
 
         {/* Title */}
@@ -176,7 +178,7 @@ export default function BlogPostPage({ onSignIn }) {
             to="/blog"
             className="text-xs font-mono text-zinc-500 hover:text-zinc-200 transition-colors"
           >
-            ← All posts
+            {t('blog.allPosts')}
           </Link>
           <span className="text-xs font-mono text-zinc-600">{post.author}</span>
         </div>

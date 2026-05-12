@@ -495,7 +495,10 @@
   "blog": {
     "eyebrow": "Blog",
     "heroTitle": "Space weather, explained.",
-    "readMore": "Read more →"
+    "readMore": "Read more →",
+    "home": "Home",
+    "allPosts": "← All posts",
+    "minRead": "{{mins}} min read"
   },
   "pricing": {
     "eyebrow": "Pricing",
