@@ -119,19 +119,6 @@ export default function AboutPage({ onSignIn }) {
 
       <Divider />
 
-      {/* Transparency */}
-      <Section id="transparency">
-        <Label>Transparency</Label>
-        <h2 className="text-2xl font-light text-zinc-100 mb-6">Open by default</h2>
-        <div className="space-y-4 text-zinc-400 text-sm leading-relaxed">
-          <p>
-            We publish our data sources, polling intervals, and model architecture openly. If you find an error in the data or a problem with the model, we want to know.
-          </p>
-        </div>
-      </Section>
-
-      <Divider />
-
       {/* Contact */}
       <Section id="contact">
         <Label>Contact</Label>
