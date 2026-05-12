@@ -125,9 +125,6 @@ export default function AboutPage({ onSignIn }) {
         <h2 className="text-2xl font-light text-zinc-100 mb-6">Open by default</h2>
         <div className="space-y-4 text-zinc-400 text-sm leading-relaxed">
           <p>
-            Astraeusio is licensed under the Business Source License 1.1. You can audit the ingestion logic, the ML pipeline, the anomaly detection thresholds, and the API implementation. Nothing is hidden behind a compiled binary.
-          </p>
-          <p>
             The BSL converts to Apache 2.0 on April 20, 2029. Until then, the license permits non-production use — research, evaluation, personal projects — without restriction. Commercial use requires a separate agreement.
           </p>
           <p>
