@@ -338,7 +338,9 @@
     "resources": "Resources",
     "company":   "Company",
     "contact":   "Contact",
-    "bottomBar": "© 2026 Astraeusio · Built on NOAA and NASA open data"
+    "bottomBar": "© 2026 Astraeusio · Built on NOAA and NASA open data",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
   },
   "verifyEmail": {
     "verifying": "Verifying your email…",
