@@ -225,6 +225,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/change-password", post(auth::change_password))
         .route("/auth/verify-email/{token}", post(auth::verify_email))
         .route("/auth/resend-verification", post(auth::resend_verification))
+        .route("/auth/forgot-password", post(auth::forgot_password))
+        .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/2fa/setup", post(auth::setup_2fa))
         .route("/auth/2fa/verify", post(auth::verify_2fa))
         .route("/auth/2fa/disable", post(auth::disable_2fa))
