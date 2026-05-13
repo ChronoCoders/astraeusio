@@ -13,7 +13,7 @@ function Section({ title, children }) {
   )
 }
 
-export default function PrivacyPage({ onSignIn, onSignUp }) {
+export default function PrivacyPage({ onSignIn }) {
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col">
       <Navbar onSignIn={onSignIn} />
