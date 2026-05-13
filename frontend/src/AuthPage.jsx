@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 const LANGS = ['en', 'tr']
 
 export default function AuthPage({ onAuth, initialMode = 'login' }) {
   const { t, i18n } = useTranslation()
+  const [searchParams] = useSearchParams()
   const [mode, setMode]           = useState(initialMode)
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
@@ -67,6 +69,57 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
       // Login success — keep loading=true so button stays disabled while
       // Root transitions to App. AuthPage unmounts; no setLoading(false) needed.
       onAuth(data.token)
+    } catch {
+      setLoading(false)
+      setError(t('auth.networkError'))
+    }
+  }
+
+  async function submitForgot(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    try {
+      await fetch('/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      setLoading(false)
+      setSuccess(t('auth.forgotSent'))
+    } catch {
+      setLoading(false)
+      setError(t('auth.networkError'))
+    }
+  }
+
+  async function submitReset(e) {
+    e.preventDefault()
+    if (password !== confirm) {
+      setError(t('auth.passwordMismatch'))
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const token = searchParams.get('token') ?? ''
+      const res = await fetch('/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: password }),
+      })
+      if (!res.ok) {
+        let msg = t('auth.unknownError')
+        try { msg = (await res.json()).error ?? msg } catch { /* non-JSON body */ }
+        setLoading(false)
+        setError(msg)
+        return
+      }
+      setLoading(false)
+      setPassword('')
+      setConfirm('')
+      setSuccess(t('auth.resetSuccess'))
+      setTimeout(() => switchMode('login'), 2000)
     } catch {
       setLoading(false)
       setError(t('auth.networkError'))
@@ -188,8 +241,91 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
           </div>
         )}
 
+        {/* ── Forgot password form ─────────────────────────────────────── */}
+        {!partialToken && mode === 'forgot' && (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="w-full max-w-sm">
+              <p className="lg:hidden text-zinc-100 font-thin tracking-widest text-2xl mb-8 text-center">ASTRAEUSIO</p>
+              <h2 className="text-zinc-100 text-xl font-semibold mb-1">{t('auth.forgotTitle')}</h2>
+              <p className="text-zinc-500 text-sm mb-7">{t('auth.forgotSub')}</p>
+              <form onSubmit={submitForgot} className="flex flex-col gap-4">
+                <Field label={t('auth.email')}>
+                  <input
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-zinc-100 text-sm placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                  />
+                </Field>
+                {success && <p className="text-green-400 text-xs bg-green-950/40 border border-green-900/40 rounded px-3 py-2">{success}</p>}
+                {error && <p className="text-red-400 text-xs bg-red-950/40 border border-red-900/40 rounded px-3 py-2">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading || !!success}
+                  className="bg-zinc-100 text-zinc-900 font-medium text-sm rounded px-4 py-2.5 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                >
+                  {loading ? t('common.loading') : t('auth.forgotBtn')}
+                </button>
+              </form>
+              <button onClick={() => switchMode('login')} className="mt-4 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                {t('auth.backToSignIn')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Reset password form ──────────────────────────────────────── */}
+        {!partialToken && mode === 'reset' && (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="w-full max-w-sm">
+              <p className="lg:hidden text-zinc-100 font-thin tracking-widest text-2xl mb-8 text-center">ASTRAEUSIO</p>
+              <h2 className="text-zinc-100 text-xl font-semibold mb-1">{t('auth.resetTitle')}</h2>
+              <p className="text-zinc-500 text-sm mb-7">{t('auth.resetSub')}</p>
+              <form onSubmit={submitReset} className="flex flex-col gap-4">
+                <Field label={t('auth.newPassword')}>
+                  <input
+                    type="password"
+                    name="new-password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-zinc-100 text-sm placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                  />
+                </Field>
+                <Field label={t('auth.confirmPassword')}>
+                  <input
+                    type="password"
+                    name="confirm-new-password"
+                    value={confirm}
+                    onChange={e => setConfirm(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-zinc-100 text-sm placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+                  />
+                </Field>
+                {success && <p className="text-green-400 text-xs bg-green-950/40 border border-green-900/40 rounded px-3 py-2">{success}</p>}
+                {error && <p className="text-red-400 text-xs bg-red-950/40 border border-red-900/40 rounded px-3 py-2">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading || !!success}
+                  className="bg-zinc-100 text-zinc-900 font-medium text-sm rounded px-4 py-2.5 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                >
+                  {loading ? t('common.loading') : t('auth.resetBtn')}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Centered form */}
-        {!partialToken && <div className="flex-1 flex items-center justify-center p-8">
+        {!partialToken && (mode === 'login' || mode === 'signup') && <div className="flex-1 flex items-center justify-center p-8">
           <div className="w-full max-w-sm">
 
             {/* Mobile wordmark */}
@@ -271,29 +407,42 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               </button>
             </form>
 
-            <p className="text-zinc-600 text-xs text-center mt-6">
-              {mode === 'login' ? (
-                <>
-                  {t('auth.noAccount')}{' '}
-                  <button
-                    onClick={() => switchMode('signup')}
-                    className="text-zinc-400 hover:text-zinc-200 underline-offset-2 hover:underline transition-colors"
-                  >
-                    {t('auth.switchToSignup')}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {t('auth.hasAccount')}{' '}
-                  <button
-                    onClick={() => switchMode('login')}
-                    className="text-zinc-400 hover:text-zinc-200 underline-offset-2 hover:underline transition-colors"
-                  >
-                    {t('auth.switchToLogin')}
-                  </button>
-                </>
-              )}
-            </p>
+            {(mode === 'login' || mode === 'signup') && (
+              <p className="text-zinc-600 text-xs text-center mt-6">
+                {mode === 'login' ? (
+                  <>
+                    {t('auth.noAccount')}{' '}
+                    <button
+                      onClick={() => switchMode('signup')}
+                      className="text-zinc-400 hover:text-zinc-200 underline-offset-2 hover:underline transition-colors"
+                    >
+                      {t('auth.switchToSignup')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {t('auth.hasAccount')}{' '}
+                    <button
+                      onClick={() => switchMode('login')}
+                      className="text-zinc-400 hover:text-zinc-200 underline-offset-2 hover:underline transition-colors"
+                    >
+                      {t('auth.switchToLogin')}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+
+            {mode === 'login' && (
+              <p className="text-zinc-600 text-xs text-center mt-3">
+                <button
+                  onClick={() => switchMode('forgot')}
+                  className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {t('auth.forgotPassword')}
+                </button>
+              </p>
+            )}
           </div>
         </div>}
       </div>

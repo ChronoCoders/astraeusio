@@ -96,6 +96,7 @@ export default function Root() {
         <Route path="/status"         element={<StatusPage      {...pub} />} />
         <Route path="/privacy"        element={<PrivacyPage     {...pub} />} />
         <Route path="/terms"          element={<TermsPage       {...pub} />} />
+        <Route path="/reset-password" element={<AuthPage initialMode="reset" onAuth={handleAuth} />} />
         <Route path="*"               element={<NotFoundPage   {...pub} />} />
       </Routes>
     )

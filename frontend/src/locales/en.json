@@ -301,7 +301,18 @@
     "twoFactorSubtitle": "Enter the 6-digit code from your authenticator app.",
     "authenticatorCode": "Authenticator code",
     "verify": "Verify",
-    "backToLogin": "← Back to login"
+    "backToLogin": "← Back to login",
+    "forgotPassword": "Forgot password?",
+    "forgotTitle": "Reset your password",
+    "forgotSub": "Enter your email and we'll send you a reset link.",
+    "forgotBtn": "Send reset link",
+    "forgotSent": "Check your email — a reset link is on its way.",
+    "resetTitle": "Set new password",
+    "resetSub": "Enter a new password for your account.",
+    "resetBtn": "Set new password",
+    "resetSuccess": "Password updated. Redirecting to sign in…",
+    "newPassword": "New password",
+    "backToSignIn": "← Back to sign in"
   },
   "status": {
     "eyebrow": "System Status",
