@@ -64,8 +64,12 @@ export default function Footer() {
 
       {/* ── Bottom bar ────────────────────────────────────────────────────── */}
       <div className="border-t border-zinc-800/60">
-        <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-zinc-600 text-[11px] font-mono">{t('footer.bottomBar')}</p>
+          <div className="flex items-center gap-4">
+            <NavLink to="/privacy">{t('footer.privacy')}</NavLink>
+            <NavLink to="/terms">{t('footer.terms')}</NavLink>
+          </div>
         </div>
       </div>
 

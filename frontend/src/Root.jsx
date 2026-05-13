@@ -12,6 +12,8 @@ import BlogPage     from './components/BlogPage.jsx'
 import BlogPostPage      from './components/BlogPostPage.jsx'
 import VerifyEmailPage  from './components/VerifyEmailPage.jsx'
 import StatusPage      from './components/StatusPage.jsx'
+import PrivacyPage     from './components/PrivacyPage.jsx'
+import TermsPage       from './components/TermsPage.jsx'
 import NotFoundPage    from './components/NotFoundPage.jsx'
 
 export default function Root() {
@@ -92,6 +94,8 @@ export default function Root() {
         <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
         <Route path="/verify-email"   element={<VerifyEmailPage {...pub} onUserChange={setUser} />} />
         <Route path="/status"         element={<StatusPage      {...pub} />} />
+        <Route path="/privacy"        element={<PrivacyPage     {...pub} />} />
+        <Route path="/terms"          element={<TermsPage       {...pub} />} />
         <Route path="*"               element={<NotFoundPage   {...pub} />} />
       </Routes>
     )
