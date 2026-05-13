@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
+use tower_http::cors::{Any, CorsLayer};
 use serde::Deserialize;
 use tracing::info;
 
@@ -277,6 +278,12 @@ pub fn router(state: AppState) -> Router {
         .route("/api/custom-rules/{id}", delete(delete_custom_rule))
         .route("/api/custom-rules/{id}/toggle", post(toggle_custom_rule))
         .route("/mcp", post(mcp_handler))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
         .with_state(state)
 }
 

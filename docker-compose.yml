@@ -3,8 +3,6 @@ services:
     build:
       context: ./ml
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
     environment:
       MODEL_PATH: /data/models/kp_lstm.pt
     volumes:
@@ -20,8 +18,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
     env_file: ./backend/.env
     environment:
       DB_PATH: /data/astraeus.duckdb
