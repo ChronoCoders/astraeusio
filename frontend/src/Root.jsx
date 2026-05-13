@@ -78,6 +78,7 @@ export default function Root() {
 
   function handleLogout() {
     clearSession()
+    setAuthMode('login')
   }
 
   if (!token) {
