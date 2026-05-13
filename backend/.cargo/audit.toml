@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+    # rsa 0.9.10 - Marvin Attack timing side-channel (RUSTSEC-2023-0071)
+    # Pulled in by jsonwebtoken 10.x. We use HS256 (HMAC) exclusively — RSA
+    # code paths are never exercised. No fixed version of the rsa crate exists.
+    "RUSTSEC-2023-0071",
+]
