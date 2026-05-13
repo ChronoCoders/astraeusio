@@ -13,7 +13,7 @@ function Section({ title, children }) {
   )
 }
 
-export default function TermsPage({ onSignIn, onSignUp }) {
+export default function TermsPage({ onSignIn }) {
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col">
       <Navbar onSignIn={onSignIn} />

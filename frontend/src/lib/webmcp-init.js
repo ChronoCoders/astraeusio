@@ -100,7 +100,7 @@ const TOOLS = [
   // W3C draft API shape
   if (typeof mc.registerTool === 'function') {
     for (const tool of TOOLS) {
-      try { mc.registerTool(tool) } catch (_) { /* ignore */ }
+      try { mc.registerTool(tool) } catch { /* ignore */ }
     }
   }
 })()
