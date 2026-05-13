@@ -56,6 +56,17 @@ pub struct ChangePasswordRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub new_password: String,
+}
+
+#[derive(Deserialize)]
 pub struct TotpCodeRequest {
     pub code: String,
 }
@@ -714,6 +725,87 @@ pub async fn change_password(
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             warn!("change_password update error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+// ── Forgot / reset password ───────────────────────────────────────────────────
+
+pub async fn forgot_password(
+    State(s): State<AppState>,
+    Json(body): Json<ForgotPasswordRequest>,
+) -> Response {
+    // Always 204 — never reveal whether the email exists.
+    if let Some(ref mc) = s.mailer {
+        if let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email) {
+            if let Ok(token) = purpose_token(&body.email, "reset_password", 3_600, &s.jwt_secret) {
+                let url = format!("{}/reset-password?token={}", s.app_url, token);
+                let mc = mc.clone();
+                let email = body.email.clone();
+                tokio::spawn(async move {
+                    mailer::send_password_reset_email(&mc, &email, &url).await;
+                });
+            }
+        }
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
+pub async fn reset_password(
+    State(s): State<AppState>,
+    Json(body): Json<ResetPasswordRequest>,
+) -> Response {
+    if body.new_password.len() < 8 {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "password must be at least 8 characters" })),
+        )
+            .into_response();
+    }
+
+    let email = match decode_purpose(&body.token, "reset_password", &s.jwt_secret) {
+        Ok(e) => e,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": e })),
+            )
+                .into_response();
+        }
+    };
+
+    let new_pw = body.new_password;
+    let new_hash =
+        match tokio::task::spawn_blocking(move || bcrypt::hash(new_pw, bcrypt::DEFAULT_COST)).await
+        {
+            Ok(Ok(h)) => h,
+            Ok(Err(e)) => {
+                warn!("reset_password bcrypt error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                warn!("reset_password spawn_blocking error: {e}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response();
+            }
+        };
+
+    match s.writer.update_password(email, new_hash).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            warn!("reset_password update error: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": "internal error" })),
