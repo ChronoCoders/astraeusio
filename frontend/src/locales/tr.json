@@ -350,7 +350,18 @@
     "twoFactorSubtitle": "Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin.",
     "authenticatorCode": "Kimlik doğrulama kodu",
     "verify": "Doğrula",
-    "backToLogin": "← Girişe dön"
+    "backToLogin": "← Girişe dön",
+    "forgotPassword": "Şifremi unuttum?",
+    "forgotTitle": "Şifrenizi sıfırlayın",
+    "forgotSub": "E-posta adresinizi girin, size bir sıfırlama bağlantısı gönderelim.",
+    "forgotBtn": "Sıfırlama bağlantısı gönder",
+    "forgotSent": "E-postanızı kontrol edin — sıfırlama bağlantısı yolda.",
+    "resetTitle": "Yeni şifre belirleyin",
+    "resetSub": "Hesabınız için yeni bir şifre girin.",
+    "resetBtn": "Şifreyi güncelle",
+    "resetSuccess": "Şifre güncellendi. Giriş sayfasına yönlendiriliyorsunuz…",
+    "newPassword": "Yeni şifre",
+    "backToSignIn": "← Girişe dön"
   },
   "plan": {
     "free": "Ücretsiz",
