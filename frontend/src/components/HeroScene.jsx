@@ -21,16 +21,18 @@ export default function HeroScene() {
     camera.position.set(0, 0.8, 4.2)
     camera.lookAt(0, 0, 0)
 
-    scene.add(new THREE.AmbientLight(0x334466, 1.2))
-    const sun = new THREE.DirectionalLight(0x6699cc, 1.5)
-    sun.position.set(5, 3, 4)
+    // Sun off-screen to camera-left: strong warm directional creates a clear
+    // day/night terminator on Earth (iconic "Earth-from-orbit" lighting).
+    const SUN_DIR = new THREE.Vector3(-6, 1.2, 2).normalize()
+    const sun = new THREE.DirectionalLight(0xfff2d0, 2.4)
+    sun.position.copy(SUN_DIR).multiplyScalar(6)
     scene.add(sun)
-    const fill = new THREE.DirectionalLight(0x4477bb, 0.8)
-    fill.position.set(-5, 1, 2)
+    // Faint cool ambient so the dark hemisphere isn't pitch black.
+    scene.add(new THREE.AmbientLight(0x1a2436, 0.5))
+    // Tiny cool fill from the right hints at Earth-reflected light.
+    const fill = new THREE.DirectionalLight(0x2a3b58, 0.3)
+    fill.position.set(4, -1, -2)
     scene.add(fill)
-    const back = new THREE.DirectionalLight(0x112244, 0.4)
-    back.position.set(-3, -1, -4)
-    scene.add(back)
 
     const STAR_COUNT = 2000
     const starPos    = new Float32Array(STAR_COUNT * 3)
@@ -54,6 +56,51 @@ export default function HeroScene() {
       earth.material.needsUpdate = true
       earth.visible = true
     })
+
+    // Atmospheric Fresnel rim: thin bright halo on Earth's sunlit limb.
+    // Only glows where the limb (viewDir·normal ≈ 0) AND sun hits (normal·sunDir > 0).
+    const atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.025, 64, 64),
+      new THREE.ShaderMaterial({
+        uniforms: {
+          sunDir:    { value: SUN_DIR.clone() },
+          glowColor: { value: new THREE.Color(0x6aa9ff) },
+          power:     { value: 4.5 },
+          intensity: { value: 1.8 },
+        },
+        vertexShader: `
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPos;
+          void main() {
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWorldPos = wp.xyz;
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 sunDir;
+          uniform vec3 glowColor;
+          uniform float power;
+          uniform float intensity;
+          varying vec3 vWorldNormal;
+          varying vec3 vWorldPos;
+          void main() {
+            vec3 viewDir = normalize(cameraPosition - vWorldPos);
+            float fresnel = pow(1.0 - max(dot(viewDir, vWorldNormal), 0.0), power);
+            float sunMask = max(dot(vWorldNormal, normalize(sunDir)), 0.0);
+            sunMask = pow(sunMask, 0.55);
+            float a = fresnel * sunMask * intensity;
+            gl_FragColor = vec4(glowColor * a, a);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.FrontSide,
+        depthWrite: false,
+      }),
+    )
+    world.add(atmosphere)
 
 const satGeo  = new THREE.SphereGeometry(0.022, 6, 6)
     const satMat  = new THREE.MeshBasicMaterial({ color: 0xddeeff })
