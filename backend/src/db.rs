@@ -955,7 +955,7 @@ impl Store {
     pub fn get_epic_latest(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT identifier, caption, image, date, centroid_lat_e6, centroid_lon_e6 FROM epic \
-             WHERE date = (SELECT MAX(date) FROM epic) \
+             WHERE substr(date, 1, 10) = (SELECT MAX(substr(date, 1, 10)) FROM epic) \
              ORDER BY identifier ASC",
         )?;
         let rows = stmt
