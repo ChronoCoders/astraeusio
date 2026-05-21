@@ -246,60 +246,67 @@ export default function LandingPage({ onSignUp, onSignIn }) {
       <Navbar onSignIn={onSignIn} />
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 overflow-hidden">
-        <Suspense fallback={null}>
-          <HeroScene />
-        </Suspense>
+      <section className="relative min-h-screen px-6 overflow-hidden">
+        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none z-10" />
 
-        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto min-h-screen grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-center pt-28 lg:pt-24 pb-20">
 
-        <div className="relative z-10 flex flex-col items-center gap-7 max-w-4xl pt-20">
-          <SectionLabel>{t('landing.heroEyebrow')}</SectionLabel>
+          {/* Left: text */}
+          <div className="flex flex-col items-start gap-7 text-left max-w-xl">
+            <SectionLabel>{t('landing.heroEyebrow')}</SectionLabel>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08]">
-            <span className="bg-gradient-to-b from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-              {t('landing.heroTitle')}
-            </span>
-          </h1>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.08]">
+              <span className="bg-gradient-to-b from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
+                {t('landing.heroTitle')}
+              </span>
+            </h1>
 
-          <p className="text-zinc-400 text-lg sm:text-xl max-w-xl leading-relaxed">
-            {t('landing.heroSub')}
-          </p>
-
-          <div className="border-l-2 border-zinc-600 pl-4 text-left w-full max-w-lg">
-            <p className="text-zinc-300 text-sm font-mono leading-relaxed">
-              {t('landing.heroStat')}
+            <p className="text-zinc-400 text-lg sm:text-xl leading-relaxed">
+              {t('landing.heroSub')}
             </p>
-          </div>
 
-          {badge && (
-            <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full border ${badge.border} bg-zinc-900/50 backdrop-blur-sm`}>
-              <span className="relative shrink-0 w-2 h-2">
-                <span className={`absolute inset-0 rounded-full ${badge.dot} animate-pulse`} />
-                {flash && <span className={`absolute -inset-1 rounded-full ${badge.dot} opacity-40 animate-ping`} />}
-              </span>
-              <span className={`text-sm font-mono ${badge.text}`}>
-                Live · Kp {fmtNum(latestKp, 1)} · {t(storm.key)}
-              </span>
+            <div className="border-l-2 border-zinc-600 pl-4 w-full">
+              <p className="text-zinc-300 text-sm font-mono leading-relaxed">
+                {t('landing.heroStat')}
+              </p>
             </div>
-          )}
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 mt-1">
-            <button
-              onClick={onSignUp}
-              className="px-8 py-3 bg-zinc-100 text-zinc-950 text-sm font-mono tracking-wide rounded-lg hover:bg-white transition-colors"
-            >
-              {t('landing.ctaPrimary')}
-            </button>
-            <button
-              onClick={onSignIn}
-              className="px-8 py-3 border border-zinc-700 text-zinc-300 text-sm font-mono tracking-wide rounded-lg hover:border-zinc-500 hover:text-zinc-100 transition-colors"
-            >
-              {t('landing.ctaSecondary')}
-            </button>
+            {badge && (
+              <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full border ${badge.border} bg-zinc-900/50 backdrop-blur-sm`}>
+                <span className="relative shrink-0 w-2 h-2">
+                  <span className={`absolute inset-0 rounded-full ${badge.dot} animate-pulse`} />
+                  {flash && <span className={`absolute -inset-1 rounded-full ${badge.dot} opacity-40 animate-ping`} />}
+                </span>
+                <span className={`text-sm font-mono ${badge.text}`}>
+                  Live · Kp {fmtNum(latestKp, 1)} · {t(storm.key)}
+                </span>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-start gap-3 mt-1">
+              <button
+                onClick={onSignUp}
+                className="px-8 py-3 bg-zinc-100 text-zinc-950 text-sm font-mono tracking-wide rounded-lg hover:bg-white transition-colors"
+              >
+                {t('landing.ctaPrimary')}
+              </button>
+              <button
+                onClick={onSignIn}
+                className="px-8 py-3 border border-zinc-700 text-zinc-300 text-sm font-mono tracking-wide rounded-lg hover:border-zinc-500 hover:text-zinc-100 transition-colors"
+              >
+                {t('landing.ctaSecondary')}
+              </button>
+            </div>
           </div>
-        </div>
 
+          {/* Right: Earth scene */}
+          <div className="relative w-full aspect-square max-w-md sm:max-w-lg mx-auto lg:max-w-none lg:mx-0 lg:ml-auto lg:h-[600px] lg:aspect-auto lg:w-[600px]">
+            <Suspense fallback={null}>
+              <HeroScene />
+            </Suspense>
+          </div>
+
+        </div>
       </section>
 
       {/* ── What You Can Do (bg-zinc-900) ────────────────────────────────── */}

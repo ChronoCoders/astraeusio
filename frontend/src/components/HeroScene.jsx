@@ -55,14 +55,7 @@ export default function HeroScene() {
       earth.visible = true
     })
 
-    ;[{ r: 1.05, c: 0x2255aa, o: 0.12 }, { r: 1.14, c: 0x1133cc, o: 0.05 }].forEach(({ r, c, o }) => {
-      world.add(new THREE.Mesh(
-        new THREE.SphereGeometry(r, 32, 32),
-        new THREE.MeshPhongMaterial({ color: c, transparent: true, opacity: o, side: THREE.BackSide }),
-      ))
-    })
-
-    const satGeo  = new THREE.SphereGeometry(0.022, 6, 6)
+const satGeo  = new THREE.SphereGeometry(0.022, 6, 6)
     const satMat  = new THREE.MeshBasicMaterial({ color: 0xddeeff })
     const lineMat = new THREE.LineBasicMaterial({ color: 0x1a3060, transparent: true, opacity: 0.18 })
 
