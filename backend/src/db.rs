@@ -1373,7 +1373,6 @@ impl Store {
              ORDER BY detected_at DESC LIMIT ? OFFSET ?",
         );
         let mut stmt = self.conn.prepare(&rows_sql)?;
-        let mut bindings = bindings;
         bindings.push(page_size.into());
         bindings.push(offset.into());
         let params: Vec<&dyn duckdb::ToSql> =
@@ -2286,8 +2285,10 @@ impl Store {
                 .ok()
                 .flatten()
         };
-        let noaa      = q("SELECT MAX(fetched_at) FROM kp");
-        let nasa      = q("SELECT MAX(m) FROM (SELECT MAX(fetched_at) AS m FROM apod UNION ALL SELECT MAX(fetched_at) FROM neo UNION ALL SELECT MAX(fetched_at) FROM epic)");
+        let noaa = q("SELECT MAX(fetched_at) FROM kp");
+        let nasa = q(
+            "SELECT MAX(m) FROM (SELECT MAX(fetched_at) AS m FROM apod UNION ALL SELECT MAX(fetched_at) FROM neo UNION ALL SELECT MAX(fetched_at) FROM epic)",
+        );
         let celestrak = q("SELECT MAX(fetched_at) FROM starlink");
         (noaa, nasa, celestrak)
     }

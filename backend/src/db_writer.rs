@@ -294,7 +294,11 @@ impl DbWriterHandle {
     pub async fn update_user_plan(&self, email: String, plan: String) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::UpdatePlan { email, plan, reply: tx })
+            .send(WriteCmd::UpdatePlan {
+                email,
+                plan,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -313,10 +317,7 @@ impl DbWriterHandle {
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
-    pub async fn create_custom_rule(
-        &self,
-        rule: crate::db::CustomRule,
-    ) -> Result<(), DbError> {
+    pub async fn create_custom_rule(&self, rule: crate::db::CustomRule) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
             .send(WriteCmd::CreateCustomRule { rule, reply: tx })
@@ -332,7 +333,11 @@ impl DbWriterHandle {
     ) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::DeleteCustomRule { id, user_email, reply: tx })
+            .send(WriteCmd::DeleteCustomRule {
+                id,
+                user_email,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -346,7 +351,12 @@ impl DbWriterHandle {
     ) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::ToggleCustomRule { id, user_email, enabled, reply: tx })
+            .send(WriteCmd::ToggleCustomRule {
+                id,
+                user_email,
+                enabled,
+                reply: tx,
+            })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -460,8 +470,16 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
                 Err(e) => error!(source = "db_writer", "webhooks-query: {e}"),
             },
         },
-        WriteCmd::KpForecast { ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4 } => {
-            if let Err(e) = db.insert_kp_forecast(ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4) {
+        WriteCmd::KpForecast {
+            ts,
+            kp_e2,
+            ci_lower_e2,
+            ci_upper_e2,
+            uncertainty_e4,
+        } => {
+            if let Err(e) =
+                db.insert_kp_forecast(ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4)
+            {
                 error!(source = "db_writer", "kp-forecast: {e}");
             }
         }
@@ -562,10 +580,19 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         WriteCmd::CreateCustomRule { rule, reply } => {
             let _ = reply.send(db.insert_custom_rule(&rule));
         }
-        WriteCmd::DeleteCustomRule { id, user_email, reply } => {
+        WriteCmd::DeleteCustomRule {
+            id,
+            user_email,
+            reply,
+        } => {
             let _ = reply.send(db.delete_custom_rule(&id, &user_email));
         }
-        WriteCmd::ToggleCustomRule { id, user_email, enabled, reply } => {
+        WriteCmd::ToggleCustomRule {
+            id,
+            user_email,
+            enabled,
+            reply,
+        } => {
             let _ = reply.send(db.toggle_custom_rule(&id, &user_email, enabled));
         }
     }

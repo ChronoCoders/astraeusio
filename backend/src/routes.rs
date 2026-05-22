@@ -11,8 +11,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
-use tower_http::cors::{Any, CorsLayer};
 use serde::Deserialize;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
 use dashmap::DashMap;
@@ -157,28 +157,42 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         .await
     {
         Ok(r) if r.status().is_success() => "operational",
-        Ok(_)                            => "degraded",
-        Err(_)                           => "degraded",
+        Ok(_) => "degraded",
+        Err(_) => "degraded",
     };
 
     // ── DB freshness ─────────────────────────────────────────────────────────
     let (noaa_ts, nasa_ts, celestrak_ts) = lock_db(&s.db).await.health_freshness();
 
-    fn component_status(last: Option<i64>, now: i64, stale_secs: i64) -> (&'static str, Option<i64>) {
+    fn component_status(
+        last: Option<i64>,
+        now: i64,
+        stale_secs: i64,
+    ) -> (&'static str, Option<i64>) {
         match last {
-            None    => ("unknown", None),
+            None => ("unknown", None),
             Some(t) if now - t > stale_secs => ("degraded", Some(t)),
             Some(t) => ("operational", Some(t)),
         }
     }
 
-    let (noaa_status,      noaa_last)      = component_status(noaa_ts,      now, 600);
-    let (nasa_status,      nasa_last)      = component_status(nasa_ts,      now, 90_000);
+    let (noaa_status, noaa_last) = component_status(noaa_ts, now, 600);
+    let (nasa_status, nasa_last) = component_status(nasa_ts, now, 90_000);
     let (celestrak_status, celestrak_last) = component_status(celestrak_ts, now, 14_400);
-    let db_status = if noaa_ts.is_some() { "operational" } else { "unknown" };
+    let db_status = if noaa_ts.is_some() {
+        "operational"
+    } else {
+        "unknown"
+    };
 
     // ── Overall ───────────────────────────────────────────────────────────────
-    let statuses = [ml_status, db_status, noaa_status, nasa_status, celestrak_status];
+    let statuses = [
+        ml_status,
+        db_status,
+        noaa_status,
+        nasa_status,
+        celestrak_status,
+    ];
     let overall = if statuses.iter().all(|&s| s == "operational") {
         "operational"
     } else {
@@ -451,9 +465,18 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
                     .unwrap_or_default()
                     .as_secs() as i64
                     + 3 * 3600;
-                let ci_l = payload.get("ci_lower").and_then(|v| v.as_f64()).map(|v| (v * 100.0).round() as i64);
-                let ci_u = payload.get("ci_upper").and_then(|v| v.as_f64()).map(|v| (v * 100.0).round() as i64);
-                let unc  = payload.get("uncertainty").and_then(|v| v.as_f64()).map(|v| (v * 10_000.0).round() as i64);
+                let ci_l = payload
+                    .get("ci_lower")
+                    .and_then(|v| v.as_f64())
+                    .map(|v| (v * 100.0).round() as i64);
+                let ci_u = payload
+                    .get("ci_upper")
+                    .and_then(|v| v.as_f64())
+                    .map(|v| (v * 100.0).round() as i64);
+                let unc = payload
+                    .get("uncertainty")
+                    .and_then(|v| v.as_f64())
+                    .map(|v| (v * 10_000.0).round() as i64);
                 s.writer.fire(WriteCmd::KpForecast {
                     ts: forecast_ts,
                     kp_e2: (kp * 100.0).round() as i64,
@@ -533,7 +556,9 @@ async fn get_forecast_history(
         _ => "forecast-history-7d",
     };
     cached(&s.cache, key, Duration::from_secs(60), || async {
-        let val = lock_db(&s.db).await.get_forecast_history(now_minus(range))?;
+        let val = lock_db(&s.db)
+            .await
+            .get_forecast_history(now_minus(range))?;
         info!("api/forecast/history: served from db");
         Ok(val)
     })
@@ -548,9 +573,17 @@ async fn get_events(
     let (range, _label) = parse_range(&q);
     let since = now_minus(range);
     let type_filter = q.get("type").map(String::as_str).filter(|s| !s.is_empty());
-    let severity_filter = q.get("severity").map(String::as_str).filter(|s| !s.is_empty());
-    let page: i64 = q.get("page").and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
-    let page_size: i64 = q.get("page_size")
+    let severity_filter = q
+        .get("severity")
+        .map(String::as_str)
+        .filter(|s| !s.is_empty());
+    let page: i64 = q
+        .get("page")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1)
+        .max(1);
+    let page_size: i64 = q
+        .get("page_size")
         .and_then(|v| v.parse().ok())
         .unwrap_or(25)
         .clamp(1, 100);
@@ -578,7 +611,9 @@ async fn get_forecast_metrics(
         _ => "forecast-metrics-7d",
     };
     cached(&s.cache, key, Duration::from_secs(300), || async {
-        let val = lock_db(&s.db).await.get_forecast_metrics(now_minus(range))?;
+        let val = lock_db(&s.db)
+            .await
+            .get_forecast_metrics(now_minus(range))?;
         info!("api/forecast/metrics: served from db");
         Ok(val)
     })
@@ -756,7 +791,14 @@ async fn update_user_plan(
     claims: AuthClaims,
     Json(body): Json<UpdatePlanBody>,
 ) -> Response {
-    const VALID_PLANS: &[&str] = &["free", "starter", "developer", "pro", "business", "enterprise"];
+    const VALID_PLANS: &[&str] = &[
+        "free",
+        "starter",
+        "developer",
+        "pro",
+        "business",
+        "enterprise",
+    ];
     if !VALID_PLANS.contains(&body.plan.as_str()) {
         return (
             StatusCode::BAD_REQUEST,
@@ -764,7 +806,11 @@ async fn update_user_plan(
         )
             .into_response();
     }
-    match s.writer.update_user_plan(claims.sub.clone(), body.plan).await {
+    match s
+        .writer
+        .update_user_plan(claims.sub.clone(), body.plan)
+        .await
+    {
         Ok(()) => {
             s.usage_counter.remove(&claims.sub);
             StatusCode::NO_CONTENT.into_response()
@@ -895,31 +941,62 @@ async fn create_custom_rule(
     // Validate inputs
     let name = body.name.trim().to_string();
     if name.is_empty() || name.len() > 80 {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "name must be 1–80 characters" }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "name must be 1–80 characters" })),
+        )
+            .into_response();
     }
     if !VALID_METRICS.contains(&body.metric.as_str()) {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid metric" }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "invalid metric" })),
+        )
+            .into_response();
     }
     if !VALID_OPERATORS.contains(&body.operator.as_str()) {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid operator" }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "invalid operator" })),
+        )
+            .into_response();
     }
     if !VALID_SEVERITIES.contains(&body.severity.as_str()) {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "invalid severity" }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "invalid severity" })),
+        )
+            .into_response();
     }
     if !body.threshold.is_finite() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "threshold must be a finite number" }))).into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": "threshold must be a finite number" })),
+        )
+            .into_response();
     }
 
     // Enforce per-user rule cap
-    let count = match lock_db(&s.db).await.count_custom_rules_for_user(&claims.sub) {
+    let count = match lock_db(&s.db)
+        .await
+        .count_custom_rules_for_user(&claims.sub)
+    {
         Ok(c) => c,
         Err(e) => {
             tracing::error!("count_custom_rules: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
         }
     };
     if count >= MAX_CUSTOM_RULES {
-        return (StatusCode::CONFLICT, Json(serde_json::json!({ "error": "rule limit reached (max 20)" }))).into_response();
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "rule limit reached (max 20)" })),
+        )
+            .into_response();
     }
 
     let id = format!("{:x}", rand::random::<u64>());
@@ -949,10 +1026,15 @@ async fn create_custom_rule(
                 "enabled":   true,
                 "created_at": now_ts,
             })),
-        ).into_response(),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("create_custom_rule: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
         }
     }
 }
@@ -964,10 +1046,18 @@ async fn delete_custom_rule(
 ) -> Response {
     match s.writer.delete_custom_rule(id, claims.sub).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
-        Ok(false) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "rule not found" }))).into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "rule not found" })),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("delete_custom_rule: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
         }
     }
 }
@@ -978,12 +1068,24 @@ async fn toggle_custom_rule(
     Path(id): Path<String>,
     Json(body): Json<ToggleBody>,
 ) -> Response {
-    match s.writer.toggle_custom_rule(id, claims.sub, body.enabled).await {
+    match s
+        .writer
+        .toggle_custom_rule(id, claims.sub, body.enabled)
+        .await
+    {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
-        Ok(false) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "rule not found" }))).into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "rule not found" })),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("toggle_custom_rule: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "internal error" }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
         }
     }
 }
@@ -992,7 +1094,7 @@ async fn toggle_custom_rule(
 
 #[derive(serde::Deserialize)]
 struct McpRequest {
-    id:     Option<serde_json::Value>,
+    id: Option<serde_json::Value>,
     method: String,
     params: Option<serde_json::Value>,
 }
@@ -1001,22 +1103,31 @@ struct McpRequest {
 struct McpResp {
     jsonrpc: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    id:     Option<serde_json::Value>,
+    id: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    error:  Option<serde_json::Value>,
+    error: Option<serde_json::Value>,
 }
 
 impl McpResp {
     fn ok(id: Option<serde_json::Value>, result: serde_json::Value) -> Response {
-        Json(Self { jsonrpc: "2.0", id, result: Some(result), error: None }).into_response()
+        Json(Self {
+            jsonrpc: "2.0",
+            id,
+            result: Some(result),
+            error: None,
+        })
+        .into_response()
     }
     fn err(id: Option<serde_json::Value>, code: i32, msg: &str) -> Response {
         Json(Self {
-            jsonrpc: "2.0", id, result: None,
+            jsonrpc: "2.0",
+            id,
+            result: None,
             error: Some(serde_json::json!({ "code": code, "message": msg })),
-        }).into_response()
+        })
+        .into_response()
     }
 }
 
@@ -1047,11 +1158,14 @@ async fn mcp_handler(
     let id = req.id.clone();
 
     match req.method.as_str() {
-        "initialize" => McpResp::ok(id, serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "serverInfo": { "name": "Astraeusio Space Weather", "version": "1.0.0" },
-            "capabilities": { "tools": {} }
-        })),
+        "initialize" => McpResp::ok(
+            id,
+            serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "serverInfo": { "name": "Astraeusio Space Weather", "version": "1.0.0" },
+                "capabilities": { "tools": {} }
+            }),
+        ),
 
         "tools/list" => {
             let tools: serde_json::Value = serde_json::from_str(MCP_TOOLS).unwrap();
@@ -1059,7 +1173,9 @@ async fn mcp_handler(
         }
 
         "tools/call" => {
-            let name = req.params.as_ref()
+            let name = req
+                .params
+                .as_ref()
                 .and_then(|p| p.get("name"))
                 .and_then(|n| n.as_str())
                 .unwrap_or("");
@@ -1072,15 +1188,15 @@ async fn mcp_handler(
 
             match name {
                 "get_current_kp" => match lock_db(&s.db).await.get_kp_array_public() {
-                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Ok(v) => McpResp::ok(id, mcp_text(v)),
                     Err(e) => McpResp::err(id, -32603, &e.to_string()),
                 },
                 "get_solar_wind" => match lock_db(&s.db).await.get_solar_wind_latest_public() {
-                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Ok(v) => McpResp::ok(id, mcp_text(v)),
                     Err(e) => McpResp::err(id, -32603, &e.to_string()),
                 },
                 "get_kp_forecast" => match call_ml_or_cached(&s).await {
-                    Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                    Ok(v) => McpResp::ok(id, mcp_text(v)),
                     Err(e) => McpResp::err(id, -32603, &format!("{}", e.0)),
                 },
                 "get_health" => {
@@ -1091,12 +1207,15 @@ async fn mcp_handler(
                     let (noaa_ts, nasa_ts, _) = lock_db(&s.db).await.health_freshness();
                     let noaa_ok = noaa_ts.is_some_and(|t| now - t < 600);
                     let nasa_ok = nasa_ts.is_some_and(|t| now - t < 90_000);
-                    McpResp::ok(id, mcp_text(serde_json::json!({
-                        "status": if noaa_ok && nasa_ok { "operational" } else { "degraded" },
-                        "noaa":   if noaa_ok { "operational" } else { "degraded" },
-                        "nasa":   if nasa_ok { "operational" } else { "degraded" },
-                        "checked_at": now,
-                    })))
+                    McpResp::ok(
+                        id,
+                        mcp_text(serde_json::json!({
+                            "status": if noaa_ok && nasa_ok { "operational" } else { "degraded" },
+                            "noaa":   if noaa_ok { "operational" } else { "degraded" },
+                            "nasa":   if nasa_ok { "operational" } else { "degraded" },
+                            "checked_at": now,
+                        })),
+                    )
                 }
                 "get_anomalies" | "get_neo" | "get_iss_position" => {
                     let authed = token_opt.is_some_and(|t| {
@@ -1105,23 +1224,27 @@ async fn mcp_handler(
                             t,
                             &DecodingKey::from_secret(s.jwt_secret.as_bytes()),
                             &Validation::default(),
-                        ).is_ok()
+                        )
+                        .is_ok()
                     });
                     if !authed {
-                        return McpResp::err(id, -32001,
-                            "authentication required: provide Authorization: Bearer <token>");
+                        return McpResp::err(
+                            id,
+                            -32001,
+                            "authentication required: provide Authorization: Bearer <token>",
+                        );
                     }
                     match name {
                         "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent() {
-                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Ok(v) => McpResp::ok(id, mcp_text(v)),
                             Err(e) => McpResp::err(id, -32603, &e.to_string()),
                         },
                         "get_neo" => match lock_db(&s.db).await.get_neo_recent() {
-                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Ok(v) => McpResp::ok(id, mcp_text(v)),
                             Err(e) => McpResp::err(id, -32603, &e.to_string()),
                         },
                         _ => match lock_db(&s.db).await.get_iss_latest() {
-                            Ok(v)  => McpResp::ok(id, mcp_text(v)),
+                            Ok(v) => McpResp::ok(id, mcp_text(v)),
                             Err(e) => McpResp::err(id, -32603, &e.to_string()),
                         },
                     }

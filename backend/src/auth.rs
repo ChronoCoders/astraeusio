@@ -339,7 +339,7 @@ pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) 
     match s.writer.set_email_verified(email.clone()).await {
         Ok(()) => {
             if let Some(ref mc) = s.mailer {
-                let mc      = mc.clone();
+                let mc = mc.clone();
                 let app_url = s.app_url.clone();
                 tokio::spawn(async move {
                     mailer::send_welcome_email(&mc, &email, &app_url).await;
@@ -741,17 +741,16 @@ pub async fn forgot_password(
     Json(body): Json<ForgotPasswordRequest>,
 ) -> Response {
     // Always 204 — never reveal whether the email exists.
-    if let Some(ref mc) = s.mailer {
-        if let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email) {
-            if let Ok(token) = purpose_token(&body.email, "reset_password", 3_600, &s.jwt_secret) {
-                let url = format!("{}/reset-password?token={}", s.app_url, token);
-                let mc = mc.clone();
-                let email = body.email.clone();
-                tokio::spawn(async move {
-                    mailer::send_password_reset_email(&mc, &email, &url).await;
-                });
-            }
-        }
+    if let Some(ref mc) = s.mailer
+        && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email)
+        && let Ok(token) = purpose_token(&body.email, "reset_password", 3_600, &s.jwt_secret)
+    {
+        let url = format!("{}/reset-password?token={}", s.app_url, token);
+        let mc = mc.clone();
+        let email = body.email.clone();
+        tokio::spawn(async move {
+            mailer::send_password_reset_email(&mc, &email, &url).await;
+        });
     }
     StatusCode::NO_CONTENT.into_response()
 }
