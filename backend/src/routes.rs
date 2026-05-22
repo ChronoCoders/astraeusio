@@ -243,6 +243,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/alerts", get(get_alerts))
         .route("/api/iss", get(get_iss))
         .route("/api/kp-forecast", get(get_kp_forecast))
+        .route("/api/forecast/history", get(get_forecast_history))
+        .route("/api/forecast/metrics", get(get_forecast_metrics))
         .route("/api/anomalies", get(get_anomalies))
         .route("/api/imf", get(get_imf))
         .route("/api/dst", get(get_dst))
@@ -448,9 +450,15 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
                     .unwrap_or_default()
                     .as_secs() as i64
                     + 3 * 3600;
+                let ci_l = payload.get("ci_lower").and_then(|v| v.as_f64()).map(|v| (v * 100.0).round() as i64);
+                let ci_u = payload.get("ci_upper").and_then(|v| v.as_f64()).map(|v| (v * 100.0).round() as i64);
+                let unc  = payload.get("uncertainty").and_then(|v| v.as_f64()).map(|v| (v * 10_000.0).round() as i64);
                 s.writer.fire(WriteCmd::KpForecast {
                     ts: forecast_ts,
                     kp_e2: (kp * 100.0).round() as i64,
+                    ci_lower_e2: ci_l,
+                    ci_upper_e2: ci_u,
+                    uncertainty_e4: unc,
                 });
             }
             info!("kp-forecast: ML service returned prediction");
@@ -494,6 +502,60 @@ async fn get_kp_forecast(
     )
     .await?
     .into_response())
+}
+
+fn parse_range(q: &HashMap<String, String>) -> (i64, &'static str) {
+    match q.get("range").map(|s| s.as_str()).unwrap_or("7d") {
+        "24h" => (24 * 3600, "24h"),
+        "30d" => (30 * 86_400, "30d"),
+        _ => (7 * 86_400, "7d"),
+    }
+}
+
+fn now_minus(seconds: i64) -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+        - seconds
+}
+
+async fn get_forecast_history(
+    State(s): State<AppState>,
+    _claims: AuthClaims,
+    Query(q): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse, AppError> {
+    let (range, label) = parse_range(&q);
+    let key: &'static str = match label {
+        "24h" => "forecast-history-24h",
+        "30d" => "forecast-history-30d",
+        _ => "forecast-history-7d",
+    };
+    cached(&s.cache, key, Duration::from_secs(60), || async {
+        let val = lock_db(&s.db).await.get_forecast_history(now_minus(range))?;
+        info!("api/forecast/history: served from db");
+        Ok(val)
+    })
+    .await
+}
+
+async fn get_forecast_metrics(
+    State(s): State<AppState>,
+    _claims: AuthClaims,
+    Query(q): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse, AppError> {
+    let (range, label) = parse_range(&q);
+    let key: &'static str = match label {
+        "24h" => "forecast-metrics-24h",
+        "30d" => "forecast-metrics-30d",
+        _ => "forecast-metrics-7d",
+    };
+    cached(&s.cache, key, Duration::from_secs(300), || async {
+        let val = lock_db(&s.db).await.get_forecast_metrics(now_minus(range))?;
+        info!("api/forecast/metrics: served from db");
+        Ok(val)
+    })
+    .await
 }
 
 // ── IMF / Dst handlers ────────────────────────────────────────────────────────

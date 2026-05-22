@@ -10,6 +10,7 @@ const PLAN_BADGE = {
 
 const NAV = [
   { id: 'dashboard', icon: IconDashboard },
+  { id: 'forecast',  icon: IconForecast },
   { id: 'charts',    icon: IconCharts },
   { id: 'map',       icon: IconMap },
   { id: 'alerts',    icon: IconAlerts },
@@ -116,6 +117,16 @@ function IconDashboard() {
       <rect x="9" y="1" width="6" height="6" rx="1" />
       <rect x="1" y="9" width="6" height="6" rx="1" />
       <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  )
+}
+
+function IconForecast() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1,12 4,8 7,10 10,5 13,7 15,3" />
+      <polyline points="11,3 15,3 15,7" />
     </svg>
   )
 }

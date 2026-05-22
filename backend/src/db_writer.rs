@@ -36,6 +36,9 @@ pub enum WriteCmd {
     KpForecast {
         ts: i64,
         kp_e2: i64,
+        ci_lower_e2: Option<i64>,
+        ci_upper_e2: Option<i64>,
+        uncertainty_e4: Option<i64>,
     },
     TouchApiKey(String),
     FlushUsage {
@@ -457,8 +460,8 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
                 Err(e) => error!(source = "db_writer", "webhooks-query: {e}"),
             },
         },
-        WriteCmd::KpForecast { ts, kp_e2 } => {
-            if let Err(e) = db.insert_kp_forecast(ts, kp_e2) {
+        WriteCmd::KpForecast { ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4 } => {
+            if let Err(e) = db.insert_kp_forecast(ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4) {
                 error!(source = "db_writer", "kp-forecast: {e}");
             }
         }
