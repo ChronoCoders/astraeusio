@@ -55,6 +55,10 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
   }, [])
 
   useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [page])
+
+  useEffect(() => {
     const id = setInterval(() => setUtcNow(fmtUtc(new Date())), 1000)
     return () => clearInterval(id)
   }, [])
