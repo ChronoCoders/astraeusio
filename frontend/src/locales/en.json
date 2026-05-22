@@ -169,7 +169,7 @@
     "window": "Forecast window",
     "passes": "MC passes",
     "modelInfo": "Model",
-    "modelDesc": "LSTM trained on 20 years of NOAA Kp data. 7 input features (Kp normalized, hour sin/cos, month sin/cos, solar cycle sin/cos). Inference uses 50 Monte Carlo Dropout passes to estimate uncertainty."
+    "modelDesc": "Our forecast model has studied 20 years of space weather data from NOAA, learning the patterns behind daily, seasonal, and solar cycle activity. Every prediction comes with a confidence range — so you see not just what we expect, but how sure we are."
   },
   "charts": {
     "solarWind": "Solar Wind Speed — 24 h",
