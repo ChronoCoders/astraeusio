@@ -226,6 +226,9 @@ impl Store {
             "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN totp_secret TEXT",
             "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
+            "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
+            "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
         ] {
             if let Err(e) = conn.execute_batch(sql) {
                 let msg = e.to_string().to_lowercase();
@@ -1182,13 +1185,109 @@ impl Store {
 // ── Kp forecast ───────────────────────────────────────────────────────────────
 
 impl Store {
-    pub fn insert_kp_forecast(&self, ts: i64, kp_e2: i64) -> Result<(), DbError> {
+    pub fn insert_kp_forecast(
+        &self,
+        ts: i64,
+        kp_e2: i64,
+        ci_lower_e2: Option<i64>,
+        ci_upper_e2: Option<i64>,
+        uncertainty_e4: Option<i64>,
+    ) -> Result<(), DbError> {
         self.conn.execute(
-            "INSERT INTO kp_forecast (ts, kp_e2, fetched_at) VALUES (?, ?, ?)
-             ON CONFLICT (ts) DO NOTHING",
-            params![ts, kp_e2, now()],
+            "INSERT INTO kp_forecast (ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4, fetched_at) \
+             VALUES (?, ?, ?, ?, ?, ?) \
+             ON CONFLICT (ts) DO UPDATE SET \
+                 kp_e2          = excluded.kp_e2, \
+                 ci_lower_e2    = excluded.ci_lower_e2, \
+                 ci_upper_e2    = excluded.ci_upper_e2, \
+                 uncertainty_e4 = excluded.uncertainty_e4, \
+                 fetched_at     = excluded.fetched_at",
+            params![ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4, now()],
         )?;
         Ok(())
+    }
+
+    /// Returns paired predicted/actual Kp rows for the forecast history page.
+    /// Pairs each forecast `ts` with the closest `kp_3h` actual within ±90 minutes.
+    pub fn get_forecast_history(&self, since: i64) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT f.ts, f.kp_e2, f.ci_lower_e2, f.ci_upper_e2, \
+                    ( \
+                      SELECT k.kp_e2 FROM kp_3h k \
+                      WHERE abs(epoch(k.time_tag::TIMESTAMP) - f.ts) < 5400 \
+                      ORDER BY abs(epoch(k.time_tag::TIMESTAMP) - f.ts) ASC \
+                      LIMIT 1 \
+                    ) AS actual_e2 \
+             FROM kp_forecast f \
+             WHERE f.ts > ? \
+             ORDER BY f.ts ASC",
+        )?;
+        let rows = stmt
+            .query_map([since], |row| {
+                let ts: i64 = row.get(0)?;
+                let kp_e2: i64 = row.get(1)?;
+                let ci_l: Option<i64> = row.get(2)?;
+                let ci_u: Option<i64> = row.get(3)?;
+                let actual: Option<i64> = row.get(4)?;
+                Ok(serde_json::json!({
+                    "ts":           ts,
+                    "predicted_kp": kp_e2 as f64 / 100.0,
+                    "ci_lower":     ci_l.map(|v| v as f64 / 100.0),
+                    "ci_upper":     ci_u.map(|v| v as f64 / 100.0),
+                    "actual_kp":    actual.map(|v| v as f64 / 100.0),
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::Value::Array(rows))
+    }
+
+    /// Computes forecast-vs-actual aggregate metrics over the last `since` seconds.
+    pub fn get_forecast_metrics(&self, since: i64) -> Result<serde_json::Value, DbError> {
+        let mut stmt = self.conn.prepare(
+            "WITH paired AS ( \
+               SELECT f.kp_e2 AS pred, \
+                      ( \
+                        SELECT k.kp_e2 FROM kp_3h k \
+                        WHERE abs(epoch(k.time_tag::TIMESTAMP) - f.ts) < 5400 \
+                        ORDER BY abs(epoch(k.time_tag::TIMESTAMP) - f.ts) ASC \
+                        LIMIT 1 \
+                      ) AS actual, \
+                      f.uncertainty_e4 AS unc \
+               FROM kp_forecast f \
+               WHERE f.ts > ? \
+             ) \
+             SELECT \
+               COUNT(*) FILTER (WHERE actual IS NOT NULL) AS n, \
+               AVG(ABS(pred - actual)) FILTER (WHERE actual IS NOT NULL) AS mae_e2, \
+               SQRT(AVG((pred - actual) * (pred - actual))) FILTER (WHERE actual IS NOT NULL) AS rmse_e2, \
+               COUNT(*) FILTER (WHERE actual >= 500)                                AS n_storms, \
+               COUNT(*) FILTER (WHERE actual >= 500 AND pred >= 500)                AS n_storms_caught, \
+               COUNT(*) FILTER (WHERE pred >= 500 AND (actual IS NOT NULL AND actual < 500)) AS n_false_pos, \
+               AVG(unc) FILTER (WHERE unc IS NOT NULL) AS mean_unc_e4 \
+             FROM paired",
+        )?;
+        let mut rows = stmt.query([since])?;
+        if let Some(row) = rows.next()? {
+            let n: i64 = row.get::<_, Option<i64>>(0)?.unwrap_or(0);
+            let mae_e2: Option<f64> = row.get(1)?;
+            let rmse_e2: Option<f64> = row.get(2)?;
+            let n_storms: i64 = row.get::<_, Option<i64>>(3)?.unwrap_or(0);
+            let n_caught: i64 = row.get::<_, Option<i64>>(4)?.unwrap_or(0);
+            let n_false: i64 = row.get::<_, Option<i64>>(5)?.unwrap_or(0);
+            let mean_unc_e4: Option<f64> = row.get(6)?;
+            Ok(serde_json::json!({
+                "n_samples":   n,
+                "mae":         mae_e2.map(|v| v / 100.0),
+                "rmse":        rmse_e2.map(|v| v / 100.0),
+                "n_storms":    n_storms,
+                "n_caught":    n_caught,
+                "n_false_pos": n_false,
+                "hit_rate":    if n_storms > 0 { Some(n_caught as f64 / n_storms as f64) } else { None },
+                "mean_unc":    mean_unc_e4.map(|v| v / 10_000.0),
+            }))
+        } else {
+            Ok(serde_json::json!({ "n_samples": 0 }))
+        }
     }
 
     pub fn get_kp_forecast_latest(&self) -> Result<Option<(i64, i64)>, DbError> {

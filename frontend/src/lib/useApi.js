@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 
+export function authedFetch(url, opts = {}) {
+  const token = localStorage.getItem('token')
+  return fetch(url, {
+    ...opts,
+    headers: {
+      ...(opts.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+}
+
 export function useApi(url, intervalMs = 60000) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
