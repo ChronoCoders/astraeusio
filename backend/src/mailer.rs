@@ -28,8 +28,8 @@ pub async fn send_verification_email(config: &MailerConfig, to: &str, verify_url
 
 pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) {
     let dashboard_url = app_url.to_string();
-    let api_keys_url  = format!("{app_url}/api-keys");
-    let docs_url      = format!("{app_url}/docs");
+    let api_keys_url = format!("{app_url}/api-keys");
+    let docs_url = format!("{app_url}/docs");
 
     let html = format!(
         r#"<!DOCTYPE html>
@@ -148,11 +148,11 @@ pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) 
     );
 
     let client = Resend::new(&config.api_key);
-    let email = CreateEmailBaseOptions::new(&config.from, [to], "Welcome to Astraeusio")
-        .with_html(&html);
+    let email =
+        CreateEmailBaseOptions::new(&config.from, [to], "Welcome to Astraeusio").with_html(&html);
 
     match client.emails.send(email).await {
-        Ok(_)  => info!("mailer: welcome email sent to {to}"),
+        Ok(_) => info!("mailer: welcome email sent to {to}"),
         Err(e) => warn!("mailer: welcome send failed to {to}: {e}"),
     }
 }
@@ -229,7 +229,7 @@ pub async fn send_password_reset_email(config: &MailerConfig, to: &str, reset_ur
         .with_html(&html);
 
     match client.emails.send(email).await {
-        Ok(_)  => info!("mailer: password reset email sent to {to}"),
+        Ok(_) => info!("mailer: password reset email sent to {to}"),
         Err(e) => warn!("mailer: password reset send failed to {to}: {e}"),
     }
 }
@@ -239,7 +239,7 @@ pub async fn send_alert_email(config: &MailerConfig, to: &str, subject: &str, bo
     let email = CreateEmailBaseOptions::new(&config.from, [to], subject).with_text(body);
 
     match client.emails.send(email).await {
-        Ok(_)  => info!("mailer: alert sent to {to}"),
+        Ok(_) => info!("mailer: alert sent to {to}"),
         Err(e) => warn!("mailer: send failed to {to}: {e}"),
     }
 }

@@ -75,8 +75,8 @@ pub async fn fetch_solar_wind(client: &Client) -> Result<Vec<SolarWindRecord>, N
             let time_tag = item.get("time_tag")?.as_str()?.to_owned();
             Some(SolarWindRecord {
                 time_tag,
-                proton_speed:       item.get("proton_speed").and_then(parse_val),
-                proton_density:     item.get("proton_density").and_then(parse_val),
+                proton_speed: item.get("proton_speed").and_then(parse_val),
+                proton_density: item.get("proton_density").and_then(parse_val),
                 proton_temperature: item.get("proton_temperature").and_then(parse_val),
             })
         })
