@@ -169,7 +169,7 @@
     "window": "Tahmin penceresi",
     "passes": "MC geçişi",
     "modelInfo": "Model",
-    "modelDesc": "20 yıllık NOAA Kp verisi üzerinde eğitilmiş LSTM. 7 girdi özelliği (Kp normalize, saat sin/cos, ay sin/cos, güneş döngüsü sin/cos). Çıkarım, belirsizliği tahmin etmek için 50 Monte Carlo Dropout geçişi kullanır."
+    "modelDesc": "Tahmin modelimiz, NOAA'nın 20 yıllık uzay hava verisini inceleyerek günlük, mevsimsel ve güneş döngüsü etkinliğinin arkasındaki desenleri öğrendi. Her tahmin bir güven aralığıyla gelir — yani sadece ne beklediğimizi değil, ne kadar emin olduğumuzu da görürsünüz."
   },
   "charts": {
     "solarWind": "Güneş Rüzgarı Hızı — 24 saat",
