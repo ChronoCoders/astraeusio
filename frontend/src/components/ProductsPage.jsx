@@ -26,6 +26,47 @@ const IconAlerts = () => (
   </svg>
 )
 
+const IconResearch = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+)
+const IconSat = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 9l4-4 5 5-4 4z" />
+    <path d="M11 13l4 4 4-4-4-5z" />
+    <path d="M2 22l5-5M15 9l3-3" />
+  </svg>
+)
+const IconAurora = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 18c2-6 5-9 9-9s7 3 9 9" />
+    <path d="M5 18c1-3 3-5 7-5s6 2 7 5" />
+  </svg>
+)
+const IconGrid = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+)
+
+const AUDIENCE = [
+  { key: 'aud1', Icon: IconResearch, cls: 'text-blue-400'   },
+  { key: 'aud2', Icon: IconSat,      cls: 'text-orange-400' },
+  { key: 'aud3', Icon: IconAurora,   cls: 'text-purple-400' },
+  { key: 'aud4', Icon: IconGrid,     cls: 'text-emerald-400' },
+]
+
+const API_SNIPPET = `curl -H "Authorization: Bearer ak_live_..." \\
+  https://astraeusio.com/api/kp
+
+{
+  "time_tag":     "2026-05-21T22:30:00Z",
+  "kp_index":     2,
+  "estimated_kp": 1.83
+}`
+
 const PRODUCTS = [
   {
     key: 'd1',
@@ -157,11 +198,99 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
         </div>
       </section>
 
+      {/* ── Audience ─────────────────────────────────────────────────────── */}
+      <section className="px-6 pt-16 pb-20 max-w-5xl mx-auto">
+        <div className="flex flex-col gap-2 mb-10">
+          <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase">
+            {t('products.audienceEyebrow')}
+          </p>
+          <h2 className="text-2xl md:text-3xl font-thin tracking-tight text-zinc-100">
+            {t('products.audienceTitle')}
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {AUDIENCE.map(({ key, Icon, cls }) => (
+            <div key={key} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-3">
+              <div className={`w-9 h-9 rounded-lg bg-zinc-800/50 flex items-center justify-center ${cls}`}>
+                <Icon />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-100">{t(`products.${key}Role`)}</h3>
+              <p className="text-zinc-400 text-sm leading-relaxed">{t(`products.${key}Desc`)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── API code block ───────────────────────────────────────────────── */}
+      <section className="px-6 pb-20 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase">
+              {t('products.apiEyebrow')}
+            </p>
+            <h2 className="text-2xl md:text-3xl font-thin tracking-tight text-zinc-100">
+              {t('products.apiTitle')}
+            </h2>
+            <p className="text-zinc-400 text-sm leading-relaxed">
+              {t('products.apiSub')}
+            </p>
+            <Link
+              to="/docs"
+              className="self-start text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              {t('products.apiCtaDocs')} →
+            </Link>
+          </div>
+
+          <div className="lg:col-span-3">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
+                <div className="flex gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+                </div>
+                <span className="text-xs font-mono text-zinc-500">{t('products.apiCodeCaption')}</span>
+              </div>
+              <pre className="text-xs font-mono text-zinc-300 p-4 overflow-x-auto leading-relaxed">
+                <code>{API_SNIPPET}</code>
+              </pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Pricing nudge ────────────────────────────────────────────────── */}
-      <section className="px-6 pb-20 text-center">
+      <section className="px-6 pb-10 text-center">
         <Link to="/pricing" className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">
           {t('products.seePricing')}
         </Link>
+      </section>
+
+      {/* ── Bottom CTA ───────────────────────────────────────────────────── */}
+      <section className="px-6 pb-24 max-w-3xl mx-auto text-center">
+        <div className="border border-zinc-800 rounded-2xl bg-gradient-to-b from-zinc-900 to-zinc-950 p-10 flex flex-col items-center gap-5">
+          <h2 className="text-2xl md:text-3xl font-thin tracking-tight text-zinc-100 max-w-xl">
+            {t('products.ctaTitle')}
+          </h2>
+          <p className="text-zinc-400 text-sm max-w-md leading-relaxed">
+            {t('products.ctaSub')}
+          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-3 mt-2">
+            <button
+              onClick={onSignUp}
+              className="px-7 py-2.5 rounded-lg text-sm font-medium bg-zinc-100 text-zinc-950 hover:bg-white transition-colors"
+            >
+              {t('products.ctaPrimary')}
+            </button>
+            <Link
+              to="/pricing"
+              className="px-7 py-2.5 rounded-lg text-sm font-medium border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition-colors"
+            >
+              {t('products.ctaSecondary')}
+            </Link>
+          </div>
+        </div>
       </section>
 
       <Footer />
