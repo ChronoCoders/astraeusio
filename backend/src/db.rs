@@ -1335,6 +1335,68 @@ impl Store {
         Ok(())
     }
 
+    /// Paginated, filtered browse of past anomaly events.
+    /// `since` is a unix-seconds cutoff. `type_filter` and `severity_filter`
+    /// are optional exact matches. Returns rows + total count for pagination.
+    pub fn get_events_page(
+        &self,
+        since: i64,
+        type_filter: Option<&str>,
+        severity_filter: Option<&str>,
+        page: i64,
+        page_size: i64,
+    ) -> Result<serde_json::Value, DbError> {
+        let mut where_clauses = vec!["detected_at > ?".to_string()];
+        let mut bindings: Vec<duckdb::types::Value> = vec![since.into()];
+        if let Some(t) = type_filter {
+            where_clauses.push("anomaly_type = ?".to_string());
+            bindings.push(t.to_string().into());
+        }
+        if let Some(s) = severity_filter {
+            where_clauses.push("severity = ?".to_string());
+            bindings.push(s.to_string().into());
+        }
+        let where_sql = where_clauses.join(" AND ");
+
+        let count_sql = format!("SELECT COUNT(*) FROM alerts_anomaly WHERE {where_sql}");
+        let total: i64 = {
+            let mut stmt = self.conn.prepare(&count_sql)?;
+            let params: Vec<&dyn duckdb::ToSql> =
+                bindings.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+            stmt.query_row(params.as_slice(), |row| row.get(0))?
+        };
+
+        let offset = page.max(1).saturating_sub(1) * page_size;
+        let rows_sql = format!(
+            "SELECT anomaly_type, source_ref, detected_at, severity, message \
+             FROM alerts_anomaly WHERE {where_sql} \
+             ORDER BY detected_at DESC LIMIT ? OFFSET ?",
+        );
+        let mut stmt = self.conn.prepare(&rows_sql)?;
+        let mut bindings = bindings;
+        bindings.push(page_size.into());
+        bindings.push(offset.into());
+        let params: Vec<&dyn duckdb::ToSql> =
+            bindings.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+        let rows = stmt
+            .query_map(params.as_slice(), |row| {
+                Ok(serde_json::json!({
+                    "type":        row.get::<_, String>(0)?,
+                    "source_ref":  row.get::<_, String>(1)?,
+                    "detected_at": row.get::<_, i64>(2)?,
+                    "severity":    row.get::<_, String>(3)?,
+                    "message":     row.get::<_, String>(4)?,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(serde_json::json!({
+            "events":    rows,
+            "total":     total,
+            "page":      page,
+            "page_size": page_size,
+        }))
+    }
+
     pub fn get_anomalies_recent(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT anomaly_type, source_ref, detected_at, severity, message

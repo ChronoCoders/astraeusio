@@ -21,6 +21,7 @@ import DstChart       from './components/DstChart'
 import StarlinkMap    from './components/StarlinkMap'
 import ReportsPage      from './components/ReportsPage'
 import ForecastPage     from './components/ForecastPage'
+import EventsPage       from './components/EventsPage'
 import ApiKeysPage      from './components/ApiKeysPage'
 import SettingsPage     from './components/SettingsPage'
 import CustomRulesPanel from './components/CustomRulesPanel'
@@ -255,6 +256,9 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               <StarlinkMap data={starlink.data} />
             </div>
           )}
+
+          {/* ── Events ─────────────────────────────────────────────────── */}
+          {page === 'events' && <EventsPage />}
 
           {/* ── Reports ────────────────────────────────────────────────── */}
           {page === 'reports' && <ReportsPage plan={user?.plan ?? null} onNavigate={setPage} />}

@@ -245,6 +245,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/kp-forecast", get(get_kp_forecast))
         .route("/api/forecast/history", get(get_forecast_history))
         .route("/api/forecast/metrics", get(get_forecast_metrics))
+        .route("/api/events", get(get_events))
         .route("/api/anomalies", get(get_anomalies))
         .route("/api/imf", get(get_imf))
         .route("/api/dst", get(get_dst))
@@ -537,6 +538,32 @@ async fn get_forecast_history(
         Ok(val)
     })
     .await
+}
+
+async fn get_events(
+    State(s): State<AppState>,
+    _claims: AuthClaims,
+    Query(q): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse, AppError> {
+    let (range, _label) = parse_range(&q);
+    let since = now_minus(range);
+    let type_filter = q.get("type").map(String::as_str).filter(|s| !s.is_empty());
+    let severity_filter = q.get("severity").map(String::as_str).filter(|s| !s.is_empty());
+    let page: i64 = q.get("page").and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
+    let page_size: i64 = q.get("page_size")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(25)
+        .clamp(1, 100);
+
+    let val = lock_db(&s.db).await.get_events_page(
+        since,
+        type_filter,
+        severity_filter,
+        page,
+        page_size,
+    )?;
+    info!("api/events: served from db");
+    Ok(Json(val))
 }
 
 async fn get_forecast_metrics(
