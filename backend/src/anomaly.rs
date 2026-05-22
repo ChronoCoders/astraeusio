@@ -158,7 +158,9 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
     for rule in &rules {
         let raw = match rule.metric.as_str() {
             "kp" => db.latest_kp_raw()?.map(|(_, v)| v as f64 / 100.0),
-            "solar_wind_speed" => db.latest_solar_wind_speed_raw()?.map(|(_, v)| v as f64 / 10.0),
+            "solar_wind_speed" => db
+                .latest_solar_wind_speed_raw()?
+                .map(|(_, v)| v as f64 / 10.0),
             "xray_flux" => db.latest_xray_flux_raw()?.map(|(_, v)| v as f64 / 1e12),
             "dst" => db.latest_dst_raw()?.map(|(_, v)| v as f64),
             "imf_bz" => db.latest_imf_bz_raw()?.map(|(_, v)| v as f64 / 100.0),
