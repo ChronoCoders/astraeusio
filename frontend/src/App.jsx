@@ -20,6 +20,7 @@ import ImfBzChart     from './components/ImfBzChart'
 import DstChart       from './components/DstChart'
 import StarlinkMap    from './components/StarlinkMap'
 import ReportsPage      from './components/ReportsPage'
+import ForecastPage     from './components/ForecastPage'
 import ApiKeysPage      from './components/ApiKeysPage'
 import SettingsPage     from './components/SettingsPage'
 import CustomRulesPanel from './components/CustomRulesPanel'
@@ -204,6 +205,9 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
             </div>
 
           </>}
+
+          {/* ── Forecast ───────────────────────────────────────────────── */}
+          {page === 'forecast' && <ForecastPage forecast={forecast.data} />}
 
           {/* ── Charts ─────────────────────────────────────────────────── */}
           {page === 'charts' && (
