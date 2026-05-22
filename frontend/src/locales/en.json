@@ -146,9 +146,32 @@
     "charts": "Charts",
     "map": "Map",
     "alerts": "Alerts",
+    "events": "Events",
     "reports": "Reports",
     "api": "API",
     "settings": "Settings"
+  },
+  "eventsPage": {
+    "title": "Events",
+    "filters": "Filters",
+    "allTypes": "All types",
+    "allSeverity": "All severities",
+    "empty": "No events match these filters.",
+    "found": "{{count}} event(s)",
+    "page": "Page {{page}} of {{total}}",
+    "prev": "Prev",
+    "next": "Next",
+    "types": {
+      "kp_storm":           "Geomagnetic storm",
+      "solar_wind_speed":   "Solar wind surge",
+      "xray_flare":         "X-ray flare",
+      "asteroid_close":     "Close-approach NEO",
+      "ml_forecast_storm":  "Forecasted storm"
+    },
+    "severity": {
+      "warning":  "Warning",
+      "critical": "Critical"
+    }
   },
   "forecastPage": {
     "title": "Forecast",

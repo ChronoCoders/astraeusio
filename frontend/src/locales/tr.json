@@ -146,9 +146,32 @@
     "charts": "Grafikler",
     "map": "Harita",
     "alerts": "Uyarılar",
+    "events": "Olaylar",
     "reports": "Raporlar",
     "api": "API",
     "settings": "Ayarlar"
+  },
+  "eventsPage": {
+    "title": "Olaylar",
+    "filters": "Filtreler",
+    "allTypes": "Tüm türler",
+    "allSeverity": "Tüm seviyeler",
+    "empty": "Bu filtrelere uyan olay yok.",
+    "found": "{{count}} olay",
+    "page": "Sayfa {{page}} / {{total}}",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "types": {
+      "kp_storm":           "Jeomanyetik fırtına",
+      "solar_wind_speed":   "Güneş rüzgarı sıçraması",
+      "xray_flare":         "X-ışını parlaması",
+      "asteroid_close":     "Yakın geçişli NEO",
+      "ml_forecast_storm":  "Tahminlenen fırtına"
+    },
+    "severity": {
+      "warning":  "Uyarı",
+      "critical": "Kritik"
+    }
   },
   "forecastPage": {
     "title": "Tahmin",

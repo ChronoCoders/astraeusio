@@ -14,6 +14,7 @@ const NAV = [
   { id: 'charts',    icon: IconCharts },
   { id: 'map',       icon: IconMap },
   { id: 'alerts',    icon: IconAlerts },
+  { id: 'events',    icon: IconEvents },
   { id: 'reports',   icon: IconReports },
   { id: 'api',       icon: IconApi },
   { id: 'settings',  icon: IconSettings },
@@ -159,6 +160,18 @@ function IconAlerts() {
       stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 1a5 5 0 0 1 5 5c0 4 2 5 2 5H1s2-1 2-5a5 5 0 0 1 5-5z" />
       <path d="M6.5 13a1.5 1.5 0 0 0 3 0" />
+    </svg>
+  )
+}
+
+function IconEvents() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="12" height="11" rx="1" />
+      <line x1="2" y1="6" x2="14" y2="6" />
+      <line x1="5" y1="1" x2="5" y2="4" />
+      <line x1="11" y1="1" x2="11" y2="4" />
     </svg>
   )
 }
