@@ -1259,7 +1259,7 @@ impl Store {
              SELECT \
                COUNT(*) FILTER (WHERE actual IS NOT NULL) AS n, \
                AVG(ABS(pred - actual)) FILTER (WHERE actual IS NOT NULL) AS mae_e2, \
-               SQRT(AVG((pred - actual) * (pred - actual))) FILTER (WHERE actual IS NOT NULL) AS rmse_e2, \
+               SQRT(AVG((pred - actual) * (pred - actual)) FILTER (WHERE actual IS NOT NULL)) AS rmse_e2, \
                COUNT(*) FILTER (WHERE actual >= 500)                                AS n_storms, \
                COUNT(*) FILTER (WHERE actual >= 500 AND pred >= 500)                AS n_storms_caught, \
                COUNT(*) FILTER (WHERE pred >= 500 AND (actual IS NOT NULL AND actual < 500)) AS n_false_pos, \
