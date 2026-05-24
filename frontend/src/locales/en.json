@@ -59,6 +59,11 @@
     "ci": "Confidence interval (95%)",
     "stormProb": "Storm probability (Kp ≥ 5)",
     "stormLevel": "Storm level",
+    "horizons": "Multi-horizon forecast",
+    "leadTime": "+{{hours}} h",
+    "ciShort": "95% CI",
+    "probShort": "Storm prob",
+    "uncShort": "1σ",
     "aurora": "Aurora visibility",
     "uncertainty": "Uncertainty (1σ)",
     "footer": "LSTM · {{samples}} MC passes · trained {{date}}"

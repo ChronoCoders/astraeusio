@@ -59,6 +59,11 @@
     "ci": "Güven aralığı (%95)",
     "stormProb": "Fırtına olasılığı (Kp ≥ 5)",
     "stormLevel": "Fırtına seviyesi",
+    "horizons": "Çok ufuklu tahmin",
+    "leadTime": "+{{hours}} s",
+    "ciShort": "%95 GA",
+    "probShort": "Fırtına ol.",
+    "uncShort": "1σ",
     "aurora": "Aurora görünürlüğü",
     "uncertainty": "Belirsizlik (1σ)",
     "footer": "LSTM · {{samples}} MC geçişi · eğitim {{date}}"
