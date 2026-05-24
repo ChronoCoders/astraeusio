@@ -23,6 +23,62 @@ const XRAY_X_E12: i64 = 100_000_000;
 const FORECAST_WARNING_E2: i64 = 500;
 const FORECAST_CRITICAL_E2: i64 = 800;
 
+// ── Pure threshold logic (unit-tested below) ────────────────────────────────────
+
+/// Severity for a raw Kp reading (scaled ×100), or `None` if below G1 (Kp 5).
+fn kp_severity(kp_e2: i64) -> Option<&'static str> {
+    if kp_e2 >= KP_CRITICAL_E2 {
+        Some("critical")
+    } else if kp_e2 >= KP_WARNING_E2 {
+        Some("warning")
+    } else {
+        None
+    }
+}
+
+/// Severity for a solar-wind speed reading (scaled ×10), or `None` if below threshold.
+fn wind_severity(speed_e1: i64) -> Option<&'static str> {
+    if speed_e1 >= WIND_CRITICAL_E1 {
+        Some("critical")
+    } else if speed_e1 >= WIND_WARNING_E1 {
+        Some("warning")
+    } else {
+        None
+    }
+}
+
+/// `(severity, class)` for an X-ray flux reading (scaled ×1e12), or `None` below M-class.
+fn xray_severity(flux_e12: i64) -> Option<(&'static str, &'static str)> {
+    if flux_e12 >= XRAY_X_E12 {
+        Some(("critical", "X"))
+    } else if flux_e12 >= XRAY_M_E12 {
+        Some(("warning", "M"))
+    } else {
+        None
+    }
+}
+
+/// Severity for a close-approaching NEO. Callers pre-filter to within 1 LD, so
+/// this only distinguishes critical (< 0.5 LD) from warning.
+fn neo_severity(dist_scaled: i64) -> &'static str {
+    if dist_scaled < HALF_LD_SCALED {
+        "critical"
+    } else {
+        "warning"
+    }
+}
+
+/// Severity for an ML forecast Kp (scaled ×100), or `None` if no storm predicted.
+fn forecast_severity(kp_e2: i64) -> Option<&'static str> {
+    if kp_e2 >= FORECAST_CRITICAL_E2 {
+        Some("critical")
+    } else if kp_e2 >= FORECAST_WARNING_E2 {
+        Some("warning")
+    } else {
+        None
+    }
+}
+
 pub fn detect_and_store(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     check_kp(db, writer)?;
     check_solar_wind(db, writer)?;
@@ -35,13 +91,8 @@ pub fn detect_and_store(db: &Store, writer: &DbWriterHandle) -> Result<(), DbErr
 
 fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, kp_e2)) = db.latest_kp_raw()?
-        && kp_e2 >= KP_WARNING_E2
+        && let Some(severity) = kp_severity(kp_e2)
     {
-        let severity = if kp_e2 >= KP_CRITICAL_E2 {
-            "critical"
-        } else {
-            "warning"
-        };
         let kp = kp_e2 as f64 / 100.0;
         let msg = format!("Kp index {kp:.1} — geomagnetic storm in progress");
         writer.fire(WriteCmd::Anomaly {
@@ -57,13 +108,8 @@ fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 
 fn check_solar_wind(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, speed_e1)) = db.latest_solar_wind_speed_raw()?
-        && speed_e1 >= WIND_WARNING_E1
+        && let Some(severity) = wind_severity(speed_e1)
     {
-        let severity = if speed_e1 >= WIND_CRITICAL_E1 {
-            "critical"
-        } else {
-            "warning"
-        };
         let speed = speed_e1 as f64 / 10.0;
         let msg = format!("Solar wind speed {speed:.0} km/s exceeds threshold");
         writer.fire(WriteCmd::Anomaly {
@@ -82,13 +128,8 @@ fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     // peaked and decayed are still caught on the next detection cycle.
     let since = now() - 3 * 3600;
     if let Some((time_tag, flux_e12)) = db.xray_peak_recent(since)?
-        && flux_e12 >= XRAY_M_E12
+        && let Some((severity, class)) = xray_severity(flux_e12)
     {
-        let (severity, class) = if flux_e12 >= XRAY_X_E12 {
-            ("critical", "X")
-        } else {
-            ("warning", "M")
-        };
         let flux = flux_e12 as f64 / 1e12;
         let msg = format!("X-ray class {class} flare detected (flux: {flux:.2e} W/m²)");
         writer.fire(WriteCmd::Anomaly {
@@ -105,11 +146,7 @@ fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let since = now() - 7 * 24 * 3600;
     for (id, date, dist_scaled) in db.neo_close_approaches_raw(ONE_LD_SCALED, since)? {
-        let severity = if dist_scaled < HALF_LD_SCALED {
-            "critical"
-        } else {
-            "warning"
-        };
+        let severity = neo_severity(dist_scaled);
         let dist_km = dist_scaled as f64 / 1_000.0;
         let dist_ld = dist_km / 384_400.0;
         let msg = format!("Asteroid {id} passes {dist_ld:.3} LD ({dist_km:.0} km) on {date}");
@@ -128,13 +165,8 @@ fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let since = now() - 24 * 3600;
     if let Some((ts, kp_e2)) = db.get_kp_forecast_max_recent(since)?
-        && kp_e2 >= FORECAST_WARNING_E2
+        && let Some(severity) = forecast_severity(kp_e2)
     {
-        let severity = if kp_e2 >= FORECAST_CRITICAL_E2 {
-            "critical"
-        } else {
-            "warning"
-        };
         let kp = kp_e2 as f64 / 100.0;
         let source_ref = ts.to_string();
         let msg = format!("ML model forecasts Kp {kp:.1} — storm predicted within 3 hours");
@@ -211,4 +243,52 @@ fn now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kp_severity_thresholds() {
+        assert_eq!(kp_severity(0), None);
+        assert_eq!(kp_severity(499), None); // just below G1
+        assert_eq!(kp_severity(500), Some("warning")); // Kp 5.0 = G1
+        assert_eq!(kp_severity(799), Some("warning"));
+        assert_eq!(kp_severity(800), Some("critical")); // Kp 8.0 = G4
+        assert_eq!(kp_severity(900), Some("critical"));
+    }
+
+    #[test]
+    fn wind_severity_thresholds() {
+        assert_eq!(wind_severity(0), None);
+        assert_eq!(wind_severity(6_999), None); // 699.9 km/s
+        assert_eq!(wind_severity(7_000), Some("warning")); // 700 km/s
+        assert_eq!(wind_severity(8_999), Some("warning"));
+        assert_eq!(wind_severity(9_000), Some("critical")); // 900 km/s
+    }
+
+    #[test]
+    fn xray_severity_classes() {
+        assert_eq!(xray_severity(0), None);
+        assert_eq!(xray_severity(9_999_999), None); // below M (1e-5 W/m²)
+        assert_eq!(xray_severity(10_000_000), Some(("warning", "M")));
+        assert_eq!(xray_severity(99_999_999), Some(("warning", "M")));
+        assert_eq!(xray_severity(100_000_000), Some(("critical", "X"))); // 1e-4 W/m²
+    }
+
+    #[test]
+    fn neo_severity_boundary() {
+        // Caller pre-filters to ≤ 1 LD, so input is always within range.
+        assert_eq!(neo_severity(HALF_LD_SCALED - 1), "critical");
+        assert_eq!(neo_severity(HALF_LD_SCALED), "warning"); // exactly 0.5 LD
+        assert_eq!(neo_severity(ONE_LD_SCALED), "warning");
+    }
+
+    #[test]
+    fn forecast_severity_thresholds() {
+        assert_eq!(forecast_severity(499), None);
+        assert_eq!(forecast_severity(500), Some("warning"));
+        assert_eq!(forecast_severity(800), Some("critical"));
+    }
 }
