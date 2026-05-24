@@ -2293,3 +2293,100 @@ impl Store {
         (noaa, nasa, celestrak)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::noaa::{Kp3hRecord, KpRecord};
+    use chrono::DateTime;
+
+    fn mem_store() -> Store {
+        Store::open(":memory:").expect("in-memory store")
+    }
+
+    fn iso(ts: i64) -> String {
+        DateTime::from_timestamp(ts, 0)
+            .unwrap()
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string()
+    }
+
+    #[test]
+    fn kp_scaled_round_trip() {
+        let store = mem_store();
+        store
+            .insert_kp_batch(&[
+                KpRecord { time_tag: "2024-01-01T00:00:00".into(), kp_index: 2, estimated_kp: 2.33 },
+                KpRecord { time_tag: "2024-01-01T01:00:00".into(), kp_index: 3, estimated_kp: 3.67 },
+            ])
+            .unwrap();
+
+        // Stored as ×100 ints, read back ÷100, oldest-first.
+        let kp = store.get_recent_kp(2).unwrap();
+        assert_eq!(kp.len(), 2);
+        assert!((kp[0] - 2.33).abs() < 1e-9, "oldest first: {kp:?}");
+        assert!((kp[1] - 3.67).abs() < 1e-9);
+    }
+
+    #[test]
+    fn kp_forecast_insert_and_upsert() {
+        let store = mem_store();
+        let ts = 1_700_000_000;
+
+        store
+            .insert_kp_forecast(ts, 250, Some(180), Some(320), Some(1057))
+            .unwrap();
+        assert_eq!(store.get_kp_forecast_latest().unwrap(), Some((ts, 250)));
+
+        // Same ts → ON CONFLICT DO UPDATE replaces the value.
+        store.insert_kp_forecast(ts, 333, None, None, None).unwrap();
+        assert_eq!(store.get_kp_forecast_latest().unwrap(), Some((ts, 333)));
+    }
+
+    #[test]
+    fn forecast_metrics_pairs_and_scores() {
+        let store = mem_store();
+        let t = 1_700_000_000;
+        let step = 3_600;
+
+        // (predicted_kp_e2, actual_kp) per period, 1h apart:
+        //  storm caught | quiet | false positive | storm missed
+        let cases = [
+            (550_i64, 6.0_f64), // actual storm (600), pred storm  → caught
+            (300, 2.0),         // quiet
+            (520, 2.0),         // pred storm, actual quiet         → false positive
+            (200, 5.0),         // actual storm (500), pred quiet    → missed
+        ];
+
+        for (i, (pred_e2, actual_kp)) in cases.iter().enumerate() {
+            let ts = t + step * i as i64;
+            store
+                .insert_kp_forecast(ts, *pred_e2, None, None, Some(1000))
+                .unwrap();
+            store
+                .insert_kp_3h_batch(&[Kp3hRecord { time_tag: iso(ts), kp: *actual_kp }])
+                .unwrap();
+        }
+
+        let m = store.get_forecast_metrics(t - 1).unwrap();
+        assert_eq!(m["n_samples"].as_i64().unwrap(), 4);
+        assert_eq!(m["n_storms"].as_i64().unwrap(), 2);
+        assert_eq!(m["n_caught"].as_i64().unwrap(), 1);
+        assert_eq!(m["n_false_pos"].as_i64().unwrap(), 1);
+        assert!((m["hit_rate"].as_f64().unwrap() - 0.5).abs() < 1e-9);
+
+        // MAE = mean(|pred-actual|) in Kp: (0.5+1.0+3.2+3.0)/4 = 1.925
+        assert!((m["mae"].as_f64().unwrap() - 1.925).abs() < 1e-6);
+        // RMSE = sqrt(mean(diff²)) in Kp ≈ 2.2633
+        assert!((m["rmse"].as_f64().unwrap() - 2.263293).abs() < 1e-4);
+        // mean σ = 1000/1e4 = 0.1
+        assert!((m["mean_unc"].as_f64().unwrap() - 0.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn forecast_metrics_empty_window() {
+        let store = mem_store();
+        let m = store.get_forecast_metrics(0).unwrap();
+        assert_eq!(m["n_samples"].as_i64().unwrap(), 0);
+    }
+}
