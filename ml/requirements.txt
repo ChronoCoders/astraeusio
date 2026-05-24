@@ -1,7 +1,12 @@
+# CPU-only torch: avoids pulling the multi-GB CUDA wheels into this
+# CPU-inference image. The +cpu local-version tag forces the CPU build;
+# --extra-index-url keeps PyPI available for the remaining deps.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 requests>=2.32
 numpy>=1.26
 pandas>=2.0
 pyarrow>=14.0
-torch>=2.0
+torch==2.10.0+cpu
 fastapi>=0.111
 uvicorn>=0.29
