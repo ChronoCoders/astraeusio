@@ -65,7 +65,7 @@ export default function ForecastPage({ forecast }) {
   )
 }
 
-/* ── Current forecast hero ────────────────────────────────────────────────── */
+/* ── Current forecast hero (multi-horizon) ────────────────────────────────── */
 
 function CurrentForecastHero({ data }) {
   const { t } = useTranslation()
@@ -76,46 +76,58 @@ function CurrentForecastHero({ data }) {
       </div>
     )
   }
-  const kp     = data.predicted_kp
-  const prob   = stormProb(kp, data.uncertainty)
-  const storm  = stormInfo(kp)
-  const aurora = auroraLine(kp)
+
+  // Prefer the multi-horizon array; fall back to the flat 3h fields for
+  // degraded or pre-multi-horizon cached responses.
+  const horizons = Array.isArray(data.forecast) && data.forecast.length
+    ? data.forecast
+    : [{
+        horizon_hours: data.horizon_hours ?? 3,
+        predicted_kp:  data.predicted_kp,
+        ci_lower:      data.ci_lower,
+        ci_upper:      data.ci_upper,
+        uncertainty:   data.uncertainty,
+      }]
+
+  const near   = horizons[0]
+  const aurora = auroraLine(near.predicted_kp)
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <Stat label={t('forecast.predictedKp')}>
-          <span className={`font-mono text-3xl font-semibold ${storm.cls}`}>{fmtNum(kp, 2)}</span>
-        </Stat>
-        <Stat label={t('forecast.ci')}>
-          <span className="font-mono text-sm text-zinc-300">
-            {fmtNum(data.ci_lower, 2)} – {fmtNum(data.ci_upper, 2)}
-          </span>
-        </Stat>
-        <Stat label={t('forecast.stormProb')}>
-          <span className="font-mono text-lg text-zinc-100">{Math.round(prob * 100)}%</span>
-        </Stat>
-        <Stat label={t('forecast.stormLevel')}>
-          <span className={`text-sm font-medium ${storm.cls}`}>{t(storm.key)}</span>
-        </Stat>
-        <Stat label={t('forecast.uncertainty')}>
-          <span className="font-mono text-sm text-zinc-300">{fmtNum(data.uncertainty, 4)} Kp</span>
-        </Stat>
-        <Stat label={t('forecast.aurora')}>
-          <span className="text-sm text-zinc-300">
-            {aurora.visible ? t('aurora.visible', { lat: aurora.lat }) : t('aurora.notVisible')}
-          </span>
-        </Stat>
+    <div className="bg-zinc-900 border border-zinc-800 rounded p-5 flex flex-col gap-4">
+      <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('forecast.horizons')}</span>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {horizons.map(h => <HorizonCard key={h.horizon_hours} h={h} />)}
+      </div>
+
+      <div className="flex items-center gap-2 text-xs border-t border-zinc-800 pt-3">
+        <span className="text-zinc-600 uppercase tracking-widest">{t('forecast.aurora')}</span>
+        <span className="text-zinc-300">
+          {aurora.visible ? t('aurora.visible', { lat: aurora.lat }) : t('aurora.notVisible')}
+        </span>
       </div>
     </div>
   )
 }
 
-function Stat({ label, children }) {
+function HorizonCard({ h }) {
+  const { t } = useTranslation()
+  const kp    = h.predicted_kp
+  const storm = stormInfo(kp)
+  const prob  = stormProb(kp, h.uncertainty)
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-zinc-500 text-xs uppercase tracking-widest">{label}</span>
-      {children}
+    <div className="bg-zinc-950/40 border border-zinc-800 rounded p-4 flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-zinc-400 text-xs font-mono">{t('forecast.leadTime', { hours: h.horizon_hours })}</span>
+        <span className={`text-xs font-medium ${storm.cls}`}>{t(storm.key)}</span>
+      </div>
+      <span className={`font-mono text-3xl font-semibold ${storm.cls}`}>{fmtNum(kp, 2)}</span>
+      <div className="flex flex-col gap-1 mt-1">
+        <Row label={t('forecast.ciShort')}   value={`${fmtNum(h.ci_lower, 2)} – ${fmtNum(h.ci_upper, 2)}`} mono />
+        <Row label={t('forecast.probShort')} value={`${Math.round(prob * 100)}%`} mono />
+        <Row label={t('forecast.uncShort')}  value={`${fmtNum(h.uncertainty, 3)} Kp`} mono />
+      </div>
     </div>
   )
 }
