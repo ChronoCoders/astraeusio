@@ -17,7 +17,11 @@ month_sin/cos   : float32            — month encoded cyclically
 lag_1..lag_7    : float32             — previous 1–7 periods (each = 3 hours)
 kp_24h_max      : float32             — rolling max over prior 24 h (8 periods)
 kp_72h_mean     : float32            — rolling mean over prior 72 h (24 periods)
-gap_filled      : bool                — True if this value was imputed
+f107_adj        : float32             — F10.7 cm solar radio flux, 1-AU adjusted (sfu)
+sn              : float32             — daily international sunspot number
+f107_1d_delta   : float32             — change in f107_adj over prior 24 h (8 periods)
+gap_filled      : bool                — True if Kp at this period was imputed
+f107_gap_filled : bool                — True if F10.7/SN at this period was imputed
 """
 
 import logging
@@ -44,9 +48,15 @@ _RAW_COLS = [
     "bartels", "bartels_day",
     "kp1", "kp2", "kp3", "kp4", "kp5", "kp6", "kp7", "kp8",
     "ap1", "ap2", "ap3", "ap4", "ap5", "ap6", "ap7", "ap8",
-    "ap_daily", "sn", "f107_adj", "f107_obs", "d",
+    # GFZ trailing order is: Ap, SN, F10.7obs, F10.7adj, D
+    "ap_daily", "sn", "f107_obs", "f107_adj", "d",
 ]
 _KP_COLS = ["kp1", "kp2", "kp3", "kp4", "kp5", "kp6", "kp7", "kp8"]
+# Daily solar-flux / sunspot columns to carry through to features.
+# f107_adj (1-AU adjusted) is the training feature; f107_obs is kept for sanity checks.
+_SOLAR_COLS = ["f107_obs", "f107_adj", "sn"]
+# Missing values in the GFZ files are encoded as -1.0
+_MISSING_SENTINEL = -1.0
 
 # Solar cycle 24 minimum (Dec 2019) used as phase reference.
 # ~11-year period = 4018.5 days.
@@ -54,6 +64,7 @@ _CYCLE_REF = pd.Timestamp("2019-12-01", tz="UTC")
 _CYCLE_PERIOD_DAYS = 4018.5
 
 N_LAGS = 7
+F107_DELTA_PERIODS = 8   # 8 × 3 h = 24 h, for the daily F10.7 change feature
 
 
 # ── Parsing ────────────────────────────────────────────────────────────────────
@@ -70,8 +81,10 @@ def load_raw_year(path: Path) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=_RAW_COLS)
     for col in ["year", "month_raw", "day"]:
         df[col] = df[col].astype(int)
-    for col in _KP_COLS:
+    for col in _KP_COLS + _SOLAR_COLS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    # GFZ encodes missing solar flux / sunspot as -1.0 — treat as NaN.
+    df[_SOLAR_COLS] = df[_SOLAR_COLS].where(df[_SOLAR_COLS] != _MISSING_SENTINEL)
     return df
 
 
@@ -88,7 +101,14 @@ def to_3hourly(df: pd.DataFrame) -> pd.DataFrame:
         )
         for i, h in enumerate(hours):
             kp_val = row[_KP_COLS[i]]
-            records.append({"timestamp": base + pd.Timedelta(hours=h), "kp": kp_val})
+            # Solar flux / sunspot are reported daily — broadcast to all 8 periods.
+            records.append({
+                "timestamp": base + pd.Timedelta(hours=h),
+                "kp": kp_val,
+                "f107_obs": row["f107_obs"],
+                "f107_adj": row["f107_adj"],
+                "sn": row["sn"],
+            })
     return pd.DataFrame(records)
 
 
@@ -112,9 +132,21 @@ def fill_gaps(df: pd.DataFrame) -> pd.DataFrame:
     # Fill remaining with forward/backward fill
     df["kp"] = df["kp"].ffill().bfill()
 
-    n_filled = missing_mask.sum()
+    n_filled = int(missing_mask.sum())
     if n_filled:
-        log.warning("Imputed %d missing 3-hour periods", n_filled)
+        log.warning("Imputed %d missing 3-hour Kp periods", n_filled)
+
+    # Solar flux / sunspot: NaN either from the -1.0 sentinel or from reindexing.
+    # These vary slowly, so linear interpolation across day-scale gaps is safe.
+    solar_missing = df["f107_adj"].isna()
+    df["f107_gap_filled"] = solar_missing
+    for col in _SOLAR_COLS:
+        df[col] = df[col].interpolate(method="linear", limit_direction="both")
+        df[col] = df[col].ffill().bfill()
+
+    n_solar = int(solar_missing.sum())
+    if n_solar:
+        log.warning("Imputed %d missing 3-hour F10.7/SN periods", n_solar)
 
     return df.reset_index()
 
@@ -154,8 +186,17 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         elapsed_days % _CYCLE_PERIOD_DAYS, _CYCLE_PERIOD_DAYS
     )
 
+    # Solar radio flux / sunspot drivers (raw; normalised in train.py so the
+    # constants are stored in the model checkpoint, never hardcoded at inference)
+    df["f107_adj"] = df["f107_adj"].astype("float32")
+    df["sn"] = df["sn"].astype("float32")
+    # 24-hour change in adjusted F10.7 (captures rising/declining activity)
+    df["f107_1d_delta"] = (
+        df["f107_adj"] - df["f107_adj"].shift(F107_DELTA_PERIODS)
+    ).astype("float32")
+
     # Drop leading rows that lack enough history for all lags + rolling windows
-    min_history = max(N_LAGS, 24)  # 24 periods for 72h mean
+    min_history = max(N_LAGS, 24, F107_DELTA_PERIODS)  # 24 periods for 72h mean
     df = df.iloc[min_history:].reset_index(drop=True)
 
     return df
