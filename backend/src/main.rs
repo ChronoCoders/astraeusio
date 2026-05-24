@@ -59,6 +59,7 @@ async fn main() -> Result<()> {
         state.db.clone(),
         writer.clone(),
         mailer_config,
+        state.ml_url.clone(),
     );
     rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 

@@ -29,6 +29,7 @@ pub struct PollerConfig {
     pub dst_interval: u64,
     pub starlink_interval: u64,
     pub anomaly_interval: u64,
+    pub forecast_interval: u64,
     pub retry_count: u32,
 }
 
@@ -55,6 +56,7 @@ impl PollerConfig {
             dst_interval: secs("DST_INTERVAL", 300),
             starlink_interval: secs("STARLINK_INTERVAL", 3600),
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
+            forecast_interval: secs("FORECAST_INTERVAL", 1800),
             retry_count: std::env::var("RETRY_COUNT")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -73,6 +75,7 @@ pub fn spawn(
     db: Arc<Mutex<Store>>,
     writer: DbWriterHandle,
     smtp: Option<mailer::MailerConfig>,
+    ml_url: String,
 ) {
     let cfg = PollerConfig::from_env();
     info!(
@@ -91,6 +94,7 @@ pub fn spawn(
         dst = cfg.dst_interval,
         starlink = cfg.starlink_interval,
         anomaly = cfg.anomaly_interval,
+        forecast = cfg.forecast_interval,
         "poller: intervals loaded"
     );
 
@@ -177,6 +181,17 @@ pub fn spawn(
         writer.clone(),
         90,
         cfg.starlink_interval,
+    ));
+    // Forecast — calls the ML sidecar on a fixed cadence so kp_forecast builds
+    // a continuous time series (the Forecast page chart + metrics depend on it).
+    // Delayed past first Kp ingest so recent readings exist for the request.
+    tokio::spawn(poll_forecast(
+        client.clone(),
+        db.clone(),
+        writer.clone(),
+        ml_url,
+        45,
+        cfg.forecast_interval,
     ));
 }
 
@@ -433,6 +448,85 @@ async fn poll_starlink(
                 writer.fire(WriteCmd::Starlink(sats));
             }
             Err(e) => error!(source = "poller/starlink", "fetch: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(interval)).await;
+    }
+}
+
+async fn poll_forecast(
+    client: reqwest::Client,
+    db: Arc<Mutex<Store>>,
+    writer: DbWriterHandle,
+    ml_url: String,
+    init_delay_secs: u64,
+    interval: u64,
+) {
+    tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
+    let ml_timeout = std::env::var("ML_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10);
+    loop {
+        // Read recent Kp under the lock, then release before the HTTP call.
+        let readings = {
+            let guard = db.lock().await;
+            guard.get_recent_kp(7)
+        };
+        match readings {
+            Ok(r) if !r.is_empty() => {
+                let resp = client
+                    .post(format!("{ml_url}/predict"))
+                    .timeout(Duration::from_secs(ml_timeout))
+                    .json(&serde_json::json!({ "readings": r }))
+                    .send()
+                    .await;
+                match resp {
+                    Ok(resp) if resp.status().is_success() => match resp
+                        .json::<serde_json::Value>()
+                        .await
+                    {
+                        Ok(payload) => {
+                            if let Some(kp) =
+                                payload.get("predicted_kp").and_then(|v| v.as_f64())
+                            {
+                                let forecast_ts = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs()
+                                    as i64
+                                    + 3 * 3600;
+                                let ci_l = payload
+                                    .get("ci_lower")
+                                    .and_then(|v| v.as_f64())
+                                    .map(|v| (v * 100.0).round() as i64);
+                                let ci_u = payload
+                                    .get("ci_upper")
+                                    .and_then(|v| v.as_f64())
+                                    .map(|v| (v * 100.0).round() as i64);
+                                let unc = payload
+                                    .get("uncertainty")
+                                    .and_then(|v| v.as_f64())
+                                    .map(|v| (v * 10_000.0).round() as i64);
+                                writer.fire(WriteCmd::KpForecast {
+                                    ts: forecast_ts,
+                                    kp_e2: (kp * 100.0).round() as i64,
+                                    ci_lower_e2: ci_l,
+                                    ci_upper_e2: ci_u,
+                                    uncertainty_e4: unc,
+                                });
+                                info!("poller/forecast: predicted Kp {kp:.2} @ +3h");
+                            }
+                        }
+                        Err(e) => error!(source = "poller/forecast", "parse: {e}"),
+                    },
+                    Ok(resp) => {
+                        error!(source = "poller/forecast", "ml status: {}", resp.status())
+                    }
+                    Err(e) => error!(source = "poller/forecast", "ml request: {e}"),
+                }
+            }
+            Ok(_) => info!("poller/forecast: no Kp data yet, skipping"),
+            Err(e) => error!(source = "poller/forecast", "db: {e}"),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
