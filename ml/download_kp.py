@@ -6,7 +6,7 @@ We stream it, split by year, and save one file per year to data/kp_raw/.
 Column layout (space-separated, comment lines start with #):
   YYYY MM DD  DOY  DOY+0.5  Bartels_rotation  day_in_rotation
   Kp1..Kp8  (3-hourly, in thirds: 0.333 = 0+, 0.667 = 1-, 1.0 = 1, ...)
-  ap1..ap8  Ap  SN  F107  D
+  ap1..ap8  Ap  SN  F10.7obs  F10.7adj  D
 """
 
 import logging
