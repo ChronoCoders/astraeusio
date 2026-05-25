@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100">
+  <!-- Astraeusio mark — simplified (sun + orbit + alert arc), safe at 16-32px. -->
+  <!-- Canonical mark = 100x100 cell centered at (50,50). Two review swatches. -->
+  <!-- ===== dark swatch ===== -->
+  <rect x="0" y="0" width="100" height="100" fill="#0D1421"/>
+    <circle cx="50" cy="50" r="29" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="0.8"/>
+    <path d="M 55.0 21.4 A 29 29 0 0 1 78.6 45.0" fill="none" stroke="#D97706" stroke-width="2.2" stroke-linecap="round" opacity="0.65"/>
+    <circle cx="50" cy="50" r="11" fill="#D97706"/>
+    <circle cx="50" cy="50" r="6.5" fill="#FAC775" opacity="0.4"/>
+  <!-- ===== light swatch ===== -->
+  <rect x="100" y="0" width="100" height="100" fill="#F2F0EB"/>
+    <circle cx="150" cy="50" r="29" fill="none" stroke="rgba(0,0,0,0.13)" stroke-width="0.8"/>
+    <path d="M 155.0 21.4 A 29 29 0 0 1 178.6 45.0" fill="none" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" opacity="0.65"/>
+    <circle cx="150" cy="50" r="11" fill="#B45309"/>
+    <circle cx="150" cy="50" r="6.5" fill="#D97706" opacity="0.4"/>
+</svg>
