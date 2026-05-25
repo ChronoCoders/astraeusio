@@ -54,7 +54,7 @@ export default function Navbar({ onSignIn }) {
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-950/75 backdrop-blur-md">
         <Link to="/" className="flex items-center gap-2.5 select-none text-zinc-100 hover:text-white transition-colors">
-          <Logo size={22} className="shrink-0" />
+          <Logo size={36} className="shrink-0" />
           <span className="font-thin tracking-[0.25em] text-sm">ASTRAEUSIO</span>
         </Link>
 
