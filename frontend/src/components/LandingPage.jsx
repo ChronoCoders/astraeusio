@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { stormInfo, fmtNum } from '../lib/utils'
 import Navbar from './Navbar'
 import Footer from './Footer'
+import DashboardPreview from './DashboardPreview'
 
 const HeroScene = lazy(() => import('./HeroScene'))
 
@@ -387,6 +388,9 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           </div>
         </div>
       </section>
+
+      {/* ── See the Dashboard (live preview, bg-zinc-950) ─────────────────── */}
+      <DashboardPreview kpData={kpData} wind={wind} forecastData={forecastData} />
 
       {/* ── Live Right Now (bg-zinc-950) ──────────────────────────────────── */}
       <section ref={liveRef} style={liveStyle} className="bg-zinc-950 py-20 px-6">
