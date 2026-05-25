@@ -337,7 +337,7 @@ export default function ReportsPage({ plan, onNavigate }) {
       {summaryLoading && <p className="text-zinc-600 text-xs font-mono">{t('common.loading')}</p>}
       {summaryErr && <p className="text-red-500 text-xs font-mono">{summaryErr}</p>}
       {summary && !summaryLoading && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <StatCard label={t('reports.avgKp')}             value={fmtKp(summary.kp_avg)} />
           <StatCard label={t('reports.maxKp')}             value={fmtKp(summary.kp_max)} />
           <StatCard label={t('reports.maxSolarWind')}      value={fmtSpd(summary.solar_wind_max_kms)} unit="km/s" />
@@ -348,7 +348,7 @@ export default function ReportsPage({ plan, onNavigate }) {
       )}
 
       {/* ── Charts ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <LineChart
           title={t('reports.kpChartTitle')}
           pts={kpPts}
