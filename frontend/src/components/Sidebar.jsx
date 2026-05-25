@@ -18,6 +18,7 @@ const NAV = [
   { id: 'events',    icon: IconEvents },
   { id: 'reports',   icon: IconReports },
   { id: 'api',       icon: IconApi },
+  { id: 'billing',   icon: IconBilling },
   { id: 'settings',  icon: IconSettings },
 ]
 
@@ -197,6 +198,17 @@ function IconApi() {
       <polyline points="4,5 1,8 4,11" />
       <polyline points="12,5 15,8 12,11" />
       <line x1="9.5" y1="3" x2="6.5" y2="13" />
+    </svg>
+  )
+}
+
+function IconBilling() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="14" height="10" rx="1.5" />
+      <line x1="1" y1="6.5" x2="15" y2="6.5" />
+      <line x1="4" y1="10" x2="7" y2="10" />
     </svg>
   )
 }

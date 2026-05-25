@@ -24,6 +24,7 @@ import ReportsPage      from './components/ReportsPage'
 import ForecastPage     from './components/ForecastPage'
 import EventsPage       from './components/EventsPage'
 import ApiKeysPage      from './components/ApiKeysPage'
+import BillingPage      from './components/BillingPage'
 import SettingsPage     from './components/SettingsPage'
 import CustomRulesPanel from './components/CustomRulesPanel'
 
@@ -271,6 +272,9 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
 
           {/* ── API Keys ───────────────────────────────────────────────── */}
           {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} onNavigate={setPage} />}
+
+          {/* ── Billing ────────────────────────────────────────────────── */}
+          {page === 'billing' && <BillingPage user={user} onUserChange={onUserChange} />}
 
           {/* ── Settings ───────────────────────────────────────────────── */}
           {page === 'settings' && <SettingsPage onLogout={onLogout} user={user} onUserChange={onUserChange} />}
