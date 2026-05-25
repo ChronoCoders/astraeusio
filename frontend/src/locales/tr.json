@@ -704,6 +704,8 @@
     "sparkTitle": "Jeomanyetik etkinlik — canlı Kp",
     "sparkSpan": "Canlı · 1-dakika aralık",
     "sparkStorm": "Kp 5 = G1 fırtına",
+    "previewTitle": "Panoyu görün",
+    "previewDesc": "Tüm sinyaller tek ekranda — canlı Kp indeksi, güneş rüzgarı, X-ışını akısı ve güven aralıklı ML tahmini, sürekli güncellenir.",
     "predTitle": "Tahmin Zekası",
     "p1Title": "3 saatlik jeomanyetik tahmin",
     "p1Body": "On yıllık tarihsel veri üzerinde eğitilmiş makine öğrenmesi modelleriyle yakın vadeli uzay hava aktivitesini öngörün.",
