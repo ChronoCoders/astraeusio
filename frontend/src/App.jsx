@@ -186,11 +186,13 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-5 gap-3">
+              <div className="col-span-3">
                 <KpChart records={kp.data} />
               </div>
-              <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} onNavigate={setPage} />
+              <div className="col-span-2">
+                <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} onNavigate={setPage} />
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">
