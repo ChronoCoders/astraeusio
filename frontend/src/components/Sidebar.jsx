@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import Logo from './Logo'
 
 const PLAN_BADGE = {
   starter:    'text-zinc-500 border-zinc-700',
@@ -50,7 +51,8 @@ const Sidebar = memo(function Sidebar({ page, onNavigate, open, onClose, onLogou
       ].join(' ')}>
 
         {/* Brand */}
-        <div className="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+        <div className="h-14 flex items-center gap-2.5 px-5 border-b border-zinc-800 shrink-0">
+          <Logo size={22} className="shrink-0" />
           <span className="text-zinc-100 font-thin tracking-[0.2em] text-sm select-none">
             ASTRAEUSIO
           </span>

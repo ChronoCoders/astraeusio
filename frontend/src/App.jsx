@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
 import Sidebar        from './components/Sidebar'
+import Logo           from './components/Logo'
 import MetricCard     from './components/MetricCard'
 import KpChart        from './components/KpChart'
 import ForecastPanel  from './components/ForecastPanel'
@@ -121,7 +122,8 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               </svg>
             </button>
             {/* Wordmark — mobile only (desktop brand is in sidebar) */}
-            <span className="lg:hidden text-zinc-100 font-thin tracking-[0.2em] text-sm select-none">
+            <span className="lg:hidden flex items-center gap-2 text-zinc-100 font-thin tracking-[0.2em] text-sm select-none">
+              <Logo size={18} className="shrink-0" />
               ASTRAEUSIO
             </span>
           </div>
