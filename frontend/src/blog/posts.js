@@ -334,6 +334,352 @@ Kp kullanışlı bir özet istatistiktir ancak tek bir sayıya çok fazla bilgi 
 Çoğu amaç için izlenecek doğru sayı Kp'dir. Daha derin bir operasyonel tablo için güneş rüzgarı hızı, IMF Bz ve Dst endeksiyle birlikte değerlendirin.
     `.trim(),
   },
+
+  {
+    slug: 'reading-the-solar-wind',
+    title: 'Reading the Solar Wind',
+    titleTr: 'Güneş Rüzgârını Okumak',
+    date: '2026-05-08',
+    author: 'Altug Tatlisu',
+    tags: ['Explainer', 'Solar Wind', 'DSCOVR'],
+    image: 'https://svs.gsfc.nasa.gov/vis/a010000/a014800/a014892/14892_CMEstrikesEarth_1080.00001_print.jpg',
+    excerpt:
+      'Kp tells you a storm has arrived. The solar wind tells you it is coming. Speed, density, and the magnetic field carried with it are the upstream signal — and one number decides whether a storm happens at all.',
+    excerptTr:
+      'Kp size bir fırtınanın geldiğini söyler. Güneş rüzgârı ise yaklaştığını söyler. Hız, yoğunluk ve taşıdığı manyetik alan akış-üstü sinyaldir — ve tek bir sayı fırtınanın gerçekleşip gerçekleşmeyeceğini belirler.',
+    content: `
+The Kp index tells you that a geomagnetic storm has arrived. The solar wind tells you that one is on its way. It is the upstream signal — measured before the disturbance reaches the ground — and reading it correctly is the difference between reacting to a storm and anticipating one.
+
+## What the Solar Wind Is
+
+The Sun continuously sheds its outer atmosphere into space. This is the solar wind: a stream of charged particles — mostly protons and electrons — flowing outward in every direction at hundreds of kilometres per second. It carries with it a piece of the Sun's magnetic field, stretched out across the solar system. By the time it reaches Earth, roughly 150 million kilometres away, it has thinned to a handful of particles per cubic centimetre, but it never stops.
+
+Earth sits inside this wind. Our magnetic field deflects most of it, carving out the magnetosphere — a protective cavity that the solar wind drapes around and trails behind. Space weather, at its core, is the story of how variations in that wind disturb the magnetosphere.
+
+## The Three Numbers That Matter
+
+Astraeusio ingests one-minute solar wind data from NOAA's real-time feed. Three quantities carry almost all of the operational signal:
+
+- **Speed** (km/s). Quiet conditions run around 300–400 km/s. A fast stream can exceed 700 km/s, and the leading edge of a coronal mass ejection can top 1,000 km/s. Higher speed means more energy delivered to the magnetosphere per second.
+- **Density** (protons/cm³). Typically a few particles per cubic centimetre. A sudden jump in density often marks the arrival of a CME's compressed leading edge.
+- **IMF Bz** (nanotesla). The north–south component of the interplanetary magnetic field. This is the one that decides whether a storm happens at all.
+
+Speed and density set how much energy is available. Bz sets whether that energy can get in.
+
+## Why Southward Bz Is the Real Driver
+
+Earth's magnetic field points roughly northward at the dayside boundary of the magnetosphere. When the magnetic field carried by the solar wind points **southward** — negative Bz — it is antiparallel to Earth's field, and the two can splice together in a process called magnetic reconnection. Reconnection opens the magnetosphere, letting solar wind energy pour in. The more strongly southward the Bz and the longer it stays there, the bigger the storm.
+
+When Bz points northward, reconnection at the dayside is suppressed and the magnetosphere stays comparatively closed. You can have a fast, dense solar wind stream slam into Earth and produce only a modest disturbance — because Bz stayed positive. Conversely, a moderate stream with strongly negative Bz for several hours can drive a serious storm.
+
+This is why a single number — solar wind speed — is never enough. A 600 km/s stream with Bz at +5 nT is a non-event. The same stream with Bz at −15 nT is a G2 or G3 storm in the making.
+
+## The Warning Window: L1
+
+The reason the solar wind is a *forecast* tool and not just a *nowcast* is geometry. NOAA's DSCOVR spacecraft sits at the first Sun–Earth Lagrange point (L1), about 1.5 million kilometres upstream of Earth — roughly 1% of the way to the Sun. It measures the wind before it reaches us.
+
+At typical solar wind speeds, that buys 15 to 60 minutes of warning. It is not much, but it is enough to safe a sensitive instrument, delay a satellite manoeuvre, or alert grid operators that strongly southward Bz is inbound. When you see Bz swing hard negative in the DSCOVR feed, you know the magnetosphere is about to respond — before Kp moves.
+
+## Fast Streams and Corotating Interaction Regions
+
+Not all disturbances come from CMEs. Coronal holes — regions where the Sun's magnetic field opens to space — emit persistent high-speed streams. Because the Sun rotates roughly every 27 days, these streams sweep past Earth on a recurring schedule, producing what forecasters call corotating interaction regions (CIRs). They rarely cause severe storms, but they reliably elevate Kp to the G1–G2 range and can recur for several solar rotations. If you see a moderate storm arrive on a 27-day cadence, a coronal hole is usually the cause.
+
+## What Astraeusio Shows
+
+The Charts page plots solar wind speed, proton density, and IMF Bz together, alongside the Dst index. Reading them as a set is the point: speed and density tell you the energy budget, Bz tells you the gate, and Dst tells you how much has already been deposited into the ring current. The anomaly layer fires when speed crosses 700 km/s; sustained negative Bz is the leading indicator to watch underneath it.
+
+## The Honest Caveat
+
+L1 monitoring has a blind spot: it measures the wind at a single point. The magnetic structure that passes DSCOVR is not always identical to what hits Earth 1.5 million kilometres away, and Bz can rotate during transit. The warning is real but probabilistic. Treat a hard southward turn at L1 as a strong signal — not a guarantee — and weight it alongside the Kp forecast and the X-ray record.
+    `.trim(),
+    contentTr: `
+Kp endeksi size bir jeomanyetik fırtınanın geldiğini söyler. Güneş rüzgârı ise birinin yolda olduğunu söyler. O, akış-üstü sinyaldir — rahatsızlık yere ulaşmadan önce ölçülür — ve onu doğru okumak, bir fırtınaya tepki vermekle onu öngörmek arasındaki farktır.
+
+## Güneş Rüzgârı Nedir
+
+Güneş, dış atmosferini sürekli olarak uzaya saçar. Bu, güneş rüzgârıdır: çoğunlukla proton ve elektronlardan oluşan, her yöne saniyede yüzlerce kilometre hızla dışarı akan yüklü parçacık akışı. Beraberinde Güneş'in manyetik alanının bir parçasını, güneş sistemine yayılmış halde taşır. Yaklaşık 150 milyon kilometre uzaktaki Dünya'ya ulaştığında santimetreküp başına birkaç parçacığa kadar seyrelmiştir, ama hiç durmaz.
+
+Dünya bu rüzgârın içinde durur. Manyetik alanımız çoğunu saptırarak manyetosferi oluşturur — güneş rüzgârının etrafına sarıldığı ve arkasında kuyruk bıraktığı koruyucu bir boşluk. Uzay hava durumu, özünde, bu rüzgârdaki değişimlerin manyetosferi nasıl rahatsız ettiğinin hikâyesidir.
+
+## Önemli Olan Üç Sayı
+
+Astraeusio, NOAA'nın gerçek zamanlı beslemesinden dakikalık güneş rüzgârı verisi alır. Operasyonel sinyalin neredeyse tamamını üç büyüklük taşır:
+
+- **Hız** (km/s). Sakin koşullar 300–400 km/s civarındadır. Hızlı bir akış 700 km/s'yi aşabilir ve bir koronal kütle atımının (CME) ön kenarı 1.000 km/s'yi geçebilir. Daha yüksek hız, saniye başına manyetosfere iletilen daha fazla enerji demektir.
+- **Yoğunluk** (proton/cm³). Tipik olarak santimetreküp başına birkaç parçacık. Yoğunluktaki ani sıçrama çoğu zaman bir CME'nin sıkışmış ön kenarının gelişini işaret eder.
+- **IMF Bz** (nanotesla). Gezegenlerarası manyetik alanın kuzey–güney bileşeni. Bir fırtınanın gerçekleşip gerçekleşmeyeceğine karar veren budur.
+
+Hız ve yoğunluk ne kadar enerji bulunduğunu belirler. Bz ise o enerjinin içeri girip giremeyeceğini belirler.
+
+## Neden Güneye Dönük Bz Asıl Sürücüdür
+
+Dünya'nın manyetik alanı, manyetosferin gündüz tarafı sınırında kabaca kuzeye doğrultulur. Güneş rüzgârının taşıdığı manyetik alan **güneye** doğrultulduğunda — negatif Bz — Dünya'nın alanına ters paraleldir ve ikisi manyetik yeniden bağlanma denen bir süreçte birbirine eklenebilir. Yeniden bağlanma manyetosferi açar ve güneş rüzgârı enerjisinin içeri akmasına izin verir. Bz ne kadar güçlü güneye dönükse ve orada ne kadar uzun kalırsa fırtına o kadar büyük olur.
+
+Bz kuzeye doğrultulduğunda gündüz tarafındaki yeniden bağlanma baskılanır ve manyetosfer görece kapalı kalır. Hızlı ve yoğun bir güneş rüzgârı akışı Dünya'ya çarpıp yalnızca mütevazı bir rahatsızlık üretebilir — çünkü Bz pozitif kaldı. Tersine, birkaç saat boyunca güçlü negatif Bz'ye sahip ılımlı bir akış ciddi bir fırtına sürebilir.
+
+İşte bu yüzden tek bir sayı — güneş rüzgârı hızı — asla yeterli değildir. Bz +5 nT iken 600 km/s'lik bir akış önemsizdir. Aynı akış Bz −15 nT iken oluşmakta olan bir G2 ya da G3 fırtınasıdır.
+
+## Uyarı Penceresi: L1
+
+Güneş rüzgârının yalnızca bir *anlık-durum* değil bir *tahmin* aracı olmasının nedeni geometridir. NOAA'nın DSCOVR uzay aracı, Dünya'nın yaklaşık 1,5 milyon kilometre akış-üstünde — Güneş'e giden yolun kabaca %1'inde — birinci Güneş–Dünya Lagrange noktasında (L1) durur. Rüzgârı bize ulaşmadan önce ölçer.
+
+Tipik güneş rüzgârı hızlarında bu 15 ila 60 dakikalık uyarı kazandırır. Çok değil, ama hassas bir cihazı güvene almaya, bir uydu manevrasını ertelemeye veya şebeke operatörlerini güçlü güneye dönük Bz'nin yaklaştığı konusunda uyarmaya yeter. DSCOVR beslemesinde Bz'nin sert biçimde negatife döndüğünü gördüğünüzde, manyetosferin yanıt vermek üzere olduğunu Kp hareket etmeden önce bilirsiniz.
+
+## Hızlı Akışlar ve Birlikte Dönen Etkileşim Bölgeleri
+
+Tüm rahatsızlıklar CME'lerden gelmez. Koronal delikler — Güneş'in manyetik alanının uzaya açıldığı bölgeler — kalıcı yüksek hızlı akışlar yayar. Güneş yaklaşık her 27 günde bir döndüğünden, bu akışlar Dünya'nın yanından yinelenen bir programla geçer ve tahmincilerin birlikte dönen etkileşim bölgeleri (CIR) dediği şeyi üretir. Nadiren şiddetli fırtınalara yol açarlar ama Kp'yi güvenilir biçimde G1–G2 aralığına yükseltir ve birkaç güneş dönüşü boyunca yinelenebilirler. Ilımlı bir fırtınanın 27 günlük bir ritimde geldiğini görürseniz, neden genellikle bir koronal deliktir.
+
+## Astraeusio Ne Gösterir
+
+Grafikler sayfası güneş rüzgârı hızını, proton yoğunluğunu ve IMF Bz'yi Dst endeksiyle birlikte çizer. Onları bir bütün olarak okumak işin özüdür: hız ve yoğunluk enerji bütçesini, Bz kapıyı, Dst ise halka akımına şimdiden ne kadar biriktirildiğini söyler. Anomali katmanı hız 700 km/s'yi geçtiğinde tetiklenir; sürekli negatif Bz ise altında izlenmesi gereken öncü göstergedir.
+
+## Dürüst Uyarı
+
+L1 izlemesinin bir kör noktası vardır: rüzgârı tek bir noktada ölçer. DSCOVR'dan geçen manyetik yapı, 1,5 milyon kilometre öteden Dünya'ya çarpana her zaman aynı olmaz ve Bz geçiş sırasında dönebilir. Uyarı gerçektir ama olasılıksaldır. L1'deki sert güneye dönüşü güçlü bir sinyal olarak değerlendirin — bir garanti değil — ve onu Kp tahmini ile X-ışını kaydının yanında tartın.
+    `.trim(),
+  },
+
+  {
+    slug: 'x-ray-flares-and-radio-blackouts',
+    title: 'X-ray Flares and Radio Blackouts',
+    titleTr: 'X-ışını Patlamaları ve Radyo Karartmaları',
+    date: '2026-05-15',
+    author: 'Altug Tatlisu',
+    tags: ['Explainer', 'Solar Flares', 'X-ray'],
+    image: 'https://svs.gsfc.nasa.gov/vis/a000000/a004400/a004491/Sept2017_X8Flare_304A.07800_print.jpg',
+    excerpt:
+      'A solar flare arrives at the speed of light — eight minutes from Sun to Earth, with no warning. Here is how the GOES X-ray sensor classifies flares, what the A/B/C/M/X scale means, and why the radio blackout is instant.',
+    excerptTr:
+      'Bir güneş patlaması ışık hızında gelir — Güneş\'ten Dünya\'ya sekiz dakika, hiçbir uyarı olmadan. GOES X-ışını sensörünün patlamaları nasıl sınıflandırdığını, A/B/C/M/X ölçeğinin ne anlama geldiğini ve radyo karartmasının neden anlık olduğunu anlatıyoruz.',
+    content: `
+Most space weather gives you warning. A coronal mass ejection takes one to three days to cross from the Sun to Earth. A fast solar wind stream announces itself at L1 with up to an hour to spare. A solar flare gives you nothing. It travels at the speed of light, which means it arrives about eight minutes after it happens — the same eight minutes it takes the Sun's light to reach us. By the time you detect it, its effects are already underway.
+
+## What a Flare Is
+
+A solar flare is a sudden, intense release of energy from the Sun's atmosphere, triggered when twisted magnetic fields in an active region snap into a lower-energy configuration. That reconnection dumps enormous energy into the surrounding plasma in minutes, heating it to tens of millions of degrees and emitting a burst of radiation across the spectrum — radio waves, visible light, ultraviolet, and X-rays.
+
+The X-ray component is what we monitor most closely, because it is both a clean measure of flare intensity and the direct cause of one of the flare's most immediate effects on Earth.
+
+## The GOES X-ray Sensor
+
+Flare intensity is measured by the X-Ray Sensor (XRS) aboard NOAA's GOES satellites in geostationary orbit. It reports the solar X-ray flux in the 0.1–0.8 nanometre band, in watts per square metre, updated continuously. Astraeusio ingests the GOES primary feed and stores the flux as a scaled integer; the dashboard surfaces the current flux and its flare class.
+
+Because the sensor sits above the atmosphere, it sees the X-rays directly — there is no transit delay beyond the eight-minute light travel time from the Sun.
+
+## The Flare Classification: A, B, C, M, X
+
+Flares are classified by their peak X-ray flux on a letter scale, where each letter is a tenfold (logarithmic) step:
+
+| Class | Peak flux (W/m²) | Meaning |
+|-------|------------------|---------|
+| A | < 10⁻⁷ | Background level; no effect |
+| B | 10⁻⁷ – 10⁻⁶ | Minor; common, no impact |
+| C | 10⁻⁶ – 10⁻⁵ | Small flares, few noticeable effects |
+| M | 10⁻⁵ – 10⁻⁴ | Medium; can cause brief radio blackouts at the poles |
+| X | ≥ 10⁻⁴ | Large; planet-wide radio and navigation effects |
+
+Within each letter, a number gives the linear multiplier — an M5 is five times stronger than an M1, and X-class has no ceiling: the September 2017 event reached X9.3, and the famous 2003 flare saturated the sensors at roughly X28.
+
+Astraeusio's anomaly layer flags M-class flares as a warning and X-class as critical, matching the thresholds at which terrestrial effects become operationally relevant.
+
+## Radio Blackouts and the R-Scale
+
+The most immediate terrestrial effect of a flare is a radio blackout. The burst of X-rays ionises the dayside of Earth's upper atmosphere (the D-layer of the ionosphere), which then absorbs high-frequency (HF) radio signals instead of reflecting them. HF communication — used by aviation over oceans and polar routes, by maritime operators, and by emergency services — degrades or drops out entirely on the sunlit side of the planet.
+
+NOAA classifies these on the R-scale, tied directly to flare class:
+
+| Scale | Flare | Effect |
+|-------|-------|--------|
+| R1 Minor | M1 | Weak HF degradation on sunlit side |
+| R2 Moderate | M5 | Limited HF blackout, low-frequency navigation degraded |
+| R3 Strong | X1 | Wide-area HF blackout for ~1 hour, navigation errors |
+| R4 Severe | X10 | HF blackout across most of the sunlit hemisphere |
+| R5 Extreme | X20 | Complete HF blackout on the entire daylit side for hours |
+
+Because the cause is electromagnetic radiation travelling at light speed, the blackout begins the moment the flare's X-rays arrive. There is no forecast window for the flare itself — only for the active region's *likelihood* of producing one.
+
+## Flares Versus CMEs
+
+A flare and a coronal mass ejection often originate from the same active region, but they are different hazards with different timelines. The flare is radiation: it arrives in eight minutes and causes radio and navigation effects. The CME is matter: a cloud of magnetised plasma that takes one to three days to arrive and drives the geomagnetic storm — the Kp spike, the aurora, the grid currents.
+
+A big flare does not guarantee a big storm, and vice versa. A flare aimed away from Earth can still black out radio on the sunlit side; a CME with no notable flare can still trigger a severe storm if its Bz turns sharply southward. They are best read as separate channels of the same event.
+
+## What to Watch in Astraeusio
+
+The Charts page plots GOES X-ray flux on a logarithmic axis, with the M and X thresholds marked. A flux line climbing toward 10⁻⁵ is an M-class flare in progress; crossing 10⁻⁴ is X-class. Sudden vertical spikes are the signature. Pair the X-ray record with the alerts feed: NOAA issues radio-blackout warnings keyed to the same flare classes, and the anomaly panel flags M and X events as they cross threshold.
+
+## The Honest Assessment
+
+You cannot forecast the exact onset of a flare — the physics of magnetic reconnection is not predictable minute-to-minute. What you can do is watch active regions: large, magnetically complex sunspot groups produce most major flares, and NOAA tracks them. The X-ray record will not warn you before a flare, but it gives you an instant, unambiguous measure of one in progress — and that is enough to explain a sudden HF blackout, time-stamp it, and brief anyone whose operations just lost a radio link.
+    `.trim(),
+    contentTr: `
+Çoğu uzay hava olayı size uyarı verir. Bir koronal kütle atımının Güneş'ten Dünya'ya geçmesi bir ila üç gün sürer. Hızlı bir güneş rüzgârı akışı kendini L1'de bir saate varan payla haber verir. Bir güneş patlaması ise size hiçbir şey vermez. Işık hızında ilerler; bu da olduktan yaklaşık sekiz dakika sonra geldiği anlamına gelir — Güneş'in ışığının bize ulaşması için gereken aynı sekiz dakika. Onu tespit ettiğinizde etkileri çoktan başlamıştır.
+
+## Patlama Nedir
+
+Güneş patlaması, bir aktif bölgedeki bükülmüş manyetik alanların daha düşük enerjili bir düzene aniden geçmesiyle tetiklenen, Güneş atmosferinden ani ve yoğun bir enerji salımıdır. Bu yeniden bağlanma, çevredeki plazmaya dakikalar içinde muazzam enerji boşaltır, onu on milyonlarca dereceye ısıtır ve tayf boyunca bir radyasyon patlaması yayar — radyo dalgaları, görünür ışık, morötesi ve X-ışınları.
+
+X-ışını bileşeni en yakından izlediğimiz şeydir, çünkü hem patlama yoğunluğunun temiz bir ölçüsü hem de patlamanın Dünya üzerindeki en anlık etkilerinden birinin doğrudan nedenidir.
+
+## GOES X-ışını Sensörü
+
+Patlama yoğunluğu, NOAA'nın jeostasyoner yörüngedeki GOES uydularındaki X-ışını Sensörü (XRS) tarafından ölçülür. Güneş X-ışını akısını 0,1–0,8 nanometre bandında, metrekare başına watt cinsinden, sürekli güncellenerek bildirir. Astraeusio GOES birincil beslemesini alır ve akıyı ölçekli bir tam sayı olarak saklar; gösterge paneli mevcut akıyı ve patlama sınıfını gösterir.
+
+Sensör atmosferin üzerinde durduğundan X-ışınlarını doğrudan görür — Güneş'ten gelen sekiz dakikalık ışık yolculuğu süresinin ötesinde bir geçiş gecikmesi yoktur.
+
+## Patlama Sınıflandırması: A, B, C, M, X
+
+Patlamalar, her harfin on katlık (logaritmik) bir adım olduğu bir harf ölçeğinde tepe X-ışını akısına göre sınıflandırılır:
+
+| Sınıf | Tepe akı (W/m²) | Anlamı |
+|-------|-----------------|--------|
+| A | < 10⁻⁷ | Arka plan seviyesi; etki yok |
+| B | 10⁻⁷ – 10⁻⁶ | Küçük; yaygın, etkisiz |
+| C | 10⁻⁶ – 10⁻⁵ | Küçük patlamalar, az fark edilir etki |
+| M | 10⁻⁵ – 10⁻⁴ | Orta; kutuplarda kısa radyo karartmalarına yol açabilir |
+| X | ≥ 10⁻⁴ | Büyük; gezegen geneli radyo ve navigasyon etkileri |
+
+Her harfin içinde bir sayı doğrusal çarpanı verir — bir M5, bir M1'den beş kat güçlüdür ve X sınıfının tavanı yoktur: Eylül 2017 olayı X9.3'e ulaştı ve ünlü 2003 patlaması sensörleri kabaca X28'de doyurdu.
+
+Astraeusio'nun anomali katmanı M sınıfı patlamaları uyarı, X sınıfını ise kritik olarak işaretler; bu, karasal etkilerin operasyonel olarak anlamlı hale geldiği eşiklere karşılık gelir.
+
+## Radyo Karartmaları ve R Ölçeği
+
+Bir patlamanın en anlık karasal etkisi radyo karartmasıdır. X-ışını patlaması Dünya'nın üst atmosferinin gündüz tarafını (iyonosferin D katmanı) iyonlaştırır; bu katman daha sonra yüksek frekanslı (HF) radyo sinyallerini yansıtmak yerine soğurur. Okyanuslar ve kutup rotaları üzerinde havacılık tarafından, deniz operatörleri tarafından ve acil servisler tarafından kullanılan HF iletişimi, gezegenin güneş gören tarafında bozulur veya tamamen kesilir.
+
+NOAA bunları doğrudan patlama sınıfına bağlı R ölçeğinde sınıflandırır:
+
+| Ölçek | Patlama | Etki |
+|-------|---------|------|
+| R1 Hafif | M1 | Güneş gören tarafta zayıf HF bozulması |
+| R2 Orta | M5 | Sınırlı HF karartması, düşük frekanslı navigasyon bozulur |
+| R3 Güçlü | X1 | ~1 saat geniş alan HF karartması, navigasyon hataları |
+| R4 Şiddetli | X10 | Güneş gören yarıkürenin çoğunda HF karartması |
+| R5 Aşırı | X20 | Tüm gündüz tarafında saatlerce tam HF karartması |
+
+Neden ışık hızında ilerleyen elektromanyetik radyasyon olduğundan, karartma patlamanın X-ışınları geldiği anda başlar. Patlamanın kendisi için bir tahmin penceresi yoktur — yalnızca aktif bölgenin bir patlama üretme *olasılığı* için vardır.
+
+## Patlamalar ile CME'ler
+
+Bir patlama ve bir koronal kütle atımı çoğu zaman aynı aktif bölgeden kaynaklanır ama farklı zaman çizelgelerine sahip farklı tehlikelerdir. Patlama radyasyondur: sekiz dakikada gelir ve radyo ile navigasyon etkilerine yol açar. CME ise maddedir: gelmesi bir ila üç gün süren ve jeomanyetik fırtınayı süren manyetize plazma bulutu — Kp sıçraması, aurora, şebeke akımları.
+
+Büyük bir patlama büyük bir fırtınayı garanti etmez, tersi de geçerlidir. Dünya'dan uzağa yönelmiş bir patlama yine de güneş gören tarafta radyoyu karartabilir; kayda değer patlaması olmayan bir CME, Bz'si sertçe güneye dönerse yine de şiddetli bir fırtına tetikleyebilir. En iyisi onları aynı olayın ayrı kanalları olarak okumaktır.
+
+## Astraeusio'da Nelere Dikkat Edilmeli
+
+Grafikler sayfası GOES X-ışını akısını, M ve X eşikleri işaretlenmiş halde logaritmik bir eksende çizer. 10⁻⁵'e doğru tırmanan bir akı çizgisi devam eden bir M sınıfı patlamadır; 10⁻⁴'ü geçmek X sınıfıdır. Ani dikey sıçramalar onun imzasıdır. X-ışını kaydını uyarı beslemesiyle eşleştirin: NOAA aynı patlama sınıflarına bağlı radyo karartma uyarıları yayımlar ve anomali paneli M ve X olaylarını eşiği geçerken işaretler.
+
+## Dürüst Değerlendirme
+
+Bir patlamanın tam başlangıcını tahmin edemezsiniz — manyetik yeniden bağlanmanın fiziği dakika dakika öngörülebilir değildir. Yapabileceğiniz şey aktif bölgeleri izlemektir: büyük, manyetik olarak karmaşık güneş lekesi grupları büyük patlamaların çoğunu üretir ve NOAA onları takip eder. X-ışını kaydı bir patlamadan önce sizi uyarmaz, ama devam eden bir patlamanın anlık ve net bir ölçüsünü verir — bu da ani bir HF karartmasını açıklamaya, zaman damgası vurmaya ve operasyonu az önce bir radyo bağlantısını kaybeden herkesi bilgilendirmeye yeter.
+    `.trim(),
+  },
+
+  {
+    slug: 'the-carrington-event',
+    title: 'The Carrington Event: Space Weather\'s Worst Case',
+    titleTr: 'Carrington Olayı: Uzay Hava Durumunun En Kötü Senaryosu',
+    date: '2026-05-22',
+    author: 'Altug Tatlisu',
+    tags: ['History', 'Space Weather', 'Risk'],
+    image: 'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e001661/GSFC_20171208_Archive_e001661~large.jpg',
+    excerpt:
+      'In 1859 a solar storm set telegraph offices on fire and lit aurora over the tropics. We have built a civilisation on the grid and satellites since. Here is what a Carrington-class event would do today — and whether we would see it coming.',
+    excerptTr:
+      '1859\'da bir güneş fırtınası telgraf ofislerini ateşe verdi ve tropiklerin üzerinde aurora yaktı. O zamandan beri şebeke ve uydular üzerine bir uygarlık inşa ettik. Carrington ölçeğinde bir olayın bugün ne yapacağını — ve onu önceden görüp göremeyeceğimizi anlatıyoruz.',
+    content: `
+On the morning of 1 September 1859, the English astronomer Richard Carrington was sketching sunspots when he saw two brilliant beads of white light erupt over a large sunspot group. They faded within minutes. He had just witnessed the first solar flare ever recorded — and the leading edge of the most intense geomagnetic storm in recorded history.
+
+## What Happened in 1859
+
+The flare Carrington saw was followed by a coronal mass ejection that reached Earth in about 17 hours — extraordinarily fast, because an earlier CME had cleared the path through the solar wind. When it arrived, it produced effects no one had a framework to explain.
+
+Aurora were seen as far south as the Caribbean, Colombia, and Hawaii — within roughly 23° of the equator. In the northern United States, the light was bright enough to read a newspaper by at midnight. Gold miners in the Rocky Mountains reportedly woke and began making breakfast, thinking it was dawn.
+
+The one piece of electrical infrastructure that existed — the telegraph network — failed spectacularly. Operators received electric shocks. Telegraph paper caught fire. And in a detail that still unsettles engineers: some operators disconnected their batteries entirely and found they could still send messages, powered purely by the current the storm had induced in the wires.
+
+## How Big Was It
+
+The storm's intensity is estimated from the few magnetometer records that existed and from later ice-core analysis. The Dst index — a measure of the storm-time ring current — is estimated to have reached somewhere between −850 and −1,760 nanotesla. For comparison, the 1989 storm that collapsed the Quebec power grid reached about −589 nT, and a "severe" G4 storm today is in the −200 to −300 nT range.
+
+Carrington was not merely a strong storm. It was several times larger than anything the modern grid has ever experienced.
+
+## The 2012 Near Miss
+
+It is tempting to file Carrington under "nineteenth-century history." On 23 July 2012, that comfort evaporated. A CME at least as powerful as the 1859 event erupted from the Sun at over 3,000 km/s — and crossed the orbit of Earth. Earth simply was not in the way; the eruption region had rotated past the Earth-facing line about nine days earlier. The CME swept through the position Earth had occupied roughly one week before.
+
+The STEREO-A spacecraft happened to be there and measured it directly. Analyses afterward concluded it was Carrington-class. A 2013 study put the probability of a Carrington-level storm hitting Earth in the following decade at roughly 12%. The event is not a historical curiosity; it is a recurring natural hazard that we have mostly been lucky to avoid.
+
+## What It Would Do Today
+
+A Carrington-class storm striking the modern world would stress systems that did not exist in 1859:
+
+- **Power grids.** Geomagnetically induced currents flow through long transmission lines and can saturate and overheat the large transformers at the heart of the grid. These transformers are custom-built, cost millions, and can take a year or more to replace. The 1989 Quebec storm blacked out six million people in 90 seconds; a Carrington-class event could damage transformers across continents.
+- **Satellites.** Severe charging, accelerated drag, and single-event upsets across a fleet far larger and more economically central than anything aloft in 1989.
+- **Navigation and timing.** GPS provides not just position but the precise timing that synchronises financial transactions, telecom networks, and the grid itself. Severe ionospheric disturbance degrades it.
+- **Aviation.** Polar flights reroute to maintain communication and limit radiation exposure, at significant cost.
+
+Economic impact estimates for a severe, prolonged event range into the trillions of dollars, with recovery measured in months to years where transformers are lost. The figures are uncertain by design — we have never run the experiment on a grid this interconnected.
+
+## Could We See It Coming?
+
+Better than 1859, but the warning is uneven. A flare's radiation arrives in eight minutes — effectively no warning. The CME that drives the geomagnetic storm takes one to three days to cross from the Sun, and coronagraphs like those on SOHO can spot it leaving the Sun, giving a day or more of lead time to estimate arrival.
+
+The decisive measurement comes last and latest: the CME's magnetic orientation — its Bz — cannot be reliably known until it reaches DSCOVR at L1, 15 to 60 minutes upstream. A Carrington-class CME with northward Bz would be a dramatic near-miss; the same CME with strongly southward Bz would be the worst day in the history of the electrical grid. We do not know which until the final hour.
+
+That final hour is the entire point of real-time monitoring. Grid operators can shed load and reconfigure; satellite operators can safe their fleets; airlines can reroute. None of it is possible without continuous, low-latency data.
+
+## Why This Matters for a Monitoring Platform
+
+Carrington is the reason space weather is treated as critical infrastructure rather than a curiosity. Astraeusio ingests the same upstream signals that would call the warning — solar wind speed and density, IMF Bz, GOES X-ray flux, the Kp index and its forecast — and surfaces them continuously, with anomaly detection on the thresholds that matter. Most storms are minor. The job of monitoring is to be already watching, with history as the baseline, on the day one is not.
+    `.trim(),
+    contentTr: `
+1 Eylül 1859 sabahı, İngiliz gökbilimci Richard Carrington güneş lekeleri çizerken büyük bir güneş lekesi grubunun üzerinde iki parlak beyaz ışık boncuğunun patladığını gördü. Dakikalar içinde söndüler. Az önce kaydedilen ilk güneş patlamasına — ve kayıtlı tarihteki en yoğun jeomanyetik fırtınanın ön kenarına — tanık olmuştu.
+
+## 1859'da Ne Oldu
+
+Carrington'ın gördüğü patlamayı, Dünya'ya yaklaşık 17 saatte ulaşan bir koronal kütle atımı izledi — olağanüstü hızlı, çünkü daha önceki bir CME güneş rüzgârındaki yolu temizlemişti. Geldiğinde, kimsenin açıklayacak bir çerçevesi olmayan etkiler üretti.
+
+Aurora, Karayipler, Kolombiya ve Hawaii kadar güneyde — ekvatorun kabaca 23° yakınında — görüldü. Kuzey Amerika Birleşik Devletleri'nde ışık, gece yarısı gazete okumaya yetecek kadar parlaktı. Kayalık Dağlar'daki altın madencilerinin uyanıp şafak sandıkları için kahvaltı hazırlamaya başladıkları anlatılır.
+
+Var olan tek elektrik altyapısı — telgraf ağı — muhteşem biçimde çöktü. Operatörler elektrik çarpmasına maruz kaldı. Telgraf kâğıdı tutuştu. Ve mühendisleri hâlâ tedirgin eden bir ayrıntı: bazı operatörler pillerini tamamen çıkardı ve fırtınanın tellerde indüklediği akımla, tamamen onunla beslenerek hâlâ mesaj gönderebildiklerini gördü.
+
+## Ne Kadar Büyüktü
+
+Fırtınanın yoğunluğu, var olan birkaç manyetometre kaydından ve sonraki buz çekirdeği analizinden tahmin edilir. Fırtına zamanı halka akımının bir ölçüsü olan Dst endeksinin −850 ile −1.760 nanotesla arasında bir yere ulaştığı tahmin edilir. Karşılaştırma için, 1989'da Quebec elektrik şebekesini çökerten fırtına yaklaşık −589 nT'ye ulaştı ve bugün "şiddetli" bir G4 fırtınası −200 ila −300 nT aralığındadır.
+
+Carrington yalnızca güçlü bir fırtına değildi. Modern şebekenin yaşadığı her şeyden birkaç kat daha büyüktü.
+
+## 2012 Kıl Payı Atlatma
+
+Carrington'ı "on dokuzuncu yüzyıl tarihi" altına koymak cazip gelir. 23 Temmuz 2012'de bu rahatlık buharlaştı. En az 1859 olayı kadar güçlü bir CME, Güneş'ten 3.000 km/s'nin üzerinde bir hızla patladı — ve Dünya'nın yörüngesini geçti. Dünya yalnızca yolda değildi; patlama bölgesi yaklaşık dokuz gün önce Dünya'ya bakan çizgiden dönmüştü. CME, Dünya'nın kabaca bir hafta önce bulunduğu konumdan geçti.
+
+STEREO-A uzay aracı orada bulunuyordu ve onu doğrudan ölçtü. Sonraki analizler bunun Carrington sınıfı olduğu sonucuna vardı. 2013'teki bir çalışma, sonraki on yılda Carrington seviyesinde bir fırtınanın Dünya'ya çarpma olasılığını kabaca %12 olarak koydu. Olay tarihsel bir merak değil; çoğunlukla kaçınmakta şanslı olduğumuz yinelenen bir doğal tehlikedir.
+
+## Bugün Ne Yapardı
+
+Modern dünyaya çarpan Carrington sınıfı bir fırtına, 1859'da var olmayan sistemleri zorlardı:
+
+- **Elektrik şebekeleri.** Jeomanyetik olarak indüklenen akımlar uzun iletim hatları boyunca akar ve şebekenin kalbindeki büyük transformatörleri doyurup aşırı ısıtabilir. Bu transformatörler özel üretimdir, milyonlara mal olur ve değiştirilmesi bir yıl veya daha fazla sürebilir. 1989 Quebec fırtınası 90 saniyede altı milyon insanı karanlığa gömdü; Carrington sınıfı bir olay kıtalar boyunca transformatörlere zarar verebilir.
+- **Uydular.** 1989'da gökyüzündeki her şeyden çok daha büyük ve ekonomik olarak çok daha merkezi bir filo genelinde şiddetli yüklenme, hızlanan sürükleme ve tek olay bozulmaları.
+- **Navigasyon ve zamanlama.** GPS yalnızca konum değil, finansal işlemleri, telekom ağlarını ve şebekenin kendisini eşitleyen hassas zamanlamayı da sağlar. Şiddetli iyonosfer rahatsızlığı onu bozar.
+- **Havacılık.** Kutup uçuşları iletişimi sürdürmek ve radyasyona maruziyeti sınırlamak için önemli maliyetle rota değiştirir.
+
+Şiddetli ve uzun süreli bir olay için ekonomik etki tahminleri trilyonlarca dolara ulaşır; transformatörlerin kaybedildiği yerlerde iyileşme aylarla yıllarla ölçülür. Rakamlar doğası gereği belirsizdir — bu kadar birbirine bağlı bir şebeke üzerinde bu deneyi hiç yapmadık.
+
+## Onu Önceden Görebilir miydik
+
+1859'dan daha iyi, ama uyarı eşitsiz. Bir patlamanın radyasyonu sekiz dakikada gelir — etkili biçimde hiçbir uyarı yok. Jeomanyetik fırtınayı süren CME'nin Güneş'ten geçmesi bir ila üç gün sürer ve SOHO üzerindekiler gibi koronagraflar onu Güneş'ten ayrılırken görebilir; bu, varışı tahmin etmek için bir gün veya daha fazla öncü süre verir.
+
+Belirleyici ölçüm en son ve en geç gelir: CME'nin manyetik yönelimi — Bz'si — 15 ila 60 dakika akış-üstündeki L1'de DSCOVR'a ulaşana kadar güvenilir biçimde bilinemez. Kuzeye dönük Bz'ye sahip Carrington sınıfı bir CME çarpıcı bir kıl payı atlatma olurdu; güçlü güneye dönük Bz'ye sahip aynı CME, elektrik şebekesi tarihindeki en kötü gün olurdu. Hangisi olduğunu son saate kadar bilemeyiz.
+
+O son saat, gerçek zamanlı izlemenin tüm amacıdır. Şebeke operatörleri yük atabilir ve yeniden yapılandırabilir; uydu operatörleri filolarını güvene alabilir; havayolları rota değiştirebilir. Sürekli, düşük gecikmeli veri olmadan bunların hiçbiri mümkün değildir.
+
+## Bunun Bir İzleme Platformu için Önemi
+
+Carrington, uzay hava durumunun bir merak değil kritik altyapı olarak ele alınmasının nedenidir. Astraeusio, uyarıyı verecek aynı akış-üstü sinyalleri alır — güneş rüzgârı hızı ve yoğunluğu, IMF Bz, GOES X-ışını akısı, Kp endeksi ve tahmini — ve bunları önemli eşiklerde anomali tespitiyle birlikte sürekli olarak gösterir. Fırtınaların çoğu küçüktür. İzlemenin görevi, bir tanesinin küçük olmadığı gün, tarih temel çizgi olacak şekilde, çoktan izliyor olmaktır.
+    `.trim(),
+  },
 ]
 
 export function getPosts(lang) {
