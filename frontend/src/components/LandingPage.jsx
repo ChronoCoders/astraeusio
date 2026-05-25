@@ -87,6 +87,48 @@ function SectionLabel({ children, as: Tag = 'span' }) {
   )
 }
 
+// Live Kp sparkline — reuses the /api/public/kp series already fetched above.
+function KpSparkline({ data }) {
+  const { t } = useTranslation()
+  const pts = (data || []).filter(r => r.estimated_kp > 0)
+  if (pts.length < 2) return null
+
+  const series = pts.slice(-180)            // ~last 3 h at 1-min cadence
+  const W = 900, H = 84, PAD = 8, MAX = 9
+  const n = series.length
+  const xx = i  => PAD + (i / (n - 1)) * (W - 2 * PAD)
+  const yy = kp => H - PAD - (Math.min(Math.max(kp, 0), MAX) / MAX) * (H - 2 * PAD)
+  const line = series.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xx(i).toFixed(1)} ${yy(r.estimated_kp).toFixed(1)}`).join(' ')
+  const area = `${line} L ${xx(n - 1).toFixed(1)} ${(H - PAD).toFixed(1)} L ${xx(0).toFixed(1)} ${(H - PAD).toFixed(1)} Z`
+  const last = series[n - 1]
+  const badge = kpBadge(last.estimated_kp)
+
+  return (
+    <div className="mt-4 bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-mono tracking-[0.2em] text-zinc-500 uppercase">{t('landing.sparkTitle')}</span>
+        <span className={`text-xs font-mono ${badge.text}`}>Kp {fmtNum(last.estimated_kp, 2)}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 84 }} aria-hidden="true">
+        <defs>
+          <linearGradient id="kpSpark" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#fb923c" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#fb923c" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* G1 storm threshold (Kp 5) */}
+        <line x1={PAD} y1={yy(5)} x2={W - PAD} y2={yy(5)} stroke="#a16207" strokeWidth="1" strokeDasharray="5 4" opacity="0.7" vectorEffect="non-scaling-stroke" />
+        <path d={area} fill="url(#kpSpark)" />
+        <path d={line} fill="none" stroke="#fb923c" strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-zinc-600 text-[10px] font-mono uppercase tracking-widest">{t('landing.sparkSpan')}</span>
+        <span className="text-zinc-600 text-[10px] font-mono">{t('landing.sparkStorm')}</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Live metric card ──────────────────────────────────────────────────────────
 
 function LiveMetric({ label, value, unit, color = 'text-zinc-100', sub, delayed }) {
@@ -383,6 +425,8 @@ export default function LandingPage({ onSignUp, onSignIn }) {
               delayed={forecastData === null && !forecastLoading}
             />
           </div>
+
+          <KpSparkline data={kpData} />
         </div>
       </section>
 
