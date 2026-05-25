@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fmtNum, stormInfo, stormProb, auroraLine } from '../lib/utils'
 import { authedFetch } from '../lib/useApi'
@@ -13,24 +13,26 @@ export default function ForecastPage({ forecast }) {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState(null)
 
-  const load = useCallback(async (r) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [h, m] = await Promise.all([
-        authedFetch(`/api/forecast/history?range=${r}`).then(res => res.json()),
-        authedFetch(`/api/forecast/metrics?range=${r}`).then(res => res.json()),
-      ])
-      setHistory(h)
-      setMetrics(m)
-    } catch (e) {
-      setError(e.message || 'failed to load')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    let cancelled = false
+    async function run() {
+      setLoading(true)
+      setError(null)
+      try {
+        const [h, m] = await Promise.all([
+          authedFetch(`/api/forecast/history?range=${range}`).then(res => res.json()),
+          authedFetch(`/api/forecast/metrics?range=${range}`).then(res => res.json()),
+        ])
+        if (!cancelled) { setHistory(h); setMetrics(m) }
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'failed to load')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  }, [])
-
-  useEffect(() => { load(range) }, [range, load])
+    run()
+    return () => { cancelled = true }
+  }, [range])
 
   return (
     <div className="flex flex-col gap-4">
