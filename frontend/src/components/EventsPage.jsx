@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { authedFetch } from '../lib/useApi'
 
@@ -37,10 +37,18 @@ export default function EventsPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
+  // Filter changes reset to page 1. Done in the handlers (not an effect) to
+  // avoid an extra render pass.
+  const changeRange    = (r) => { setRange(r); setPage(1) }
+  const changeType     = (v) => { setType(v); setPage(1) }
+  const changeSeverity = (v) => { setSeverity(v); setPage(1) }
+
+  useEffect(() => {
+    let cancelled = false
+    const ctrl = new AbortController()
+    async function run() {
+      setLoading(true)
+      setError(null)
       const params = new URLSearchParams({
         range,
         page: String(page),
@@ -48,21 +56,20 @@ export default function EventsPage() {
       })
       if (type)     params.set('type', type)
       if (severity) params.set('severity', severity)
-      const res = await authedFetch(`/api/events?${params.toString()}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
-    } catch (e) {
-      setError(e.message || 'failed to load')
-    } finally {
-      setLoading(false)
+      try {
+        const res = await authedFetch(`/api/events?${params.toString()}`, { signal: ctrl.signal })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        if (!cancelled) { setData(json); setError(null) }
+      } catch (e) {
+        if (!cancelled && e.name !== 'AbortError') setError(e.message || 'failed to load')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
+    run()
+    return () => { cancelled = true; ctrl.abort() }
   }, [range, type, severity, page])
-
-  useEffect(() => { load() }, [load])
-
-  // Reset page when filters change
-  useEffect(() => { setPage(1) }, [range, type, severity])
 
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -76,7 +83,7 @@ export default function EventsPage() {
           {RANGES.map(r => (
             <button
               key={r}
-              onClick={() => setRange(r)}
+              onClick={() => changeRange(r)}
               className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
                 range === r ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
               }`}
@@ -92,7 +99,7 @@ export default function EventsPage() {
         <select
           name="event-type"
           value={type}
-          onChange={e => setType(e.target.value)}
+          onChange={e => changeType(e.target.value)}
           className="bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
         >
           {TYPES.map(ty => (
@@ -104,7 +111,7 @@ export default function EventsPage() {
         <select
           name="event-severity"
           value={severity}
-          onChange={e => setSeverity(e.target.value)}
+          onChange={e => changeSeverity(e.target.value)}
           className="bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
         >
           {SEVERITIES.map(sv => (
