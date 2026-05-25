@@ -33,6 +33,7 @@ export default function BlogPage({ onSignIn }) {
                 <img
                   src={post.image}
                   alt={post.title}
+                  loading="lazy"
                   className="w-full h-44 object-cover opacity-70 hover:opacity-90 hover:scale-105 transition-all duration-300"
                 />
               </Link>
