@@ -1,22 +1,33 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 const LANGS = ['en', 'tr']
 
-export default function AuthPage({ onAuth, initialMode = 'login' }) {
+export default function AuthPage({ onAuth, initialMode = 'login', initialPartialToken = null, oauthErrorCode = null }) {
   const { t, i18n } = useTranslation()
   const [searchParams] = useSearchParams()
   const [mode, setMode]           = useState(initialMode)
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
   const [confirm, setConfirm]     = useState('')
-  const [error, setError]         = useState(null)
+  const [error, setError]         = useState(oauthErrorCode ? t(`auth.oauthError.${oauthErrorCode}`, t('auth.oauthError.oauth_failed')) : null)
   const [success, setSuccess]     = useState(null)
   const [loading, setLoading]     = useState(false)
-  // 2FA step
-  const [partialToken, setPartial] = useState(null)
+  // 2FA step (may be pre-seeded by an OAuth login that requires TOTP)
+  const [partialToken, setPartial] = useState(initialPartialToken)
   const [totpCode, setTotpCode]   = useState('')
+  // Configured social-login providers (empty until fetched).
+  const [providers, setProviders] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/auth/providers')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.providers) setProviders(d.providers) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   function switchMode(next) {
     setMode(next)
@@ -340,6 +351,20 @@ export default function AuthPage({ onAuth, initialMode = 'login' }) {
               {mode === 'login' ? t('auth.loginSub') : t('auth.signupSub')}
             </p>
 
+            {providers.length > 0 && (
+              <>
+                <div className="flex flex-col gap-2 mb-5">
+                  {providers.includes('github') && <SocialButton provider="github" label={t('auth.continueGithub')} />}
+                  {providers.includes('google') && <SocialButton provider="google" label={t('auth.continueGoogle')} />}
+                </div>
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="h-px flex-1 bg-zinc-800" />
+                  <span className="text-zinc-600 text-xs">{t('auth.orEmail')}</span>
+                  <span className="h-px flex-1 bg-zinc-800" />
+                </div>
+              </>
+            )}
+
             <form onSubmit={submit} className="flex flex-col gap-4">
               <Field label={t('auth.email')}>
                 <input
@@ -456,5 +481,39 @@ function Field({ label, children }) {
       <label className="text-zinc-400 text-xs">{label}</label>
       {children}
     </div>
+  )
+}
+
+// Full-page navigation to the backend's OAuth start endpoint, which 302-redirects
+// to the provider. The provider then returns to /oauth/callback.
+function SocialButton({ provider, label }) {
+  const Icon = provider === 'github' ? GithubIcon : GoogleIcon
+  return (
+    <a
+      href={`/auth/oauth/${provider}/start`}
+      className="flex items-center justify-center gap-2.5 w-full bg-zinc-900 border border-zinc-800 rounded px-4 py-2.5 text-sm text-zinc-200 hover:bg-zinc-800 hover:border-zinc-700 transition-colors"
+    >
+      <Icon />
+      {label}
+    </a>
+  )
+}
+
+function GithubIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  )
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.59-5.05-3.71H.96v2.33A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.95 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9 9 0 0 0 0 8.08l2.99-2.33z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.96l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z" />
+    </svg>
   )
 }

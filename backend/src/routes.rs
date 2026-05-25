@@ -70,9 +70,11 @@ pub struct AppState {
     pub usage_counter: Arc<UsageCounter>,
     pub mailer: Option<mailer::MailerConfig>,
     pub app_url: String,
+    pub oauth: crate::oauth::OAuthConfig,
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: reqwest::Client,
         db: Store,
@@ -81,6 +83,7 @@ impl AppState {
         jwt_secret: String,
         mailer: Option<mailer::MailerConfig>,
         app_url: String,
+        oauth: crate::oauth::OAuthConfig,
     ) -> Self {
         Self {
             client,
@@ -92,6 +95,7 @@ impl AppState {
             usage_counter: Arc::new(DashMap::new()),
             mailer,
             app_url,
+            oauth,
         }
     }
 }
@@ -246,6 +250,12 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/2fa/verify", post(auth::verify_2fa))
         .route("/auth/2fa/disable", post(auth::disable_2fa))
         .route("/auth/2fa/login", post(auth::login_2fa))
+        .route("/auth/oauth/{provider}/start", get(crate::oauth::start))
+        .route(
+            "/auth/oauth/{provider}/callback",
+            get(crate::oauth::callback),
+        )
+        .route("/api/auth/providers", get(crate::oauth::list_providers))
         .route("/api/apod", get(get_apod))
         .route("/api/neo", get(get_neo))
         .route("/api/epic", get(get_epic))

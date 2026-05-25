@@ -363,7 +363,17 @@
     "resetBtn": "Set new password",
     "resetSuccess": "Password updated. Redirecting to sign in…",
     "newPassword": "New password",
-    "backToSignIn": "← Back to sign in"
+    "backToSignIn": "← Back to sign in",
+    "continueGithub": "Continue with GitHub",
+    "continueGoogle": "Continue with Google",
+    "orEmail": "or continue with email",
+    "oauthError": {
+      "oauth_failed": "Social sign-in failed. Please try again.",
+      "access_denied": "Sign-in was cancelled.",
+      "bad_state": "Your sign-in session expired. Please try again.",
+      "provider_unavailable": "This sign-in method is not available.",
+      "email_unverified": "Your provider email is not verified. Verify it or sign in with email."
+    }
   },
   "status": {
     "eyebrow": "System Status",

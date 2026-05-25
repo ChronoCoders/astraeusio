@@ -98,6 +98,7 @@ export default function Root() {
         <Route path="/privacy"        element={<PrivacyPage     {...pub} />} />
         <Route path="/terms"          element={<TermsPage       {...pub} />} />
         <Route path="/reset-password" element={<AuthPage initialMode="reset" onAuth={handleAuth} />} />
+        <Route path="/oauth/callback" element={<OAuthCallback onAuth={handleAuth} />} />
         <Route path="*"               element={<NotFoundPage   {...pub} />} />
       </Routes>
     )
@@ -126,6 +127,30 @@ export default function Root() {
       </div>
     </>
   )
+}
+
+// Lands here after a provider redirect. The backend places the result in the URL
+// fragment (never sent to servers): `#token=…` (signed in), `#partial_token=…`
+// (account has 2FA — finish with TOTP), or `#error=code`.
+function OAuthCallback({ onAuth }) {
+  const [parsed] = useState(() => {
+    const p = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    return { token: p.get('token'), partial: p.get('partial_token'), error: p.get('error') }
+  })
+
+  useEffect(() => {
+    if (parsed.token) {
+      // Strip the token from the address bar before transitioning to the app.
+      window.history.replaceState(null, '', '/')
+      onAuth(parsed.token)
+    }
+  }, [parsed.token, onAuth])
+
+  if (parsed.token) return <DashboardLoader />
+  if (parsed.partial) {
+    return <AuthPage initialMode="login" initialPartialToken={parsed.partial} onAuth={onAuth} />
+  }
+  return <AuthPage initialMode="login" oauthErrorCode={parsed.error ?? 'oauth_failed'} onAuth={onAuth} />
 }
 
 function DashboardLoader() {

@@ -412,7 +412,17 @@
     "resetBtn": "Şifreyi güncelle",
     "resetSuccess": "Şifre güncellendi. Giriş sayfasına yönlendiriliyorsunuz…",
     "newPassword": "Yeni şifre",
-    "backToSignIn": "← Girişe dön"
+    "backToSignIn": "← Girişe dön",
+    "continueGithub": "GitHub ile devam et",
+    "continueGoogle": "Google ile devam et",
+    "orEmail": "veya e-posta ile devam et",
+    "oauthError": {
+      "oauth_failed": "Sosyal giriş başarısız oldu. Lütfen tekrar deneyin.",
+      "access_denied": "Giriş iptal edildi.",
+      "bad_state": "Giriş oturumunuzun süresi doldu. Lütfen tekrar deneyin.",
+      "provider_unavailable": "Bu giriş yöntemi kullanılamıyor.",
+      "email_unverified": "Sağlayıcı e-postanız doğrulanmamış. Doğrulayın veya e-posta ile giriş yapın."
+    }
   },
   "plan": {
     "free": "Ücretsiz",

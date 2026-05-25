@@ -84,7 +84,7 @@ struct LoginResponse {
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
-fn purpose_token(
+pub(crate) fn purpose_token(
     sub: &str,
     purpose: &str,
     ttl: i64,
@@ -823,18 +823,23 @@ fn sha256_hex(input: &str) -> String {
         .collect()
 }
 
-fn issue_jwt(email: &str, secret: &str) -> Response {
+/// Mint a 24h session JWT string (the token returned on successful login).
+pub(crate) fn session_jwt(email: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let exp = (chrono::Utc::now().timestamp() + 86_400) as u64;
     let claims = AuthClaims {
         sub: email.to_string(),
         exp,
         auth_type: AuthType::Jwt,
     };
-    match encode(
+    encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
-    ) {
+    )
+}
+
+fn issue_jwt(email: &str, secret: &str) -> Response {
+    match session_jwt(email, secret) {
         Ok(token) => Json(LoginResponse { token }).into_response(),
         Err(e) => {
             warn!("jwt encode error: {e}");

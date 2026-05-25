@@ -114,7 +114,8 @@ CREATE TABLE IF NOT EXISTS iss_position (
 CREATE TABLE IF NOT EXISTS users (
     email         TEXT   NOT NULL PRIMARY KEY,
     password_hash TEXT   NOT NULL,
-    created_at    BIGINT NOT NULL
+    created_at    BIGINT NOT NULL,
+    auth_provider TEXT   DEFAULT 'password'
 );
 
 CREATE TABLE IF NOT EXISTS kp_forecast (
@@ -226,6 +227,7 @@ impl Store {
             "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN totp_secret TEXT",
             "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'password'",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -1090,6 +1092,22 @@ impl Store {
         let result = self.conn.execute(
             "INSERT INTO users (email, password_hash, created_at, plan) VALUES (?, ?, ?, 'starter')",
             params![email, hash, now()],
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) if e.to_string().contains("Constraint Error") => Err(DbError::EmailTaken),
+            Err(e) => Err(DbError::Duckdb(e)),
+        }
+    }
+
+    /// Create an account that authenticates via an external OAuth provider.
+    /// `hash` is a random unguessable bcrypt hash (password login is never used for
+    /// these accounts) and the email arrives pre-verified from the provider.
+    pub fn create_oauth_user(&self, email: &str, provider: &str, hash: &str) -> Result<(), DbError> {
+        let result = self.conn.execute(
+            "INSERT INTO users (email, password_hash, created_at, plan, email_verified, auth_provider) \
+             VALUES (?, ?, ?, 'starter', TRUE, ?)",
+            params![email, hash, now(), provider],
         );
         match result {
             Ok(_) => Ok(()),

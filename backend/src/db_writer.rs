@@ -77,6 +77,12 @@ pub enum WriteCmd {
         hash: String,
         reply: oneshot::Sender<Result<(), DbError>>,
     },
+    CreateOauthUser {
+        email: String,
+        provider: String,
+        hash: String,
+        reply: oneshot::Sender<Result<(), DbError>>,
+    },
     UpdatePassword {
         email: String,
         hash: String,
@@ -150,6 +156,25 @@ impl DbWriterHandle {
         self.tx
             .send(WriteCmd::CreateUser {
                 email,
+                hash,
+                reply: tx,
+            })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn create_oauth_user(
+        &self,
+        email: String,
+        provider: String,
+        hash: String,
+    ) -> Result<(), DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::CreateOauthUser {
+                email,
+                provider,
                 hash,
                 reply: tx,
             })
@@ -500,6 +525,14 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         }
         WriteCmd::CreateUser { email, hash, reply } => {
             let _ = reply.send(db.create_user(&email, &hash));
+        }
+        WriteCmd::CreateOauthUser {
+            email,
+            provider,
+            hash,
+            reply,
+        } => {
+            let _ = reply.send(db.create_oauth_user(&email, &provider, &hash));
         }
         WriteCmd::UpdatePassword { email, hash, reply } => {
             let _ = reply.send(db.update_password_hash(&email, &hash));
