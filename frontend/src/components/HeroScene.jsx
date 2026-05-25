@@ -55,6 +55,10 @@ export default function HeroScene() {
       earth.material.map = tex
       earth.material.needsUpdate = true
       earth.visible = true
+      // The texture arrives after mount. In reduced-motion mode the scene is only
+      // drawn once (at mount, before this loads), so re-render now or the globe
+      // would stay invisible — e.g. on phones in Low Power / battery-saver mode.
+      if (reduced) renderer.render(scene, camera)
     })
 
     // Atmospheric Fresnel rim: thin bright halo on Earth's sunlit limb.
