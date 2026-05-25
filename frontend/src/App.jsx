@@ -153,7 +153,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {/* ── Dashboard ──────────────────────────────────────────────── */}
           {page === 'dashboard' && <>
 
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <MetricCard
                 label={t('metrics.kpIndex')}
                 value={currentKp != null ? fmtNum(currentKp, 2) : null}
@@ -186,8 +186,8 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="lg:col-span-2">
                 <KpChart records={kp.data} />
               </div>
               <ForecastPanel data={forecast.data} loading={forecast.loading} error={forecast.error} onNavigate={setPage} />
@@ -195,18 +195,18 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
 
             <div className="flex flex-col gap-3">
               <AsteroidTable data={neo.data} />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <AnomalyPanel data={anomalies.data} loading={anomalies.loading} error={anomalies.error} onNavigate={setPage} />
                 <AlertsList data={alerts.data} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <IssPanel data={iss.data} />
               <ApodCard data={apod.data} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <EpicViewer data={epic.data} />
               <ExoplanetStats data={exo.data} />
             </div>
@@ -219,8 +219,8 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {/* ── Charts ─────────────────────────────────────────────────── */}
           {page === 'charts' && (
             <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="lg:col-span-2">
                   <SolarWindChart data={wind.data} />
                 </div>
                 <KpGauge kp={currentKp} />
@@ -238,7 +238,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('map.title')}</span>
                 <span className="text-zinc-600 text-xs">{t('map.updated')}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-2">
                   <span className="text-zinc-400 text-xs font-mono">{t('map.north')}</span>
                   <img
