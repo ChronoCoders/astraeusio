@@ -55,10 +55,6 @@ export default function HeroScene() {
       earth.material.map = tex
       earth.material.needsUpdate = true
       earth.visible = true
-      // The texture arrives after mount. In reduced-motion mode the scene is only
-      // drawn once (at mount, before this loads), so re-render now or the globe
-      // would stay invisible — e.g. on phones in Low Power / battery-saver mode.
-      if (reduced) renderer.render(scene, camera)
     })
 
     // Atmospheric Fresnel rim: thin bright halo on Earth's sunlit limb.
@@ -143,22 +139,25 @@ const satGeo  = new THREE.SphereGeometry(0.022, 6, 6)
     }
     window.addEventListener('resize', onResize)
 
+    // The globe always turns (slowly when the user prefers reduced motion). The
+    // orbiting satellites — the genuinely motion-heavy part — are held static
+    // under reduced motion. Running the loop also guarantees a repaint once the
+    // Earth texture finishes loading after mount.
+    const earthSpin = reduced ? 0.0004 : 0.001
     let raf
-    if (reduced) {
-      renderer.render(scene, camera)
-    } else {
-      function animate() {
-        raf = requestAnimationFrame(animate)
-        earth.rotation.y += 0.001
+    function animate() {
+      raf = requestAnimationFrame(animate)
+      earth.rotation.y += earthSpin
+      if (!reduced) {
         sats.forEach(s => {
           s.angle += s.speed
           s.sat.position.x = s.radius * Math.cos(s.angle)
           s.sat.position.z = s.radius * Math.sin(s.angle)
         })
-        renderer.render(scene, camera)
       }
-      animate()
+      renderer.render(scene, camera)
     }
+    animate()
 
     return () => {
       cancelAnimationFrame(raf)
