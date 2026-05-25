@@ -3,24 +3,9 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
+import { PLANS, PLAN_FEATURES } from '../lib/plans'
 
 // ── Static data (keys only, no human-readable strings) ────────────────────────
-
-const PLANS = [
-  { key: 'free',       monthly: 0,    annual: 0,    highlight: false },
-  { key: 'developer',  monthly: 29,   annual: 23,   highlight: false },
-  { key: 'pro',        monthly: 99,   annual: 79,   highlight: true  },
-  { key: 'business',   monthly: 299,  annual: 239,  highlight: false },
-  { key: 'enterprise', monthly: null, annual: null, highlight: false },
-]
-
-const PLAN_FEATURES = {
-  free:       ['req100day', 'delay60', 'kpSolar'],
-  developer:  ['req10k', 'realtime', 'ml', 'anomalyBasic', 'emailLimited'],
-  pro:        ['req100k', 'realtime', 'mlCI', 'anomalyFull', 'webhooks', 'prioritySupport'],
-  business:   ['req1m', 'realtime', 'advAlerts', 'thresholds', 'multiChannel', 'sla'],
-  enterprise: ['unlimited', 'dedicated', 'customModels', 'slaOnboarding', 'dedicatedSupport'],
-}
 
 const ROWS = [
   { k: 'api',          type: 'text' },
