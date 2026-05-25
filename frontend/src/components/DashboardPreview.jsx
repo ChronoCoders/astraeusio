@@ -52,10 +52,13 @@ function MiniSidebar({ t }) {
 
 function DashboardCanvas({ kpData, wind, forecastData }) {
   const { t } = useTranslation()
-  const series = kpData && kpData.length ? kpData : SAMPLE_KP
+  // Metrics + forecast use live public data (with sample fallback); the chart
+  // always uses the representative 24h series — the public Kp endpoint only
+  // serves ~1 h, which looks too sparse for a marketing preview.
+  const liveKp = kpData && kpData.length ? kpData : SAMPLE_KP
   const w = wind && wind.speed != null ? wind : SAMPLE_WIND
   const fc = forecastData && forecastData.predicted_kp != null ? forecastData : SAMPLE_FORECAST
-  const latestKp = series.filter(r => r.estimated_kp > 0).at(-1)?.estimated_kp ?? 0
+  const latestKp = liveKp.filter(r => r.estimated_kp > 0).at(-1)?.estimated_kp ?? 0
   const storm = stormInfo(latestKp)
 
   return (
@@ -71,7 +74,7 @@ function DashboardCanvas({ kpData, wind, forecastData }) {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <KpChart records={series} />
+            <KpChart records={SAMPLE_KP} />
           </div>
           <ForecastPanel data={fc} loading={false} onNavigate={() => {}} />
         </div>
