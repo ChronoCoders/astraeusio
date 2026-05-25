@@ -704,6 +704,8 @@
     "sparkTitle": "Geomagnetic activity — live Kp",
     "sparkSpan": "Live · 1-minute cadence",
     "sparkStorm": "Kp 5 = G1 storm",
+    "previewTitle": "See the dashboard",
+    "previewDesc": "Every signal in one view — live Kp index, solar wind, X-ray flux, and the ML forecast with confidence intervals, all updated continuously.",
     "predTitle": "Predictive intelligence",
     "p1Title": "3-hour geomagnetic forecast",
     "p1Body": "Anticipate near-term space weather activity using machine learning models trained on decades of historical data.",
