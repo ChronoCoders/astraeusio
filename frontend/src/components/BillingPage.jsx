@@ -1,36 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi, authedFetch } from '../lib/useApi'
-
-// Mirrors the public PricingPage tiers (keep in sync). `monthly`/`annual` are USD;
-// enterprise is quote-only (null). Paid tiers are acquired via sales inquiry — there
-// is no payment processor — so only a self-serve downgrade to Free hits the API.
-const PLANS = [
-  { key: 'free',       monthly: 0,    annual: 0,    rank: 0 },
-  { key: 'developer',  monthly: 29,   annual: 23,   rank: 1 },
-  { key: 'pro',        monthly: 99,   annual: 79,   rank: 2, highlight: true },
-  { key: 'business',   monthly: 299,  annual: 239,  rank: 3 },
-  { key: 'enterprise', monthly: null, annual: null, rank: 4 },
-]
-
-const PLAN_FEATURES = {
-  free:       ['req100day', 'delay60', 'kpSolar'],
-  developer:  ['req10k', 'realtime', 'ml', 'anomalyBasic', 'emailLimited'],
-  pro:        ['req100k', 'realtime', 'mlCI', 'anomalyFull', 'webhooks', 'prioritySupport'],
-  business:   ['req1m', 'realtime', 'advAlerts', 'thresholds', 'multiChannel', 'sla'],
-  enterprise: ['unlimited', 'dedicated', 'customModels', 'slaOnboarding', 'dedicatedSupport'],
-}
-
-const PLAN_COLOR = {
-  free:       'border-zinc-700 text-zinc-400',
-  developer:  'border-blue-700 text-blue-400',
-  pro:        'border-purple-700 text-purple-400',
-  business:   'border-amber-700 text-amber-400',
-  enterprise: 'border-orange-600 text-orange-400',
-}
-
-// The default account plan is "starter"; the public tiers call it "free".
-const normalize = (plan) => (plan === 'starter' ? 'free' : (plan ?? 'free'))
+import { PLANS, PLAN_FEATURES, PLAN_COLOR, normalizePlan, planRank } from '../lib/plans'
 
 function fmtDate(unixSec) {
   if (unixSec == null) return '—'
@@ -179,8 +150,8 @@ export default function BillingPage({ user, onUserChange }) {
   const [done, setDone] = useState(false)
 
   const plan = user?.plan ?? 'starter'
-  const effective = normalize(plan)
-  const currentRank = PLANS.find(p => p.key === effective)?.rank ?? 0
+  const effective = normalizePlan(plan)
+  const currentRank = planRank(plan)
   const planCls = PLAN_COLOR[effective] ?? PLAN_COLOR.free
 
   async function downgradeToFree() {
