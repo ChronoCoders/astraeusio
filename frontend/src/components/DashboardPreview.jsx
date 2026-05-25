@@ -25,7 +25,7 @@ const SAMPLE_KP = (() => {
 const SAMPLE_WIND = { speed: 412, density: 4.8 }
 const SAMPLE_FORECAST = { predicted_kp: 2.4, ci_lower: 2.1, ci_upper: 2.7, uncertainty: 0.18 }
 
-const NAV = ['dashboard', 'forecast', 'charts', 'map', 'alerts', 'events', 'reports', 'api', 'settings']
+const NAV = ['dashboard', 'forecast', 'charts', 'map', 'alerts', 'events', 'reports', 'api', 'billing', 'settings']
 
 function MiniSidebar({ t }) {
   return (
