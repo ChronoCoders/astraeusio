@@ -1,6 +1,7 @@
-// Astraeusio mark — sun + orbit + alert arc. Transparent, scales to any size.
-// Tuned for dark headers (amber sun, faint white orbit). Geometry matches the
-// canonical brand mark centered at (50,50) in a 100×100 box.
+// Astraeusio mark — sun + orbit + alert arc. Transparent, centered at (50,50)
+// in a 100×100 box. Strokes are proportionally fat (orbit 2.8, arc 5) so the
+// ring and arc stay visible in the 28–48 px header render range — at the old
+// thin strokes (0.8/2.2) they went sub-pixel below ~125 px.
 export default function Logo({ size = 22, className = '' }) {
   return (
     <svg
@@ -11,17 +12,17 @@ export default function Logo({ size = 22, className = '' }) {
       role="img"
       aria-label="Astraeusio"
     >
-      <circle cx="50" cy="50" r="29" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="0.8" />
+      <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="2.8" />
       <path
-        d="M 55.0 21.4 A 29 29 0 0 1 78.6 45.0"
+        d="M 55.5 18.5 A 32 32 0 0 1 81.5 44.4"
         fill="none"
         stroke="#D97706"
-        strokeWidth="2.2"
+        strokeWidth="5"
         strokeLinecap="round"
-        opacity="0.75"
+        opacity="0.72"
       />
-      <circle cx="50" cy="50" r="11" fill="#D97706" />
-      <circle cx="50" cy="50" r="6.5" fill="#FAC775" opacity="0.4" />
+      <circle cx="50" cy="50" r="14" fill="#D97706" />
+      <circle cx="50" cy="50" r="8" fill="#FAC775" opacity="0.45" />
     </svg>
   )
 }
