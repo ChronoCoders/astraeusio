@@ -8,8 +8,6 @@ export default function HeroScene() {
     const el = containerRef.current
     if (!el) return
 
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(el.clientWidth, el.clientHeight)
@@ -139,22 +137,17 @@ const satGeo  = new THREE.SphereGeometry(0.022, 6, 6)
     }
     window.addEventListener('resize', onResize)
 
-    // The globe always turns (slowly when the user prefers reduced motion). The
-    // orbiting satellites — the genuinely motion-heavy part — are held static
-    // under reduced motion. Running the loop also guarantees a repaint once the
-    // Earth texture finishes loading after mount.
-    const earthSpin = reduced ? 0.0004 : 0.001
+    // Continuous animation: the globe turns and the satellites orbit. The loop
+    // also guarantees a repaint once the Earth texture finishes loading after mount.
     let raf
     function animate() {
       raf = requestAnimationFrame(animate)
-      earth.rotation.y += earthSpin
-      if (!reduced) {
-        sats.forEach(s => {
-          s.angle += s.speed
-          s.sat.position.x = s.radius * Math.cos(s.angle)
-          s.sat.position.z = s.radius * Math.sin(s.angle)
-        })
-      }
+      earth.rotation.y += 0.001
+      sats.forEach(s => {
+        s.angle += s.speed
+        s.sat.position.x = s.radius * Math.cos(s.angle)
+        s.sat.position.z = s.radius * Math.sin(s.angle)
+      })
       renderer.render(scene, camera)
     }
     animate()
