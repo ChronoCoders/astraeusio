@@ -14,8 +14,13 @@ function firstLine(msg) {
 }
 
 function parseDate(dt) {
-  try { return new Date(dt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) }
-  catch { return dt }
+  if (!dt) return ''
+  // NOAA issues "YYYY-MM-DD HH:MM:SS.sss" — UTC, space-separated, not ISO.
+  // Safari/iOS parse the space form as Invalid Date, so normalize to ISO-UTC first.
+  const iso = dt.includes('T') ? dt : `${dt.replace(' ', 'T')}Z`
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return dt
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 export default function AlertsList({ data }) {
