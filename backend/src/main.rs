@@ -8,6 +8,7 @@ mod iss;
 mod mailer;
 mod nasa;
 mod noaa;
+mod oauth;
 mod plan;
 mod poller;
 mod rate_limit;
@@ -44,6 +45,8 @@ async fn main() -> Result<()> {
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let mailer_config = mailer::MailerConfig::from_env();
     let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let oauth_config = oauth::OAuthConfig::from_env(&app_url);
+    info!("oauth providers enabled: {:?}", oauth_config.enabled());
     let state = routes::AppState::new(
         client,
         read_db,
@@ -52,6 +55,7 @@ async fn main() -> Result<()> {
         jwt_secret,
         mailer_config.clone(),
         app_url,
+        oauth_config,
     );
 
     poller::spawn(
