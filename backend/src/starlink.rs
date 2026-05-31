@@ -21,7 +21,7 @@ pub struct StarlinkSat {
 ///
 /// Celestrak refreshes data every 2 hours and returns 304 or 403 when no new
 /// data is available since the last download. Both are treated as soft
-/// "no update needed" — the poller skips the insert, keeping existing DB rows.
+/// "no update needed" - the poller skips the insert, keeping existing DB rows.
 pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, StarlinkError> {
     let resp = client
         .get("https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle")

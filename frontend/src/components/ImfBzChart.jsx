@@ -22,7 +22,7 @@ export default function ImfBzChart({ data }) {
   )
 
   const vals = pts.map(r => r.bz_gsm)
-  // Symmetric around zero — ensures 0 is always the visual midpoint.
+  // Symmetric around zero - ensures 0 is always the visual midpoint.
   const absMax = Math.max(vals.reduce((a, b) => Math.max(a, Math.abs(b)), 0), 5) * 1.15
   const yMin = -absMax
   const yMax =  absMax
@@ -77,17 +77,17 @@ export default function ImfBzChart({ data }) {
           )
         })}
 
-        {/* Northward fill (positive Bz — blue) */}
+        {/* Northward fill (positive Bz - blue) */}
         <polygon points={areaPoints} fill="#3b82f6" fillOpacity="0.18"
           clipPath="url(#imf-above)" />
-        {/* Southward fill (negative Bz — red) */}
+        {/* Southward fill (negative Bz - red) */}
         <polygon points={areaPoints} fill="#ef4444" fillOpacity="0.18"
           clipPath="url(#imf-below)" />
 
-        {/* Line — northward portion blue */}
+        {/* Line - northward portion blue */}
         <polyline points={polyline} fill="none" stroke="#60a5fa" strokeWidth="1.5"
           strokeLinejoin="round" clipPath="url(#imf-above)" />
-        {/* Line — southward portion red */}
+        {/* Line - southward portion red */}
         <polyline points={polyline} fill="none" stroke="#f87171" strokeWidth="1.5"
           strokeLinejoin="round" clipPath="url(#imf-below)" />
       </svg>

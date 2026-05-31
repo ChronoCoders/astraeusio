@@ -85,10 +85,10 @@ export default function TermsPage({ onSignIn }) {
           <Section title="API Usage and Rate Limits">
             <p>API access is subject to rate limits based on your plan tier:</p>
             <ul className="list-disc list-inside flex flex-col gap-1 pl-2">
-              <li><span className="text-zinc-300 font-medium">Free</span> — limited requests per month, dashboard access only</li>
-              <li><span className="text-zinc-300 font-medium">Starter</span> — increased limits, basic API access</li>
-              <li><span className="text-zinc-300 font-medium">Pro</span> — higher limits, webhooks, full API access</li>
-              <li><span className="text-zinc-300 font-medium">Enterprise</span> — custom limits, custom anomaly rules, priority support</li>
+              <li><span className="text-zinc-300 font-medium">Free</span> - limited requests per month, dashboard access only</li>
+              <li><span className="text-zinc-300 font-medium">Starter</span> - increased limits, basic API access</li>
+              <li><span className="text-zinc-300 font-medium">Pro</span> - higher limits, webhooks, full API access</li>
+              <li><span className="text-zinc-300 font-medium">Enterprise</span> - custom limits, custom anomaly rules, priority support</li>
             </ul>
             <p>Exceeding your plan's rate limits will result in requests being rejected until your
               billing period resets. We reserve the right to adjust plan limits with reasonable notice.</p>
@@ -127,7 +127,7 @@ export default function TermsPage({ onSignIn }) {
             <p>
               TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL ASTRAEUSIO, ITS
               OPERATORS, OR AFFILIATES BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
-              OR PUNITIVE DAMAGES — INCLUDING LOSS OF PROFITS, DATA, OR GOODWILL — ARISING FROM YOUR
+              OR PUNITIVE DAMAGES - INCLUDING LOSS OF PROFITS, DATA, OR GOODWILL - ARISING FROM YOUR
               USE OF OR INABILITY TO USE THE SERVICE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY
               OF SUCH DAMAGES.
             </p>

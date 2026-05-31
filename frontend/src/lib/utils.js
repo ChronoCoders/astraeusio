@@ -64,7 +64,7 @@ export function auroraLine(kp) {
 // ── X-ray ─────────────────────────────────────────────────────────────────────
 
 export function xrayClass(flux) {
-  if (!flux || flux <= 0) return { label: '—', cls: 'text-zinc-500' }
+  if (!flux || flux <= 0) return { label: '-', cls: 'text-zinc-500' }
   if (flux < 1e-7) return { label: 'A' + fmt(flux / 1e-8, 1), cls: 'text-zinc-400' }
   if (flux < 1e-6) return { label: 'B' + fmt(flux / 1e-7, 1), cls: 'text-zinc-300' }
   if (flux < 1e-5) return { label: 'C' + fmt(flux / 1e-6, 1), cls: 'text-yellow-400' }
@@ -161,6 +161,6 @@ export function planSatisfies(userPlan, required) {
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 export function fmtNum(n, decimals = 0) {
-  if (n == null || !isFinite(n)) return '—'
+  if (n == null || !isFinite(n)) return '-'
   return n.toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals })
 }

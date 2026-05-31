@@ -26,7 +26,7 @@ const ROWS = [
   { k: 'support',      type: 'text' },
 ]
 
-// Text cells: true = ✓, null/false = —, string = t('pricing.tv.' + val)
+// Text cells: true = ✓, null/false = -, string = t('pricing.tv.' + val)
 const TABLE = {
   free:       { api: 'req100day', delay: 'delay60',  kp: true,  realtime: false, ml: false, ci: false, anomalyBasic: false, anomalyFull: false, thresholds: false, email: null,      webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'community' },
   developer:  { api: 'req10k',    delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: false, anomalyBasic: true,  anomalyFull: false, thresholds: false, email: 'limited', webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'email'     },
@@ -122,7 +122,7 @@ function PlanCard({ plan, annual, onCta }) {
             </p>
           )}
           {isFree && !showSave && (
-            <p className="text-zinc-700 text-xs mt-1 invisible">—</p>
+            <p className="text-zinc-700 text-xs mt-1 invisible">-</p>
           )}
         </div>
 
@@ -238,11 +238,11 @@ export default function PricingPage({ onSignIn, onSignUp }) {
                         {row.type === 'bool' ? (
                           val
                             ? <span className="text-green-400 inline-flex justify-center"><CheckIcon /></span>
-                            : <span className="text-zinc-700 text-xs">—</span>
+                            : <span className="text-zinc-700 text-xs">-</span>
                         ) : val === true ? (
                           <span className="text-green-400 inline-flex justify-center"><CheckIcon /></span>
                         ) : val == null || val === false ? (
-                          <span className="text-zinc-700 text-xs">—</span>
+                          <span className="text-zinc-700 text-xs">-</span>
                         ) : (
                           <span className={`text-xs ${
                             p.highlight ? 'text-zinc-100 font-medium' : 'text-zinc-400'

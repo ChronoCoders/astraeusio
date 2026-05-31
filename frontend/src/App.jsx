@@ -28,9 +28,9 @@ import BillingPage      from './components/BillingPage'
 import SettingsPage     from './components/SettingsPage'
 import CustomRulesPanel from './components/CustomRulesPanel'
 
-const FAST     = 30_000       // 30 s — live data
-const SLOW     = 120_000      // 2 min — slower-changing data
-const STARLINK = 1_800_000    // 30 min — TLEs change slowly
+const FAST     = 30_000       // 30 s - live data
+const SLOW     = 120_000      // 2 min - slower-changing data
+const STARLINK = 1_800_000    // 30 min - TLEs change slowly
 
 function fmtUtc(d) {
   const p = n => String(n).padStart(2, '0')
@@ -109,7 +109,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
         {/* Top bar */}
         <header className="h-14 flex items-center justify-between px-4 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-3">
-            {/* Hamburger — mobile only */}
+            {/* Hamburger - mobile only */}
             <button
               onClick={() => setSidebar(true)}
               className="lg:hidden text-zinc-400 hover:text-zinc-200 transition-colors p-1"
@@ -122,7 +122,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 <line x1="2" y1="13.5" x2="16" y2="13.5" />
               </svg>
             </button>
-            {/* Wordmark — mobile only (desktop brand is in sidebar) */}
+            {/* Wordmark - mobile only (desktop brand is in sidebar) */}
             <span className="lg:hidden flex items-center gap-2 text-zinc-100 font-thin tracking-[0.2em] text-sm select-none">
               <Logo size={18} className="shrink-0" />
               ASTRAEUSIO
@@ -182,7 +182,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               <MetricCard
                 label={t('metrics.stormLevel')}
                 value={t(storm.key)}
-                sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '—'}`}
+                sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '-'}`}
                 valueCls={storm.cls}
               />
             </div>

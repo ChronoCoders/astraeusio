@@ -45,7 +45,7 @@ export default function ForecastPanel({ data, loading, error, onNavigate }) {
       <Row label={t('forecast.ci')}>
         <div className="flex items-center gap-1 font-mono text-sm">
           <span className="text-zinc-300">{fmtNum(data.ci_lower, 2)}</span>
-          <span className="text-zinc-600 px-1">—</span>
+          <span className="text-zinc-600 px-1">-</span>
           <span className="text-zinc-300">{fmtNum(data.ci_upper, 2)}</span>
           <span className="text-zinc-500 text-xs ml-1">Kp</span>
         </div>

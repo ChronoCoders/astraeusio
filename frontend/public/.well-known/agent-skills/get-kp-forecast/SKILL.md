@@ -4,7 +4,7 @@ Retrieve a 3-hour ahead Kp index prediction from Astraeusio's LSTM model, includ
 
 ## When to use
 
-Use this skill when you need to predict geomagnetic activity over the next 3 hours — for example, to advise on aurora viewing prospects, satellite maneuver windows, or power grid risk. The model is trained on 20+ years of NOAA Kp data.
+Use this skill when you need to predict geomagnetic activity over the next 3 hours - for example, to advise on aurora viewing prospects, satellite maneuver windows, or power grid risk. The model is trained on 20+ years of NOAA Kp data.
 
 ## Authentication
 
@@ -35,5 +35,5 @@ No authentication required for the public forecast endpoint. Authenticated endpo
 - Architecture: LSTM with Monte Carlo Dropout (50 inference passes)
 - Features: Kp history (7–48 readings), hour sin/cos, month sin/cos, solar cycle phase
 - Trained on NOAA 1-minute estimated Kp from 2000–present
-- Cannot predict sudden storm commencement from fast CMEs with no precursor — pair with `/api/imf` and `/api/solar-wind` for full picture
+- Cannot predict sudden storm commencement from fast CMEs with no precursor - pair with `/api/imf` and `/api/solar-wind` for full picture
 - A wide confidence interval means the situation is ambiguous; weight the forecast accordingly

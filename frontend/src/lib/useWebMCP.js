@@ -105,7 +105,7 @@ export function useWebMCP() {
         try {
           mc.registerTool(tool, { signal: ac.signal })
         } catch {
-          // ignore — browser may not support this tool shape yet
+          // ignore - browser may not support this tool shape yet
         }
       }
       return () => ac.abort()
