@@ -1,5 +1,16 @@
 target/
 .env
 *.duckdb
+*.duckdb.wal
 data/
 ml/models/
+
+# Local-only Claude Code context — never commit
+.claude/
+CLAUDE.md
+
+# Runtime logs / Python bytecode / scratch
+*.log
+*.err
+__pycache__/
+frontend/content.md

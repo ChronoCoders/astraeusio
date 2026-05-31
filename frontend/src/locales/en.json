@@ -1,5 +1,20 @@
 {
   "appTitle": "Astraeusio",
+  "onboarding": {
+    "eyebrow": "Get started",
+    "heading": "Welcome to Astraeusio",
+    "progress": "{{done}} of {{total}} steps complete",
+    "dismiss": "Dismiss",
+    "verifyTitle": "Verify your email address",
+    "verifyDesc": "Confirm your address so alerts and notifications can reach you.",
+    "verifyCta": "Open settings",
+    "keyTitle": "Create your first API key",
+    "keyDesc": "Authenticate programmatic requests with a personal API key.",
+    "keyCta": "Create key",
+    "requestTitle": "Make your first API request",
+    "requestDesc": "Try the quickstart in the docs and see live data flow into your terminal.",
+    "requestCta": "Open quickstart"
+  },
   "common": {
     "noData": "No data",
     "loading": "Loading…",
