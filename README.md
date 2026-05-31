@@ -331,9 +331,6 @@ DuckDB stores all data in a single file (`astraeus.duckdb`). Back it up by copyi
 
 ## License
 
-Astraeusio is licensed under the [Business Source License 1.1](LICENSE).
+Copyright (c) 2026 Altug Tatlisu / ChronoCoders. **All rights reserved.** See [LICENSE](LICENSE).
 
-**Change Date:** 2029-04-20
-**Change License:** Apache License, Version 2.0
-
-Until the Change Date, production use requires a commercial license from ChronoCoders. After the Change Date, the software is available under the Apache 2.0 license. Non-production use (evaluation, development, testing, research) is permitted under BSL 1.1 without restriction.
+This repository is public for transparency, but the source code is proprietary. No license is granted to copy, modify, redistribute, or use the software in any form without prior written permission. For licensing inquiries, contact `hello@astraeusio.com`.
