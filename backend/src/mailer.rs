@@ -131,10 +131,10 @@ pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) 
             <td style="border-top:1px solid #27272a;padding-top:24px;">
               <p style="margin:0;font-size:11px;color:#52525b;line-height:1.6;font-family:monospace;">
                 Questions? Reply to this email or contact us at
-                <a href="mailto:contact@chronocoder.dev" style="color:#71717a;text-decoration:none;">contact@chronocoder.dev</a>
+                <a href="mailto:hello@astraeusio.com" style="color:#71717a;text-decoration:none;">hello@astraeusio.com</a>
               </p>
               <p style="margin:8px 0 0;font-size:11px;color:#3f3f46;font-family:monospace;">
-                © 2026 Astraeusio · Built on NOAA and NASA open data
+                © 2026 Astraeusio · All rights reserved.
               </p>
             </td>
           </tr>
@@ -211,7 +211,7 @@ pub async fn send_password_reset_email(config: &MailerConfig, to: &str, reset_ur
                 If you did not request a password reset, you can safely ignore this email. Your password will not change.
               </p>
               <p style="margin:8px 0 0;font-size:11px;color:#3f3f46;font-family:monospace;">
-                © 2026 Astraeusio · Built on NOAA and NASA open data
+                © 2026 Astraeusio · All rights reserved.
               </p>
             </td>
           </tr>

@@ -179,9 +179,9 @@ export default function TermsPage({ onSignIn }) {
           <Section title="Contact">
             <p>Questions about these Terms? Contact us at:</p>
             <p>
-              <a href="mailto:contact@chronocoder.dev"
+              <a href="mailto:hello@astraeusio.com"
                 className="text-zinc-300 hover:text-white underline transition-colors">
-                contact@chronocoder.dev
+                hello@astraeusio.com
               </a>
             </p>
           </Section>

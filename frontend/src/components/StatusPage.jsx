@@ -127,6 +127,23 @@ export default function StatusPage({ onSignIn }) {
         </p>
       </section>
 
+      {/* Incident history */}
+      <section className="max-w-3xl mx-auto px-6 pb-24">
+        <div className="border border-zinc-800 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
+            <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
+              {t('status.incidents')}
+            </p>
+            <p className="text-xs font-mono text-zinc-600">{t('status.incidentsWindow')}</p>
+          </div>
+          <div className="px-5 py-10 flex flex-col items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <p className="text-sm text-zinc-300">{t('status.noIncidents')}</p>
+            <p className="text-xs text-zinc-600">{t('status.noIncidentsSub')}</p>
+          </div>
+        </div>
+      </section>
+
       <Footer />
     </div>
   )
