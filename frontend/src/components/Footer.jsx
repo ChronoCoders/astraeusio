@@ -29,7 +29,11 @@ export default function Footer() {
 
         {/* Wordmark column */}
         <div className="flex flex-col gap-4">
-          <Link to="/" className="font-thin tracking-[0.25em] text-sm text-zinc-100 hover:text-white transition-colors w-fit select-none">
+          <Link
+            to="/"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="font-thin tracking-[0.25em] text-sm text-zinc-100 hover:text-white transition-colors w-fit select-none"
+          >
             ASTRAEUSIO
           </Link>
           <p className="text-zinc-500 text-xs leading-relaxed max-w-[180px]">
