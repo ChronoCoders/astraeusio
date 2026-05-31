@@ -37,6 +37,7 @@ const NAV = [
   { id: 'email-alerts',  labelKey: 'docs.navEmailAlerts',  children: [] },
   { id: 'error-codes',   labelKey: 'docs.navErrorCodes',   children: [] },
   { id: 'glossary',      labelKey: 'docs.navGlossary',     children: [] },
+  { id: 'changelog',     labelKey: 'docs.navChangelog',    children: [] },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -675,6 +676,24 @@ def verify_webhook(raw_body: bytes, signature: str, secret: str) -> bool:
     ).hexdigest()
     return hmac.compare_digest(signature, expected)`}</Code>
 
+          <Code lang="go">{`// Go verification example
+package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+)
+
+func verifyWebhook(rawBody []byte, signature, secret string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(rawBody)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(signature), []byte(expected))
+}`}</Code>
+
+          <P><strong>Common pitfall:</strong> verify the signature against the <em>raw, unparsed</em> request body. Frameworks that auto-decode JSON (Express, Flask, etc.) modify whitespace or key ordering when re-serialising, which breaks the HMAC. Capture the raw bytes before any parser touches them, then verify, then parse.</P>
+
           <H3 id="webhook-events">{t('docs.navWebhookEvents')}</H3>
           <Table
             headers={[t('docs.thEvent'), t('docs.thTrigger'), t('docs.thSeverity')]}
@@ -778,6 +797,42 @@ curl -X POST https://your-domain.com/api/email-alerts \\
   "limit":    100,
   "reset_at": 1746144000
 }`}</Code>
+
+          {/* ── API Changelog ────────────────────────────────────────────── */}
+          <H2 id="changelog">{t('docs.navChangelog')}</H2>
+          <P>{t('docs.changelogIntro')}</P>
+          <dl className="flex flex-col gap-5 mt-6">
+            {t('docs.changelog', { returnObjects: true }).map((entry, i) => (
+              <div key={i} className="border-l-2 border-zinc-800 pl-4">
+                <dt className="flex items-baseline gap-3 flex-wrap mb-1.5">
+                  <span className="text-sm font-mono font-semibold text-zinc-100">{entry.version}</span>
+                  <span className="text-xs font-mono text-zinc-500">{entry.date}</span>
+                  {entry.url && (
+                    <a
+                      href={entry.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-zinc-500 hover:text-zinc-200 transition-colors"
+                    >
+                      release notes ↗
+                    </a>
+                  )}
+                </dt>
+                <dd className="text-zinc-400 text-sm leading-relaxed">{entry.summary}</dd>
+              </div>
+            ))}
+          </dl>
+          <P className="mt-6 text-zinc-500 text-xs">
+            {t('docs.changelogFooter')}{' '}
+            <a
+              href="https://github.com/ChronoCoders/astraeusio/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-zinc-300 hover:text-white underline underline-offset-2"
+            >
+              GitHub Releases
+            </a>.
+          </P>
 
           {/* ── Glossary ─────────────────────────────────────────────────── */}
           <H2 id="glossary">{t('docs.navGlossary')}</H2>
