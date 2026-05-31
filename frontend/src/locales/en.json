@@ -593,8 +593,25 @@
     "navEmailAlerts": "Email Alerts",
     "navErrorCodes": "Error Codes",
     "navGlossary": "Glossary",
+    "navChangelog": "API Changelog",
     "copy": "Copy",
     "copied": "Copied",
+    "changelogIntro": "API-affecting changes only: new endpoints, modified request/response shapes, deprecations, and breaking changes. Site copy, UI, and internal refactors are tracked separately on GitHub.",
+    "changelogFooter": "Older versions and the full timeline of every release are on",
+    "changelog": [
+      {
+        "version": "v1.0.0",
+        "date": "2026-05-31",
+        "url": "https://github.com/ChronoCoders/astraeusio/releases/tag/v1.0.0",
+        "summary": "Initial 1.0 line. No breaking API changes vs v0.9.0. The 429 rate-limit response shape was corrected in the docs to match what the backend actually returns (plan, limit, reset_at). All endpoint contracts remain stable."
+      },
+      {
+        "version": "v0.9.0 and earlier",
+        "date": "Up to 2026-05-09",
+        "url": "https://github.com/ChronoCoders/astraeusio/releases",
+        "summary": "Initial public API surface: authenticated data endpoints, ML forecast, anomaly history, custom rules, webhooks, email alerts, and the public widget endpoints under /api/public/. See GitHub Releases for per-version detail."
+      }
+    ],
     "glossaryIntro": "Reference of space-weather and Astraeusio-specific terms used throughout this documentation and the API responses.",
     "glossary": [
       { "term": "Aurora oval", "body": "The ring-shaped region around each geomagnetic pole where aurora is visible. The oval expands toward the equator as Kp increases, making aurora visible at lower latitudes during storms." },

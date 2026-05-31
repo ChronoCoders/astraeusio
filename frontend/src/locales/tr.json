@@ -593,8 +593,25 @@
     "navEmailAlerts": "E-posta Uyarıları",
     "navErrorCodes": "Hata Kodları",
     "navGlossary": "Sözlük",
+    "navChangelog": "API Değişiklik Günlüğü",
     "copy": "Kopyala",
     "copied": "Kopyalandı",
+    "changelogIntro": "Yalnızca API'yi etkileyen değişiklikler: yeni uç noktalar, değişen istek/yanıt yapıları, kullanımdan kaldırmalar ve kırıcı değişiklikler. Site metinleri, arayüz ve dahili düzenlemeler GitHub'da ayrıca izlenir.",
+    "changelogFooter": "Eski sürümler ve her sürümün tam zaman çizelgesi şurada:",
+    "changelog": [
+      {
+        "version": "v1.0.0",
+        "date": "2026-05-31",
+        "url": "https://github.com/ChronoCoders/astraeusio/releases/tag/v1.0.0",
+        "summary": "İlk 1.0 hattı. v0.9.0'a göre kırıcı API değişikliği yok. 429 hız-sınırı yanıt yapısı, belgelerde backend'in gerçekte döndürdüğüyle (plan, limit, reset_at) eşleşecek şekilde düzeltildi. Tüm uç nokta sözleşmeleri kararlı kaldı."
+      },
+      {
+        "version": "v0.9.0 ve öncesi",
+        "date": "2026-05-09 ve öncesi",
+        "url": "https://github.com/ChronoCoders/astraeusio/releases",
+        "summary": "İlk genel API yüzeyi: kimlik doğrulamalı veri uç noktaları, ML tahmini, anomali geçmişi, özel kurallar, webhook'lar, e-posta uyarıları ve /api/public/ altındaki genel widget uç noktaları. Sürüm bazlı ayrıntılar için GitHub Releases'e bakın."
+      }
+    ],
     "glossaryIntro": "Bu belgeler ve API yanıtları boyunca kullanılan uzay-hava ve Astraeusio'ya özgü terimlerin referansı.",
     "glossary": [
       { "term": "Aurora ovali", "body": "Her jeomanyetik kutbun çevresindeki, auroranın görünür olduğu halka şeklindeki bölge. Kp arttıkça oval ekvatora doğru genişler ve fırtınalar sırasında auroranın daha düşük enlemlerden görünmesini sağlar." },
