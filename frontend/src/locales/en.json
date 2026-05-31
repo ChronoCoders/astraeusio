@@ -878,7 +878,7 @@
     "aboutUs": "About Astraeusio",
     "blog": "Space weather blog",
     "status": "Platform status",
-    "footerNote": "Astraeusio · Built on open scientific data · Powered by NOAA, NASA, and open-access space weather APIs · BSL 1.1",
+    "footerNote": "Astraeusio · Built on open scientific data · Powered by NOAA, NASA, and open-access space weather APIs",
     "liveDelayed": "Data delayed from NOAA",
     "techModel": "Model",
     "techTraining": "Training",
