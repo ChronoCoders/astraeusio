@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
 import { stormInfo, xrayClass, fmtNum } from './lib/utils'
-import Sidebar        from './components/Sidebar'
-import Logo           from './components/Logo'
-import MetricCard     from './components/MetricCard'
+import Sidebar             from './components/Sidebar'
+import Logo                from './components/Logo'
+import OnboardingChecklist from './components/OnboardingChecklist'
+import MetricCard          from './components/MetricCard'
 import KpChart        from './components/KpChart'
 import ForecastPanel  from './components/ForecastPanel'
 import AsteroidTable  from './components/AsteroidTable'
@@ -153,6 +154,8 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
 
           {/* ── Dashboard ──────────────────────────────────────────────── */}
           {page === 'dashboard' && <>
+
+            <OnboardingChecklist user={user} setPage={setPage} />
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <MetricCard
