@@ -516,7 +516,7 @@
     "founderNote": "Altug Tatlisu tarafından, tek mühendis olarak geliştirilmekte ve sürdürülmektedir. Astraeusio, devlet kurumları dışındaki operatörler ve meraklı zihinler için uzay-hava verisini erişilebilir kılmaya yönelik kişisel bir proje olarak başladı - ve büyümeye devam etti.",
     "archLabel": "Veri nasıl akar",
     "archTitle": "Güneş'ten panonuza.",
-    "archDesc": "Astraeusio üç aşamalı bir boru hattıdır: birincil kaynaklardan al, işle ve sakla, ardından iş akışınıza uyan arayüzden teslim et. Her aşama bağımsız çalışır; yavaş bir kaynak diğerlerini durdurmaz.",
+    "archDesc": "Astraeusio üç aşamalı bir pipeline'dır: birincil kaynaklardan al, işle ve sakla, ardından iş akışınıza uyan arayüzden teslim et. Her aşama bağımsız çalışır; yavaş bir kaynak diğerlerini durdurmaz.",
     "archStep1": "Al",
     "archStep2": "İşle",
     "archStep3": "Teslim et",
