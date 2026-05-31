@@ -450,7 +450,7 @@ async fn get_iss(
 async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> {
     let readings = lock_db(&s.db).await.get_recent_kp(7)?;
     if readings.is_empty() {
-        return Err(anyhow!("no Kp data in database — poller initializing").into());
+        return Err(anyhow!("no Kp data in database - poller initializing").into());
     }
 
     let ml_timeout = std::env::var("ML_TIMEOUT")
@@ -771,7 +771,7 @@ async fn get_public_solar_wind(State(s): State<AppState>) -> Result<impl IntoRes
 }
 
 async fn get_public_forecast(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    // Shares cache key with /api/kp-forecast — no duplicate ML calls.
+    // Shares cache key with /api/kp-forecast - no duplicate ML calls.
     cached(
         &s.cache,
         "kp-forecast",

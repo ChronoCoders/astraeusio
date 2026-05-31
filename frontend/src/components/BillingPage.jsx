@@ -4,9 +4,9 @@ import { useApi, authedFetch } from '../lib/useApi'
 import { PLANS, PLAN_FEATURES, PLAN_COLOR, normalizePlan, planRank } from '../lib/plans'
 
 function fmtDate(unixSec) {
-  if (unixSec == null) return '—'
+  if (unixSec == null) return '-'
   const d = new Date(unixSec * 1000)
-  if (Number.isNaN(d.getTime())) return '—'
+  if (Number.isNaN(d.getTime())) return '-'
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 

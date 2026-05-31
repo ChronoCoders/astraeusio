@@ -77,7 +77,7 @@ export default function AuthPage({ onAuth, initialMode = 'login', initialPartial
         return
       }
 
-      // Login success — keep loading=true so button stays disabled while
+      // Login success - keep loading=true so button stays disabled while
       // Root transitions to App. AuthPage unmounts; no setLoading(false) needed.
       onAuth(data.token)
     } catch {
@@ -173,7 +173,7 @@ export default function AuthPage({ onAuth, initialMode = 'login', initialPartial
       {/* ── Right: form ──────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col bg-zinc-950">
 
-        {/* Top bar — lang toggle */}
+        {/* Top bar - lang toggle */}
         <div className="flex justify-end p-4">
           <div className="flex items-center gap-1">
             {LANGS.map(lng => (

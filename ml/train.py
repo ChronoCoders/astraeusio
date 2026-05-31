@@ -38,19 +38,19 @@ MODEL_OUT = MODEL_DIR / "kp_lstm.pt"
 
 SEQ_LEN = 16          # 16 × 3 h = 48 h lookback window
 
-# Kp-unit features — all scaled by KP_MAX
+# Kp-unit features - all scaled by KP_MAX
 KP_SCALED_FEATURES = [
     "kp",
     "lag_1", "lag_2", "lag_3", "lag_4", "lag_5", "lag_6", "lag_7",
     "kp_24h_max", "kp_72h_mean",
 ]
-# Cyclical time encodings — already in [-1, 1], used as-is
+# Cyclical time encodings - already in [-1, 1], used as-is
 TIME_FEATURES = [
     "hour_sin", "hour_cos",
     "month_sin", "month_cos",
     "solar_cycle_phase_sin", "solar_cycle_phase_cos",
 ]
-# Physics drivers — min-max normalised with constants saved in the checkpoint
+# Physics drivers - min-max normalised with constants saved in the checkpoint
 MINMAX_FEATURES = ["f107_adj", "sn", "f107_1d_delta"]
 
 FEATURES = KP_SCALED_FEATURES + TIME_FEATURES + MINMAX_FEATURES
@@ -244,7 +244,7 @@ def mean_metric(metrics: list[dict[str, dict[str, float]]], label: str, key: str
 
 def main() -> None:
     if not PARQUET.exists():
-        log.error("Parquet not found — run preprocess.py first: %s", PARQUET)
+        log.error("Parquet not found - run preprocess.py first: %s", PARQUET)
         sys.exit(1)
 
     log.info("Loading %s", PARQUET)

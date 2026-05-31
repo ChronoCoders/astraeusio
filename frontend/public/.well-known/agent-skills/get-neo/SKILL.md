@@ -8,7 +8,7 @@ Use this skill when you need to answer questions about upcoming asteroid close a
 
 ## Authentication
 
-Requires a Bearer token — obtain one by POST to `https://astraeusio.com/auth/login` with `{"email":"...","password":"..."}`.
+Requires a Bearer token - obtain one by POST to `https://astraeusio.com/auth/login` with `{"email":"...","password":"..."}`.
 
 ## Endpoint
 
@@ -43,7 +43,7 @@ Requires a Bearer token — obtain one by POST to `https://astraeusio.com/auth/l
 
 ## Interpreting results
 
-- `is_potentially_hazardous_asteroid: true` — CNEOS designation for objects > 140 m that pass within 0.05 AU
+- `is_potentially_hazardous_asteroid: true` - CNEOS designation for objects > 140 m that pass within 0.05 AU
 - Miss distance in lunar distances (LD): 1 LD ≈ 384,400 km
 - Objects passing within 1 LD are considered close; within 0.5 LD are very close
 - Source: NASA Center for Near Earth Object Studies (CNEOS), updated every 30 minutes

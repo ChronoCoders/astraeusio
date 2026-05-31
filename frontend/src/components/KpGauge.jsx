@@ -29,7 +29,7 @@ export default function KpGauge({ kp }) {
         <svg viewBox={`0 0 ${GW} ${GH}`} style={{ width: '100%', maxWidth: `${GW}px` }}>
           {/* Background track */}
           <path d={TRACK} fill="none" stroke="#27272a" strokeWidth={GSW} strokeLinecap="round" />
-          {/* Fill — stroke-dasharray on pathLength=1 avoids any endpoint calculation */}
+          {/* Fill - stroke-dasharray on pathLength=1 avoids any endpoint calculation */}
           {v > 0.05 && (
             <path
               d={TRACK}
@@ -41,14 +41,14 @@ export default function KpGauge({ kp }) {
               strokeDasharray={`${(v / 9).toFixed(4)} 1`}
             />
           )}
-          {/* Scale labels — below arc endpoints, clear of the GSW=14 stroke */}
+          {/* Scale labels - below arc endpoints, clear of the GSW=14 stroke */}
           <text x={GCX - GR} y={GCY + 24} textAnchor="middle" fill="#52525b" fontSize="10">0</text>
           <text x={GCX + GR} y={GCY + 24} textAnchor="middle" fill="#52525b" fontSize="10">9</text>
           {/* Current value */}
           <text x={GCX} y={GCY - 28} textAnchor="middle"
             fill={kp != null ? color : '#52525b'}
             fontSize="34" fontWeight="600" fontFamily="monospace">
-            {kp != null ? kp.toFixed(1) : '—'}
+            {kp != null ? kp.toFixed(1) : '-'}
           </text>
           {/* Storm level */}
           <text x={GCX} y={GCY - 10} textAnchor="middle" fill="#71717a" fontSize="11">

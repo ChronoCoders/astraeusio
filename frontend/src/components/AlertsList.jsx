@@ -15,7 +15,7 @@ function firstLine(msg) {
 
 function parseDate(dt) {
   if (!dt) return ''
-  // NOAA issues "YYYY-MM-DD HH:MM:SS.sss" — UTC, space-separated, not ISO.
+  // NOAA issues "YYYY-MM-DD HH:MM:SS.sss" - UTC, space-separated, not ISO.
   // Safari/iOS parse the space form as Invalid Date, so normalize to ISO-UTC first.
   const iso = dt.includes('T') ? dt : `${dt.replace(' ', 'T')}Z`
   const d = new Date(iso)

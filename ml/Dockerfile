@@ -8,7 +8,7 @@ COPY . .
 
 EXPOSE 8000
 
-# Shared model volume — persists the trained model between container restarts.
+# Shared model volume - persists the trained model between container restarts.
 VOLUME ["/data/models"]
 
 # Seed the bundled model into the shared volume on first start, then launch.

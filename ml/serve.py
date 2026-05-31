@@ -2,9 +2,9 @@
 FastAPI inference server for the multi-horizon Kp LSTM model.
 
 POST /predict
-  Body: { "readings": [float, ...] }            — 7 to 48 Kp values, oldest first
-         optional "f107": [float, ...]          — F10.7 adjusted flux (sfu), same length
-         optional "sunspot": [float, ...]        — daily sunspot number, same length
+  Body: { "readings": [float, ...] }            - 7 to 48 Kp values, oldest first
+         optional "f107": [float, ...]          - F10.7 adjusted flux (sfu), same length
+         optional "sunspot": [float, ...]        - daily sunspot number, same length
   Returns predicted Kp at 3h/6h/12h/24h, each with a 95% confidence interval
   derived from Monte Carlo Dropout (50 stochastic forward passes). The top-level
   fields (predicted_kp / ci_lower / ci_upper / uncertainty) mirror the 3-hour
@@ -34,7 +34,7 @@ MODEL_PATH = Path(os.getenv("MODEL_PATH", str(Path(__file__).parent / "models" /
 MC_SAMPLES = 50       # stochastic forward passes for uncertainty estimate
 CI_Z = 1.96           # 95 % confidence interval
 
-# Solar cycle reference — must match preprocess.py exactly
+# Solar cycle reference - must match preprocess.py exactly
 _CYCLE_REF = datetime(2019, 12, 1, tzinfo=timezone.utc)
 _CYCLE_PERIOD_DAYS = 4018.5
 
@@ -95,7 +95,7 @@ def build_sequence(
     Timestamps are synthesised backwards from now at 3-hour intervals. Kp, F10.7
     and sunspot inputs are aligned and left-padded to SEQ_LEN; missing optional
     inputs fall back to the per-feature training-mean defaults from the
-    checkpoint (graceful degradation — Kp-only callers work unchanged).
+    checkpoint (graceful degradation - Kp-only callers work unchanged).
     All normalisation constants come from the checkpoint, never hardcoded here.
     """
     seq_len: int = hp["seq_len"]
@@ -182,7 +182,7 @@ state = _State()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not MODEL_PATH.exists():
-        raise RuntimeError(f"Model not found: {MODEL_PATH} — run train.py first")
+        raise RuntimeError(f"Model not found: {MODEL_PATH} - run train.py first")
 
     ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
     hp = ckpt["hyperparams"]
