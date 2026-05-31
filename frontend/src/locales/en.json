@@ -631,9 +631,35 @@
     "perMo": "/mo",
     "comparison": "Full comparison",
     "featureCol": "Feature",
+    "useCaseEyebrow": "I'M BUILDING",
+    "useCaseHint": "Recommended plan highlighted below",
+    "useCase": {
+      "api": "An API integration",
+      "dashboard": "A monitoring dashboard",
+      "research": "Research or academic",
+      "production": "Production at scale"
+    },
+    "enterpriseEyebrow": "Enterprise & custom",
+    "enterpriseHeading": "Need higher limits, SLA, or self-hosting?",
+    "enterpriseSub": "We work with operators, research labs, and platforms that need volume, custom SLAs, or private deployments. Tell us what you need and we'll scope it.",
+    "enterpriseCta": "Talk to us",
     "faq": "Not sure which plan fits?",
     "faqLink": "Start for free",
     "faqSuffix": "and upgrade whenever you're ready.",
+    "faqEyebrow": "FAQ",
+    "faqHeading": "Frequently asked questions",
+    "faqs": [
+      { "q": "How does billing work?", "a": "There's no automatic credit-card charge. When you pick a paid plan, our team activates it after a quick email exchange - usually the same business day. The Free tier is active the moment you sign up." },
+      { "q": "How do I upgrade my plan?", "a": "From the Billing page in your dashboard, click the tier you want. For paid tiers this opens an email pre-filled with your account details and chosen plan. We confirm and activate from there." },
+      { "q": "What happens when I downgrade?", "a": "Downgrading to Free is instant from the Billing page - no email needed. Downgrading between paid tiers takes effect at the end of your current billing period, so you keep the higher limits until then." },
+      { "q": "What happens if I exceed my request limit?", "a": "Requests beyond your monthly quota return HTTP 429. Nothing breaks, no overage charges - you simply wait for the next period or upgrade. Current usage and reset date are always visible on the Billing page." },
+      { "q": "Can I cancel any time?", "a": "Yes. Downgrade to Free from the dashboard whenever you want - there's no notice period. Annual plans are not refunded for the unused portion, so we recommend trying monthly first." },
+      { "q": "Do you offer academic, student, or non-profit discounts?", "a": "Yes. Email us from a university or .edu/.org address and we'll set you up on Developer or Pro at a reduced rate, or extend the Free tier limits for your project." },
+      { "q": "Is the data official, and is there an SLA?", "a": "The data comes directly from NOAA SWPC, NASA, and the Kyoto World Data Center - the same primary sources space-weather operators use. Free has best-effort uptime; Business and Enterprise include a 99.9% SLA with credits for missed minutes." },
+      { "q": "Can I use Astraeusio in a commercial product?", "a": "Yes, all paid tiers include commercial use. The Free tier is for evaluation and non-commercial projects. Enterprise includes redistribution rights and a custom commercial licence." },
+      { "q": "Do you support team seats or multiple users on one plan?", "a": "Each plan currently maps to a single account, but you can create unlimited API keys and webhooks under it - most teams share an account this way. Pro and above include role-based team accounts (multiple logins, separate keys)." },
+      { "q": "Can I self-host or get a private deployment?", "a": "Self-hosting is available on Enterprise. We deliver a Docker Compose bundle (backend + ML + frontend) plus a yearly historical data dump. Contact us for details." }
+    ],
     "plans": {
       "free": {
         "name": "Free",

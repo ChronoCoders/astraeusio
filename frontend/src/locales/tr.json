@@ -631,9 +631,35 @@
     "perMo": "/ay",
     "comparison": "Tam karşılaştırma",
     "featureCol": "Özellik",
+    "useCaseEyebrow": "GELİŞTİRDİĞİM",
+    "useCaseHint": "Önerilen plan aşağıda vurgulanır",
+    "useCase": {
+      "api": "Bir API entegrasyonu",
+      "dashboard": "Bir izleme panosu",
+      "research": "Araştırma veya akademik",
+      "production": "Geniş ölçekli üretim"
+    },
+    "enterpriseEyebrow": "Enterprise & özel",
+    "enterpriseHeading": "Daha yüksek limit, SLA veya kendi sunucunuzda barındırma mı?",
+    "enterpriseSub": "Hacim, özel SLA veya özel dağıtım ihtiyacı olan operatörler, araştırma laboratuvarları ve platformlarla çalışıyoruz. İhtiyacınızı bize anlatın, kapsamı birlikte belirleyelim.",
+    "enterpriseCta": "Bizimle konuşun",
     "faq": "Hangi planın uygun olduğundan emin değil misiniz?",
     "faqLink": "Ücretsiz başlayın",
     "faqSuffix": "ve hazır olduğunuzda yükseltin.",
+    "faqEyebrow": "SSS",
+    "faqHeading": "Sıkça sorulan sorular",
+    "faqs": [
+      { "q": "Faturalandırma nasıl çalışır?", "a": "Otomatik kart çekimi yoktur. Ücretli bir plan seçtiğinizde, ekibimiz kısa bir e-posta yazışmasının ardından planı etkinleştirir - genellikle aynı iş günü içinde. Ücretsiz plan, kayıt olduğunuz anda aktiftir." },
+      { "q": "Planımı nasıl yükseltirim?", "a": "Panonuzdaki Faturalandırma sayfasından istediğiniz planı tıklayın. Ücretli planlarda bu, hesap bilgileriniz ve seçtiğiniz planla önceden doldurulmuş bir e-posta açar. Oradan onaylar ve etkinleştiririz." },
+      { "q": "Planımı düşürdüğümde ne olur?", "a": "Ücretsiz plana düşmek Faturalandırma sayfasından anlıktır - e-posta gerekmez. Ücretli planlar arasında düşürme, mevcut faturalandırma döneminizin sonunda geçerli olur; o zamana kadar daha yüksek limitleri korursunuz." },
+      { "q": "İstek limitimi aşarsam ne olur?", "a": "Aylık kotanızın ötesindeki istekler HTTP 429 döner. Hiçbir şey bozulmaz, aşım ücreti yoktur - bir sonraki dönemi beklersiniz veya planı yükseltirsiniz. Mevcut kullanım ve sıfırlama tarihi Faturalandırma sayfasında her zaman görünür." },
+      { "q": "İstediğim zaman iptal edebilir miyim?", "a": "Evet. Panodan istediğiniz zaman Ücretsiz plana düşebilirsiniz - bildirim süresi yoktur. Yıllık planlar kullanılmayan kısım için iade edilmez; bu nedenle önce aylık planı denemenizi öneririz." },
+      { "q": "Akademik, öğrenci veya kâr amacı gütmeyen indirimleri sunuyor musunuz?", "a": "Evet. Üniversite veya .edu/.org adresinden bize yazın; sizi indirimli bir oranla Developer veya Pro plana yerleştirir ya da projeniz için Ücretsiz plan limitlerini genişletiriz." },
+      { "q": "Veri resmi mi ve SLA var mı?", "a": "Veriler doğrudan NOAA SWPC, NASA ve Kyoto Dünya Veri Merkezi'nden alınır - uzay hava operatörlerinin kullandığı aynı birincil kaynaklar. Ücretsiz plan en iyi çaba uptime'ı sunar; Business ve Enterprise %99,9 SLA ve kaçırılan dakikalar için kredi içerir." },
+      { "q": "Astraeusio'yu ticari bir üründe kullanabilir miyim?", "a": "Evet, tüm ücretli planlar ticari kullanımı içerir. Ücretsiz plan değerlendirme ve ticari olmayan projeler içindir. Enterprise yeniden dağıtım haklarını ve özel ticari lisansı içerir." },
+      { "q": "Tek bir planda birden çok kullanıcı veya ekip koltuğu destekliyor musunuz?", "a": "Her plan şu anda tek bir hesaba bağlıdır, ancak altında sınırsız API anahtarı ve webhook oluşturabilirsiniz - çoğu ekip hesabı bu şekilde paylaşır. Pro ve üzeri rol tabanlı ekip hesapları içerir (birden çok oturum açma, ayrı anahtarlar)." },
+      { "q": "Kendi sunucumda barındırabilir miyim veya özel dağıtım alabilir miyim?", "a": "Kendi sunucunuzda barındırma Enterprise'da mevcuttur. Bir Docker Compose paketi (backend + ML + frontend) ve yıllık geçmiş veri dökümü sunuyoruz. Ayrıntılar için bizimle iletişime geçin." }
+    ],
     "plans": {
       "free": {
         "name": "Ücretsiz",

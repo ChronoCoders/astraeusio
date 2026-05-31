@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import { PLANS, PLAN_FEATURES } from '../lib/plans'
+
+const USE_CASE_TO_PLAN = {
+  api: 'developer',
+  dashboard: 'pro',
+  research: 'free',
+  production: 'business',
+}
+const USE_CASE_KEYS = ['api', 'dashboard', 'research', 'production']
 
 // ── Static data (keys only, no human-readable strings) ────────────────────────
 
@@ -68,7 +76,7 @@ function BillingToggle({ annual, onChange }) {
   )
 }
 
-function PlanCard({ plan, annual, onCta }) {
+function PlanCard({ plan, annual, onCta, recommended }) {
   const { t } = useTranslation()
   const price      = annual ? plan.annual : plan.monthly
   const showSave   = annual && plan.monthly > 0
@@ -78,10 +86,12 @@ function PlanCard({ plan, annual, onCta }) {
   const trust      = isFree ? ['trust1', 'trust2', 'trust3'].map(k => t(`pricing.plans.free.${k}`)) : []
 
   return (
-    <div className={`relative flex flex-col rounded-2xl border ${
-      plan.highlight
-        ? 'border-orange-500/50 bg-zinc-900 shadow-[0_0_40px_-8px_rgba(249,115,22,0.25)]'
-        : 'border-zinc-800 bg-zinc-900'
+    <div className={`relative flex flex-col rounded-2xl border transition-all duration-500 ${
+      recommended
+        ? 'border-orange-400 bg-zinc-900 shadow-[0_0_60px_-8px_rgba(249,115,22,0.55)] scale-[1.03] ring-2 ring-orange-400/60'
+        : plan.highlight
+          ? 'border-orange-500/50 bg-zinc-900 shadow-[0_0_40px_-8px_rgba(249,115,22,0.25)]'
+          : 'border-zinc-800 bg-zinc-900'
     }`}>
 
       {plan.highlight && (
@@ -175,6 +185,22 @@ function PlanCard({ plan, annual, onCta }) {
 export default function PricingPage({ onSignIn, onSignUp }) {
   const { t } = useTranslation()
   const [annual, setAnnual] = useState(false)
+  const [recommendedKey, setRecommendedKey] = useState(null)
+  const [activeUseCase, setActiveUseCase] = useState(null)
+  const plansRef = useRef(null)
+
+  useEffect(() => {
+    if (!recommendedKey) return
+    const id = setTimeout(() => { setRecommendedKey(null); setActiveUseCase(null) }, 4500)
+    return () => clearTimeout(id)
+  }, [recommendedKey])
+
+  function pickUseCase(uc) {
+    const planKey = USE_CASE_TO_PLAN[uc]
+    setRecommendedKey(planKey)
+    setActiveUseCase(uc)
+    plansRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -192,13 +218,47 @@ export default function PricingPage({ onSignIn, onSignUp }) {
           {t('pricing.sub')}
         </p>
         <BillingToggle annual={annual} onChange={() => setAnnual(a => !a)} />
+
+        {/* Use-case recommender */}
+        <div className="mt-12 flex flex-col items-center gap-3">
+          <p className="text-xs font-mono tracking-[0.25em] text-zinc-500 uppercase">
+            {t('pricing.useCaseEyebrow')}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 max-w-3xl">
+            {USE_CASE_KEYS.map(uc => {
+              const active = activeUseCase === uc
+              return (
+                <button
+                  key={uc}
+                  onClick={() => pickUseCase(uc)}
+                  className={`px-4 py-2 rounded-full text-sm transition-all border ${
+                    active
+                      ? 'border-orange-400 bg-orange-500/10 text-orange-200'
+                      : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100'
+                  }`}
+                >
+                  {t(`pricing.useCase.${uc}`)}
+                </button>
+              )
+            })}
+          </div>
+          {activeUseCase && (
+            <p className="text-xs text-zinc-500 mt-1">{t('pricing.useCaseHint')}</p>
+          )}
+        </div>
       </section>
 
       {/* ── Plan cards ─────────────────────────────────────────────────────── */}
-      <section className="px-6 pb-24 max-w-7xl mx-auto">
+      <section ref={plansRef} className="px-6 pb-24 max-w-7xl mx-auto scroll-mt-24">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 pt-5">
           {PLANS.map(plan => (
-            <PlanCard key={plan.key} plan={plan} annual={annual} onCta={onSignUp} />
+            <PlanCard
+              key={plan.key}
+              plan={plan}
+              annual={annual}
+              onCta={onSignUp}
+              recommended={plan.key === recommendedKey}
+            />
           ))}
         </div>
       </section>
@@ -257,6 +317,50 @@ export default function PricingPage({ onSignIn, onSignUp }) {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* ── Enterprise CTA strip ───────────────────────────────────────────── */}
+      <section className="px-6 pb-24 max-w-7xl mx-auto">
+        <div className="relative overflow-hidden rounded-2xl border border-orange-500/30 bg-gradient-to-br from-zinc-900 via-zinc-900 to-orange-950/40 p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="max-w-2xl">
+            <p className="text-xs font-mono tracking-[0.25em] text-orange-400 uppercase mb-3">
+              {t('pricing.enterpriseEyebrow')}
+            </p>
+            <h3 className="text-2xl md:text-3xl font-thin tracking-tight text-zinc-100 mb-3">
+              {t('pricing.enterpriseHeading')}
+            </h3>
+            <p className="text-zinc-400 text-sm leading-relaxed">
+              {t('pricing.enterpriseSub')}
+            </p>
+          </div>
+          <a
+            href="mailto:altug@bytus.io?subject=Astraeusio Enterprise Inquiry"
+            className="shrink-0 inline-flex items-center justify-center px-6 py-3 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            {t('pricing.enterpriseCta')}
+          </a>
+        </div>
+      </section>
+
+      {/* ── FAQ ────────────────────────────────────────────────────────────── */}
+      <section className="px-6 pb-20 max-w-3xl mx-auto">
+        <p className="text-xs font-mono tracking-[0.25em] text-orange-400 uppercase text-center mb-3">
+          {t('pricing.faqEyebrow')}
+        </p>
+        <h2 className="text-3xl md:text-4xl font-thin tracking-tight text-zinc-100 text-center mb-10">
+          {t('pricing.faqHeading')}
+        </h2>
+        <div className="flex flex-col divide-y divide-zinc-800 border-y border-zinc-800">
+          {t('pricing.faqs', { returnObjects: true }).map((item, i) => (
+            <details key={i} className="group py-5">
+              <summary className="flex items-start justify-between gap-4 cursor-pointer list-none text-zinc-100 text-base font-light hover:text-white transition-colors">
+                <span>{item.q}</span>
+                <span className="text-zinc-500 text-xl leading-none shrink-0 transition-transform group-open:rotate-45 mt-0.5">+</span>
+              </summary>
+              <p className="text-zinc-400 text-sm leading-relaxed mt-3 pr-8">{item.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 
