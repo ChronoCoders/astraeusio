@@ -35,7 +35,7 @@ export default function Footer() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="flex items-center gap-2.5 w-fit text-zinc-100 hover:text-white transition-colors select-none"
           >
-            <Logo size={28} className="shrink-0" />
+            <Logo size={28} className="shrink-0 -ml-1.5" />
             <span className="font-thin tracking-[0.25em] text-sm">ASTRAEUSIO</span>
           </Link>
           <p className="text-zinc-500 text-xs leading-relaxed max-w-[180px]">
