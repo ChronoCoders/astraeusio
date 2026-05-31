@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import Logo from './Logo'
 
 function Col({ heading, children }) {
   return (
@@ -32,9 +33,10 @@ export default function Footer() {
           <Link
             to="/"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="font-thin tracking-[0.25em] text-sm text-zinc-100 hover:text-white transition-colors w-fit select-none"
+            className="flex items-center gap-2.5 w-fit text-zinc-100 hover:text-white transition-colors select-none"
           >
-            ASTRAEUSIO
+            <Logo size={28} className="shrink-0" />
+            <span className="font-thin tracking-[0.25em] text-sm">ASTRAEUSIO</span>
           </Link>
           <p className="text-zinc-500 text-xs leading-relaxed max-w-[180px]">
             {t('footer.tagline')}
