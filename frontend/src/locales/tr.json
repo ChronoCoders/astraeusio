@@ -358,6 +358,8 @@
     "incidentsWindow": "Son 90 gün",
     "noIncidents": "Bildirilen olay yok.",
     "noIncidentsSub": "Tüm sistemler son 90 gündür normal şekilde çalışıyor.",
+    "subscribe": "RSS",
+    "subscribeTitle": "Olay güncellemelerine RSS ile abone olun",
     "backendApi": "Backend API",
     "backendApiDesc": "Axum HTTP sunucusu · Rust",
     "mlForecast": "ML Tahmini",
