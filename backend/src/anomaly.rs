@@ -94,7 +94,7 @@ fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
         && let Some(severity) = kp_severity(kp_e2)
     {
         let kp = kp_e2 as f64 / 100.0;
-        let msg = format!("Kp index {kp:.1} — geomagnetic storm in progress");
+        let msg = format!("Kp index {kp:.1} - geomagnetic storm in progress");
         writer.fire(WriteCmd::Anomaly {
             anomaly_type: "kp_storm".to_string(),
             source_ref: time_tag,
@@ -169,7 +169,7 @@ fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError>
     {
         let kp = kp_e2 as f64 / 100.0;
         let source_ref = ts.to_string();
-        let msg = format!("ML model forecasts Kp {kp:.1} — storm predicted within 3 hours");
+        let msg = format!("ML model forecasts Kp {kp:.1} - storm predicted within 3 hours");
         writer.fire(WriteCmd::Anomaly {
             anomaly_type: "ml_forecast_storm".to_string(),
             source_ref,

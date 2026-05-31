@@ -100,10 +100,10 @@ NOAA and Celestrak endpoints are public and require no API key. NASA requests us
 Two-layer LSTM with a two-layer linear head and a four-output (multi-horizon) prediction.
 
 ```
-Input: (batch, 16, 19)  — 16 time steps × 19 features
+Input: (batch, 16, 19)  - 16 time steps × 19 features
 LSTM:  input_size=19, hidden_size=64, num_layers=2, dropout=0.2
 Head:  Linear(64, 32) → ReLU → Linear(32, 4)
-Output: Kp prediction for 4 horizons — 3h, 6h, 12h, 24h ahead
+Output: Kp prediction for 4 horizons - 3h, 6h, 12h, 24h ahead
 ```
 
 ### Input Features
@@ -116,13 +116,13 @@ Each time step in the 48-hour input window (16 steps × 3 hours) carries 19 feat
 | Cyclical time | `hour_sin/cos` (24 h), `month_sin/cos` (12 mo), `solar_cycle_phase_sin/cos` (period 4018.5 days, ref Dec 2019) |
 | Physics drivers | `f107_adj` (F10.7 adjusted flux), `sn` (sunspot number), `f107_1d_delta` (24-hour F10.7 change) |
 
-The Kp-scaled and time features are derived from the Kp history; the physics drivers are optional inputs (`f107`, `sunspot`) — when omitted, the server substitutes the feature defaults saved in the checkpoint. Min-max normalization constants for the physics features are stored in the checkpoint.
+The Kp-scaled and time features are derived from the Kp history; the physics drivers are optional inputs (`f107`, `sunspot`) - when omitted, the server substitutes the feature defaults saved in the checkpoint. Min-max normalization constants for the physics features are stored in the checkpoint.
 
 ### Training
 
 The model is trained on approximately 20 years of 3-hourly Kp data from GFZ Potsdam / NOAA, augmented with F10.7 and sunspot series, preprocessed to Parquet by `ml/preprocess.py`.
 
-- **Loss function:** weighted HuberLoss across the four horizons (weights 1.0 / 0.8 / 0.6 / 0.4 — nearer horizons dominate)
+- **Loss function:** weighted HuberLoss across the four horizons (weights 1.0 / 0.8 / 0.6 / 0.4 - nearer horizons dominate)
 - **Optimizer:** Adam, initial LR 1e-3
 - **LR schedule:** ReduceLROnPlateau, factor 0.5, patience 3 epochs
 - **Gradient clipping:** max norm 1.0
@@ -301,15 +301,15 @@ docker compose up --build      # builds and starts ml, backend, and frontend
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `NASA_API_KEY` | Yes | — | NASA Open APIs key. DEMO_KEY works for low-volume local use. |
-| `JWT_SECRET` | Yes | — | Secret used to sign and verify JWT tokens. 64-char hex recommended. |
+| `NASA_API_KEY` | Yes | - | NASA Open APIs key. DEMO_KEY works for low-volume local use. |
+| `JWT_SECRET` | Yes | - | Secret used to sign and verify JWT tokens. 64-char hex recommended. |
 | `DB_PATH` | No | `astraeus.duckdb` | Path to the DuckDB file (use forward slashes on Windows). |
 | `BIND_ADDR` | No | `0.0.0.0:3000` | Host and port the backend HTTP server binds to. |
 | `ML_SERVICE_URL` | No | `http://localhost:8000` | Base URL of the FastAPI ML inference service. |
 | `APP_URL` | No | `http://localhost:5173` | Public frontend base URL (email links, OAuth redirect base). |
-| `RESEND_API_KEY`, `RESEND_FROM` | No | — | Enable transactional email (verification, alerts) via Resend. |
-| `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET` | No | — | Enable the corresponding OAuth provider; unset = disabled. |
-| `RUST_LOG` | No | — | Tracing log filter, e.g. `backend=info,warn`. |
+| `RESEND_API_KEY`, `RESEND_FROM` | No | - | Enable transactional email (verification, alerts) via Resend. |
+| `GITHUB_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET` | No | - | Enable the corresponding OAuth provider; unset = disabled. |
+| `RUST_LOG` | No | - | Tracing log filter, e.g. `backend=info,warn`. |
 
 Place these in a `.env` file in the `backend/` directory. The backend loads it automatically via `dotenvy`. Poller intervals are also overridable via env (e.g. `KP_INTERVAL`, `STARLINK_INTERVAL`).
 
@@ -319,9 +319,9 @@ Place these in a `.env` file in the `backend/` directory. The backend loads it a
 
 Astraeusio runs as three processes, locally or via Docker Compose:
 
-1. **ML service** (`uvicorn serve:app --port 8000`) — inference-only, stateless after model load
-2. **Backend** (`cargo run --release`) — serves HTTP and manages all background polling
-3. **Frontend** — build with `npm run build`, serve `dist/` from any static host or reverse proxy
+1. **ML service** (`uvicorn serve:app --port 8000`) - inference-only, stateless after model load
+2. **Backend** (`cargo run --release`) - serves HTTP and manages all background polling
+3. **Frontend** - build with `npm run build`, serve `dist/` from any static host or reverse proxy
 
 Point your reverse proxy (nginx, Caddy) at port 3000 for API traffic and the `dist/` directory for static assets. The frontend build assumes API requests are served from the same origin under `/api/` and `/auth/`.
 

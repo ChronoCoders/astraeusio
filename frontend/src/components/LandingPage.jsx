@@ -88,7 +88,7 @@ function SectionLabel({ children, as: Tag = 'span' }) {
   )
 }
 
-// Live Kp sparkline — reuses the /api/public/kp series already fetched above.
+// Live Kp sparkline - reuses the /api/public/kp series already fetched above.
 function KpSparkline({ data }) {
   const { t } = useTranslation()
   const pts = (data || []).filter(r => r.estimated_kp > 0)
@@ -139,7 +139,7 @@ function LiveMetric({ label, value, unit, color = 'text-zinc-100', sub, delayed 
       <span className="text-xs font-mono tracking-[0.25em] text-zinc-500 uppercase">{label}</span>
       <div className="flex items-baseline gap-2.5 mt-1">
         <span className={`text-5xl font-bold tabular-nums leading-none ${delayed ? 'text-zinc-600' : color}`}>
-          {value ?? '—'}
+          {value ?? '-'}
         </span>
         {unit && !delayed && <span className="text-sm font-mono text-zinc-500">{unit}</span>}
       </div>
@@ -572,7 +572,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         </Link>
       </section>
 
-      {/* ── SEO text block — visually hidden, crawler-visible ───────────── */}
+      {/* ── SEO text block - visually hidden, crawler-visible ───────────── */}
       <div aria-hidden="true" style={{position:'absolute',width:'1px',height:'1px',overflow:'hidden',clip:'rect(0,0,0,0)',whiteSpace:'nowrap',border:0}}>
 
         <h2>About Astraeusio</h2>

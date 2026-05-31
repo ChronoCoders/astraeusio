@@ -27,7 +27,7 @@ function Row({ label, value, unit }) {
     <div className="flex flex-col">
       <span className="text-zinc-500 text-xs">{label}</span>
       <span className="font-mono text-zinc-200">
-        {value ?? '—'}{unit && <span className="text-zinc-500 text-xs ml-1">{unit}</span>}
+        {value ?? '-'}{unit && <span className="text-zinc-500 text-xs ml-1">{unit}</span>}
       </span>
     </div>
   )

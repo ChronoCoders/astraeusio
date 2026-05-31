@@ -495,7 +495,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
     "anomaly_type": "kp_storm",
     "source_ref":   "2026-05-02T18:00:00Z",
     "severity":     "warning",
-    "message":      "Kp index 5.3 — geomagnetic storm in progress",
+    "message":      "Kp index 5.3 - geomagnetic storm in progress",
     "detected_at":  1746208800
   },
   ...
@@ -542,7 +542,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
               ['Developer',  '10,000 requests',      'Monthly', '1st of month UTC'],
               ['Pro',        '100,000 requests',     'Monthly', '1st of month UTC'],
               ['Business',   '1,000,000 requests',   'Monthly', '1st of month UTC'],
-              ['Enterprise', 'Unlimited',            '—',       '—'],
+              ['Enterprise', 'Unlimited',            '-',       '-'],
             ]}
           />
 
@@ -589,7 +589,7 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
           <Code lang="json">{`{
   "event":     "kp_storm",
   "severity":  "warning",
-  "message":   "Kp index 5.3 — geomagnetic storm in progress",
+  "message":   "Kp index 5.3 - geomagnetic storm in progress",
   "timestamp": 1746208800,
   "data": {
     "source_ref": "2026-05-02T18:00:00Z"

@@ -1,4 +1,4 @@
-// Shared subscription-tier data — single source of truth for PricingPage (public)
+// Shared subscription-tier data - single source of truth for PricingPage (public)
 // and BillingPage (dashboard). Keep prices/features here so the two stay in sync.
 //
 // `monthly`/`annual` are USD per month; enterprise is quote-only (null).

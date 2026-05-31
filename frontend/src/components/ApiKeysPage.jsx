@@ -8,7 +8,7 @@ function authHeader() {
 }
 
 function fmtTs(ts) {
-  if (ts == null) return '—'
+  if (ts == null) return '-'
   return new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
 }
 
@@ -20,18 +20,18 @@ const ENDPOINTS = [
   { method: 'GET',  path: '/api/kp-forecast',       desc: 'ML Kp forecast (+3 h, LSTM)' },
   { method: 'GET',  path: '/api/solar-wind',        desc: 'Solar wind speed, density, temperature' },
   { method: 'GET',  path: '/api/xray',              desc: 'GOES X-ray flux (0.1-0.8 nm & 0.05-0.4 nm)' },
-  { method: 'GET',  path: '/api/imf',               desc: 'IMF Bz/Bt — DSCOVR magnetometer' },
+  { method: 'GET',  path: '/api/imf',               desc: 'IMF Bz/Bt - DSCOVR magnetometer' },
   { method: 'GET',  path: '/api/dst',               desc: 'Dst disturbance storm-time index' },
   { method: 'GET',  path: '/api/alerts',            desc: 'NOAA space weather alerts' },
   { method: 'GET',  path: '/api/anomalies',         desc: 'Locally detected anomalies (5 checks)' },
   { method: 'GET',  path: '/api/iss',               desc: 'ISS position (lat, lon, altitude, velocity)' },
   { method: 'GET',  path: '/api/apod',              desc: 'NASA Astronomy Picture of the Day' },
-  { method: 'GET',  path: '/api/neo',               desc: 'Near-Earth objects — 7-day window' },
+  { method: 'GET',  path: '/api/neo',               desc: 'Near-Earth objects - 7-day window' },
   { method: 'GET',  path: '/api/epic',              desc: 'NASA EPIC Earth imagery' },
   { method: 'GET',  path: '/api/exoplanets',        desc: 'NASA Exoplanet Archive (top 100)' },
   { method: 'GET',  path: '/api/starlink',          desc: 'Starlink TLE constellation data' },
-  { method: 'GET',  path: '/api/reports/summary',   desc: 'Summary stats — ?range=24h|7d|30d' },
-  { method: 'GET',  path: '/api/reports/export',    desc: 'CSV export — ?range=24h|7d|30d' },
+  { method: 'GET',  path: '/api/reports/summary',   desc: 'Summary stats - ?range=24h|7d|30d' },
+  { method: 'GET',  path: '/api/reports/export',    desc: 'CSV export - ?range=24h|7d|30d' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
     setConfirmed(false)
   }
 
-  // Null plan means still loading — show full UI optimistically.
+  // Null plan means still loading - show full UI optimistically.
   if (plan !== null && !planSatisfies(plan, 'developer')) {
     return (
       <div className="flex flex-col gap-6 max-w-4xl">

@@ -1,6 +1,6 @@
-// Astraeusio mark — sun + orbit + alert arc. Transparent, centered at (50,50)
+// Astraeusio mark - sun + orbit + alert arc. Transparent, centered at (50,50)
 // in a 100×100 box. Strokes are proportionally fat (orbit 2.8, arc 5) so the
-// ring and arc stay visible in the 28–48 px header render range — at the old
+// ring and arc stay visible in the 28–48 px header render range - at the old
 // thin strokes (0.8/2.2) they went sub-pixel below ~125 px.
 export default function Logo({ size = 22, className = '' }) {
   return (

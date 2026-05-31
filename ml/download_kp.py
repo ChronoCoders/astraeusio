@@ -47,7 +47,7 @@ def download_raw(url: str) -> list[str]:
             print(f"\r  {received:,} / {total:,} bytes  ({pct:.1f}%)", end="", flush=True)
 
     print()
-    log.info("Download complete — %d bytes", received)
+    log.info("Download complete - %d bytes", received)
     return b"".join(chunks).decode("utf-8").splitlines()
 
 
@@ -77,7 +77,7 @@ def write_years(years: dict[int, list[str]]) -> None:
         rows = years[year]
         path = OUT_DIR / f"kp_{year}.txt"
         path.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
-        log.info("Year %d — %d daily records → %s", year, len(rows), path.name)
+        log.info("Year %d - %d daily records → %s", year, len(rows), path.name)
 
 
 def main() -> None:
@@ -97,7 +97,7 @@ def main() -> None:
 
     write_years(years)
     total_rows = sum(len(v) for v in years.values())
-    log.info("Done — %d years, %d total daily records saved to %s", len(years), total_rows, OUT_DIR)
+    log.info("Done - %d years, %d total daily records saved to %s", len(years), total_rows, OUT_DIR)
 
 
 if __name__ == "__main__":

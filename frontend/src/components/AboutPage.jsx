@@ -107,7 +107,7 @@ export default function AboutPage({ onSignIn }) {
 
       <Divider />
 
-      {/* How it's built — icon grid */}
+      {/* How it's built - icon grid */}
       <Section id="built">
         <Label>{t('about.builtLabel')}</Label>
         <h2 className="text-2xl font-light text-zinc-100 mb-8">{t('about.builtTitle')}</h2>
@@ -126,7 +126,7 @@ export default function AboutPage({ onSignIn }) {
 
       <Divider />
 
-      {/* Data Sources — left accent */}
+      {/* Data Sources - left accent */}
       <Section id="data-sources">
         <Label>{t('about.sourcesLabel')}</Label>
         <h2 className="text-2xl font-light text-zinc-100 mb-8">{t('about.sourcesTitle')}</h2>

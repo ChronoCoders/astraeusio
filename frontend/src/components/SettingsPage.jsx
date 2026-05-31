@@ -225,7 +225,7 @@ function TwoFactorSection({ user, onUserChange }) {
         </>
       )}
 
-      {/* Setup step — show QR + secret */}
+      {/* Setup step - show QR + secret */}
       {step === 'setup' && (
         <div className="flex flex-col gap-4">
           <p className="text-zinc-400 text-xs">{t('settings.twoFactorSetupInstructions')}</p>

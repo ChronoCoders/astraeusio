@@ -259,21 +259,21 @@ function MetricsGrid({ metrics, loading }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <MetricCard label={t('forecastPage.accuracy')}>
-        <Row label={t('forecastPage.rmse')} value={metrics?.rmse != null ? fmtNum(metrics.rmse, 2) : '—'} />
-        <Row label={t('forecastPage.mae')}  value={metrics?.mae  != null ? fmtNum(metrics.mae,  2) : '—'} />
+        <Row label={t('forecastPage.rmse')} value={metrics?.rmse != null ? fmtNum(metrics.rmse, 2) : '-'} />
+        <Row label={t('forecastPage.mae')}  value={metrics?.mae  != null ? fmtNum(metrics.mae,  2) : '-'} />
         <Row label={t('forecastPage.samples')} value={n} mono />
       </MetricCard>
 
       <MetricCard label={t('forecastPage.stormCatch')}>
         <Row label={t('forecastPage.hitRate')}
-             value={metrics?.hit_rate != null ? `${Math.round(metrics.hit_rate * 100)}%` : '—'} />
+             value={metrics?.hit_rate != null ? `${Math.round(metrics.hit_rate * 100)}%` : '-'} />
         <Row label={t('forecastPage.falsePos')} value={metrics?.n_false_pos ?? 0} mono />
         <Row label={t('forecastPage.nStorms')}  value={metrics?.n_storms ?? 0}    mono />
       </MetricCard>
 
       <MetricCard label={t('forecastPage.uncertaintyCard')}>
         <Row label={t('forecastPage.meanSigma')}
-             value={metrics?.mean_unc != null ? `${fmtNum(metrics.mean_unc, 2)} Kp` : '—'} />
+             value={metrics?.mean_unc != null ? `${fmtNum(metrics.mean_unc, 2)} Kp` : '-'} />
         <Row label={t('forecastPage.window')} value="3 h" mono />
         <Row label={t('forecastPage.passes')} value="50"  mono />
       </MetricCard>

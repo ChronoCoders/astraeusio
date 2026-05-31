@@ -78,7 +78,7 @@ pub async fn check_and_increment(
 ) -> Result<(), Response> {
     let now_ts = chrono::Utc::now().timestamp();
 
-    // Hot path: entry present and period still valid — check + increment under shard lock.
+    // Hot path: entry present and period still valid - check + increment under shard lock.
     if let Some(mut entry) = counter.get_mut(email) {
         let p_end = period_end(&entry.plan, entry.period_start);
         if now_ts < p_end {
@@ -90,10 +90,10 @@ pub async fn check_and_increment(
             entry.count += 1;
             return Ok(());
         }
-        // Period expired — fall through; shard lock released here.
+        // Period expired - fall through; shard lock released here.
     }
 
-    // Cold path: no entry yet or period rolled — fetch plan from DB.
+    // Cold path: no entry yet or period rolled - fetch plan from DB.
     let plan = {
         let guard: tokio::sync::MutexGuard<'_, Store> = db.lock().await;
         guard

@@ -1757,7 +1757,7 @@ impl Store {
             "solar_wind_max_kms":  sw_max.map(|v| v as f64 / 10.0),
             "xray_max_flux":       xray_max.map(|v| v as f64 / 1e12),
             "xray_max_class":      xray_max.map(flux_to_xray_class)
-                                           .unwrap_or_else(|| "—".to_owned()),
+                                           .unwrap_or_else(|| "-".to_owned()),
             "anomaly_count":       anomaly_count,
             "asteroid_approaches": asteroid_count,
         }))
@@ -1839,7 +1839,7 @@ impl Store {
 // ── Public endpoints (no auth) ────────────────────────────────────────────────
 
 impl Store {
-    /// Returns the last 60 Kp readings oldest-first — same shape as /api/kp.
+    /// Returns the last 60 Kp readings oldest-first - same shape as /api/kp.
     pub fn get_kp_array_public(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 60",

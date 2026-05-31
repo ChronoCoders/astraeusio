@@ -131,7 +131,7 @@ export default function Root() {
 
 // Lands here after a provider redirect. The backend places the result in the URL
 // fragment (never sent to servers): `#token=…` (signed in), `#partial_token=…`
-// (account has 2FA — finish with TOTP), or `#error=code`.
+// (account has 2FA - finish with TOTP), or `#error=code`.
 function OAuthCallback({ onAuth }) {
   const [parsed] = useState(() => {
     const p = new URLSearchParams(window.location.hash.replace(/^#/, ''))

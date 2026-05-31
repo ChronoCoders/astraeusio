@@ -8,7 +8,7 @@ Use this skill when you need a summary of significant space weather events, acti
 
 ## Authentication
 
-Requires a Bearer token — obtain one by POST to `https://astraeusio.com/auth/login` with `{"email":"...","password":"..."}`.
+Requires a Bearer token - obtain one by POST to `https://astraeusio.com/auth/login` with `{"email":"...","password":"..."}`.
 
 ## Endpoint
 
@@ -29,8 +29,8 @@ Requires a Bearer token — obtain one by POST to `https://astraeusio.com/auth/l
 ## Response fields
 
 Each anomaly object includes:
-- `type` — anomaly type (see table above)
-- `severity` — `"warning"` or `"critical"`
-- `message` — human-readable description
-- `detected_at` — Unix timestamp (seconds)
-- `source_ref` — reference to the triggering data point
+- `type` - anomaly type (see table above)
+- `severity` - `"warning"` or `"critical"`
+- `message` - human-readable description
+- `detected_at` - Unix timestamp (seconds)
+- `source_ref` - reference to the triggering data point

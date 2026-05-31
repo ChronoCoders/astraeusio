@@ -65,7 +65,7 @@ pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) 
           <tr>
             <td style="padding-bottom:32px;">
               <p style="margin:0 0 14px;font-size:14px;line-height:1.65;color:#a1a1aa;">
-                Welcome aboard. Your account is ready — you now have access to real-time space weather data,
+                Welcome aboard. Your account is ready - you now have access to real-time space weather data,
                 ML-powered Kp forecasts, anomaly detection, and the full API.
               </p>
               <p style="margin:0;font-size:14px;line-height:1.65;color:#a1a1aa;">

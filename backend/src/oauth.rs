@@ -8,7 +8,7 @@
 //!      provider's *verified* email, then auto-link by email: an existing account
 //!      is signed in; a new email creates a password-less account (email pre-verified).
 //!   4. We redirect to the frontend at `{app_url}/oauth/callback#…` with either a
-//!      full session token, or — if the account has TOTP enabled — a 2FA partial
+//!      full session token, or - if the account has TOTP enabled - a 2FA partial
 //!      token (2FA is enforced even for social logins).
 //!
 //! A provider whose client id/secret are unset is disabled (its buttons are hidden
