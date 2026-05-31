@@ -1,4 +1,4 @@
-// Runs at module evaluation time — before React mounts — so tools are present
+// Runs at module evaluation time - before React mounts - so tools are present
 // on every page (landing, dashboard, etc.) immediately on load.
 
 function authHeaders() {

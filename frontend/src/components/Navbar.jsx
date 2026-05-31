@@ -92,7 +92,7 @@ export default function Navbar({ onSignIn }) {
             {t('landing.nav')}
           </button>
 
-          {/* Hamburger — mobile only */}
+          {/* Hamburger - mobile only */}
           <button
             onClick={() => setOpen(o => !o)}
             className="md:hidden text-zinc-400 hover:text-zinc-100 transition-colors p-1 -mr-1"

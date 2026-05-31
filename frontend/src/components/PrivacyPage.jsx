@@ -73,10 +73,10 @@ export default function PrivacyPage({ onSignIn }) {
           <Section title="Third-Party Service Providers">
             <p>We share limited data with the following processors solely to operate the service:</p>
             <ul className="list-disc list-inside flex flex-col gap-1 pl-2">
-              <li><span className="text-zinc-300 font-medium">Resend (resend.com)</span> — transactional email delivery. Your email address is
+              <li><span className="text-zinc-300 font-medium">Resend (resend.com)</span> - transactional email delivery. Your email address is
                 transmitted to Resend when we send you a verification or alert email. Resend's privacy
                 policy governs their handling of that data.</li>
-              <li><span className="text-zinc-300 font-medium">Cloudflare</span> — DNS resolution and TLS termination. Cloudflare may process
+              <li><span className="text-zinc-300 font-medium">Cloudflare</span> - DNS resolution and TLS termination. Cloudflare may process
                 request metadata in transit. Their privacy policy governs that processing.</li>
             </ul>
             <p>Space weather data displayed in the service is sourced from NOAA and NASA public APIs.
@@ -93,11 +93,11 @@ export default function PrivacyPage({ onSignIn }) {
           <Section title="Your Rights (CCPA and General)">
             <p>Regardless of your location, you have the right to:</p>
             <ul className="list-disc list-inside flex flex-col gap-1 pl-2">
-              <li><span className="text-zinc-300 font-medium">Access</span> — request a copy of the personal information we hold about you.</li>
-              <li><span className="text-zinc-300 font-medium">Deletion</span> — request that we delete your personal information. You can do
+              <li><span className="text-zinc-300 font-medium">Access</span> - request a copy of the personal information we hold about you.</li>
+              <li><span className="text-zinc-300 font-medium">Deletion</span> - request that we delete your personal information. You can do
                 this at any time from the Settings page, or by contacting us.</li>
-              <li><span className="text-zinc-300 font-medium">Correction</span> — request correction of inaccurate data.</li>
-              <li><span className="text-zinc-300 font-medium">Opt-out of email communications</span> — you can disable email alerts from the
+              <li><span className="text-zinc-300 font-medium">Correction</span> - request correction of inaccurate data.</li>
+              <li><span className="text-zinc-300 font-medium">Opt-out of email communications</span> - you can disable email alerts from the
                 Settings page at any time.</li>
             </ul>
             <p>California residents have additional rights under the California Consumer Privacy Act (CCPA),

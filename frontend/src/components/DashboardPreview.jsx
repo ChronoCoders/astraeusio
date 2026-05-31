@@ -53,7 +53,7 @@ function MiniSidebar({ t }) {
 function DashboardCanvas({ kpData, wind, forecastData }) {
   const { t } = useTranslation()
   // Metrics + forecast use live public data (with sample fallback); the chart
-  // always uses the representative 24h series — the public Kp endpoint only
+  // always uses the representative 24h series - the public Kp endpoint only
   // serves ~1 h, which looks too sparse for a marketing preview.
   const liveKp = kpData && kpData.length ? kpData : SAMPLE_KP
   const w = wind && wind.speed != null ? wind : SAMPLE_WIND
@@ -85,8 +85,8 @@ function DashboardCanvas({ kpData, wind, forecastData }) {
 
 export default function DashboardPreview({ kpData, wind, forecastData }) {
   const { t } = useTranslation()
-  const frameRef = useRef(null)   // scaled viewport — source of available width
-  const canvasRef = useRef(null)  // unscaled canvas — source of natural height
+  const frameRef = useRef(null)   // scaled viewport - source of available width
+  const canvasRef = useRef(null)  // unscaled canvas - source of natural height
   const sectionRef = useRef(null)
   const [scale, setScale] = useState(0.9)
   const [height, setHeight] = useState(420)

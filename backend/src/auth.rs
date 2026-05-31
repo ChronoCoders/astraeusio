@@ -740,7 +740,7 @@ pub async fn forgot_password(
     State(s): State<AppState>,
     Json(body): Json<ForgotPasswordRequest>,
 ) -> Response {
-    // Always 204 — never reveal whether the email exists.
+    // Always 204 - never reveal whether the email exists.
     if let Some(ref mc) = s.mailer
         && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email)
         && let Ok(token) = purpose_token(&body.email, "reset_password", 3_600, &s.jwt_secret)
@@ -872,7 +872,7 @@ impl FromRequestParts<AppState> for AuthClaims {
                     .into_response()
             })?;
 
-        // API key path — prefix "ast_"
+        // API key path - prefix "ast_"
         if token.starts_with("ast_") {
             let hash = sha256_hex(token);
             let sub_opt = {

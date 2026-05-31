@@ -6,22 +6,22 @@ Output: data/kp_processed.parquet
 
 Schema
 ------
-timestamp       : datetime64[ns, UTC]  — period start (3-hour cadence)
-kp              : float32              — Kp index value (0–9, thirds)
-hour            : int8                 — 0 6 12 18 ... wait, 3-hourly so 0 3 6 9 12 15 18 21
-month           : int8                 — 1–12
-day_of_year     : int16                — 1–366
-solar_cycle_phase_sin/cos : float32   — ~11-year cycle encoded cyclically
-hour_sin/cos    : float32             — hour of day encoded cyclically
-month_sin/cos   : float32            — month encoded cyclically
-lag_1..lag_7    : float32             — previous 1–7 periods (each = 3 hours)
-kp_24h_max      : float32             — rolling max over prior 24 h (8 periods)
-kp_72h_mean     : float32            — rolling mean over prior 72 h (24 periods)
-f107_adj        : float32             — F10.7 cm solar radio flux, 1-AU adjusted (sfu)
-sn              : float32             — daily international sunspot number
-f107_1d_delta   : float32             — change in f107_adj over prior 24 h (8 periods)
-gap_filled      : bool                — True if Kp at this period was imputed
-f107_gap_filled : bool                — True if F10.7/SN at this period was imputed
+timestamp       : datetime64[ns, UTC]  - period start (3-hour cadence)
+kp              : float32              - Kp index value (0–9, thirds)
+hour            : int8                 - 0 6 12 18 ... wait, 3-hourly so 0 3 6 9 12 15 18 21
+month           : int8                 - 1–12
+day_of_year     : int16                - 1–366
+solar_cycle_phase_sin/cos : float32   - ~11-year cycle encoded cyclically
+hour_sin/cos    : float32             - hour of day encoded cyclically
+month_sin/cos   : float32            - month encoded cyclically
+lag_1..lag_7    : float32             - previous 1–7 periods (each = 3 hours)
+kp_24h_max      : float32             - rolling max over prior 24 h (8 periods)
+kp_72h_mean     : float32            - rolling mean over prior 72 h (24 periods)
+f107_adj        : float32             - F10.7 cm solar radio flux, 1-AU adjusted (sfu)
+sn              : float32             - daily international sunspot number
+f107_1d_delta   : float32             - change in f107_adj over prior 24 h (8 periods)
+gap_filled      : bool                - True if Kp at this period was imputed
+f107_gap_filled : bool                - True if F10.7/SN at this period was imputed
 """
 
 import logging
@@ -83,7 +83,7 @@ def load_raw_year(path: Path) -> pd.DataFrame:
         df[col] = df[col].astype(int)
     for col in _KP_COLS + _SOLAR_COLS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    # GFZ encodes missing solar flux / sunspot as -1.0 — treat as NaN.
+    # GFZ encodes missing solar flux / sunspot as -1.0 - treat as NaN.
     df[_SOLAR_COLS] = df[_SOLAR_COLS].where(df[_SOLAR_COLS] != _MISSING_SENTINEL)
     return df
 
@@ -101,7 +101,7 @@ def to_3hourly(df: pd.DataFrame) -> pd.DataFrame:
         )
         for i, h in enumerate(hours):
             kp_val = row[_KP_COLS[i]]
-            # Solar flux / sunspot are reported daily — broadcast to all 8 periods.
+            # Solar flux / sunspot are reported daily - broadcast to all 8 periods.
             records.append({
                 "timestamp": base + pd.Timedelta(hours=h),
                 "kp": kp_val,
@@ -207,7 +207,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     raw_files = sorted(RAW_DIR.glob("kp_*.txt"))
     if not raw_files:
-        log.error("No files found in %s — run download_kp.py first", RAW_DIR)
+        log.error("No files found in %s - run download_kp.py first", RAW_DIR)
         sys.exit(1)
 
     log.info("Loading %d year files from %s", len(raw_files), RAW_DIR)
@@ -217,7 +217,7 @@ def main() -> None:
         year = path.stem.split("_")[1]
         raw = load_raw_year(path)
         expanded = to_3hourly(raw)
-        log.info("Year %s — %d daily rows → %d 3-hour periods", year, len(raw), len(expanded))
+        log.info("Year %s - %d daily rows → %d 3-hour periods", year, len(raw), len(expanded))
         yearly.append(expanded)
 
     combined = pd.concat(yearly, ignore_index=True).sort_values("timestamp")

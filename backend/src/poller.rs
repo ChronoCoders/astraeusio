@@ -98,7 +98,7 @@ pub fn spawn(
         "poller: intervals loaded"
     );
 
-    // Tier 0 — tiny/read-only, start immediately
+    // Tier 0 - tiny/read-only, start immediately
     tokio::spawn(poll_iss(
         client.clone(),
         writer.clone(),
@@ -112,7 +112,7 @@ pub fn spawn(
         2,
         cfg.anomaly_interval,
     ));
-    // Tier 1 — small inserts, 5-second spacing
+    // Tier 1 - small inserts, 5-second spacing
     tokio::spawn(poll_kp(client.clone(), writer.clone(), 5, cfg.kp_interval));
     tokio::spawn(poll_alerts(
         client.clone(),
@@ -138,7 +138,7 @@ pub fn spawn(
         25,
         cfg.apod_interval,
     ));
-    // Tier 2 — large initial inserts (hundreds to thousands of rows), 8-second spacing
+    // Tier 2 - large initial inserts (hundreds to thousands of rows), 8-second spacing
     tokio::spawn(poll_kp_3h(
         client.clone(),
         writer.clone(),
@@ -175,14 +175,14 @@ pub fn spawn(
         70,
         cfg.xray_interval,
     ));
-    // Tier 3 — Starlink: DELETE + 7000+ inserts in one transaction, start last
+    // Tier 3 - Starlink: DELETE + 7000+ inserts in one transaction, start last
     tokio::spawn(poll_starlink(
         client.clone(),
         writer.clone(),
         90,
         cfg.starlink_interval,
     ));
-    // Forecast — calls the ML sidecar on a fixed cadence so kp_forecast builds
+    // Forecast - calls the ML sidecar on a fixed cadence so kp_forecast builds
     // a continuous time series (the Forecast page chart + metrics depend on it).
     // Delayed past first Kp ingest so recent readings exist for the request.
     tokio::spawn(poll_forecast(

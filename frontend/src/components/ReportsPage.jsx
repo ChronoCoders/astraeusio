@@ -118,7 +118,7 @@ function StatCard({ label, value, unit }) {
     <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-col gap-1">
       <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">{label}</span>
       <span className="text-zinc-100 text-2xl font-thin tabular-nums">
-        {value ?? <span className="text-zinc-700">—</span>}
+        {value ?? <span className="text-zinc-700">-</span>}
         {value != null && unit && <span className="text-zinc-500 text-sm ml-1">{unit}</span>}
       </span>
     </div>
@@ -275,7 +275,7 @@ export default function ReportsPage({ plan, onNavigate }) {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch {
-      // network error — silently ignore
+      // network error - silently ignore
     }
   }
 
@@ -341,7 +341,7 @@ export default function ReportsPage({ plan, onNavigate }) {
           <StatCard label={t('reports.avgKp')}             value={fmtKp(summary.kp_avg)} />
           <StatCard label={t('reports.maxKp')}             value={fmtKp(summary.kp_max)} />
           <StatCard label={t('reports.maxSolarWind')}      value={fmtSpd(summary.solar_wind_max_kms)} unit="km/s" />
-          <StatCard label={t('reports.maxXray')}           value={summary.xray_max_class !== '—' ? summary.xray_max_class : null} />
+          <StatCard label={t('reports.maxXray')}           value={summary.xray_max_class !== '-' ? summary.xray_max_class : null} />
           <StatCard label={t('reports.anomalies')}         value={summary.anomaly_count != null ? summary.anomaly_count.toString() : null} />
           <StatCard label={t('reports.asteroidApproaches')} value={summary.asteroid_approaches != null ? summary.asteroid_approaches.toString() : null} />
         </div>
