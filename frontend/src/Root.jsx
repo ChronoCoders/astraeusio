@@ -1,20 +1,23 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import App from './App.jsx'
-import AuthPage from './AuthPage.jsx'
-import LandingPage from './components/LandingPage.jsx'
-import ProductsPage from './components/ProductsPage.jsx'
-import PricingPage  from './components/PricingPage.jsx'
-import DocsPage     from './components/DocsPage.jsx'
-import AboutPage    from './components/AboutPage.jsx'
-import BlogPage     from './components/BlogPage.jsx'
-import BlogPostPage      from './components/BlogPostPage.jsx'
-import VerifyEmailPage  from './components/VerifyEmailPage.jsx'
-import StatusPage      from './components/StatusPage.jsx'
-import PrivacyPage     from './components/PrivacyPage.jsx'
-import TermsPage       from './components/TermsPage.jsx'
-import NotFoundPage    from './components/NotFoundPage.jsx'
+
+// Lazy route splits: each page becomes its own chunk so visitors only download
+// the code for the route they actually land on.
+const App              = lazy(() => import('./App.jsx'))
+const AuthPage         = lazy(() => import('./AuthPage.jsx'))
+const LandingPage      = lazy(() => import('./components/LandingPage.jsx'))
+const ProductsPage     = lazy(() => import('./components/ProductsPage.jsx'))
+const PricingPage      = lazy(() => import('./components/PricingPage.jsx'))
+const DocsPage         = lazy(() => import('./components/DocsPage.jsx'))
+const AboutPage        = lazy(() => import('./components/AboutPage.jsx'))
+const BlogPage         = lazy(() => import('./components/BlogPage.jsx'))
+const BlogPostPage     = lazy(() => import('./components/BlogPostPage.jsx'))
+const VerifyEmailPage  = lazy(() => import('./components/VerifyEmailPage.jsx'))
+const StatusPage       = lazy(() => import('./components/StatusPage.jsx'))
+const PrivacyPage      = lazy(() => import('./components/PrivacyPage.jsx'))
+const TermsPage        = lazy(() => import('./components/TermsPage.jsx'))
+const NotFoundPage     = lazy(() => import('./components/NotFoundPage.jsx'))
 
 export default function Root() {
   const [token,    setToken]    = useState(() => localStorage.getItem('token'))
@@ -82,36 +85,44 @@ export default function Root() {
   }
 
   if (!token) {
-    if (authMode) return <AuthPage onAuth={handleAuth} initialMode={authMode} />
+    if (authMode) return (
+      <Suspense fallback={<DashboardLoader />}>
+        <AuthPage onAuth={handleAuth} initialMode={authMode} />
+      </Suspense>
+    )
     const pub = { onSignUp: () => setAuthMode('signup'), onSignIn: () => setAuthMode('login') }
     return (
-      <Routes>
-        <Route path="/"         element={<LandingPage  {...pub} />} />
-        <Route path="/products" element={<ProductsPage {...pub} />} />
-        <Route path="/pricing"  element={<PricingPage  {...pub} />} />
-        <Route path="/docs"     element={<DocsPage     {...pub} />} />
-        <Route path="/about"    element={<AboutPage    {...pub} />} />
-        <Route path="/blog"           element={<BlogPage       {...pub} />} />
-        <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
-        <Route path="/verify-email"   element={<VerifyEmailPage {...pub} onUserChange={setUser} />} />
-        <Route path="/status"         element={<StatusPage      {...pub} />} />
-        <Route path="/privacy"        element={<PrivacyPage     {...pub} />} />
-        <Route path="/terms"          element={<TermsPage       {...pub} />} />
-        <Route path="/reset-password" element={<AuthPage initialMode="reset" onAuth={handleAuth} />} />
-        <Route path="/oauth/callback" element={<OAuthCallback onAuth={handleAuth} />} />
-        <Route path="*"               element={<NotFoundPage   {...pub} />} />
-      </Routes>
+      <Suspense fallback={<DashboardLoader />}>
+        <Routes>
+          <Route path="/"         element={<LandingPage  {...pub} />} />
+          <Route path="/products" element={<ProductsPage {...pub} />} />
+          <Route path="/pricing"  element={<PricingPage  {...pub} />} />
+          <Route path="/docs"     element={<DocsPage     {...pub} />} />
+          <Route path="/about"    element={<AboutPage    {...pub} />} />
+          <Route path="/blog"           element={<BlogPage       {...pub} />} />
+          <Route path="/blog/:slug"     element={<BlogPostPage   {...pub} />} />
+          <Route path="/verify-email"   element={<VerifyEmailPage {...pub} onUserChange={setUser} />} />
+          <Route path="/status"         element={<StatusPage      {...pub} />} />
+          <Route path="/privacy"        element={<PrivacyPage     {...pub} />} />
+          <Route path="/terms"          element={<TermsPage       {...pub} />} />
+          <Route path="/reset-password" element={<AuthPage initialMode="reset" onAuth={handleAuth} />} />
+          <Route path="/oauth/callback" element={<OAuthCallback onAuth={handleAuth} />} />
+          <Route path="*"               element={<NotFoundPage   {...pub} />} />
+        </Routes>
+      </Suspense>
     )
   }
 
   // Logged-in user navigating to /verify-email (clicked link while already signed in)
   if (location.pathname === '/verify-email') {
     return (
-      <Routes>
-        <Route path="/verify-email" element={
-          <VerifyEmailPage onSignIn={() => {}} onSignUp={() => {}} onUserChange={setUser} token={token} />
-        } />
-      </Routes>
+      <Suspense fallback={<DashboardLoader />}>
+        <Routes>
+          <Route path="/verify-email" element={
+            <VerifyEmailPage onSignIn={() => {}} onSignUp={() => {}} onUserChange={setUser} token={token} />
+          } />
+        </Routes>
+      </Suspense>
     )
   }
 
@@ -123,7 +134,9 @@ export default function Root() {
     <>
       {showLoader && <DashboardLoader />}
       <div style={showLoader ? { display: 'none' } : undefined}>
-        <App user={user} onLogout={handleLogout} onReady={() => setBooting(false)} onUserChange={setUser} />
+        <Suspense fallback={<DashboardLoader />}>
+          <App user={user} onLogout={handleLogout} onReady={() => setBooting(false)} onUserChange={setUser} />
+        </Suspense>
       </div>
     </>
   )
