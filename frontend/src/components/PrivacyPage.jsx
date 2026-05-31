@@ -103,8 +103,8 @@ export default function PrivacyPage({ onSignIn }) {
             <p>California residents have additional rights under the California Consumer Privacy Act (CCPA),
               including the right to know what personal information is sold or disclosed (we do neither)
               and the right to non-discrimination for exercising privacy rights.</p>
-            <p>To exercise any of these rights, email us at <a href="mailto:contact@chronocoder.dev"
-              className="text-zinc-300 hover:text-white underline transition-colors">contact@chronocoder.dev</a>.</p>
+            <p>To exercise any of these rights, email us at <a href="mailto:hello@astraeusio.com"
+              className="text-zinc-300 hover:text-white underline transition-colors">hello@astraeusio.com</a>.</p>
           </Section>
 
           <Section title="Children's Privacy">
@@ -130,9 +130,9 @@ export default function PrivacyPage({ onSignIn }) {
           <Section title="Contact">
             <p>If you have questions or concerns about this Privacy Policy or our data practices, contact us at:</p>
             <p>
-              <a href="mailto:contact@chronocoder.dev"
+              <a href="mailto:hello@astraeusio.com"
                 className="text-zinc-300 hover:text-white underline transition-colors">
-                contact@chronocoder.dev
+                hello@astraeusio.com
               </a>
             </p>
           </Section>
