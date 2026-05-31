@@ -5,10 +5,6 @@ target/
 data/
 ml/models/
 
-# Local-only Claude Code context — never commit
-.claude/
-CLAUDE.md
-
 # Runtime logs / Python bytecode / scratch
 *.log
 *.err
