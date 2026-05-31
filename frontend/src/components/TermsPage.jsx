@@ -96,13 +96,15 @@ export default function TermsPage({ onSignIn }) {
 
           <Section title="Intellectual Property">
             <p>
-              The Astraeusio platform source code is licensed under the Business Source License 1.1
-              (BSL 1.1), with a Change Date of April 20, 2029, after which it converts to Apache 2.0.
-              The BSL restricts production use of the source code without a commercial license.
+              The Astraeusio platform, including its source code, design, content, and documentation,
+              is the proprietary work of Altug Tatlisu / ChronoCoders. All rights are reserved.
+              The repository may be publicly visible for transparency, but no licence is granted to
+              copy, modify, redistribute, or otherwise use the source code without prior written
+              permission from the copyright holder.
             </p>
             <p>
-              Space weather data displayed by the Service originates from NOAA and NASA public data feeds
-              and is not our intellectual property. We make no copyright claim over that data.
+              Space weather data displayed by the Service originates from NOAA, NASA, and other public
+              data feeds and is not our intellectual property. We make no copyright claim over that data.
             </p>
             <p>
               The Astraeusio name, logo, and brand are our property. You may not use them without
