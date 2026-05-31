@@ -407,6 +407,8 @@
     "incidentsWindow": "Last 90 days",
     "noIncidents": "No incidents reported.",
     "noIncidentsSub": "All systems have been running normally for the last 90 days.",
+    "subscribe": "RSS",
+    "subscribeTitle": "Subscribe to incident updates via RSS",
     "backendApi": "Backend API",
     "backendApiDesc": "Axum HTTP server · Rust",
     "mlForecast": "ML Forecast",
