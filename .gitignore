@@ -1,5 +1,13 @@
 target/
 .env
 *.duckdb
+*.duckdb.wal
 data/
 ml/models/
+
+
+# Runtime logs / Python bytecode / scratch
+*.log
+*.err
+__pycache__/
+frontend/content.md
