@@ -103,8 +103,21 @@ export default function AboutPage({ onSignIn }) {
           <p>{t('about.missionP2')}</p>
           <p>{t('about.missionP3')}</p>
         </div>
-        <div className="mt-10 border-l-2 border-orange-400/30 pl-5 text-zinc-300 text-sm leading-relaxed italic">
-          {t('about.founderNote')}
+        <div className="mt-10 flex flex-col sm:flex-row items-start gap-5 border-l-2 border-orange-400/30 pl-5">
+          <picture>
+            <source srcSet="/founder-altug.webp" type="image/webp" />
+            <img
+              src="/founder-altug.jpg"
+              alt="Altug Tatlisu"
+              width="80"
+              height="80"
+              loading="lazy"
+              className="w-20 h-20 rounded-full object-cover border border-zinc-800 shrink-0"
+            />
+          </picture>
+          <p className="text-zinc-300 text-sm leading-relaxed italic">
+            {t('about.founderNote')}
+          </p>
         </div>
       </Section>
 
