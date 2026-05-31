@@ -478,7 +478,24 @@
     "apiTitle": "Gerçek zamanlı uzay hava verisi, tek bir curl uzakta.",
     "apiSub": "Her uç nokta JSON döner. API anahtarıyla doğrulayın, sayfalayın, filtreleyin - SDK gerekmez.",
     "apiCodeCaption": "En son Kp okuması",
+    "apiResponseCaption": "Yanıt",
     "apiCtaDocs": "API belgelerini oku",
+    "pickEyebrow": "Hangisi size uyar",
+    "pickTitle": "İş akışınıza uyan yüzeyi seçin.",
+    "pick": {
+      "d1": {
+        "label": "Pano",
+        "body": "Uzay havasını, uyarıları ve tahminleri hazır bir arayüzden izlemek istiyorsanız - kod yazmadan veya entegre etmeden - Pano'yu kullanın."
+      },
+      "d2": {
+        "label": "API",
+        "body": "Yazılım, entegrasyon veya kendi panolarınızı geliştiriyorsanız ve güven aralıkları dahil ham uzay-hava JSON'unu HTTPS üzerinden almak istiyorsanız API'yi kullanın."
+      },
+      "d3": {
+        "label": "Uyarılar",
+        "body": "Sadece bir şey olduğunda haberdar olmak istiyorsanız - webhook veya e-posta, özel eşikler, izlenecek arayüz yok - Uyarılar'ı kullanın."
+      }
+    },
     "ctaTitle": "Uzay hava durumunu izlemeye başla.",
     "ctaSub": "Ücretsiz katman canlı veri, 3 saatlik ML tahmini ve e-posta uyarılarını içerir. Kredi kartı gerekmez.",
     "ctaPrimary": "Ücretsiz hesap oluştur",
