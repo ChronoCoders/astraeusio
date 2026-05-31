@@ -130,11 +130,25 @@ export default function StatusPage({ onSignIn }) {
       {/* Incident history */}
       <section className="max-w-3xl mx-auto px-6 pb-24">
         <div className="border border-zinc-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between gap-3">
             <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
               {t('status.incidents')}
             </p>
-            <p className="text-xs font-mono text-zinc-600">{t('status.incidentsWindow')}</p>
+            <div className="flex items-center gap-4">
+              <a
+                href="/status/feed.xml"
+                className="text-xs font-mono text-zinc-500 hover:text-zinc-200 transition-colors flex items-center gap-1.5"
+                title={t('status.subscribeTitle')}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="19" r="2.5" />
+                  <path d="M3 11.5C8.5 11.5 12.5 15.5 12.5 21H15c0-6.6-5.4-12-12-12v2.5z" />
+                  <path d="M3 4.5C12.6 4.5 19.5 11.4 19.5 21H22c0-10.5-8.5-19-19-19v2.5z" />
+                </svg>
+                {t('status.subscribe')}
+              </a>
+              <p className="text-xs font-mono text-zinc-600">{t('status.incidentsWindow')}</p>
+            </div>
           </div>
           <div className="px-5 py-10 flex flex-col items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500" />
