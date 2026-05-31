@@ -1,5 +1,20 @@
 {
   "appTitle": "Astraeusio",
+  "onboarding": {
+    "eyebrow": "Başlayın",
+    "heading": "Astraeusio'ya hoş geldiniz",
+    "progress": "{{total}} adımdan {{done}} tamamlandı",
+    "dismiss": "Kapat",
+    "verifyTitle": "E-posta adresinizi doğrulayın",
+    "verifyDesc": "Uyarılar ve bildirimlerin size ulaşabilmesi için adresinizi onaylayın.",
+    "verifyCta": "Ayarları aç",
+    "keyTitle": "İlk API anahtarınızı oluşturun",
+    "keyDesc": "Programatik istekleri kişisel bir API anahtarıyla doğrulayın.",
+    "keyCta": "Anahtar oluştur",
+    "requestTitle": "İlk API isteğinizi yapın",
+    "requestDesc": "Belgelerdeki hızlı başlangıçla canlı verinin terminalinize akışını görün.",
+    "requestCta": "Hızlı başlangıcı aç"
+  },
   "common": {
     "noData": "Veri yok",
     "loading": "Yükleniyor…",
