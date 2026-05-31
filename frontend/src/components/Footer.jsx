@@ -58,7 +58,7 @@ export default function Footer() {
           <NavLink to="/about">{t('landing.navAbout')}</NavLink>
           <NavLink to="/status">{t('landing.navStatus')}</NavLink>
           <a
-            href="mailto:contact@chronocoder.dev"
+            href="mailto:hello@astraeusio.com"
             className="text-zinc-500 hover:text-zinc-200 text-xs transition-colors w-fit"
           >
             {t('footer.contact')}

@@ -103,6 +103,9 @@ export default function AboutPage({ onSignIn }) {
           <p>{t('about.missionP2')}</p>
           <p>{t('about.missionP3')}</p>
         </div>
+        <div className="mt-10 border-l-2 border-orange-400/30 pl-5 text-zinc-300 text-sm leading-relaxed italic">
+          {t('about.founderNote')}
+        </div>
       </Section>
 
       <Divider />
@@ -121,6 +124,48 @@ export default function AboutPage({ onSignIn }) {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Divider />
+
+      {/* Architecture / data flow */}
+      <Section id="architecture">
+        <Label>{t('about.archLabel')}</Label>
+        <h2 className="text-2xl font-light text-zinc-100 mb-3">{t('about.archTitle')}</h2>
+        <p className="text-zinc-400 text-sm leading-relaxed mb-8">{t('about.archDesc')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-4 md:gap-3 items-stretch">
+          {/* Ingest */}
+          <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/40">
+            <p className="text-xs font-mono uppercase tracking-widest text-orange-400 mb-3">{t('about.archStep1')}</p>
+            <ul className="flex flex-col gap-2 text-zinc-300 text-sm">
+              <li>NOAA SWPC</li>
+              <li>NASA APIs</li>
+              <li>Kyoto WDC</li>
+              <li>Celestrak</li>
+            </ul>
+          </div>
+          <div className="hidden md:flex items-center justify-center text-zinc-600 text-2xl font-thin">→</div>
+          {/* Process */}
+          <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/40">
+            <p className="text-xs font-mono uppercase tracking-widest text-orange-400 mb-3">{t('about.archStep2')}</p>
+            <ul className="flex flex-col gap-2 text-zinc-300 text-sm">
+              <li>{t('about.archProc1')}</li>
+              <li>{t('about.archProc2')}</li>
+              <li>{t('about.archProc3')}</li>
+              <li>{t('about.archProc4')}</li>
+            </ul>
+          </div>
+          <div className="hidden md:flex items-center justify-center text-zinc-600 text-2xl font-thin">→</div>
+          {/* Deliver */}
+          <div className="border border-zinc-800 rounded-xl p-5 bg-zinc-900/40">
+            <p className="text-xs font-mono uppercase tracking-widest text-orange-400 mb-3">{t('about.archStep3')}</p>
+            <ul className="flex flex-col gap-2 text-zinc-300 text-sm">
+              <li>{t('about.archDeliver1')}</li>
+              <li>{t('about.archDeliver2')}</li>
+              <li>{t('about.archDeliver3')}</li>
+            </ul>
+          </div>
         </div>
       </Section>
 
@@ -160,10 +205,10 @@ export default function AboutPage({ onSignIn }) {
           {t('about.contactDesc')}
         </p>
         <a
-          href="mailto:contact@chronocoder.dev"
+          href="mailto:hello@astraeusio.com"
           className="inline-block font-mono text-zinc-200 hover:text-white border-b border-zinc-700 hover:border-zinc-400 pb-0.5 transition-colors text-sm"
         >
-          contact@chronocoder.dev
+          hello@astraeusio.com
         </a>
       </Section>
 
