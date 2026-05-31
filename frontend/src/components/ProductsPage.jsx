@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Navbar from './Navbar'
@@ -58,14 +59,40 @@ const AUDIENCE = [
   { key: 'aud4', Icon: IconGrid,     cls: 'text-emerald-400' },
 ]
 
-const API_SNIPPET = `curl -H "Authorization: Bearer ak_live_..." \\
-  https://astraeusio.com/api/kp
+const API_TABS = [
+  {
+    id: 'curl',
+    label: 'curl',
+    code: `curl -H "Authorization: Bearer ak_live_..." \\
+  https://astraeusio.com/api/kp`,
+  },
+  {
+    id: 'js',
+    label: 'JavaScript',
+    code: `const res = await fetch('https://astraeusio.com/api/kp', {
+  headers: { Authorization: 'Bearer ak_live_...' }
+})
+const data = await res.json()`,
+  },
+  {
+    id: 'python',
+    label: 'Python',
+    code: `import requests
+r = requests.get(
+  'https://astraeusio.com/api/kp',
+  headers={'Authorization': 'Bearer ak_live_...'},
+)
+data = r.json()`,
+  },
+]
 
-{
-  "time_tag":     "2026-05-21T22:30:00Z",
+const API_RESPONSE = `{
+  "time_tag":     "2026-05-31T15:00:00Z",
   "kp_index":     2,
   "estimated_kp": 1.83
 }`
+
+const PICK_KEYS = ['d1', 'd2', 'd3']
 
 const PRODUCTS = [
   {
@@ -105,6 +132,8 @@ const PRODUCTS = [
 
 export default function ProductsPage({ onSignIn, onSignUp }) {
   const { t } = useTranslation()
+  const [apiTab, setApiTab] = useState('curl')
+  const activeSample = API_TABS.find(s => s.id === apiTab) ?? API_TABS[0]
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -198,6 +227,30 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
         </div>
       </section>
 
+      {/* ── Which one do I pick ──────────────────────────────────────────── */}
+      <section className="px-6 pt-6 pb-4 max-w-5xl mx-auto">
+        <div className="flex flex-col gap-2 mb-6">
+          <p className="text-xs font-mono tracking-[0.2em] text-orange-400 uppercase">
+            {t('products.pickEyebrow')}
+          </p>
+          <h2 className="text-2xl md:text-3xl font-thin tracking-tight text-zinc-100">
+            {t('products.pickTitle')}
+          </h2>
+        </div>
+        <div className="flex flex-col divide-y divide-zinc-800 border-y border-zinc-800">
+          {PICK_KEYS.map(k => (
+            <div key={k} className="py-5 flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
+              <p className="text-sm font-mono uppercase tracking-widest text-zinc-300 shrink-0 sm:w-40">
+                {t(`products.pick.${k}.label`)}
+              </p>
+              <p className="text-zinc-400 text-sm leading-relaxed flex-1">
+                {t(`products.pick.${k}.body`)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── Audience ─────────────────────────────────────────────────────── */}
       <section className="px-6 pt-16 pb-20 max-w-5xl mx-auto">
         <div className="flex flex-col gap-2 mb-10">
@@ -252,8 +305,38 @@ export default function ProductsPage({ onSignIn, onSignUp }) {
                 </div>
                 <span className="text-xs font-mono text-zinc-500">{t('products.apiCodeCaption')}</span>
               </div>
+
+              {/* Language tabs */}
+              <div className="flex border-b border-zinc-800 bg-zinc-900/30">
+                {API_TABS.map(tab => {
+                  const active = tab.id === apiTab
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setApiTab(tab.id)}
+                      className={`px-4 py-2 text-xs font-mono transition-colors border-b-2 -mb-px ${
+                        active
+                          ? 'border-orange-400 text-zinc-100'
+                          : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+
               <pre className="text-xs font-mono text-zinc-300 p-4 overflow-x-auto leading-relaxed">
-                <code>{API_SNIPPET}</code>
+                <code>{activeSample.code}</code>
+              </pre>
+
+              <div className="px-4 py-2 border-y border-zinc-800 bg-zinc-900/40">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                  {t('products.apiResponseCaption')}
+                </span>
+              </div>
+              <pre className="text-xs font-mono text-emerald-300/90 p-4 overflow-x-auto leading-relaxed">
+                <code>{API_RESPONSE}</code>
               </pre>
             </div>
           </div>

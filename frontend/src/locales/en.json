@@ -478,7 +478,24 @@
     "apiTitle": "Real-time space weather, one curl away.",
     "apiSub": "Every endpoint returns JSON. Authenticate with an API key, paginate, filter - no SDK required.",
     "apiCodeCaption": "Latest Kp reading",
+    "apiResponseCaption": "Response",
     "apiCtaDocs": "Read full API docs",
+    "pickEyebrow": "Which one fits",
+    "pickTitle": "Pick the surface that matches your workflow.",
+    "pick": {
+      "d1": {
+        "label": "Dashboard",
+        "body": "Use the Dashboard if you want a ready-made UI to watch space weather, alerts, and predictions - without writing or integrating any code."
+      },
+      "d2": {
+        "label": "API",
+        "body": "Use the API if you're building software, an integration, or your own dashboards and need raw space-weather JSON over HTTPS with confidence intervals included."
+      },
+      "d3": {
+        "label": "Alerts",
+        "body": "Use Alerts if you only want to be told when something happens - webhooks or email, custom thresholds, no UI to monitor."
+      }
+    },
     "ctaTitle": "Start watching space weather.",
     "ctaSub": "Free tier includes live data, 3-hour ML forecast, and email alerts. No credit card required.",
     "ctaPrimary": "Create free account",
