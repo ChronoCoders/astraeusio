@@ -557,6 +557,8 @@
     "navWebhookEvents": "Olay Türleri",
     "navEmailAlerts": "E-posta Uyarıları",
     "navErrorCodes": "Hata Kodları",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
     "authIntro": "Tüm API uç noktaları (genel olanlar hariç) kimlik doğrulama gerektirir. Astraeusio iki kimlik doğrulama yöntemini destekler.",
     "authJwtTitle": "JWT Taşıyıcı Token",
     "authJwtDesc": "POST /auth/login aracılığıyla elde edilir. 24 saat geçerlidir. Gösterge paneli erişimi ve kişisel betikler için kullanın. JWT istekleri API kotanızı tüketmez.",

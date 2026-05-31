@@ -58,11 +58,37 @@ function Badge({ method }) {
 }
 
 function Code({ children, lang }) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  const text = typeof children === 'string' ? children : String(children ?? '')
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard API can fail in non-secure contexts; silently no-op
+    }
+  }
   return (
-    <pre className="bg-zinc-900 border border-zinc-800 rounded-md p-4 overflow-x-auto text-xs font-mono text-zinc-300 leading-relaxed my-3">
-      {lang && <span className="block text-zinc-600 text-[10px] mb-2 uppercase tracking-widest">{lang}</span>}
-      <code>{children}</code>
-    </pre>
+    <div className="relative my-3 group">
+      <pre className="bg-zinc-900 border border-zinc-800 rounded-md p-4 overflow-x-auto text-xs font-mono text-zinc-300 leading-relaxed">
+        {lang && <span className="block text-zinc-600 text-[10px] mb-2 uppercase tracking-widest">{lang}</span>}
+        <code>{children}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={onCopy}
+        aria-label={t('docs.copy')}
+        className={`absolute top-2 right-2 text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded border bg-zinc-900/80 backdrop-blur-sm transition-colors ${
+          copied
+            ? 'border-green-700 text-green-400'
+            : 'border-zinc-700 text-zinc-500 hover:text-zinc-200 hover:border-zinc-500 opacity-0 group-hover:opacity-100 focus:opacity-100'
+        }`}
+      >
+        {copied ? t('docs.copied') : t('docs.copy')}
+      </button>
+    </div>
   )
 }
 
@@ -746,11 +772,10 @@ curl -X POST https://your-domain.com/api/email-alerts \\
 
           <H4>429 rate_limit_exceeded response</H4>
           <Code lang="json">{`{
-  "error":        "rate_limit_exceeded",
-  "limit":        100,
-  "used":         100,
-  "period_start": 1746057600,
-  "period_end":   1746144000
+  "error":    "rate_limit_exceeded",
+  "plan":     "free",
+  "limit":    100,
+  "reset_at": 1746144000
 }`}</Code>
 
           {/* bottom padding */}

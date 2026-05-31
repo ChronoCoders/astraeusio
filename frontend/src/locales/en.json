@@ -557,6 +557,8 @@
     "navWebhookEvents": "Event Types",
     "navEmailAlerts": "Email Alerts",
     "navErrorCodes": "Error Codes",
+    "copy": "Copy",
+    "copied": "Copied",
     "authIntro": "All API endpoints (except public ones) require authentication. Astraeusio supports two authentication methods.",
     "authJwtTitle": "JWT Bearer Token",
     "authJwtDesc": "Obtained via POST /auth/login. Valid for 24 hours. Use for dashboard access and personal scripts. JWT requests do not consume your API quota.",
