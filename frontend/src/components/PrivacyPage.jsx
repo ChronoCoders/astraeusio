@@ -52,20 +52,8 @@ export default function PrivacyPage({ onSignIn }) {
               authenticator app generates.</p>
             <p><span className="text-zinc-300 font-medium">Server logs.</span> Our server software may log IP addresses, request paths,
               and timestamps for security and debugging purposes. Logs are retained for up to 30 days.</p>
-            <p><span className="text-zinc-300 font-medium">Privacy-friendly analytics.</span> We use{' '}
-              <a
-                href="https://www.cloudflare.com/web-analytics/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-zinc-200 underline underline-offset-2 hover:text-white"
-              >
-                Cloudflare Web Analytics
-              </a>{' '}
-              to measure aggregate pageviews and Core Web Vitals (page load metrics). This service does
-              not set cookies, does not collect personally identifiable information, and does not
-              fingerprint your browser. Cloudflare's privacy policy governs that data.</p>
-            <p><span className="text-zinc-300 font-medium">Data we do not collect.</span> We do not use tracking cookies, advertising
-              pixels, or browser fingerprinting.</p>
+            <p><span className="text-zinc-300 font-medium">Data we do not collect.</span> We do not use tracking cookies, third-party
+              analytics, advertising pixels, or browser fingerprinting.</p>
           </Section>
 
           <Section title="How We Use Your Information">
