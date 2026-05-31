@@ -36,6 +36,7 @@ const NAV = [
   },
   { id: 'email-alerts',  labelKey: 'docs.navEmailAlerts',  children: [] },
   { id: 'error-codes',   labelKey: 'docs.navErrorCodes',   children: [] },
+  { id: 'glossary',      labelKey: 'docs.navGlossary',     children: [] },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -777,6 +778,20 @@ curl -X POST https://your-domain.com/api/email-alerts \\
   "limit":    100,
   "reset_at": 1746144000
 }`}</Code>
+
+          {/* ── Glossary ─────────────────────────────────────────────────── */}
+          <H2 id="glossary">{t('docs.navGlossary')}</H2>
+          <P>{t('docs.glossaryIntro')}</P>
+          <dl className="flex flex-col gap-6 mt-6">
+            {t('docs.glossary', { returnObjects: true }).map((item, i) => (
+              <div key={i}>
+                <dt className="text-sm font-mono uppercase tracking-widest text-zinc-300 mb-1.5">
+                  {item.term}
+                </dt>
+                <dd className="text-zinc-400 text-sm leading-relaxed">{item.body}</dd>
+              </div>
+            ))}
+          </dl>
 
           {/* bottom padding */}
           <div className="h-24" />
