@@ -280,7 +280,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {page === 'billing' && <BillingPage user={user} onUserChange={onUserChange} />}
 
           {/* ── Settings ───────────────────────────────────────────────── */}
-          {page === 'settings' && <SettingsPage onLogout={onLogout} user={user} onUserChange={onUserChange} />}
+          {page === 'settings' && <SettingsPage user={user} onUserChange={onUserChange} />}
 
           {/* ── Alerts ─────────────────────────────────────────────────── */}
           {page === 'alerts' && (
