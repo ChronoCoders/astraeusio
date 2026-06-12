@@ -342,7 +342,12 @@
     "noHooks": "Henüz kayıtlı webhook yok",
     "secretTitle": "Webhook Gizli Anahtarı",
     "secretWarning": "İmzalama anahtarını şimdi kopyalayın - bir daha gösterilmeyecek.",
-    "secretDismiss": "Anladım - kapat"
+    "secretDismiss": "Anladım - kapat",
+    "showDeliveries": "Son gönderimler",
+    "hideDeliveries": "Gönderimleri gizle",
+    "noDeliveries": "Henüz kayıtlı gönderim yok.",
+    "deliveryOk": "İletildi",
+    "deliveryFail": "Başarısız"
   },
   "status": {
     "eyebrow": "Sistem Durumu",
@@ -387,6 +392,10 @@
     "company": "Şirket",
     "contact": "İletişim",
     "bottomBar": "© 2026 Astraeusio · Tüm hakları saklıdır.",
+    "statusOk": "Tüm sistemler çalışıyor",
+    "statusDegraded": "Kısmi kesinti",
+    "statusOutage": "Büyük kesinti",
+    "statusChecking": "Durum kontrol ediliyor…",
     "privacy": "Gizlilik Politikası",
     "terms": "Kullanım Koşulları"
   },

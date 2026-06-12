@@ -559,35 +559,95 @@ function WebhooksCrud({ t }) {
         ) : (
           <div className="flex flex-col divide-y divide-zinc-800">
             {hooks.map(h => (
-              <div key={h.id} className="px-4 py-3 flex items-start justify-between gap-3">
-                <div className="flex flex-col gap-1 min-w-0">
-                  <code className="text-zinc-200 text-xs font-mono truncate">{h.url}</code>
-                  <div className="flex flex-wrap gap-1 mt-0.5">
-                    {h.events.map(ev => (
-                      <span key={ev} className="text-[10px] font-mono border border-zinc-700 text-zinc-500 rounded px-1.5 py-0.5">
-                        {ev}
-                      </span>
-                    ))}
-                  </div>
-                  <span className="text-zinc-700 text-[11px] font-mono">{fmtTs(h.created_at)}</span>
-                </div>
-                <button
-                  onClick={() => handleDelete(h.id)}
-                  className="shrink-0 text-zinc-600 hover:text-red-400 transition-colors mt-0.5"
-                  title={t('apiKeys.delete')}
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <line x1="1" y1="1" x2="13" y2="13" />
-                    <line x1="13" y1="1" x2="1" y2="13" />
-                  </svg>
-                </button>
-              </div>
+              <WebhookRow key={h.id} hook={h} onDelete={handleDelete} t={t} />
             ))}
           </div>
         )}
       </div>
 
+    </div>
+  )
+}
+
+// ── Webhook row with collapsible delivery log ────────────────────────────────
+
+function WebhookRow({ hook, onDelete, t }) {
+  const [open, setOpen] = useState(false)
+  const [deliveries, setDeliveries] = useState(null)
+  const [loadingDeliveries, setLoadingDeliveries] = useState(false)
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (next && deliveries === null) {
+      setLoadingDeliveries(true)
+      fetch(`/api/webhooks/${hook.id}/deliveries`, { headers: authHeader() })
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setDeliveries(Array.isArray(d) ? d : []))
+        .catch(() => setDeliveries([]))
+        .finally(() => setLoadingDeliveries(false))
+    }
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-4 py-3 flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1 min-w-0">
+          <code className="text-zinc-200 text-xs font-mono truncate">{hook.url}</code>
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {hook.events.map(ev => (
+              <span key={ev} className="text-[10px] font-mono border border-zinc-700 text-zinc-500 rounded px-1.5 py-0.5">
+                {ev}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-zinc-700 text-[11px] font-mono">{fmtTs(hook.created_at)}</span>
+            <button
+              onClick={toggle}
+              className="text-zinc-500 hover:text-zinc-200 text-[11px] font-mono transition-colors"
+            >
+              {open ? `▾ ${t('webhooks.hideDeliveries')}` : `▸ ${t('webhooks.showDeliveries')}`}
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={() => onDelete(hook.id)}
+          className="shrink-0 text-zinc-600 hover:text-red-400 transition-colors mt-0.5"
+          title={t('apiKeys.delete')}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <line x1="1" y1="1" x2="13" y2="13" />
+            <line x1="13" y1="1" x2="1" y2="13" />
+          </svg>
+        </button>
+      </div>
+      {open && (
+        <div className="px-4 pb-3 -mt-1">
+          {loadingDeliveries ? (
+            <p className="text-zinc-600 text-[11px] font-mono">{t('common.loading')}</p>
+          ) : !deliveries?.length ? (
+            <p className="text-zinc-600 text-[11px] font-mono">{t('webhooks.noDeliveries')}</p>
+          ) : (
+            <div className="border border-zinc-800 rounded divide-y divide-zinc-800/60 bg-zinc-950">
+              {deliveries.map((d, i) => (
+                <div key={i} className="px-3 py-2 flex items-center justify-between gap-3 text-[11px] font-mono">
+                  <span className="text-zinc-500 shrink-0 w-32">{fmtTs(d.attempted_at)}</span>
+                  <span className={`shrink-0 w-12 text-center ${
+                    d.success ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {d.status_code ?? '—'}
+                  </span>
+                  <span className="text-zinc-600 truncate flex-1 text-right">
+                    {d.success ? t('webhooks.deliveryOk') : (d.error ?? t('webhooks.deliveryFail'))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

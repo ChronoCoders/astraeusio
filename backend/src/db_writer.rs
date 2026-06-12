@@ -45,6 +45,13 @@ pub enum WriteCmd {
         ts: i64,
         status: String,
     },
+    WebhookDelivery {
+        webhook_id: String,
+        attempted_at: i64,
+        status_code: Option<i32>,
+        success: bool,
+        error: Option<String>,
+    },
     TouchApiKey(String),
     FlushUsage {
         email: String,
@@ -395,17 +402,23 @@ impl DbWriterHandle {
 
 pub fn spawn(db: Store, client: Client) -> DbWriterHandle {
     let (tx, rx) = mpsc::channel(1024);
-    tokio::spawn(run(db, client, rx));
+    let handle = DbWriterHandle { tx: tx.clone() };
+    tokio::spawn(run(db, client, rx, handle));
     DbWriterHandle { tx }
 }
 
-async fn run(db: Store, client: Client, mut rx: mpsc::Receiver<WriteCmd>) {
+async fn run(
+    db: Store,
+    client: Client,
+    mut rx: mpsc::Receiver<WriteCmd>,
+    writer: DbWriterHandle,
+) {
     while let Some(cmd) = rx.recv().await {
-        tokio::task::block_in_place(|| process(&db, &client, cmd));
+        tokio::task::block_in_place(|| process(&db, &client, &writer, cmd));
     }
 }
 
-fn process(db: &Store, client: &Client, cmd: WriteCmd) {
+fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) {
     match cmd {
         WriteCmd::Iss(pos) => {
             if let Err(e) = db.insert_iss_position(&pos) {
@@ -491,8 +504,19 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
                         let src = source_ref.clone();
                         let sev = severity.clone();
                         let msg = message.clone();
+                        let w = writer.clone();
                         tokio::spawn(async move {
-                            crate::webhook_sender::send(&c, &hook, &ev, &src, &sev, &msg, ts).await;
+                            let r = crate::webhook_sender::send(
+                                &c, &hook, &ev, &src, &sev, &msg, ts,
+                            )
+                            .await;
+                            w.fire(WriteCmd::WebhookDelivery {
+                                webhook_id: hook.id.clone(),
+                                attempted_at: ts,
+                                status_code: r.status_code,
+                                success: r.success,
+                                error: r.error,
+                            });
                         });
                     }
                 }
@@ -525,6 +549,23 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         } => {
             if let Err(e) = db.insert_health_snapshot(&component, ts, &status) {
                 error!(source = "db_writer", "health-snapshot: {e}");
+            }
+        }
+        WriteCmd::WebhookDelivery {
+            webhook_id,
+            attempted_at,
+            status_code,
+            success,
+            error: err,
+        } => {
+            if let Err(e) = db.insert_webhook_delivery(
+                &webhook_id,
+                attempted_at,
+                status_code,
+                success,
+                err.as_deref(),
+            ) {
+                error!(source = "db_writer", "webhook-delivery: {e}");
             }
         }
         WriteCmd::FlushUsage {

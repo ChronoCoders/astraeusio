@@ -129,6 +129,24 @@ pub async fn list_webhooks(State(s): State<AppState>, claims: AuthClaims) -> Res
     }
 }
 
+pub async fn list_deliveries(
+    State(s): State<AppState>,
+    claims: AuthClaims,
+    Path(id): Path<String>,
+) -> Response {
+    match s.db.lock().await.list_webhook_deliveries(&id, &claims.sub, 20) {
+        Ok(rows) => Json(serde_json::Value::Array(rows)).into_response(),
+        Err(e) => {
+            warn!("list_webhook_deliveries error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
 pub async fn delete_webhook(
     State(s): State<AppState>,
     claims: AuthClaims,

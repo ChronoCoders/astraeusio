@@ -57,10 +57,10 @@ function escape(s) {
     .replace(/"/g, '&quot;')
 }
 
-function patch(html, { title, desc, url }) {
+function patch(html, { title, desc, url, image }) {
   const t = escape(title)
   const d = escape(desc)
-  return html
+  let out = html
     .replace(/<title>[^<]*<\/title>/, `<title>${t}</title>`)
     .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${url}$2`)
     .replace(/(<meta name="description" content=")[^"]*(")/, `$1${d}$2`)
@@ -73,11 +73,18 @@ function patch(html, { title, desc, url }) {
     // preload hint from every other route so we don't waste 530 kB on routes
     // that never render it.
     .replace(/\s*<link rel="preload" as="image" href="\/earth\.webp"[^>]*>/, '')
+  if (image) {
+    const imgUrl = escape(`${SITE}${image}`)
+    out = out
+      .replace(/(<meta property="og:image"\s*content=")[^"]*(")/, `$1${imgUrl}$2`)
+      .replace(/(<meta name="twitter:image"\s*content=")[^"]*(")/, `$1${imgUrl}$2`)
+  }
+  return out
 }
 
-async function writeRoute(srcHtml, { route, title, desc }) {
+async function writeRoute(srcHtml, { route, title, desc, image }) {
   const url = `${SITE}${route}`
-  const html = patch(srcHtml, { title, desc, url })
+  const html = patch(srcHtml, { title, desc, url, image })
   const outDir = join(DIST, route.replace(/^\//, ''))
   await mkdir(outDir, { recursive: true })
   await writeFile(join(outDir, 'index.html'), html, 'utf8')
@@ -99,6 +106,7 @@ async function main() {
       route: `/blog/${post.slug}`,
       title: `${post.title} - Astraeusio Blog`,
       desc:  post.excerpt,
+      image: `/blog/og-${post.slug}.png`,
     })
   }
 
