@@ -40,6 +40,11 @@ pub enum WriteCmd {
         ci_upper_e2: Option<i64>,
         uncertainty_e4: Option<i64>,
     },
+    HealthSnapshot {
+        component: String,
+        ts: i64,
+        status: String,
+    },
     TouchApiKey(String),
     FlushUsage {
         email: String,
@@ -511,6 +516,15 @@ fn process(db: &Store, client: &Client, cmd: WriteCmd) {
         WriteCmd::TouchApiKey(hash) => {
             if let Err(e) = db.touch_api_key(&hash) {
                 error!(source = "db_writer", "touch-api-key: {e}");
+            }
+        }
+        WriteCmd::HealthSnapshot {
+            component,
+            ts,
+            status,
+        } => {
+            if let Err(e) = db.insert_health_snapshot(&component, ts, &status) {
+                error!(source = "db_writer", "health-snapshot: {e}");
             }
         }
         WriteCmd::FlushUsage {
