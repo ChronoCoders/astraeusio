@@ -271,7 +271,6 @@
     "changePasswordBtn": "Şifreyi güncelle",
     "pwChanged": "Şifre başarıyla güncellendi.",
     "pwTooShort": "Yeni şifre en az 8 karakter olmalıdır",
-    "sessionTitle": "Oturum",
     "emailVerificationTitle": "E-posta doğrulama",
     "emailVerified": "✓ Doğrulandı",
     "emailNotVerified": "⚠ E-posta adresiniz doğrulanmamış.",

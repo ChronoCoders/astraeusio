@@ -271,7 +271,6 @@
     "changePasswordBtn": "Update password",
     "pwChanged": "Password updated successfully.",
     "pwTooShort": "New password must be at least 8 characters",
-    "sessionTitle": "Session",
     "emailVerificationTitle": "Email verification",
     "emailVerified": "✓ Verified",
     "emailNotVerified": "⚠ Your email address is not verified.",
