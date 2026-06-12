@@ -855,7 +855,7 @@
     "heroEyebrow": "Space Weather Intelligence",
     "heroTitle": "See space weather before it impacts Earth.",
     "heroSub": "Real-time monitoring of solar activity and geomagnetic storms - before they disrupt satellites, GPS, and communications.",
-    "heroStat": "3-hour advance warnings for space weather events affecting Earth.",
+    "heroStat": "Multi-horizon Kp forecasts up to 24 hours ahead, with 95% confidence intervals.",
     "ctaPrimary": "Start Monitoring - Free",
     "ctaSecondary": "Sign in",
     "capTitle": "What you can do",
@@ -877,8 +877,8 @@
     "previewTitle": "See the dashboard",
     "previewDesc": "Every signal in one view - live Kp index, solar wind, X-ray flux, and the ML forecast with confidence intervals, all updated continuously.",
     "predTitle": "Predictive intelligence",
-    "p1Title": "3-hour geomagnetic forecast",
-    "p1Body": "Anticipate near-term space weather activity using machine learning models trained on decades of historical data.",
+    "p1Title": "Multi-horizon geomagnetic forecast",
+    "p1Body": "Anticipate space weather activity 3 to 24 hours ahead with machine learning models trained on decades of historical data.",
     "p2Title": "Confidence-aware predictions",
     "p2Body": "Forecasts include probability ranges to reflect uncertainty in solar activity dynamics.",
     "p3Title": "Early storm detection",
@@ -892,7 +892,7 @@
     "sourcesNote": "Trusted space and atmospheric data providers",
     "s1": "NOAA Space Weather Prediction Center (SWPC)",
     "s2": "NASA NeoWs, EPIC, and APOD datasets",
-    "s3": "Open Notify ISS tracking system",
+    "s3": "wheretheiss.at and Launch Library 2 (ISS position and crew)",
     "s4": "Celestrak orbital elements (including Starlink)",
     "s5": "Kyoto World Data Center (Dst index)",
     "audienceTitle": "Who it's for",
@@ -927,7 +927,7 @@
     "techTrainingVal": "20+ years of NOAA Kp historical data",
     "techUncertaintyVal": "95% confidence intervals · 50 inference passes",
     "techRefreshVal": "1-minute ingestion cycle from live sensors",
-    "techDetectionVal": "Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO)"
+    "techDetectionVal": "Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO, ML forecast)"
   },
   "billing": {
     "title": "Billing & Subscription",
