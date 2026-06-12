@@ -356,6 +356,7 @@ pub fn router(state: AppState) -> Router {
             get(webhooks::list_webhooks).post(webhooks::create_webhook),
         )
         .route("/api/webhooks/{id}", delete(webhooks::delete_webhook))
+        .route("/api/webhooks/{id}/deliveries", get(webhooks::list_deliveries))
         .route(
             "/api/email-alerts",
             get(email_alerts::get_email_alert).post(email_alerts::upsert_email_alert),

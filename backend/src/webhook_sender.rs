@@ -6,6 +6,12 @@ use crate::db::WebhookRow;
 
 type HmacSha256 = Hmac<Sha256>;
 
+pub struct DeliveryResult {
+    pub status_code: Option<i32>,
+    pub success: bool,
+    pub error: Option<String>,
+}
+
 pub async fn send(
     client: &reqwest::Client,
     hook: &WebhookRow,
@@ -14,7 +20,7 @@ pub async fn send(
     severity: &str,
     message: &str,
     timestamp: i64,
-) {
+) -> DeliveryResult {
     let payload = serde_json::json!({
         "event":     event,
         "severity":  severity,
@@ -41,7 +47,23 @@ pub async fn send(
         .send()
         .await
     {
-        Ok(r) => info!("webhook {}: {} -> {}", hook.id, hook.url, r.status()),
-        Err(e) => warn!("webhook {} delivery failed: {e}", hook.id),
+        Ok(r) => {
+            let code = r.status().as_u16() as i32;
+            info!("webhook {}: {} -> {}", hook.id, hook.url, r.status());
+            DeliveryResult {
+                status_code: Some(code),
+                success: (200..300).contains(&code),
+                error: None,
+            }
+        }
+        Err(e) => {
+            let err = e.to_string();
+            warn!("webhook {} delivery failed: {err}", hook.id);
+            DeliveryResult {
+                status_code: None,
+                success: false,
+                error: Some(err),
+            }
+        }
     }
 }
