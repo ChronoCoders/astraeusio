@@ -216,3 +216,14 @@ export function fmtNum(n, decimals = 0) {
   if (n == null || !isFinite(n)) return '-'
   return n.toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals })
 }
+
+// Format a flux value (W/m²) as "1.55 × 10⁻⁵" instead of "1.55e-5".
+const SUP_DIGITS = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹' }
+export function fmtFlux(w) {
+  if (w == null || !isFinite(w) || w <= 0) return '0'
+  const exp = Math.floor(Math.log10(w))
+  const mantissa = w / Math.pow(10, exp)
+  const sign = exp < 0 ? '⁻' : ''
+  const sup = sign + String(Math.abs(exp)).split('').map(d => SUP_DIGITS[d]).join('')
+  return `${mantissa.toFixed(2)} × 10${sup}`
+}

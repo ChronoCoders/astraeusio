@@ -47,6 +47,42 @@ fn wind_severity(speed_e1: i64) -> Option<&'static str> {
     }
 }
 
+/// Format an X-ray flux reading (W/m²) in human-readable NOAA notation
+/// (e.g. "1.55 × 10⁻⁵") instead of `1.55e-5`.
+fn format_xray_flux(flux_w_m2: f64) -> String {
+    if flux_w_m2 <= 0.0 {
+        return "0".to_string();
+    }
+    let exp = flux_w_m2.log10().floor() as i32;
+    let mantissa = flux_w_m2 / 10f64.powi(exp);
+    let sup = superscript_signed(exp);
+    format!("{mantissa:.2} × 10{sup}")
+}
+
+fn superscript_signed(n: i32) -> String {
+    let mut out = String::new();
+    if n < 0 {
+        out.push('⁻');
+    }
+    for ch in n.abs().to_string().chars() {
+        let digit = match ch {
+            '0' => '⁰',
+            '1' => '¹',
+            '2' => '²',
+            '3' => '³',
+            '4' => '⁴',
+            '5' => '⁵',
+            '6' => '⁶',
+            '7' => '⁷',
+            '8' => '⁸',
+            '9' => '⁹',
+            _ => ch,
+        };
+        out.push(digit);
+    }
+    out
+}
+
 /// `(severity, class)` for an X-ray flux reading (scaled ×1e12), or `None` below M-class.
 fn xray_severity(flux_e12: i64) -> Option<(&'static str, &'static str)> {
     if flux_e12 >= XRAY_X_E12 {
@@ -130,8 +166,16 @@ fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     if let Some((time_tag, flux_e12)) = db.xray_peak_recent(since)?
         && let Some((severity, class)) = xray_severity(flux_e12)
     {
-        let flux = flux_e12 as f64 / 1e12;
-        let msg = format!("X-ray class {class} flare detected (flux: {flux:.2e} W/m²)");
+        // Standard NOAA/SWPC notation: M1.5 = 1.5 × 10⁻⁵ W/m², X2.3 = 2.3 × 10⁻⁴ W/m².
+        let (class_base, exponent) = if class == "X" {
+            (1e8_f64, "⁻⁴")
+        } else {
+            (1e7_f64, "⁻⁵")
+        };
+        let magnitude = flux_e12 as f64 / class_base;
+        let msg = format!(
+            "{class}{magnitude:.1} X-ray flare detected ({magnitude:.2} × 10{exponent} W/m²)"
+        );
         writer.fire(WriteCmd::Anomaly {
             anomaly_type: "xray_flare".to_string(),
             source_ref: time_tag,
@@ -219,7 +263,7 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
         let metric_str = match rule.metric.as_str() {
             "kp" => format!("Kp {val:.2}"),
             "solar_wind_speed" => format!("Solar wind {val:.0} km/s"),
-            "xray_flux" => format!("X-ray {val:.2e} W/m²"),
+            "xray_flux" => format!("X-ray {} W/m²", format_xray_flux(val)),
             "dst" => format!("Dst {val:.0} nT"),
             "imf_bz" => format!("IMF Bz {val:.2} nT"),
             m => format!("{m} = {val:.3}"),
