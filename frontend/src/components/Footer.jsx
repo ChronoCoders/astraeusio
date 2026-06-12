@@ -109,12 +109,14 @@ export default function Footer() {
 
       {/* ── Bottom bar ────────────────────────────────────────────────────── */}
       <div className="border-t border-zinc-800/60">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-5">
-            <p className="text-zinc-600 text-[11px] font-mono">{t('footer.bottomBar')}</p>
+        <div className="max-w-6xl mx-auto px-6 py-4 grid grid-cols-1 sm:grid-cols-3 items-center gap-3">
+          <div className="flex justify-start">
             <StatusBadge />
           </div>
-          <div className="flex items-center gap-4">
+          <p className="text-zinc-600 text-[11px] font-mono sm:text-center">
+            {t('footer.bottomBar')}
+          </p>
+          <div className="flex items-center gap-4 sm:justify-end">
             <NavLink to="/privacy">{t('footer.privacy')}</NavLink>
             <NavLink to="/terms">{t('footer.terms')}</NavLink>
           </div>
