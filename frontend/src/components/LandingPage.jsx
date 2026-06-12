@@ -625,12 +625,14 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         <h2>ML-Powered Storm Prediction</h2>
         <p>
           The machine learning forecast system uses an LSTM neural network trained on over 20 years
-          of historical NOAA Kp index data. The model ingests a 7-feature input vector including
-          normalized Kp, hour of day encoded as sine and cosine, month of year encoded as sine and
-          cosine, and solar cycle phase. During inference, Monte Carlo Dropout sampling runs 50
-          forward passes to produce a probabilistic output: a predicted Kp value for 3 hours ahead,
-          a lower confidence bound, an upper confidence bound at 95%, and an uncertainty estimate.
-          The model was trained with early stopping and validated on a held-out test set. Forecasts
+          of historical NOAA Kp index data. The model ingests a 19-feature input vector including
+          normalized Kp, seven recent Kp lags, a rolling 24-hour Kp maximum, a 72-hour Kp mean,
+          hour of day and month of year each encoded as sine and cosine, solar cycle phase, the
+          F10.7 adjusted radio flux, sunspot number, and the 24-hour F10.7 delta. A multi-horizon
+          head emits four predictions in a single pass - 3, 6, 12, and 24 hours ahead - and Monte
+          Carlo Dropout sampling runs 50 forward passes per request to produce per-horizon outputs:
+          predicted Kp, a 95% confidence interval, and an uncertainty estimate. The model was
+          trained with walk-forward validation and a weighted Huber loss across horizons. Forecasts
           are cached for 3 minutes and refreshed on demand via the API.
         </p>
 
@@ -678,9 +680,10 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           for Kp index, solar wind, X-ray flux, and space weather alert text products; NASA NeoWs
           API for near-Earth asteroid close approach data updated every 30 minutes; NASA APOD for
           the daily astronomy picture; NASA EPIC for full-disk Earth imagery from DSCOVR; NASA
-          Exoplanet Archive for confirmed exoplanet catalog data; Open Notify for ISS orbital
-          position updated every 5 seconds; Celestrak for Starlink TLE orbital elements updated
-          every hour; and the Kyoto World Data Center for the Dst geomagnetic disturbance index.
+          Exoplanet Archive for confirmed exoplanet catalog data; wheretheiss.at for ISS orbital
+          position updated every 5 seconds, with the live crew roster supplied by Launch Library 2;
+          Celestrak for Starlink TLE orbital elements updated every hour; and the Kyoto World Data
+          Center for the Dst geomagnetic disturbance index.
           All data is fetched with retry logic, cached at the backend layer, and persisted in a
           DuckDB database for historical queries and report generation.
         </p>
