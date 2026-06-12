@@ -143,6 +143,58 @@ export function orbitalProgress(timestamp) {
   return (timestamp * 1000 % PERIOD_MS) / PERIOD_MS
 }
 
+// Returns true when a satellite at (lat, lon, altKm) is in direct sunlight at
+// the given UTC date. Subsolar point computed from solar position; sunlit when
+// the great-circle angle from sub-satellite point to subsolar point is less
+// than 90° + horizon angle for the given altitude.
+export function isSunlit(lat, lon, altKm, date = new Date()) {
+  const D2R = Math.PI / 180
+  const d = date.getTime() / 86400000 - 10957.5  // days since J2000
+  const M = (357.5291 + 0.98560028 * d) * D2R
+  const L = (280.4665 + 0.98564736 * d) * D2R
+  const lambda = L + (1.9148 * Math.sin(M) + 0.0200 * Math.sin(2 * M)) * D2R
+  const eps = 23.4393 * D2R
+  const subsolarLat = Math.asin(Math.sin(eps) * Math.sin(lambda)) / D2R
+  const eqTimeMin = 4 * ((L - lambda) / D2R) - 2.466 * Math.sin(2 * L) + 0.053 * Math.sin(4 * L)
+  const utcMin = date.getUTCHours() * 60 + date.getUTCMinutes() + date.getUTCSeconds() / 60
+  const subsolarLon = -((utcMin + eqTimeMin - 720) / 4)
+  const phi1 = lat * D2R, phi2 = subsolarLat * D2R
+  const dlon = (lon - subsolarLon) * D2R
+  const cosAngle = Math.sin(phi1) * Math.sin(phi2) + Math.cos(phi1) * Math.cos(phi2) * Math.cos(dlon)
+  const angleDeg = Math.acos(Math.max(-1, Math.min(1, cosAngle))) / D2R
+  const R = 6371
+  const horizonDeg = Math.acos(R / (R + altKm)) / D2R
+  return angleDeg < 90 + horizonDeg
+}
+
+// Reverse-geocode (lat, lon) to a human-readable location name. Land uses
+// BigDataCloud's free client endpoint (no key, CORS-enabled). Ocean uses a
+// coarse lat/lon bucket fallback.
+export async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+    )
+    if (r.ok) {
+      const d = await r.json()
+      if (d.countryName) {
+        return d.principalSubdivision
+          ? `${d.principalSubdivision}, ${d.countryName}`
+          : d.countryName
+      }
+    }
+  } catch { /* fall through to ocean */ }
+  return oceanName(lat, lon)
+}
+
+function oceanName(lat, lon) {
+  if (lat < -60) return 'Southern Ocean'
+  if (lat > 66) return 'Arctic Ocean'
+  if (lon >= 20 && lon < 145 && lat <= 30) return 'Indian Ocean'
+  if (lon >= 145 || lon < -70) return 'Pacific Ocean'
+  return 'Atlantic Ocean'
+}
+
 // ── EPIC image URL ────────────────────────────────────────────────────────────
 
 export function epicImageUrl(item) {

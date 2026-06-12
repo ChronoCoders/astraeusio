@@ -1,5 +1,6 @@
 mod anomaly;
 mod api_keys;
+mod astros;
 mod auth;
 mod db;
 mod db_writer;
