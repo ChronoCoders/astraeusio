@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
-import { stormInfo, xrayClass, fmtNum } from './lib/utils'
+import { stormInfo, xrayClass, fmtNum, fmtFlux } from './lib/utils'
 import Sidebar             from './components/Sidebar'
 import Logo                from './components/Logo'
 import OnboardingChecklist from './components/OnboardingChecklist'
@@ -179,7 +179,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               <MetricCard
                 label={t('metrics.xrayClass')}
                 value={xClass.label}
-                sub={latestXray?.flux != null ? `${latestXray.flux.toExponential(1)} W/m²` : xray.loading ? t('common.loading') : xray.error ? t('common.unavailable') : null}
+                sub={latestXray?.flux != null ? `${fmtFlux(latestXray.flux)} W/m²` : xray.loading ? t('common.loading') : xray.error ? t('common.unavailable') : null}
                 valueCls={xClass.cls}
               />
               <MetricCard
