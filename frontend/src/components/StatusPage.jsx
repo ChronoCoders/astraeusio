@@ -140,18 +140,14 @@ export default function StatusPage({ onSignIn }) {
                       <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
                       <p className="text-sm text-zinc-200">{t(comp.nameKey)}</p>
                     </div>
-                    <div className="flex items-center gap-6 shrink-0 ml-4">
-                      {up?.uptime_pct != null && (
-                        <span className="text-zinc-400 text-xs font-mono">
-                          {up.uptime_pct.toFixed(2)}%
-                        </span>
-                      )}
-                      {comp.lastUpdate != null && (
-                        <span className="text-zinc-600 text-xs font-mono hidden sm:block">
-                          {fmtAgo(comp.lastUpdate)}
-                        </span>
-                      )}
-                      <span className={`text-xs font-mono ${meta.text}`}>{t(meta.label)}</span>
+                    <div className="flex items-center shrink-0 ml-4 gap-4 sm:gap-6">
+                      <span className="text-zinc-400 text-xs font-mono w-16 text-right tabular-nums">
+                        {up?.uptime_pct != null ? `${up.uptime_pct.toFixed(2)}%` : ''}
+                      </span>
+                      <span className="text-zinc-600 text-xs font-mono w-16 text-right tabular-nums hidden sm:block">
+                        {comp.lastUpdate != null ? fmtAgo(comp.lastUpdate) : ''}
+                      </span>
+                      <span className={`text-xs font-mono w-24 text-right ${meta.text}`}>{t(meta.label)}</span>
                     </div>
                   </div>
                   <UptimeStrip days={up?.days} label={`${t(comp.nameKey)} 90-day uptime`} />
