@@ -417,7 +417,7 @@ function PlanSection({ user, onUserChange }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function SettingsPage({ onLogout, user, onUserChange }) {
+export default function SettingsPage({ user, onUserChange }) {
   const { t, i18n } = useTranslation()
 
   const [current, setCurrent]       = useState('')
@@ -524,14 +524,6 @@ export default function SettingsPage({ onLogout, user, onUserChange }) {
             {submitting ? t('common.loading') : t('settings.changePasswordBtn')}
           </button>
         </form>
-      </Section>
-
-      {/* ── Sign out ─────────────────────────────────────────────────── */}
-      <Section title={t('settings.sessionTitle')}>
-        <button onClick={onLogout}
-          className="self-start px-4 py-2 text-xs font-mono rounded border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-800 transition-colors">
-          {t('auth.logout')}
-        </button>
       </Section>
 
     </div>
