@@ -855,7 +855,7 @@
     "heroEyebrow": "Uzay Hava İstihbaratı",
     "heroTitle": "Dünya'yı etkilemeden önce uzay hava durumunu görün.",
     "heroSub": "Güneş aktivitesi ve jeomanyetik fırtınaların gerçek zamanlı izlenmesi - uydular, GPS ve iletişimleri etkilemeden önce.",
-    "heroStat": "Dünya'yı etkileyen uzay hava olayları için 3 saatlik önceden uyarı.",
+    "heroStat": "%95 güven aralığıyla, 24 saat öteye uzanan çok-ufuklu Kp tahminleri.",
     "ctaPrimary": "İzlemeye Başla - Ücretsiz",
     "ctaSecondary": "Giriş yap",
     "capTitle": "Neler yapabilirsiniz",
@@ -877,8 +877,8 @@
     "previewTitle": "Panoyu görün",
     "previewDesc": "Tüm sinyaller tek ekranda - canlı Kp indeksi, güneş rüzgarı, X-ışını akısı ve güven aralıklı ML tahmini, sürekli güncellenir.",
     "predTitle": "Tahmin Zekası",
-    "p1Title": "3 saatlik jeomanyetik tahmin",
-    "p1Body": "On yıllık tarihsel veri üzerinde eğitilmiş makine öğrenmesi modelleriyle yakın vadeli uzay hava aktivitesini öngörün.",
+    "p1Title": "Çok-ufuklu jeomanyetik tahmin",
+    "p1Body": "Onlarca yıllık tarihsel veriyle eğitilmiş makine öğrenmesi modelleriyle uzay hava aktivitesini 3 ila 24 saat öteye öngörün.",
     "p2Title": "Güven aralıklı tahminler",
     "p2Body": "Tahminler, güneş aktivitesi dinamiklerindeki belirsizliği yansıtmak için olasılık aralıklarını içerir.",
     "p3Title": "Erken fırtına tespiti",
@@ -892,7 +892,7 @@
     "sourcesNote": "Güvenilir uzay ve atmosfer verisi sağlayıcıları",
     "s1": "NOAA Uzay Hava Tahmin Merkezi (SWPC)",
     "s2": "NASA NeoWs, EPIC ve APOD veri setleri",
-    "s3": "Open Notify ISS takip sistemi",
+    "s3": "wheretheiss.at ve Launch Library 2 (ISS konumu ve mürettebat)",
     "s4": "Celestrak yörünge elemanları (Starlink dahil)",
     "s5": "Kyoto Dünya Veri Merkezi (Dst endeksi)",
     "audienceTitle": "Kimler için",
@@ -927,7 +927,7 @@
     "techTrainingVal": "20+ yıllık NOAA Kp tarihsel verisi",
     "techUncertaintyVal": "95% güven aralıkları · 50 çıkarım geçişi",
     "techRefreshVal": "Canlı sensörlerden 1 dakikalık veri alım döngüsü",
-    "techDetectionVal": "Çoklu sinyal anomali hattı (Kp, güneş rüzgarı, X-ışını, NEO)"
+    "techDetectionVal": "Çoklu sinyal anomali hattı (Kp, güneş rüzgarı, X-ışını, NEO, ML tahmini)"
   },
   "billing": {
     "title": "Faturalandırma ve Abonelik",
