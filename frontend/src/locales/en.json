@@ -407,6 +407,7 @@
     "outage": "Outage",
     "updatedAt": "Updated at",
     "autoRefresh": "Auto-refreshes every 30 seconds",
+    "uptimeWindow": "Last 90 days",
     "incidents": "Incident history",
     "incidentsWindow": "Last 90 days",
     "noIncidents": "No incidents reported.",

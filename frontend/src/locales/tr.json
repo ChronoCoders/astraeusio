@@ -358,6 +358,7 @@
     "outage": "Kesinti",
     "updatedAt": "Güncellendi:",
     "autoRefresh": "Her 30 saniyede otomatik yenilenir",
+    "uptimeWindow": "Son 90 gün",
     "incidents": "Olay geçmişi",
     "incidentsWindow": "Son 90 gün",
     "noIncidents": "Bildirilen olay yok.",

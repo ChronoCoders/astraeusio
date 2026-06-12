@@ -189,9 +189,19 @@ pub fn spawn(
         client.clone(),
         db.clone(),
         writer.clone(),
-        ml_url,
+        ml_url.clone(),
         45,
         cfg.forecast_interval,
+    ));
+    // Health snapshots - record per-component status every 5 minutes for the
+    // status page's 90-day uptime strip.
+    tokio::spawn(poll_health_snapshots(
+        client.clone(),
+        db.clone(),
+        writer.clone(),
+        ml_url,
+        60,
+        300,
     ));
 }
 
@@ -616,5 +626,78 @@ async fn dispatch_email_alerts(
         tokio::spawn(async move {
             mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await;
         });
+    }
+}
+
+// ── Health snapshot poller ────────────────────────────────────────────────────
+
+async fn poll_health_snapshots(
+    client: reqwest::Client,
+    db: Arc<Mutex<Store>>,
+    writer: DbWriterHandle,
+    ml_url: String,
+    init_delay_secs: u64,
+    interval: u64,
+) {
+    tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
+    loop {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let ml_status = match client
+            .get(format!("{ml_url}/health"))
+            .timeout(Duration::from_secs(3))
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => "operational",
+            _ => "degraded",
+        };
+
+        let (noaa_ts, nasa_ts, celestrak_ts) = {
+            let guard = db.lock().await;
+            guard.health_freshness()
+        };
+
+        fn component_status(last: Option<i64>, now: i64, stale_secs: i64) -> &'static str {
+            match last {
+                None => "unknown",
+                Some(t) if now - t > stale_secs => "degraded",
+                Some(_) => "operational",
+            }
+        }
+
+        let noaa_status = component_status(noaa_ts, now, 600);
+        let nasa_status = component_status(nasa_ts, now, 90_000);
+        let celestrak_status = component_status(celestrak_ts, now, 14_400);
+        let db_status = if noaa_ts.is_some() {
+            "operational"
+        } else {
+            "unknown"
+        };
+
+        for (component, status) in [
+            ("backend_api", "operational"),
+            ("ml_forecast", ml_status),
+            ("database", db_status),
+            ("noaa", noaa_status),
+            ("nasa", nasa_status),
+            ("celestrak", celestrak_status),
+        ] {
+            writer.fire(WriteCmd::HealthSnapshot {
+                component: component.to_string(),
+                ts: now,
+                status: status.to_string(),
+            });
+        }
+
+        info!(
+            "poller/health: snapshot recorded (ml={ml_status} noaa={noaa_status} \
+             nasa={nasa_status} celestrak={celestrak_status})"
+        );
+
+        tokio::time::sleep(Duration::from_secs(interval)).await;
     }
 }
