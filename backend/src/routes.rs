@@ -235,10 +235,71 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     }))
 }
 
+async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "uptime_90d", Duration::from_secs(300), || async {
+        const DAYS: i64 = 90;
+        let rows = lock_db(&s.db).await.uptime_by_day(DAYS)?;
+        // rows: (component, day_idx, samples, operational_samples)
+        // day_idx 0 = today, larger = further past
+        let components = ["backend_api", "ml_forecast", "database", "noaa", "nasa", "celestrak"];
+        let mut out = serde_json::Map::new();
+        for comp in components {
+            // 90 entries, oldest first (index 0 = 89 days ago, last = today)
+            let mut days: Vec<serde_json::Value> = (0..DAYS)
+                .map(|_| serde_json::json!({"status": "no_data", "uptime_pct": null}))
+                .collect();
+            let mut total_samples = 0i64;
+            let mut total_ok = 0i64;
+            for (c, day_idx, samples, ok) in &rows {
+                if c != comp || *day_idx < 0 || *day_idx >= DAYS {
+                    continue;
+                }
+                let pct = if *samples > 0 {
+                    (*ok as f64 / *samples as f64) * 100.0
+                } else {
+                    0.0
+                };
+                let status = if pct >= 99.0 {
+                    "operational"
+                } else if pct >= 90.0 {
+                    "degraded"
+                } else {
+                    "outage"
+                };
+                let idx = (DAYS - 1 - *day_idx) as usize;
+                days[idx] = serde_json::json!({
+                    "status": status,
+                    "uptime_pct": (pct * 100.0).round() / 100.0,
+                });
+                total_samples += *samples;
+                total_ok += *ok;
+            }
+            let overall = if total_samples > 0 {
+                (total_ok as f64 / total_samples as f64) * 100.0
+            } else {
+                0.0
+            };
+            out.insert(
+                comp.to_string(),
+                serde_json::json!({
+                    "uptime_pct": (overall * 100.0).round() / 100.0,
+                    "days": days,
+                }),
+            );
+        }
+        Ok(serde_json::json!({
+            "window_days": DAYS,
+            "components":  out,
+        }))
+    })
+    .await
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/health", get(health))
+        .route("/api/health/uptime", get(uptime))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/change-password", post(auth::change_password))

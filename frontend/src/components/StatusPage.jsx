@@ -30,21 +30,26 @@ function fmtAgo(ts) {
   return `${Math.floor(secs / 3600)}h ago`
 }
 
-function ComponentRow({ nameKey, status, lastUpdate }) {
-  const { t } = useTranslation()
-  const meta = statusMeta(status)
+function dayColor(s) {
+  switch (s) {
+    case 'operational': return 'bg-green-500/80'
+    case 'degraded':    return 'bg-yellow-500/80'
+    case 'outage':      return 'bg-red-500/80'
+    default:            return 'bg-zinc-800'
+  }
+}
+
+function UptimeStrip({ days, label }) {
+  if (!days?.length) return null
   return (
-    <div className="flex items-center justify-between py-4 border-b border-zinc-800/60 last:border-0">
-      <div className="flex items-center gap-4">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
-        <p className="text-sm text-zinc-200">{t(nameKey)}</p>
-      </div>
-      <div className="flex items-center gap-6 shrink-0 ml-4">
-        {lastUpdate != null && (
-          <span className="text-zinc-600 text-xs font-mono hidden sm:block">{fmtAgo(lastUpdate)}</span>
-        )}
-        <span className={`text-xs font-mono ${meta.text}`}>{t(meta.label)}</span>
-      </div>
+    <div className="flex items-center gap-px mt-2" aria-label={label}>
+      {days.map((d, i) => (
+        <span
+          key={i}
+          className={`flex-1 h-7 rounded-[1px] ${dayColor(d.status)}`}
+          title={d.uptime_pct != null ? `${d.uptime_pct}% uptime` : 'No data'}
+        />
+      ))}
     </div>
   )
 }
@@ -52,6 +57,7 @@ function ComponentRow({ nameKey, status, lastUpdate }) {
 export default function StatusPage({ onSignIn }) {
   const { t } = useTranslation()
   const [data,      setData]      = useState(null)
+  const [uptime,    setUptime]    = useState(null)
   const [error,     setError]     = useState(false)
   const [refreshed, setRefreshed] = useState(null)
 
@@ -60,6 +66,10 @@ export default function StatusPage({ onSignIn }) {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { setData(d); setError(false); setRefreshed(new Date()) })
       .catch(() => setError(true))
+    fetch('/api/health/uptime')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(u => setUptime(u))
+      .catch(() => { /* leave previous value */ })
   }, [])
 
   useEffect(() => {
@@ -69,15 +79,16 @@ export default function StatusPage({ onSignIn }) {
   }, [load])
 
   const c    = data?.components ?? {}
+  const u    = uptime?.components ?? {}
   const banner = overallBanner(error ? 'outage' : data?.status)
 
   const COMPONENTS = [
-    { nameKey: 'status.backendApi',  status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
-    { nameKey: 'status.mlForecast',  status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
-    { nameKey: 'status.database',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
-    { nameKey: 'status.noaa',        status: error ? 'unknown': (c.noaa?.status         ?? 'unknown'), lastUpdate: c.noaa?.last_update          },
-    { nameKey: 'status.nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
-    { nameKey: 'status.celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
+    { nameKey: 'status.backendApi',  key: 'backend_api', status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
+    { nameKey: 'status.mlForecast',  key: 'ml_forecast', status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
+    { nameKey: 'status.database',    key: 'database',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
+    { nameKey: 'status.noaa',        key: 'noaa',        status: error ? 'unknown': (c.noaa?.status         ?? 'unknown'), lastUpdate: c.noaa?.last_update          },
+    { nameKey: 'status.nasa',        key: 'nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
+    { nameKey: 'status.celestrak',   key: 'celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
   ]
 
   return (
@@ -110,15 +121,43 @@ export default function StatusPage({ onSignIn }) {
       {/* Component table */}
       <section className="max-w-3xl mx-auto px-6 pb-24">
         <div className="border border-zinc-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50">
+          <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between gap-3">
             <p className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
               {t('status.components')}
             </p>
+            <p className="text-xs font-mono text-zinc-600">
+              {t('status.uptimeWindow')}
+            </p>
           </div>
-          <div className="px-5">
-            {COMPONENTS.map(c => (
-              <ComponentRow key={c.nameKey} {...c} />
-            ))}
+          <div className="divide-y divide-zinc-800/60">
+            {COMPONENTS.map(comp => {
+              const meta = statusMeta(comp.status)
+              const up = u[comp.key]
+              return (
+                <div key={comp.nameKey} className="px-5 py-4 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+                      <p className="text-sm text-zinc-200">{t(comp.nameKey)}</p>
+                    </div>
+                    <div className="flex items-center gap-6 shrink-0 ml-4">
+                      {up?.uptime_pct != null && (
+                        <span className="text-zinc-400 text-xs font-mono">
+                          {up.uptime_pct.toFixed(2)}%
+                        </span>
+                      )}
+                      {comp.lastUpdate != null && (
+                        <span className="text-zinc-600 text-xs font-mono hidden sm:block">
+                          {fmtAgo(comp.lastUpdate)}
+                        </span>
+                      )}
+                      <span className={`text-xs font-mono ${meta.text}`}>{t(meta.label)}</span>
+                    </div>
+                  </div>
+                  <UptimeStrip days={up?.days} label={`${t(comp.nameKey)} 90-day uptime`} />
+                </div>
+              )
+            })}
           </div>
         </div>
 

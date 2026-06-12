@@ -209,6 +209,13 @@ CREATE TABLE IF NOT EXISTS custom_anomaly_rules (
     enabled    BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT  NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS health_snapshots (
+    component TEXT   NOT NULL,
+    ts        BIGINT NOT NULL,
+    status    TEXT   NOT NULL,
+    PRIMARY KEY (component, ts)
+);
 ";
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -2292,6 +2299,52 @@ impl Store {
             params![now(), user_email],
         )?;
         Ok(())
+    }
+
+    pub fn insert_health_snapshot(
+        &self,
+        component: &str,
+        ts: i64,
+        status: &str,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO health_snapshots (component, ts, status) VALUES (?, ?, ?)",
+            params![component, ts, status],
+        )?;
+        Ok(())
+    }
+
+    /// Returns per-component daily uptime over the last `days` days.
+    /// Each row: (component, day_index_from_today, samples, operational_samples).
+    /// day_index 0 = today, increasing into the past. Days with zero samples
+    /// are omitted; the caller fills gaps as "no_data".
+    pub fn uptime_by_day(
+        &self,
+        days: i64,
+    ) -> Result<Vec<(String, i64, i64, i64)>, DbError> {
+        let now = now();
+        let since = now - days * 86_400;
+        let mut stmt = self.conn.prepare(
+            "SELECT component,
+                    CAST((? - ts) / 86400 AS BIGINT) AS day_idx,
+                    COUNT(*),
+                    SUM(CASE WHEN status = 'operational' THEN 1 ELSE 0 END)
+             FROM health_snapshots
+             WHERE ts >= ?
+             GROUP BY component, day_idx
+             ORDER BY component, day_idx",
+        )?;
+        let rows = stmt
+            .query_map(params![now, since], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     /// Returns (noaa_last_write, nasa_last_write, celestrak_last_write) as Unix timestamps.
