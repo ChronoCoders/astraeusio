@@ -213,7 +213,7 @@
     "window": "Tahmin penceresi",
     "passes": "MC geçişi",
     "modelInfo": "Model",
-    "modelDesc": "Tahmin modelimiz, NOAA'nın 20 yıllık uzay hava verisini inceleyerek günlük, mevsimsel ve güneş döngüsü etkinliğinin arkasındaki desenleri öğrendi. Her tahmin bir güven aralığıyla gelir - yani sadece ne beklediğimizi değil, ne kadar emin olduğumuzu da görürsünüz."
+    "modelDesc": "NOAA'nın yirmi yıllık gözlemleriyle eğitilmiş bir yapay zeka modeli; Kp endeksini 3 ila 24 saat öteye tahmin eder. Her tahmin %95 güven aralığıyla birlikte sunulur, böylece beklenen jeomanyetik aktiviteyi ve modelin bundan ne kadar emin olduğunu birlikte görürsünüz."
   },
   "charts": {
     "solarWind": "Güneş Rüzgarı Hızı - 24 saat",
