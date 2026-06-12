@@ -110,6 +110,10 @@
     "longitude": "Boylam",
     "altitude": "Yükseklik",
     "velocity": "Hız",
+    "location": "Şu an üzerinde",
+    "sunlit": "Güneş ışığında",
+    "eclipsed": "Dünyanın gölgesinde",
+    "peopleInSpace": "Şu an uzayda {{count}} kişi",
     "updated": "{{time}} UTC güncellendi"
   },
   "apod": {

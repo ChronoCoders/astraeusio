@@ -110,6 +110,10 @@
     "longitude": "Longitude",
     "altitude": "Altitude",
     "velocity": "Velocity",
+    "location": "Currently over",
+    "sunlit": "Sunlit",
+    "eclipsed": "In Earth's shadow",
+    "peopleInSpace": "{{count}} people in space right now",
     "updated": "Updated {{time}} UTC"
   },
   "apod": {

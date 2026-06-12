@@ -266,6 +266,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/xray", get(get_xray))
         .route("/api/alerts", get(get_alerts))
         .route("/api/iss", get(get_iss))
+        .route("/api/astros", get(get_astros))
         .route("/api/kp-forecast", get(get_kp_forecast))
         .route("/api/forecast/history", get(get_forecast_history))
         .route("/api/forecast/metrics", get(get_forecast_metrics))
@@ -441,6 +442,20 @@ async fn get_iss(
         let val = lock_db(&s.db).await.get_iss_latest()?;
         info!("api/iss: served from db");
         Ok(val)
+    })
+    .await
+}
+
+async fn get_astros(
+    State(s): State<AppState>,
+    _claims: AuthClaims,
+) -> Result<impl IntoResponse, AppError> {
+    cached(&s.cache, "astros", Duration::from_secs(21_600), || async {
+        let summary = crate::astros::fetch_astros(&s.client)
+            .await
+            .map_err(|e| anyhow!("astros fetch failed: {e}"))?;
+        info!("api/astros: fetched live from LL2");
+        Ok(serde_json::to_value(summary)?)
     })
     .await
 }
