@@ -2,11 +2,12 @@ import { lazy, Suspense, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Routes, Route, useLocation } from 'react-router-dom'
 
-// Lazy route splits: each page becomes its own chunk so visitors only download
-// the code for the route they actually land on.
+// LandingPage and AuthPage are bundled with the entry chunk so the first-paint
+// routes don't show a Suspense fallback. All other routes stay split.
+import LandingPage from './components/LandingPage.jsx'
+import AuthPage    from './AuthPage.jsx'
+
 const App              = lazy(() => import('./App.jsx'))
-const AuthPage         = lazy(() => import('./AuthPage.jsx'))
-const LandingPage      = lazy(() => import('./components/LandingPage.jsx'))
 const ProductsPage     = lazy(() => import('./components/ProductsPage.jsx'))
 const PricingPage      = lazy(() => import('./components/PricingPage.jsx'))
 const DocsPage         = lazy(() => import('./components/DocsPage.jsx'))
