@@ -1,6 +1,45 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Logo from './Logo'
+
+function StatusBadge() {
+  const { t } = useTranslation()
+  const [status, setStatus] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      fetch('/api/health')
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => { if (!cancelled) setStatus(d.status) })
+        .catch(() => { if (!cancelled) setStatus('outage') })
+    }
+    load()
+    const id = setInterval(load, 60_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+  const cfg = status === 'operational'
+    ? { dot: 'bg-green-500', text: 'text-zinc-400', label: t('footer.statusOk') }
+    : status === 'degraded'
+    ? { dot: 'bg-yellow-500', text: 'text-zinc-400', label: t('footer.statusDegraded') }
+    : status === 'outage'
+    ? { dot: 'bg-red-500', text: 'text-zinc-400', label: t('footer.statusOutage') }
+    : { dot: 'bg-zinc-600', text: 'text-zinc-500', label: t('footer.statusChecking') }
+  return (
+    <Link
+      to="/status"
+      className={`inline-flex items-center gap-2 text-[11px] font-mono ${cfg.text} hover:text-zinc-200 transition-colors`}
+    >
+      <span className="relative inline-flex w-2 h-2">
+        <span className={`absolute inset-0 rounded-full ${cfg.dot}`} />
+        {status === 'operational' && (
+          <span className={`absolute inset-0 rounded-full ${cfg.dot} opacity-50 animate-ping`} />
+        )}
+      </span>
+      {cfg.label}
+    </Link>
+  )
+}
 
 function Col({ heading, children }) {
   return (
@@ -71,7 +110,10 @@ export default function Footer() {
       {/* ── Bottom bar ────────────────────────────────────────────────────── */}
       <div className="border-t border-zinc-800/60">
         <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-zinc-600 text-[11px] font-mono">{t('footer.bottomBar')}</p>
+          <div className="flex items-center gap-5">
+            <p className="text-zinc-600 text-[11px] font-mono">{t('footer.bottomBar')}</p>
+            <StatusBadge />
+          </div>
           <div className="flex items-center gap-4">
             <NavLink to="/privacy">{t('footer.privacy')}</NavLink>
             <NavLink to="/terms">{t('footer.terms')}</NavLink>

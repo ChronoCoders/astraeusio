@@ -216,6 +216,19 @@ CREATE TABLE IF NOT EXISTS health_snapshots (
     status    TEXT   NOT NULL,
     PRIMARY KEY (component, ts)
 );
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id           BIGINT  NOT NULL PRIMARY KEY,
+    webhook_id   TEXT    NOT NULL,
+    attempted_at BIGINT  NOT NULL,
+    status_code  INTEGER,
+    success      BOOLEAN NOT NULL,
+    error        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_lookup
+    ON webhook_deliveries (webhook_id, attempted_at DESC);
+
+CREATE SEQUENCE IF NOT EXISTS seq_webhook_deliveries START 1;
 ";
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -2299,6 +2312,63 @@ impl Store {
             params![now(), user_email],
         )?;
         Ok(())
+    }
+
+    pub fn insert_webhook_delivery(
+        &self,
+        webhook_id: &str,
+        attempted_at: i64,
+        status_code: Option<i32>,
+        success: bool,
+        error: Option<&str>,
+    ) -> Result<(), DbError> {
+        self.conn.execute(
+            "INSERT INTO webhook_deliveries (id, webhook_id, attempted_at, status_code, success, error)
+             VALUES (nextval('seq_webhook_deliveries'), ?, ?, ?, ?, ?)",
+            params![webhook_id, attempted_at, status_code, success, error],
+        )?;
+        // Cap each webhook at the most recent 100 attempts to keep the table small.
+        self.conn.execute(
+            "DELETE FROM webhook_deliveries
+             WHERE webhook_id = ?
+               AND id NOT IN (
+                 SELECT id FROM webhook_deliveries
+                 WHERE webhook_id = ?
+                 ORDER BY attempted_at DESC
+                 LIMIT 100
+               )",
+            params![webhook_id, webhook_id],
+        )?;
+        Ok(())
+    }
+
+    /// Returns the most recent `limit` delivery attempts for a webhook the
+    /// caller owns. Membership is verified by joining against `webhooks`.
+    pub fn list_webhook_deliveries(
+        &self,
+        webhook_id: &str,
+        user_email: &str,
+        limit: i64,
+    ) -> Result<Vec<serde_json::Value>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT d.attempted_at, d.status_code, d.success, d.error
+             FROM webhook_deliveries d
+             JOIN webhooks w ON w.id = d.webhook_id
+             WHERE d.webhook_id = ? AND w.user_email = ?
+             ORDER BY d.attempted_at DESC
+             LIMIT ?",
+        )?;
+        let rows = stmt
+            .query_map(params![webhook_id, user_email, limit], |r| {
+                Ok(serde_json::json!({
+                    "attempted_at": r.get::<_, i64>(0)?,
+                    "status_code":  r.get::<_, Option<i32>>(1)?,
+                    "success":      r.get::<_, bool>(2)?,
+                    "error":        r.get::<_, Option<String>>(3)?,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     pub fn insert_health_snapshot(

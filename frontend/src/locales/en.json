@@ -342,7 +342,12 @@
     "noHooks": "No webhooks registered yet",
     "secretTitle": "Webhook Secret",
     "secretWarning": "Copy this signing secret now - it will never be shown again.",
-    "secretDismiss": "Got it - close"
+    "secretDismiss": "Got it - close",
+    "showDeliveries": "Recent deliveries",
+    "hideDeliveries": "Hide deliveries",
+    "noDeliveries": "No deliveries recorded yet.",
+    "deliveryOk": "Delivered",
+    "deliveryFail": "Failed"
   },
   "auth": {
     "tagline1": "Space Weather Intelligence",
@@ -436,6 +441,10 @@
     "company": "Company",
     "contact": "Contact",
     "bottomBar": "© 2026 Astraeusio · All rights reserved.",
+    "statusOk": "All systems operational",
+    "statusDegraded": "Partial outage",
+    "statusOutage": "Major outage",
+    "statusChecking": "Checking status…",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service"
   },
