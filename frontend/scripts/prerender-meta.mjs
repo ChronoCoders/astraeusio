@@ -69,6 +69,10 @@ function patch(html, { title, desc, url }) {
     .replace(/(<meta property="og:description"\s*content=")[^"]*(")/, `$1${d}$2`)
     .replace(/(<meta name="twitter:title"\s*content=")[^"]*(")/, `$1${t}$2`)
     .replace(/(<meta name="twitter:description"\s*content=")[^"]*(")/, `$1${d}$2`)
+    // Earth texture is only used by the landing page hero scene. Strip the
+    // preload hint from every other route so we don't waste 530 kB on routes
+    // that never render it.
+    .replace(/\s*<link rel="preload" as="image" href="\/earth\.webp"[^>]*>/, '')
 }
 
 async function writeRoute(srcHtml, { route, title, desc }) {
