@@ -112,7 +112,7 @@ ML servisi ayrı bir süreç olarak çalışır. Erişilemez hale gelirse API en
     date: '2025-04-02',
     author: 'Altug Tatlisu',
     tags: ['Operations', 'Satellites', 'Risk'],
-    image: 'https://svs.gsfc.nasa.gov/vis/a000000/a005600/a005615/nisar_orbit.02415.jpg',
+    image: '/blog/nisar-orbit.jpg',
     excerpt:
       'Geomagnetic storms are not abstract events for satellite operators. They change atmospheric drag, accelerate component degradation, and in severe cases have ended missions. Here\'s what the data actually shows.',
     excerptTr:
@@ -342,7 +342,7 @@ Kp kullanışlı bir özet istatistiktir ancak tek bir sayıya çok fazla bilgi 
     date: '2026-05-08',
     author: 'Altug Tatlisu',
     tags: ['Explainer', 'Solar Wind', 'DSCOVR'],
-    image: 'https://svs.gsfc.nasa.gov/vis/a010000/a014800/a014892/14892_CMEstrikesEarth_1080.00001_print.jpg',
+    image: '/blog/cme-strikes-earth.jpg',
     excerpt:
       'Kp tells you a storm has arrived. The solar wind tells you it is coming. Speed, density, and the magnetic field carried with it are the upstream signal - and one number decides whether a storm happens at all.',
     excerptTr:
@@ -446,7 +446,7 @@ L1 izlemesinin bir kör noktası vardır: rüzgârı tek bir noktada ölçer. DS
     date: '2026-05-15',
     author: 'Altug Tatlisu',
     tags: ['Explainer', 'Solar Flares', 'X-ray'],
-    image: 'https://svs.gsfc.nasa.gov/vis/a000000/a004400/a004491/Sept2017_X8Flare_304A.07800_print.jpg',
+    image: '/blog/sept2017-x8-flare.jpg',
     excerpt:
       'A solar flare arrives at the speed of light - eight minutes from Sun to Earth, with no warning. Here is how the GOES X-ray sensor classifies flares, what the A/B/C/M/X scale means, and why the radio blackout is instant.',
     excerptTr:
