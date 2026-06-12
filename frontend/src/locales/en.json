@@ -213,7 +213,7 @@
     "window": "Forecast window",
     "passes": "MC passes",
     "modelInfo": "Model",
-    "modelDesc": "Our forecast model has studied 20 years of space weather data from NOAA, learning the patterns behind daily, seasonal, and solar cycle activity. Every prediction comes with a confidence range - so you see not just what we expect, but how sure we are."
+    "modelDesc": "A neural network trained on two decades of NOAA observations, forecasting the Kp index 3 to 24 hours ahead. Every prediction is paired with a 95% confidence band, so you see the expected geomagnetic activity and how certain the model is about it."
   },
   "charts": {
     "solarWind": "Solar Wind Speed - 24 h",
