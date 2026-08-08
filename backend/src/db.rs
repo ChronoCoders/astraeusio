@@ -1,5 +1,5 @@
 use duckdb::{Connection, params};
-use tracing::info;
+use tracing::{error, info, warn};
 use thiserror::Error;
 
 use crate::{
@@ -264,6 +264,101 @@ const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-s
 /// Identifier for the one-shot removal of the observed_at indexes.
 const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-indexes";
 
+/// Probe values per table for the startup self check.
+const SELF_CHECK_PROBES: i64 = 3;
+
+/// Compares a range predicate the scan can prune against the same range written
+/// so it cannot, and logs any disagreement.
+///
+/// The two forms describe identical row sets, so a difference means the scan
+/// dropped rows that match, which is the symptom this column's investigation
+/// started from and which has never been reproduced. There is no trigger to
+/// assert against, so this watches for it in production instead. Wrapping the
+/// scan in `OFFSET 0` blocks filter pushdown, which is what makes the second
+/// form immune to pruning.
+///
+/// Advisory only: a disagreement is logged and startup continues, because
+/// refusing to boot on a read anomaly would turn a reporting fault into an
+/// outage.
+fn self_check_observed_at(conn: &Connection) {
+    for table in OBSERVED_AT_TABLES {
+        let bounds = conn.query_row(
+            &format!("SELECT min(observed_at), max(observed_at) FROM {table}"),
+            [],
+            |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?)),
+        );
+        let (Some(lo), Some(hi)) = (match bounds {
+            Ok(b) => b,
+            Err(e) => {
+                warn!(table, "observed_at self check could not read bounds: {e}");
+                continue;
+            }
+        }) else {
+            continue;
+        };
+
+        for i in 0..SELF_CHECK_PROBES {
+            let probe = lo + (hi - lo) * i / SELF_CHECK_PROBES;
+            let pruned = conn.query_row(
+                &format!("SELECT count(*) FROM {table} WHERE observed_at > ?"),
+                params![probe],
+                |row| row.get::<_, i64>(0),
+            );
+            let unpruned = conn.query_row(
+                &format!(
+                    "SELECT count(*) FROM (SELECT observed_at FROM {table} OFFSET 0) \
+                     WHERE observed_at > ?"
+                ),
+                params![probe],
+                |row| row.get::<_, i64>(0),
+            );
+            match (pruned, unpruned) {
+                (Ok(a), Ok(b)) if a != b => {
+                    error!(
+                        table,
+                        probe,
+                        pruned_count = a,
+                        unpruned_count = b,
+                        missing = b - a,
+                        stats = %row_group_stats(conn, table),
+                        "observed_at range scan dropped matching rows"
+                    );
+                }
+                (Ok(_), Ok(_)) => {}
+                (Err(e), _) | (_, Err(e)) => {
+                    warn!(table, probe, "observed_at self check query failed: {e}");
+                }
+            }
+        }
+    }
+}
+
+/// Row group statistics for `table`, rendered for a log line.
+fn row_group_stats(conn: &Connection, table: &str) -> String {
+    let mut stmt = match conn.prepare(
+        "SELECT row_group_id, count, stats FROM pragma_storage_info(?) \
+         WHERE column_name = 'observed_at' AND segment_type <> 'VALIDITY' ORDER BY row_group_id",
+    ) {
+        Ok(s) => s,
+        Err(e) => return format!("unavailable: {e}"),
+    };
+    let rows = stmt.query_map(params![table], |row| {
+        Ok(format!(
+            "rg{}({} rows) {}",
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, String>(2)?
+        ))
+    });
+    match rows {
+        Ok(iter) => iter
+            .collect::<Result<Vec<_>, _>>()
+            .map(|v| v.join(" | "))
+            .unwrap_or_else(|e| format!("unavailable: {e}")),
+        Err(e) => format!("unavailable: {e}"),
+    }
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 pub struct Store {
@@ -368,6 +463,8 @@ impl Store {
         // merges the updates and recomputes the statistics before this
         // connection serves a single query.
         conn.execute_batch("CHECKPOINT")?;
+
+        self_check_observed_at(&conn);
 
         Ok(Self { conn })
     }
