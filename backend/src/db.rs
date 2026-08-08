@@ -2818,91 +2818,12 @@ mod tests {
         assert!(store.xray_peak_recent(now - 48 * 3600).unwrap().is_some());
     }
 
-    /// Two spellings of the same range must return the same count. They did not
-    /// on one migrated database that carried the observed_at indexes, so this
-    /// asserts agreement across the whole range on a store populated through the
-    /// real migration and insert path. Reintroducing those indexes and hitting
-    /// the defect again fails this test.
-    #[test]
-    fn range_predicate_forms_agree_after_migration_and_insert() {
-        let store = mem_store();
-        let base = 1_700_000_000_i64;
-
-        // Rows present before the migration, with observed_at left NULL so
-        // Store::open style backfill has to derive it.
-        for i in 0..600 {
-            let tt = iso(base + i * 60);
-            store
-                .conn
-                .execute(
-                    "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, observed_at, fetched_at)
-                     VALUES (?, 1, 100, NULL, 1)",
-                    params![tt],
-                )
-                .unwrap();
-        }
-        for table in OBSERVED_AT_TABLES {
-            store
-                .conn
-                .execute_batch(&format!(
-                    "UPDATE {table} SET observed_at = {OBSERVED_AT_SQL} WHERE observed_at IS NULL"
-                ))
-                .unwrap();
-        }
-
-        // Rows appended after the migration, through the normal insert path.
-        let appended: Vec<KpRecord> = (600..900)
-            .map(|i| KpRecord {
-                time_tag: iso(base + i * 60),
-                kp_index: 2,
-                estimated_kp: 2.0,
-            })
-            .collect();
-        store.insert_kp_batch(&appended).unwrap();
-
-        let total: i64 = store
-            .conn
-            .query_row("SELECT count(*) FROM kp", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(total, 900);
-
-        // Probe across the whole range, including the seam between backfilled
-        // and appended rows.
-        const UPPER: i64 = 9_000_000_000;
-        for i in 0..=930 {
-            let t = base + i * 60;
-            let gt: i64 = store
-                .conn
-                .query_row(
-                    "SELECT count(*) FROM kp WHERE observed_at > ?",
-                    params![t],
-                    |r| r.get(0),
-                )
-                .unwrap();
-            let between: i64 = store
-                .conn
-                .query_row(
-                    "SELECT count(*) FROM kp WHERE observed_at BETWEEN ? AND ?",
-                    params![t, UPPER],
-                    |r| r.get(0),
-                )
-                .unwrap();
-            let eq: i64 = store
-                .conn
-                .query_row(
-                    "SELECT count(*) FROM kp WHERE observed_at = ?",
-                    params![t],
-                    |r| r.get(0),
-                )
-                .unwrap();
-            // BETWEEN includes the lower bound, > excludes it.
-            assert_eq!(gt, between - eq, "disagreement at T={t}");
-        }
-    }
-
-    /// The observed_at indexes must not come back: they were measured slower at
-    /// both current and one year row counts, and one migrated database carrying
-    /// them returned a wrong count for a range predicate.
+    /// The observed_at indexes must not come back. Measured against the three
+    /// heaviest report queries they were slower at the current row counts and
+    /// roughly 38x slower at a projected year of ingest, and they tripled the
+    /// database file. They were also suspected of causing a wrong range count,
+    /// but that was not borne out: reintroducing them does not reproduce it.
+    /// The justification for this guard is the measured cost, nothing else.
     #[test]
     fn no_observed_at_indexes_are_created() {
         let store = mem_store();
