@@ -1,4 +1,5 @@
 use duckdb::{Connection, params};
+use tracing::info;
 use thiserror::Error;
 
 use crate::{
@@ -20,6 +21,8 @@ pub enum DbError {
     EmailTaken,
     #[error("api key not found")]
     KeyNotFound,
+    #[error("insufficient Kp history: have {have} three-hour readings, need {need}")]
+    InsufficientHistory { have: usize, need: usize },
     #[error("writer channel closed")]
     WriterClosed,
 }
@@ -254,6 +257,10 @@ const OBSERVED_AT_PARAM_SQL: &str = "epoch(?::TIMESTAMP)::BIGINT";
 
 const OBSERVED_AT_TABLES: [&str; 6] = ["kp", "kp_3h", "solar_wind", "xray", "imf", "dst"];
 
+/// Identifier for the one-shot purge of forecasts generated before the model
+/// input was corrected to read the three-hour series.
+const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-series";
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 pub struct Store {
@@ -287,6 +294,34 @@ impl Store {
                     return Err(DbError::Duckdb(e));
                 }
             }
+        }
+
+        // One-shot data migrations, recorded so a redeploy cannot repeat them.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (
+                 id         TEXT   NOT NULL PRIMARY KEY,
+                 applied_at BIGINT NOT NULL
+             )",
+        )?;
+        let purge_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![PURGE_FORECASTS_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if purge_applied == 0 {
+            // Every stored forecast was produced from the one-minute Kp series
+            // fed to a model trained on the three-hour series, so none of them
+            // is recoverable. Guarded rather than unconditional, otherwise the
+            // table could never accumulate history again.
+            let purged = conn.execute("DELETE FROM kp_forecast", [])?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![PURGE_FORECASTS_MIGRATION, now()],
+            )?;
+            info!(
+                purged,
+                "purged forecasts produced from the wrong input series"
+            );
         }
 
         // Backfill and index observed_at. The three upstream time_tag formats
@@ -773,15 +808,25 @@ impl Store {
 // ── NOAA queries ─────────────────────────────────────────────────────────────
 
 impl Store {
-    /// Returns the `n` most recent Kp readings ordered oldest-first.
-    pub fn get_recent_kp(&self, n: usize) -> Result<Vec<f64>, DbError> {
+    /// Returns the `n` most recent three-hour Kp readings, oldest-first.
+    ///
+    /// This is the series the forecast model is trained on: one value per
+    /// three-hour period. Errors rather than returning a short vector, because
+    /// a short sequence would be silently padded by the ML service and produce
+    /// a forecast from mostly synthetic input.
+    pub fn get_recent_kp_3h(&self, n: usize) -> Result<Vec<f64>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT ?")?;
+            .prepare("SELECT kp_e2 FROM kp_3h ORDER BY observed_at DESC LIMIT ?")?;
         let rows: Vec<i64> = stmt
             .query_map([n as i64], |row| row.get(0))?
             .collect::<Result<_, _>>()?;
-        // Reverse so values are oldest-first, de-scale back to Kp float.
+        if rows.len() < n {
+            return Err(DbError::InsufficientHistory {
+                have: rows.len(),
+                need: n,
+            });
+        }
         Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
     }
 
@@ -2518,11 +2563,13 @@ mod tests {
             ])
             .unwrap();
 
-        // Stored as ×100 ints, read back ÷100, oldest-first.
-        let kp = store.get_recent_kp(2).unwrap();
+        // Stored as scaled ints, read back de-scaled, oldest-first.
+        let out = store.get_kp_recent().unwrap();
+        let kp = out.as_array().unwrap();
         assert_eq!(kp.len(), 2);
-        assert!((kp[0] - 2.33).abs() < 1e-9, "oldest first: {kp:?}");
-        assert!((kp[1] - 3.67).abs() < 1e-9);
+        let v = |i: usize| kp[i]["estimated_kp"].as_f64().unwrap();
+        assert!((v(0) - 2.33).abs() < 1e-9, "oldest first: {kp:?}");
+        assert!((v(1) - 3.67).abs() < 1e-9);
     }
 
     #[test]
@@ -2730,6 +2777,45 @@ mod tests {
             1
         );
         assert!(store.xray_peak_recent(now - 48 * 3600).unwrap().is_some());
+    }
+
+    /// A short history must be an error, never a short vector: the ML service
+    /// would pad the shortfall and forecast from mostly synthetic input.
+    #[test]
+    fn short_kp_3h_history_errors_instead_of_returning_a_short_sequence() {
+        let store = mem_store();
+        let base = 1_700_000_000_i64;
+        let seq_len = 16;
+
+        let short: Vec<Kp3hRecord> = (0..seq_len - 1)
+            .map(|i| Kp3hRecord {
+                time_tag: iso(base + i as i64 * 10_800),
+                kp: 3.0,
+            })
+            .collect();
+        store.insert_kp_3h_batch(&short).unwrap();
+
+        match store.get_recent_kp_3h(seq_len) {
+            Err(DbError::InsufficientHistory { have, need }) => {
+                assert_eq!(have, seq_len - 1);
+                assert_eq!(need, seq_len);
+            }
+            other => panic!("expected InsufficientHistory, got {other:?}"),
+        }
+
+        // One more period and the window is complete.
+        store
+            .insert_kp_3h_batch(&[Kp3hRecord {
+                time_tag: iso(base + (seq_len as i64 - 1) * 10_800),
+                kp: 4.5,
+            }])
+            .unwrap();
+
+        let seq = store.get_recent_kp_3h(seq_len).unwrap();
+        assert_eq!(seq.len(), seq_len);
+        // Oldest-first, and the newest value is last.
+        assert!((seq[0] - 3.0).abs() < 1e-9);
+        assert!((seq[seq_len - 1] - 4.5).abs() < 1e-9);
     }
 
     /// Rows written before the migration have a NULL observed_at; Store::open

@@ -2,7 +2,7 @@
 FastAPI inference server for the multi-horizon Kp LSTM model.
 
 POST /predict
-  Body: { "readings": [float, ...] }            - 7 to 48 Kp values, oldest first
+  Body: { "readings": [float, ...] }            - seq_len to 48 Kp values, oldest first
          optional "f107": [float, ...]          - F10.7 adjusted flux (sfu), same length
          optional "sunspot": [float, ...]        - daily sunspot number, same length
   Returns predicted Kp at 3h/6h/12h/24h, each with a 95% confidence interval
@@ -92,10 +92,11 @@ def build_sequence(
     """
     Construct a (1, SEQ_LEN, N_FEATURES) tensor matching the training schema.
 
-    Timestamps are synthesised backwards from now at 3-hour intervals. Kp, F10.7
-    and sunspot inputs are aligned and left-padded to SEQ_LEN; missing optional
-    inputs fall back to the per-feature training-mean defaults from the
-    checkpoint (graceful degradation - Kp-only callers work unchanged).
+    Timestamps are synthesised backwards from now at 3-hour intervals. Kp is
+    never padded: the caller must supply at least seq_len values, because a
+    padded Kp window produces a forecast from mostly synthetic input. Missing
+    optional F10.7 and sunspot inputs still fall back to the per-feature
+    training-mean defaults from the checkpoint.
     All normalisation constants come from the checkpoint, never hardcoded here.
     """
     seq_len: int = hp["seq_len"]
@@ -109,13 +110,14 @@ def build_sequence(
     now = now - timedelta(hours=now.hour % 3)   # snap to a 3-hour boundary
 
     n = len(kp_values)
-    pad = max(0, seq_len - n)
+    if n < seq_len:
+        raise ValueError(f"readings must contain at least {seq_len} values, got {n}")
+    pad = 0
 
-    # Build raw per-slot series, left-padded to seq_len (oldest first).
     f107_default = defaults["f107_adj"]
     sn_default = defaults["sn"]
 
-    kp_seq = [0.0] * pad + list(kp_values)
+    kp_seq = list(kp_values)
     f107_seq = ([f107_default] * pad + list(f107_values)) if f107_values else [f107_default] * (pad + n)
     sn_seq = ([sn_default] * pad + list(sunspot_values)) if sunspot_values else [sn_default] * (pad + n)
 
@@ -188,6 +190,7 @@ async def lifespan(app: FastAPI):
     hp = ckpt["hyperparams"]
     state.hp = hp
     state.meta = {
+        "seq_len": hp["seq_len"],
         "horizons": hp["horizons"],
         "trained_through": ckpt["trained_through"],
         "validation": ckpt["validation"],
@@ -232,9 +235,9 @@ async def redoc():
 class PredictRequest(BaseModel):
     readings: list[float] = Field(
         ...,
-        min_length=7,
         max_length=48,
-        description="Recent Kp values, oldest first, one per 3-hour period (range 0–9).",
+        description="Recent Kp values, oldest first, one per 3-hour period (range 0 to 9). "
+                    "At least seq_len values are required; see GET /health.",
     )
     f107: list[float] | None = Field(
         default=None,
@@ -258,6 +261,21 @@ class PredictRequest(BaseModel):
         for name, seq in (("f107", self.f107), ("sunspot", self.sunspot)):
             if seq is not None and len(seq) != len(self.readings):
                 raise ValueError(f"{name} length {len(seq)} must match readings length {len(self.readings)}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_sequence_length(self) -> "PredictRequest":
+        # seq_len comes from the loaded checkpoint, so it is unavailable during
+        # schema generation before the lifespan handler has run.
+        hp = getattr(state, "hp", None)
+        if hp is None:
+            return self
+        seq_len = hp["seq_len"]
+        if len(self.readings) < seq_len:
+            raise ValueError(
+                f"readings must contain at least {seq_len} values "
+                f"(one per 3-hour period), got {len(self.readings)}"
+            )
         return self
 
 
@@ -334,6 +352,7 @@ async def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trained_through": state.meta["trained_through"],
+        "seq_len": state.meta["seq_len"],
         "horizons": state.meta["horizons"],
         "per_horizon": per_horizon,
         "mean_rmse": round(val["mean_rmse"], 4),

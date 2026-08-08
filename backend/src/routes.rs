@@ -102,14 +102,23 @@ impl AppState {
 
 // ── Error ─────────────────────────────────────────────────────────────────────
 
-pub struct AppError(anyhow::Error);
+pub struct AppError {
+    err: anyhow::Error,
+    status: StatusCode,
+}
+
+impl AppError {
+    fn with_status(err: anyhow::Error, status: StatusCode) -> Self {
+        Self { err, status }
+    }
+}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        tracing::error!("{}", self.0);
+        tracing::error!("{}", self.err);
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": self.0.to_string() })),
+            self.status,
+            Json(serde_json::json!({ "error": self.err.to_string() })),
         )
             .into_response()
     }
@@ -117,7 +126,10 @@ impl IntoResponse for AppError {
 
 impl<E: Into<anyhow::Error>> From<E> for AppError {
     fn from(e: E) -> Self {
-        Self(e.into())
+        Self {
+            err: e.into(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
 
@@ -524,11 +536,48 @@ async fn get_astros(
 
 // ── ML forecast handler ───────────────────────────────────────────────────────
 
+/// Asks the ML service how long an input sequence its checkpoint expects.
+///
+/// Read from the service rather than duplicated as a backend constant, so a
+/// retrained model with a different lookback does not silently get fed the
+/// wrong number of periods.
+pub(crate) async fn ml_seq_len(client: &reqwest::Client, ml_url: &str) -> anyhow::Result<usize> {
+    let health: serde_json::Value = client
+        .get(format!("{ml_url}/health"))
+        .timeout(Duration::from_secs(3))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    health
+        .get("seq_len")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+        .ok_or_else(|| anyhow!("ML service did not report seq_len"))
+}
+
 async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> {
-    let readings = lock_db(&s.db).await.get_recent_kp(7)?;
-    if readings.is_empty() {
-        return Err(anyhow!("no Kp data in database - poller initializing").into());
-    }
+    let seq_len = ml_seq_len(&s.client, &s.ml_url).await.map_err(|e| {
+        AppError::with_status(
+            anyhow!("ML service unavailable: {e}"),
+            StatusCode::SERVICE_UNAVAILABLE,
+        )
+    })?;
+
+    // The model is trained on the three-hour series, so a short window is a
+    // hard failure: the ML service would otherwise be handed a sequence it
+    // cannot use.
+    let readings = lock_db(&s.db)
+        .await
+        .get_recent_kp_3h(seq_len)
+        .map_err(|e| match e {
+            crate::db::DbError::InsufficientHistory { .. } => AppError::with_status(
+                anyhow!("{e}"),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            other => other.into(),
+        })?;
 
     let ml_timeout = std::env::var("ML_TIMEOUT")
         .ok()
@@ -1284,7 +1333,7 @@ async fn mcp_handler(
                 },
                 "get_kp_forecast" => match call_ml_or_cached(&s).await {
                     Ok(v) => McpResp::ok(id, mcp_text(v)),
-                    Err(e) => McpResp::err(id, -32603, &format!("{}", e.0)),
+                    Err(e) => McpResp::err(id, -32603, &format!("{}", e.err)),
                 },
                 "get_health" => {
                     let now = std::time::SystemTime::now()
