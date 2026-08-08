@@ -477,10 +477,20 @@ async fn poll_forecast(
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
     loop {
+        // seq_len comes from the ML checkpoint, so it is fetched each cycle
+        // rather than duplicated as a constant here.
+        let seq_len = match crate::routes::ml_seq_len(&client, &ml_url).await {
+            Ok(n) => n,
+            Err(e) => {
+                error!(source = "poller/forecast", "ml seq_len: {e}");
+                tokio::time::sleep(Duration::from_secs(interval)).await;
+                continue;
+            }
+        };
         // Read recent Kp under the lock, then release before the HTTP call.
         let readings = {
             let guard = db.lock().await;
-            guard.get_recent_kp(7)
+            guard.get_recent_kp_3h(seq_len)
         };
         match readings {
             Ok(r) if !r.is_empty() => {
