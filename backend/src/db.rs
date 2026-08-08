@@ -261,6 +261,9 @@ const OBSERVED_AT_TABLES: [&str; 6] = ["kp", "kp_3h", "solar_wind", "xray", "imf
 /// input was corrected to read the three-hour series.
 const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-series";
 
+/// Identifier for the one-shot removal of the observed_at indexes.
+const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-indexes";
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 pub struct Store {
@@ -324,17 +327,35 @@ impl Store {
             );
         }
 
-        // Backfill and index observed_at. The three upstream time_tag formats
-        // (bare, trailing Z, and space-separated with milliseconds) all cast
-        // cleanly, and epoch() reads a naive TIMESTAMP as UTC, so OBSERVED_AT_SQL
-        // is the single expression used both here and at insert time. The
-        // IS NULL guard keeps the backfill a no-op after the first boot.
+        let drop_idx_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![DROP_OBSERVED_AT_INDEXES_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if drop_idx_applied == 0 {
+            // These indexes were measured against the three heaviest report
+            // queries at both the current row counts and a projected year of
+            // ingest, and made every one of them slower, by roughly 38x at the
+            // one year size. They also tripled the database file. Dropped for
+            // deployments that already created them.
+            for table in OBSERVED_AT_TABLES {
+                conn.execute_batch(&format!("DROP INDEX IF EXISTS idx_{table}_observed_at"))?;
+            }
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![DROP_OBSERVED_AT_INDEXES_MIGRATION, now()],
+            )?;
+            info!("dropped observed_at indexes");
+        }
+
+        // Backfill observed_at. The three upstream time_tag formats (bare,
+        // trailing Z, and space-separated with milliseconds) all cast cleanly,
+        // and epoch() reads a naive TIMESTAMP as UTC, so OBSERVED_AT_SQL is the
+        // single expression used both here and at insert time. The IS NULL
+        // guard keeps the backfill a no-op after the first boot.
         for table in OBSERVED_AT_TABLES {
             conn.execute_batch(&format!(
                 "UPDATE {table} SET observed_at = {OBSERVED_AT_SQL} WHERE observed_at IS NULL"
-            ))?;
-            conn.execute_batch(&format!(
-                "CREATE INDEX IF NOT EXISTS idx_{table}_observed_at ON {table} (observed_at)"
             ))?;
         }
 
@@ -2777,6 +2798,105 @@ mod tests {
             1
         );
         assert!(store.xray_peak_recent(now - 48 * 3600).unwrap().is_some());
+    }
+
+    /// Two spellings of the same range must return the same count. They did not
+    /// on one migrated database that carried the observed_at indexes, so this
+    /// asserts agreement across the whole range on a store populated through the
+    /// real migration and insert path. Reintroducing those indexes and hitting
+    /// the defect again fails this test.
+    #[test]
+    fn range_predicate_forms_agree_after_migration_and_insert() {
+        let store = mem_store();
+        let base = 1_700_000_000_i64;
+
+        // Rows present before the migration, with observed_at left NULL so
+        // Store::open style backfill has to derive it.
+        for i in 0..600 {
+            let tt = iso(base + i * 60);
+            store
+                .conn
+                .execute(
+                    "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, observed_at, fetched_at)
+                     VALUES (?, 1, 100, NULL, 1)",
+                    params![tt],
+                )
+                .unwrap();
+        }
+        for table in OBSERVED_AT_TABLES {
+            store
+                .conn
+                .execute_batch(&format!(
+                    "UPDATE {table} SET observed_at = {OBSERVED_AT_SQL} WHERE observed_at IS NULL"
+                ))
+                .unwrap();
+        }
+
+        // Rows appended after the migration, through the normal insert path.
+        let appended: Vec<KpRecord> = (600..900)
+            .map(|i| KpRecord {
+                time_tag: iso(base + i * 60),
+                kp_index: 2,
+                estimated_kp: 2.0,
+            })
+            .collect();
+        store.insert_kp_batch(&appended).unwrap();
+
+        let total: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM kp", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(total, 900);
+
+        // Probe across the whole range, including the seam between backfilled
+        // and appended rows.
+        const UPPER: i64 = 9_000_000_000;
+        for i in 0..=930 {
+            let t = base + i * 60;
+            let gt: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM kp WHERE observed_at > ?",
+                    params![t],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let between: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM kp WHERE observed_at BETWEEN ? AND ?",
+                    params![t, UPPER],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let eq: i64 = store
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM kp WHERE observed_at = ?",
+                    params![t],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            // BETWEEN includes the lower bound, > excludes it.
+            assert_eq!(gt, between - eq, "disagreement at T={t}");
+        }
+    }
+
+    /// The observed_at indexes must not come back: they were measured slower at
+    /// both current and one year row counts, and one migrated database carrying
+    /// them returned a wrong count for a range predicate.
+    #[test]
+    fn no_observed_at_indexes_are_created() {
+        let store = mem_store();
+        let n: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM duckdb_indexes() WHERE index_name LIKE '%observed_at%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 0, "observed_at indexes were reintroduced");
     }
 
     /// A short history must be an error, never a short vector: the ML service
