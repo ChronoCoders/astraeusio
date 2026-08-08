@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS kp (
     time_tag      TEXT   NOT NULL PRIMARY KEY,
     kp_index      INTEGER NOT NULL,
     estimated_kp_e2 BIGINT NOT NULL,
+    observed_at   BIGINT,
     fetched_at    BIGINT NOT NULL
 );
 
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS solar_wind (
     speed_e1   BIGINT,
     density_e2 BIGINT,
     temp_k     BIGINT,
+    observed_at BIGINT,
     fetched_at BIGINT NOT NULL
 );
 
@@ -91,6 +93,7 @@ CREATE TABLE IF NOT EXISTS xray (
     satellite         INTEGER NOT NULL,
     flux_e12          BIGINT  NOT NULL,
     observed_flux_e12 BIGINT  NOT NULL,
+    observed_at       BIGINT,
     fetched_at        BIGINT  NOT NULL,
     PRIMARY KEY (time_tag, energy)
 );
@@ -145,18 +148,21 @@ CREATE TABLE IF NOT EXISTS imf (
     time_tag   TEXT   NOT NULL PRIMARY KEY,
     bz_e2      BIGINT,
     bt_e2      BIGINT,
+    observed_at BIGINT,
     fetched_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS dst (
     time_tag   TEXT    NOT NULL PRIMARY KEY,
     dst_nt     INTEGER,
+    observed_at BIGINT,
     fetched_at BIGINT  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS kp_3h (
     time_tag   TEXT   NOT NULL PRIMARY KEY,
     kp_e2      BIGINT NOT NULL,
+    observed_at BIGINT,
     fetched_at BIGINT NOT NULL
 );
 
@@ -231,6 +237,23 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_lookup
 CREATE SEQUENCE IF NOT EXISTS seq_webhook_deliveries START 1;
 ";
 
+// ── Observation time ──────────────────────────────────────────────────────────
+
+/// Derives `observed_at` (UTC epoch seconds) from a `time_tag` string.
+///
+/// The six time-series feeds use three different upstream formats: bare
+/// `2026-05-11T03:47:00`, trailing-Z `2026-05-11T03:45:00Z`, and space-separated
+/// `2026-05-11 03:47:00.000`. All three cast to TIMESTAMP, and `epoch` reads a
+/// naive TIMESTAMP as UTC, so one expression covers every table. Used verbatim
+/// by both the migration backfill and every insert so the two cannot diverge.
+const OBSERVED_AT_SQL: &str = "epoch(time_tag::TIMESTAMP)::BIGINT";
+
+/// Same derivation for an INSERT, where `time_tag` is a bound parameter rather
+/// than a column reference.
+const OBSERVED_AT_PARAM_SQL: &str = "epoch(?::TIMESTAMP)::BIGINT";
+
+const OBSERVED_AT_TABLES: [&str; 6] = ["kp", "kp_3h", "solar_wind", "xray", "imf", "dst"];
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 pub struct Store {
@@ -251,6 +274,12 @@ impl Store {
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
+            "ALTER TABLE kp ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE kp_3h ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE solar_wind ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE xray ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE imf ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE dst ADD COLUMN observed_at BIGINT",
         ] {
             if let Err(e) = conn.execute_batch(sql) {
                 let msg = e.to_string().to_lowercase();
@@ -259,6 +288,21 @@ impl Store {
                 }
             }
         }
+
+        // Backfill and index observed_at. The three upstream time_tag formats
+        // (bare, trailing Z, and space-separated with milliseconds) all cast
+        // cleanly, and epoch() reads a naive TIMESTAMP as UTC, so OBSERVED_AT_SQL
+        // is the single expression used both here and at insert time. The
+        // IS NULL guard keeps the backfill a no-op after the first boot.
+        for table in OBSERVED_AT_TABLES {
+            conn.execute_batch(&format!(
+                "UPDATE {table} SET observed_at = {OBSERVED_AT_SQL} WHERE observed_at IS NULL"
+            ))?;
+            conn.execute_batch(&format!(
+                "CREATE INDEX IF NOT EXISTS idx_{table}_observed_at ON {table} (observed_at)"
+            ))?;
+        }
+
         Ok(Self { conn })
     }
 
@@ -472,19 +516,20 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
-                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at)
-                 VALUES (?, ?, ?, ?)
+            let mut stmt = self.conn.prepare(&format!(
+                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, observed_at, fetched_at)
+                 VALUES (?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
                  ON CONFLICT (time_tag) DO UPDATE SET
                    kp_index = CASE WHEN excluded.kp_index > 0 THEN excluded.kp_index ELSE kp.kp_index END,
                    estimated_kp_e2 = CASE WHEN excluded.estimated_kp_e2 > 0 THEN excluded.estimated_kp_e2 ELSE kp.estimated_kp_e2 END,
-                   fetched_at = excluded.fetched_at",
-            )?;
+                   fetched_at = excluded.fetched_at"
+            ))?;
             for r in to_insert {
                 stmt.execute(params![
                     r.time_tag,
                     r.kp_index,
                     scale(r.estimated_kp, 100.0),
+                    r.time_tag,
                     now()
                 ])?;
             }
@@ -518,17 +563,18 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
-                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, fetched_at)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT (time_tag) DO NOTHING",
-            )?;
+            let mut stmt = self.conn.prepare(&format!(
+                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at)
+                 VALUES (?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
+                 ON CONFLICT (time_tag) DO NOTHING"
+            ))?;
             for r in to_insert {
                 stmt.execute(params![
                     r.time_tag,
                     scale_opt(r.proton_speed, 10.0),
                     scale_opt(r.proton_density, 100.0),
                     r.proton_temperature.map(|t| t.round() as i64),
+                    r.time_tag,
                     now()
                 ])?;
             }
@@ -562,12 +608,12 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
+            let mut stmt = self.conn.prepare(&format!(
                 "INSERT INTO xray
-                 (time_tag, energy, satellite, flux_e12, observed_flux_e12, fetched_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON CONFLICT (time_tag, energy) DO NOTHING",
-            )?;
+                 (time_tag, energy, satellite, flux_e12, observed_flux_e12, observed_at, fetched_at)
+                 VALUES (?, ?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
+                 ON CONFLICT (time_tag, energy) DO NOTHING"
+            ))?;
             for r in to_insert {
                 stmt.execute(params![
                     r.time_tag,
@@ -575,6 +621,7 @@ impl Store {
                     r.satellite,
                     scale(r.flux, 1e12),
                     scale(r.observed_flux, 1e12),
+                    r.time_tag,
                     now()
                 ])?;
             }
@@ -634,16 +681,17 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
-                "INSERT INTO imf (time_tag, bz_e2, bt_e2, fetched_at)
-                 VALUES (?, ?, ?, ?)
-                 ON CONFLICT (time_tag) DO NOTHING",
-            )?;
+            let mut stmt = self.conn.prepare(&format!(
+                "INSERT INTO imf (time_tag, bz_e2, bt_e2, observed_at, fetched_at)
+                 VALUES (?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
+                 ON CONFLICT (time_tag) DO NOTHING"
+            ))?;
             for r in to_insert {
                 stmt.execute(params![
                     r.time_tag,
                     scale_opt(r.bz_gsm, 100.0),
                     scale_opt(r.bt, 100.0),
+                    r.time_tag,
                     now()
                 ])?;
             }
@@ -677,13 +725,13 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
-                "INSERT INTO dst (time_tag, dst_nt, fetched_at)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT (time_tag) DO NOTHING",
-            )?;
+            let mut stmt = self.conn.prepare(&format!(
+                "INSERT INTO dst (time_tag, dst_nt, observed_at, fetched_at)
+                 VALUES (?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
+                 ON CONFLICT (time_tag) DO NOTHING"
+            ))?;
             for r in to_insert {
-                stmt.execute(params![r.time_tag, r.dst_nt, now()])?;
+                stmt.execute(params![r.time_tag, r.dst_nt, r.time_tag, now()])?;
             }
             Ok(())
         })();
@@ -702,13 +750,13 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
-            let mut stmt = self.conn.prepare(
-                "INSERT INTO kp_3h (time_tag, kp_e2, fetched_at)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT (time_tag) DO UPDATE SET kp_e2 = excluded.kp_e2, fetched_at = excluded.fetched_at",
-            )?;
+            let mut stmt = self.conn.prepare(&format!(
+                "INSERT INTO kp_3h (time_tag, kp_e2, observed_at, fetched_at)
+                 VALUES (?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
+                 ON CONFLICT (time_tag) DO UPDATE SET kp_e2 = excluded.kp_e2, fetched_at = excluded.fetched_at"
+            ))?;
             for r in records {
-                stmt.execute(params![r.time_tag, scale(r.kp, 100.0), now()])?;
+                stmt.execute(params![r.time_tag, scale(r.kp, 100.0), r.time_tag, now()])?;
             }
             Ok(())
         })();
@@ -2438,7 +2486,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::noaa::{Kp3hRecord, KpRecord};
+    use crate::noaa::{ImfRecord, Kp3hRecord, KpRecord, XRayRecord};
     use chrono::DateTime;
 
     fn mem_store() -> Store {
@@ -2529,5 +2577,86 @@ mod tests {
         let store = mem_store();
         let m = store.get_forecast_metrics(0).unwrap();
         assert_eq!(m["n_samples"].as_i64().unwrap(), 0);
+    }
+
+    /// The six feeds arrive in three different upstream formats. All must land
+    /// on the same UTC epoch, otherwise observed_at silently disagrees between
+    /// tables and every range query built on it is wrong.
+    #[test]
+    fn observed_at_parses_all_upstream_time_tag_formats() {
+        let store = mem_store();
+        // 2026-05-11T03:47:00 UTC
+        let expected = 1_778_471_220_i64;
+
+        store
+            .insert_kp_batch(&[KpRecord {
+                time_tag: "2026-05-11T03:47:00".into(),
+                kp_index: 2,
+                estimated_kp: 2.0,
+            }])
+            .unwrap();
+        store
+            .insert_xray_batch(&[XRayRecord {
+                time_tag: "2026-05-11T03:47:00Z".into(),
+                satellite: 16,
+                flux: 1e-6,
+                observed_flux: 1e-6,
+                energy: "0.1-0.8nm".into(),
+            }])
+            .unwrap();
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: "2026-05-11 03:47:00.000".into(),
+                bz_gsm: Some(-4.5),
+                bt: Some(6.0),
+            }])
+            .unwrap();
+
+        for table in ["kp", "xray", "imf"] {
+            let got: i64 = store
+                .conn
+                .query_row(&format!("SELECT observed_at FROM {table}"), [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(got, expected, "{table} observed_at");
+        }
+    }
+
+    /// Rows written before the migration have a NULL observed_at; Store::open
+    /// must derive it from time_tag for every one of them.
+    #[test]
+    fn observed_at_backfills_preexisting_rows() {
+        let store = mem_store();
+        store
+            .conn
+            .execute_batch(
+                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, observed_at, fetched_at)
+                 VALUES ('2026-05-11T03:47:00', 2, 200, NULL, 1)",
+            )
+            .unwrap();
+
+        let null_before: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM kp WHERE observed_at IS NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(null_before, 1);
+
+        for table in OBSERVED_AT_TABLES {
+            store
+                .conn
+                .execute_batch(&format!(
+                    "UPDATE {table} SET observed_at = {OBSERVED_AT_SQL} WHERE observed_at IS NULL"
+                ))
+                .unwrap();
+        }
+
+        let got: i64 = store
+            .conn
+            .query_row("SELECT observed_at FROM kp", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(got, 1_778_471_220);
     }
 }
