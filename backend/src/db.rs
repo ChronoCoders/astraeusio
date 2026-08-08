@@ -820,7 +820,7 @@ impl Store {
         };
         let sql = format!(
             "SELECT MIN(time_tag) as time_tag, CAST(AVG(estimated_kp_e2) AS BIGINT) as kp_e2 \
-             FROM kp WHERE fetched_at > ? GROUP BY fetched_at / {bucket} ORDER BY time_tag ASC"
+             FROM kp WHERE observed_at > ? GROUP BY observed_at / {bucket} ORDER BY time_tag ASC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
@@ -845,8 +845,8 @@ impl Store {
         };
         let sql = format!(
             "SELECT MIN(time_tag) as time_tag, CAST(AVG(speed_e1) AS BIGINT) as speed_e1 \
-             FROM solar_wind WHERE fetched_at > ? AND speed_e1 IS NOT NULL \
-             GROUP BY fetched_at / {bucket} ORDER BY time_tag ASC"
+             FROM solar_wind WHERE observed_at > ? AND speed_e1 IS NOT NULL \
+             GROUP BY observed_at / {bucket} ORDER BY time_tag ASC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
@@ -1560,7 +1560,7 @@ impl Store {
     pub fn xray_peak_recent(&self, since: i64) -> Result<Option<(String, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, flux_e12 FROM xray \
-             WHERE energy = '0.1-0.8nm' AND fetched_at > ? \
+             WHERE energy = '0.1-0.8nm' AND observed_at > ? \
              ORDER BY flux_e12 DESC LIMIT 1",
         )?;
         let mut rows = stmt.query([since])?;
@@ -1755,7 +1755,7 @@ impl Store {
         let (kp_avg, kp_max, kp_count) = {
             let mut stmt = self.conn.prepare(
                 "SELECT AVG(estimated_kp_e2), MAX(estimated_kp_e2), COUNT(*) \
-                 FROM kp WHERE fetched_at > ?",
+                 FROM kp WHERE observed_at > ?",
             )?;
             let mut rows = stmt.query([cutoff])?;
             match rows.next()? {
@@ -1773,7 +1773,7 @@ impl Store {
         let sw_max: Option<i64> = {
             let mut stmt = self.conn.prepare(
                 "SELECT MAX(speed_e1) FROM solar_wind \
-                 WHERE fetched_at > ? AND speed_e1 IS NOT NULL",
+                 WHERE observed_at > ? AND speed_e1 IS NOT NULL",
             )?;
             let mut rows = stmt.query([cutoff])?;
             match rows.next()? {
@@ -1786,7 +1786,7 @@ impl Store {
         let xray_max: Option<i64> = {
             let mut stmt = self.conn.prepare(
                 "SELECT MAX(flux_e12) FROM xray \
-                 WHERE energy = '0.1-0.8nm' AND fetched_at > ?",
+                 WHERE energy = '0.1-0.8nm' AND observed_at > ?",
             )?;
             let mut rows = stmt.query([cutoff])?;
             match rows.next()? {
@@ -1848,7 +1848,7 @@ impl Store {
         {
             let mut stmt = self.conn.prepare(
                 "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp \
-                 WHERE fetched_at > ? ORDER BY time_tag ASC",
+                 WHERE observed_at > ? ORDER BY observed_at ASC",
             )?;
             let rows: Vec<(String, i32, i64)> = stmt
                 .query_map([cutoff], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
@@ -1865,7 +1865,7 @@ impl Store {
         {
             let mut stmt = self.conn.prepare(
                 "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
-                 WHERE fetched_at > ? ORDER BY time_tag ASC",
+                 WHERE observed_at > ? ORDER BY observed_at ASC",
             )?;
             type WindRow = (String, Option<i64>, Option<i64>, Option<i64>);
             let rows: Vec<WindRow> = stmt
@@ -1892,7 +1892,7 @@ impl Store {
         {
             let mut stmt = self.conn.prepare(
                 "SELECT time_tag, flux_e12 FROM xray \
-                 WHERE energy = '0.1-0.8nm' AND fetched_at > ? ORDER BY time_tag ASC",
+                 WHERE energy = '0.1-0.8nm' AND observed_at > ? ORDER BY observed_at ASC",
             )?;
             let rows: Vec<(String, i64)> = stmt
                 .query_map([cutoff], |row| Ok((row.get(0)?, row.get(1)?)))?
@@ -2677,6 +2677,59 @@ mod tests {
             arr3[239]["time_tag"].as_str().unwrap(),
             iso(base + 299 * 10_800)
         );
+    }
+
+    /// A row ingested now but observed long ago must fall outside a recent
+    /// window. Filtering on fetched_at put it inside, which is why a cold start
+    /// reported the whole backfilled day as current events.
+    #[test]
+    fn range_queries_filter_on_observation_time_not_ingest_time() {
+        let store = mem_store();
+        let now = now();
+        let stale_obs = now - 30 * 3600;
+
+        // Ingested this second, observed 30 hours ago.
+        store
+            .conn
+            .execute_batch(&format!(
+                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, observed_at, fetched_at)
+                 VALUES ('2020-01-01T00:00:00', 9, 900, {stale_obs}, {now});
+                 INSERT INTO xray (time_tag, energy, satellite, flux_e12, observed_flux_e12, observed_at, fetched_at)
+                 VALUES ('2020-01-01T00:00:00Z', '0.1-0.8nm', 16, 500000000, 500000000, {stale_obs}, {now});
+                 INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at)
+                 VALUES ('2020-01-01T00:00:00', 9500, 500, 100000, {stale_obs}, {now})"
+            ))
+            .unwrap();
+
+        // A 24 hour window must not see a 30 hour old observation.
+        let summary = store.get_report_summary(24 * 3600).unwrap();
+        assert_eq!(summary["kp_count"].as_i64().unwrap(), 0);
+        assert!(summary["kp_max"].is_null());
+        assert!(summary["solar_wind_max_kms"].is_null());
+        assert!(summary["xray_max_flux"].is_null());
+
+        assert!(store.get_kp_range(24 * 3600).unwrap().as_array().unwrap().is_empty());
+        assert!(
+            store
+                .get_solar_wind_range(24 * 3600)
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+
+        // The X-class flare is 30 hours old, so a 3 hour flare scan must miss it.
+        assert!(store.xray_peak_recent(now - 3 * 3600).unwrap().is_none());
+
+        // A 48 hour window does include it, proving the row is present and the
+        // exclusion above came from the window, not from a broken insert.
+        assert_eq!(
+            store.get_report_summary(48 * 3600).unwrap()["kp_count"]
+                .as_i64()
+                .unwrap(),
+            1
+        );
+        assert!(store.xray_peak_recent(now - 48 * 3600).unwrap().is_some());
     }
 
     /// Rows written before the migration have a NULL observed_at; Store::open
