@@ -359,6 +359,16 @@ impl Store {
             ))?;
         }
 
+        // Adding observed_at by ALTER leaves each row group's statistics at the
+        // empty sentinel (min i64::MAX, max i64::MIN, has_null true), and the
+        // backfill UPDATE does not refresh them: it records the new values as
+        // pending updates instead. Until something merges them, the statistics
+        // on disk do not describe the data in the table, and a process that
+        // exits without checkpointing persists that state. Checkpointing here
+        // merges the updates and recomputes the statistics before this
+        // connection serves a single query.
+        conn.execute_batch("CHECKPOINT")?;
+
         Ok(Self { conn })
     }
 
@@ -2567,6 +2577,14 @@ mod tests {
         Store::open(":memory:").expect("in-memory store")
     }
 
+    /// Pulls `[Min: n, Max: m]` out of a storage_info stats string.
+    fn parse_min_max(stats: &str) -> Option<(i64, i64)> {
+        let rest = stats.strip_prefix("[Min: ")?;
+        let (min_s, rest) = rest.split_once(", Max: ")?;
+        let (max_s, _) = rest.split_once(']')?;
+        Some((min_s.parse().ok()?, max_s.parse().ok()?))
+    }
+
     fn iso(ts: i64) -> String {
         DateTime::from_timestamp(ts, 0)
             .unwrap()
@@ -2897,6 +2915,100 @@ mod tests {
             )
             .unwrap();
         assert_eq!(n, 0, "observed_at indexes were reintroduced");
+    }
+
+    /// Adding observed_at by ALTER and filling it by UPDATE leaves every row
+    /// group's statistics at the empty sentinel, and the UPDATE records the
+    /// values as pending updates rather than refreshing them. Store::open must
+    /// merge them before returning, otherwise the statistics on disk do not
+    /// describe the data and a process that exits without checkpointing
+    /// persists that state.
+    ///
+    /// Fails without the CHECKPOINT in Store::open: the recorded min is
+    /// i64::MAX and the recorded max is i64::MIN.
+    #[test]
+    fn migration_leaves_row_group_statistics_consistent() {
+        let dir = std::env::temp_dir().join(format!("astraeus_stats_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("legacy.duckdb");
+        let path_str = path.to_string_lossy().to_string();
+
+        // Build a database in the shape that predates observed_at, then close it.
+        {
+            let conn = Connection::open(&path_str).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE kp (
+                     time_tag        TEXT    NOT NULL PRIMARY KEY,
+                     kp_index        INTEGER NOT NULL,
+                     estimated_kp_e2 BIGINT  NOT NULL,
+                     fetched_at      BIGINT  NOT NULL
+                 )",
+            )
+            .unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at)
+                     VALUES (?, 1, 100, 1)",
+                )
+                .unwrap();
+            for i in 0..5000 {
+                stmt.execute(params![iso(1_700_000_000 + i * 60)]).unwrap();
+            }
+            drop(stmt);
+            conn.execute_batch("CHECKPOINT").unwrap();
+        }
+
+        // Run the real migration path.
+        let store = Store::open(&path_str).unwrap();
+
+        // Every row group's recorded statistics must bound the values it holds.
+        // storage_info.start is segment local, so the global rowid offset of a
+        // row group is the running total of the preceding row counts.
+        let rows: Vec<(i64, String)> = {
+            let mut stmt = store
+                .conn
+                .prepare(
+                    "SELECT count, stats FROM pragma_storage_info('kp') \
+                     WHERE column_name = 'observed_at' AND segment_type <> 'VALIDITY' \
+                     ORDER BY row_group_id",
+                )
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        assert!(!rows.is_empty(), "expected at least one row group");
+
+        let mut offset = 0i64;
+        let mut checked = 0;
+        for (count, stats) in rows {
+            let start = offset;
+            offset += count;
+            let Some((rec_min, rec_max)) = parse_min_max(&stats) else {
+                continue;
+            };
+            let (act_min, act_max): (i64, i64) = store
+                .conn
+                .query_row(
+                    "SELECT min(observed_at), max(observed_at) FROM kp \
+                     WHERE rowid >= ? AND rowid < ?",
+                    params![start, start + count],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert!(
+                rec_min <= act_min && rec_max >= act_max,
+                "row group statistics do not bound stored values: \
+                 recorded [{rec_min}, {rec_max}] actual [{act_min}, {act_max}]"
+            );
+            checked += 1;
+        }
+        assert!(checked > 0, "no row group carried min/max statistics");
+
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A short history must be an error, never a short vector: the ML service
