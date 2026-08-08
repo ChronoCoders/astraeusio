@@ -785,11 +785,13 @@ impl Store {
         Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
     }
 
+    /// Most recent 1440 Kp readings, oldest-first. Selected DESC so the LIMIT
+    /// takes the newest window, then reversed for the caller.
     pub fn get_kp_recent(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY time_tag ASC LIMIT 1440",
+            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY observed_at DESC LIMIT 1440",
         )?;
-        let rows = stmt
+        let mut rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
                 let kp_index: i32 = row.get(1)?;
@@ -801,6 +803,7 @@ impl Store {
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        rows.reverse();
         Ok(serde_json::Value::Array(rows))
     }
 
@@ -856,11 +859,12 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Most recent 240 three-hour Kp readings, oldest-first.
     pub fn get_kp_3h_recent(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT time_tag, kp_e2 FROM kp_3h ORDER BY time_tag ASC LIMIT 240")?;
-        let rows = stmt
+            .prepare("SELECT time_tag, kp_e2 FROM kp_3h ORDER BY observed_at DESC LIMIT 240")?;
+        let mut rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
                 let kp_e2: i64 = row.get(1)?;
@@ -870,6 +874,7 @@ impl Store {
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        rows.reverse();
         Ok(serde_json::Value::Array(rows))
     }
 
@@ -895,12 +900,14 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Most recent 2880 X-ray rows, oldest-first. The limit spans 1440 timestamps
+    /// because each carries both the long and short energy band.
     pub fn get_xray_recent(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, energy, satellite, flux_e12, observed_flux_e12 FROM xray \
-             ORDER BY time_tag ASC LIMIT 2880",
+             ORDER BY observed_at DESC LIMIT 2880",
         )?;
-        let rows = stmt
+        let mut rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
                 let energy: String = row.get(1)?;
@@ -916,6 +923,7 @@ impl Store {
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        rows.reverse();
         Ok(serde_json::Value::Array(rows))
     }
 
@@ -2619,6 +2627,56 @@ mod tests {
                 .unwrap();
             assert_eq!(got, expected, "{table} observed_at");
         }
+    }
+
+    /// With more rows than the LIMIT, the endpoint must return the newest
+    /// window. Ordering ASC returned the head of the table instead, so the
+    /// series froze at the first data ever ingested.
+    #[test]
+    fn recent_endpoints_return_the_newest_window() {
+        let store = mem_store();
+        let base = 1_700_000_000_i64;
+
+        // 1500 minutes of Kp, more than the 1440 row limit.
+        let kp: Vec<KpRecord> = (0..1500)
+            .map(|i| KpRecord {
+                time_tag: iso(base + i * 60),
+                kp_index: 1,
+                estimated_kp: 1.0,
+            })
+            .collect();
+        store.insert_kp_batch(&kp).unwrap();
+
+        let out = store.get_kp_recent().unwrap();
+        let arr = out.as_array().unwrap();
+        assert_eq!(arr.len(), 1440);
+        // Newest window is rows 60..1499, returned oldest-first.
+        assert_eq!(arr[0]["time_tag"].as_str().unwrap(), iso(base + 60 * 60));
+        assert_eq!(
+            arr[1439]["time_tag"].as_str().unwrap(),
+            iso(base + 1499 * 60)
+        );
+
+        // 300 three-hour periods, more than the 240 row limit.
+        let kp3: Vec<Kp3hRecord> = (0..300)
+            .map(|i| Kp3hRecord {
+                time_tag: iso(base + i * 10_800),
+                kp: 2.0,
+            })
+            .collect();
+        store.insert_kp_3h_batch(&kp3).unwrap();
+
+        let out3 = store.get_kp_3h_recent().unwrap();
+        let arr3 = out3.as_array().unwrap();
+        assert_eq!(arr3.len(), 240);
+        assert_eq!(
+            arr3[0]["time_tag"].as_str().unwrap(),
+            iso(base + 60 * 10_800)
+        );
+        assert_eq!(
+            arr3[239]["time_tag"].as_str().unwrap(),
+            iso(base + 299 * 10_800)
+        );
     }
 
     /// Rows written before the migration have a NULL observed_at; Store::open
