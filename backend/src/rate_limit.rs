@@ -170,3 +170,151 @@ pub fn spawn_flush_task(counter: Arc<UsageCounter>, writer: DbWriterHandle) {
         }
     });
 }
+
+// ── Failed sign in backoff ────────────────────────────────────────────────────
+
+/// Consecutive failed sign in attempts for one account.
+pub struct FailureEntry {
+    pub consecutive: u32,
+    /// When the account may next attempt. In the past means it may attempt now.
+    pub blocked_until: std::time::Instant,
+}
+
+pub type LoginFailures = DashMap<String, FailureEntry>;
+
+/// Failures allowed before any delay is applied.
+const FREE_ATTEMPTS: u32 = 5;
+/// Delay applied on the first failure past the free allowance.
+const BASE_DELAY_SECS: u64 = 30;
+/// Longest delay, reached after ten consecutive failures.
+const MAX_DELAY_SECS: u64 = 900;
+
+/// Delay owed after `consecutive` failures. Nothing for the first five, then
+/// thirty seconds doubling per further failure, capped at fifteen minutes.
+///
+///   1 to 5 -> 0s, 6 -> 30s, 7 -> 60s, 8 -> 120s, 9 -> 240s, 10 -> 480s,
+///   11 and beyond -> 900s
+pub fn backoff_secs(consecutive: u32) -> u64 {
+    if consecutive <= FREE_ATTEMPTS {
+        return 0;
+    }
+    let doublings = consecutive - FREE_ATTEMPTS - 1;
+    BASE_DELAY_SECS
+        .checked_shl(doublings)
+        .map_or(MAX_DELAY_SECS, |d| d.min(MAX_DELAY_SECS))
+}
+
+/// Seconds the account must wait, or None if it may attempt now.
+///
+/// Called before the password is hashed. Verifying a bcrypt hash at the default
+/// cost is deliberately expensive, so an unthrottled login endpoint is both a
+/// guessing oracle and a way to saturate the blocking pool; refusing here means
+/// a blocked account costs a map lookup instead.
+pub fn attempt_blocked_for(failures: &Arc<LoginFailures>, key: &str) -> Option<u64> {
+    let entry = failures.get(key)?;
+    let now = std::time::Instant::now();
+    if entry.blocked_until > now {
+        Some((entry.blocked_until - now).as_secs().max(1))
+    } else {
+        None
+    }
+}
+
+/// Records a failed attempt and returns the delay now owed.
+pub fn record_failure(failures: &Arc<LoginFailures>, key: &str) -> u64 {
+    let mut entry = failures
+        .entry(key.to_string())
+        .or_insert_with(|| FailureEntry {
+            consecutive: 0,
+            blocked_until: std::time::Instant::now(),
+        });
+    entry.consecutive = entry.consecutive.saturating_add(1);
+    let delay = backoff_secs(entry.consecutive);
+    entry.blocked_until = std::time::Instant::now() + std::time::Duration::from_secs(delay);
+    delay
+}
+
+/// Clears the record after a successful sign in.
+pub fn clear_failures(failures: &Arc<LoginFailures>, key: &str) {
+    failures.remove(key);
+}
+
+/// The response a blocked account receives.
+pub fn too_many_attempts_response(retry_after_secs: u64) -> Response {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(serde_json::json!({
+            "error": "too_many_attempts",
+            "retry_after_seconds": retry_after_secs,
+            "message": "Too many failed sign in attempts. Try again later.",
+        })),
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Five attempts are free, then thirty seconds doubling per further failure,
+    /// capped at fifteen minutes. Stated here so the curve cannot drift silently.
+    #[test]
+    fn the_backoff_curve_is_what_it_claims() {
+        let expected = [
+            (1, 0),
+            (2, 0),
+            (3, 0),
+            (4, 0),
+            (5, 0),
+            (6, 30),
+            (7, 60),
+            (8, 120),
+            (9, 240),
+            (10, 480),
+            (11, 900),
+            (12, 900),
+            (50, 900),
+            (u32::MAX, 900),
+        ];
+        for (consecutive, secs) in expected {
+            assert_eq!(
+                backoff_secs(consecutive),
+                secs,
+                "failure {consecutive} should owe {secs}s"
+            );
+        }
+    }
+
+    #[test]
+    fn failures_accumulate_and_a_success_clears_them() {
+        let failures: Arc<LoginFailures> = Arc::new(DashMap::new());
+        let key = "user@example.com";
+
+        // Inside the free allowance nothing blocks.
+        for _ in 0..FREE_ATTEMPTS {
+            assert_eq!(record_failure(&failures, key), 0);
+            assert_eq!(attempt_blocked_for(&failures, key), None);
+        }
+
+        // The sixth failure starts the backoff.
+        assert_eq!(record_failure(&failures, key), 30);
+        let wait = attempt_blocked_for(&failures, key).expect("now blocked");
+        assert!(wait > 0 && wait <= 30, "wait was {wait}");
+
+        // A success wipes the record, so a legitimate user is not punished for
+        // earlier typos.
+        clear_failures(&failures, key);
+        assert_eq!(attempt_blocked_for(&failures, key), None);
+        assert_eq!(record_failure(&failures, key), 0, "counting starts again");
+    }
+
+    #[test]
+    fn one_account_backing_off_does_not_block_another() {
+        let failures: Arc<LoginFailures> = Arc::new(DashMap::new());
+        for _ in 0..FREE_ATTEMPTS + 1 {
+            record_failure(&failures, "victim@example.com");
+        }
+        assert!(attempt_blocked_for(&failures, "victim@example.com").is_some());
+        assert_eq!(attempt_blocked_for(&failures, "someone@example.com"), None);
+    }
+}

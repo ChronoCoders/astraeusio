@@ -237,9 +237,18 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
 }
 
 pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) -> Response {
+    // Before the database read and before bcrypt. Verifying a hash at the
+    // default cost is deliberately slow, so an unthrottled login endpoint is
+    // both a guessing oracle and a way to saturate the blocking pool.
+    if let Some(wait) = rate_limit::attempt_blocked_for(&s.login_failures, &body.email) {
+        warn!(source = "auth/login", subject = %body.email, wait, "attempt refused, backing off");
+        return rate_limit::too_many_attempts_response(wait);
+    }
+
     let user = match s.db.lock().await.find_user_by_email(&body.email) {
         Ok(Some(u)) => u,
         Ok(None) => {
+            rate_limit::record_failure(&s.login_failures, &body.email);
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "invalid credentials" })),
@@ -279,11 +288,18 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     };
 
     if !valid {
+        rate_limit::record_failure(&s.login_failures, &body.email);
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({ "error": "invalid credentials" })),
         )
             .into_response();
+    }
+
+    // The password was correct. A 2FA account is not signed in yet, so its
+    // record is cleared when the code is accepted rather than here.
+    if !user.totp_enabled {
+        rate_limit::clear_failures(&s.login_failures, &body.email);
     }
 
     // If 2FA is active, issue a short-lived partial token instead of a full JWT.
@@ -346,13 +362,27 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
             .into_response();
     };
 
+    // A six digit code has about three valid values at any moment out of a
+    // million, so an unthrottled endpoint can cover a real fraction of that
+    // space inside the partial token's five minute window.
+    if let Some(wait) = rate_limit::attempt_blocked_for(&s.login_failures, &email) {
+        warn!(source = "auth/2fa", subject = %email, wait, "code attempt refused, backing off");
+        return rate_limit::too_many_attempts_response(wait);
+    }
+
     match check_totp(secret, &email, &body.code) {
-        Ok(true) => issue_jwt(&email, &s.jwt_secret),
-        Ok(false) => (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": "invalid code" })),
-        )
-            .into_response(),
+        Ok(true) => {
+            rate_limit::clear_failures(&s.login_failures, &email);
+            issue_jwt(&email, &s.jwt_secret)
+        }
+        Ok(false) => {
+            rate_limit::record_failure(&s.login_failures, &email);
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "invalid code" })),
+            )
+                .into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e })),
