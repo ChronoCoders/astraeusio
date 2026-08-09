@@ -110,7 +110,7 @@ fn random_hex(n_bytes: usize) -> String {
     hex::encode(buf)
 }
 
-fn sign_state(provider: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub(crate) fn sign_state(provider: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let exp = (chrono::Utc::now().timestamp() + STATE_TTL_SECS) as u64;
     encode(
         &Header::default(),

@@ -6,8 +6,8 @@ use tokio::sync::{Mutex, MutexGuard};
 use anyhow::anyhow;
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::{FromRequestParts, Path, Query, State},
+    http::{HeaderValue, StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
@@ -1304,7 +1304,7 @@ const MCP_TOOLS: &str = r#"{"tools":[
 
 async fn mcp_handler(
     State(s): State<AppState>,
-    headers: HeaderMap,
+    mut parts: Parts,
     Json(req): Json<McpRequest>,
 ) -> Response {
     // Notifications have no id and require no response body.
@@ -1336,12 +1336,6 @@ async fn mcp_handler(
                 .and_then(|p| p.get("name"))
                 .and_then(|n| n.as_str())
                 .unwrap_or("");
-
-            // Extract JWT from Authorization header.
-            let token_opt = headers
-                .get("Authorization")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.strip_prefix("Bearer "));
 
             match name {
                 "get_current_kp" => match lock_db(&s.db).await.get_kp_array_public() {
@@ -1389,22 +1383,23 @@ async fn mcp_handler(
                     )
                 }
                 "get_anomalies" | "get_neo" | "get_iss_position" => {
-                    let authed = token_opt.is_some_and(|t| {
-                        use jsonwebtoken::{DecodingKey, Validation, decode};
-                        decode::<serde_json::Value>(
-                            t,
-                            &DecodingKey::from_secret(s.jwt_secret.as_bytes()),
-                            &Validation::default(),
-                        )
-                        .is_ok()
-                    });
-                    if !authed {
-                        return McpResp::err(
-                            id,
-                            -32001,
-                            "authentication required: provide Authorization: Bearer <token>",
-                        );
-                    }
+                    // One extractor for every authenticated surface. The check
+                    // here used to decode into serde_json::Value and accept any
+                    // validly signed token, including the OAuth state token that
+                    // the unauthenticated start endpoint hands to any caller.
+                    // Going through AuthClaims brings the audience check, API key
+                    // support and quota counting with it.
+                    let claims = match AuthClaims::from_request_parts(&mut parts, &s).await {
+                        Ok(c) => c,
+                        Err(_) => {
+                            return McpResp::err(
+                                id,
+                                -32001,
+                                "authentication required: provide Authorization: Bearer <token>",
+                            );
+                        }
+                    };
+                    info!(source = "mcp", tool = name, subject = %claims.sub, "tool call");
                     match name {
                         "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent() {
                             Ok(v) => McpResp::ok(id, mcp_text(v)),
@@ -1425,5 +1420,109 @@ async fn mcp_handler(
         }
 
         _ => McpResp::err(id, -32601, &format!("method not found: {}", req.method)),
+    }
+}
+
+#[cfg(test)]
+mod mcp_tests {
+    use super::*;
+    use crate::auth::{TokenPurpose, purpose_token, session_jwt};
+    use axum::http::Request;
+
+    const SECRET: &str = "test-secret-not-used-anywhere-real";
+
+    fn test_state() -> AppState {
+        let client = reqwest::Client::new();
+        AppState::new(
+            client.clone(),
+            Store::open(":memory:").expect("in-memory store"),
+            crate::db_writer::spawn(Store::open(":memory:").expect("writer store"), client),
+            "http://ml".to_string(),
+            SECRET.to_string(),
+            None,
+            "http://app".to_string(),
+            crate::oauth::OAuthConfig {
+                github: None,
+                google: None,
+                redirect_base: "http://app".to_string(),
+            },
+        )
+    }
+
+    /// Calls the real MCP handler for a tool, with an optional bearer token,
+    /// and returns the decoded JSON-RPC response.
+    async fn call_tool(state: &AppState, tool: &str, token: Option<&str>) -> serde_json::Value {
+        let mut builder = Request::builder();
+        if let Some(t) = token {
+            builder = builder.header("Authorization", format!("Bearer {t}"));
+        }
+        let (parts, ()) = builder.body(()).expect("request").into_parts();
+        let body = McpRequest {
+            id: Some(serde_json::json!(1)),
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({ "name": tool })),
+        };
+        let resp = mcp_handler(State(state.clone()), parts, Json(body)).await;
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
+    fn is_auth_error(v: &serde_json::Value) -> bool {
+        v.get("error").and_then(|e| e.get("code")).and_then(|c| c.as_i64()) == Some(-32001)
+    }
+
+    /// The MCP check used to decode into serde_json::Value and accept any
+    /// validly signed token. The OAuth state token is the sharp end: the start
+    /// endpoint is unauthenticated and hands it to any caller in a redirect, so
+    /// an anonymous attacker could read the whole anomaly feed with it.
+    #[tokio::test]
+    async fn mcp_rejects_tokens_that_are_not_sessions() {
+        let state = test_state();
+        let oauth_state = crate::oauth::sign_state("github", SECRET).expect("mint state");
+        let verify = purpose_token("user@example.com", TokenPurpose::VerifyEmail, 300, SECRET)
+            .expect("mint verify");
+        let partial =
+            purpose_token("user@example.com", TokenPurpose::TwoFactorPartial, 300, SECRET)
+                .expect("mint partial");
+
+        for (label, token) in [
+            ("no header", None),
+            ("oauth state token", Some(oauth_state.as_str())),
+            ("verify_email token", Some(verify.as_str())),
+            ("2fa partial token", Some(partial.as_str())),
+            ("garbage", Some("not-a-jwt")),
+        ] {
+            for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
+                let v = call_tool(&state, tool, token).await;
+                assert!(
+                    is_auth_error(&v),
+                    "{tool} must reject {label}, got {v}"
+                );
+            }
+        }
+    }
+
+    /// A real session token still reaches the tool. The store is empty, so the
+    /// assertion is that the call got past authentication, not what it returned.
+    #[tokio::test]
+    async fn mcp_accepts_a_session_token() {
+        let state = test_state();
+        let token = session_jwt("user@example.com", SECRET).expect("mint");
+        for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
+            let v = call_tool(&state, tool, Some(&token)).await;
+            assert!(!is_auth_error(&v), "{tool} must accept a session token, got {v}");
+        }
+    }
+
+    /// The four unauthenticated tools stay unauthenticated.
+    #[tokio::test]
+    async fn mcp_public_tools_need_no_token() {
+        let state = test_state();
+        for tool in ["get_current_kp", "get_solar_wind", "get_health"] {
+            let v = call_tool(&state, tool, None).await;
+            assert!(!is_auth_error(&v), "{tool} must not require a token, got {v}");
+        }
     }
 }
