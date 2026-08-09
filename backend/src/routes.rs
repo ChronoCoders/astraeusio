@@ -13,7 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::info;
+use tracing::{info, warn};
 
 use dashmap::DashMap;
 
@@ -577,7 +577,8 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
 
     // The model is trained on the three-hour series, so a short window is a
     // hard failure: the ML service would otherwise be handed a sequence it
-    // cannot use.
+    // cannot use. A stale window fails the same way, because a forecast built
+    // from readings that stopped weeks ago still reads as current.
     let readings = lock_db(&s.db)
         .await
         .get_recent_kp_3h(seq_len)
@@ -586,6 +587,16 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
                 anyhow!("{e}"),
                 StatusCode::SERVICE_UNAVAILABLE,
             ),
+            crate::db::DbError::StaleSeries {
+                series,
+                newest_observed_at,
+            } => {
+                warn!(
+                    source = "api/kp-forecast",
+                    series, newest_observed_at, "refusing to forecast from a stale input series"
+                );
+                AppError::with_status(anyhow!("{e}"), StatusCode::SERVICE_UNAVAILABLE)
+            }
             other => other.into(),
         })?;
 
