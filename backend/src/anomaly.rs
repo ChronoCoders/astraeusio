@@ -230,6 +230,88 @@ fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError>
     Ok(())
 }
 
+
+// ── Metric scales ─────────────────────────────────────────────────────────────
+
+/// What each metric is stored at, so a rule threshold can be held in the same
+/// units as the reading it is compared against.
+///
+/// Thresholds used to be DOUBLE, and the comparison converted the stored integer
+/// to f64 first, so a reading exactly on the boundary could land either side of
+/// it depending on which decimal fractions happened to be representable. Both
+/// sides are integers now and the boundary is exact.
+pub struct MetricScale {
+    pub metric: &'static str,
+    /// Multiplier from the value a caller supplies to the stored integer.
+    pub scale: f64,
+    /// Smallest step the metric can express, for the error message.
+    pub step: &'static str,
+}
+
+pub const METRIC_SCALES: [MetricScale; 5] = [
+    MetricScale { metric: "kp", scale: 100.0, step: "0.01" },
+    MetricScale { metric: "solar_wind_speed", scale: 10.0, step: "0.1 km/s" },
+    MetricScale { metric: "xray_flux", scale: 1e12, step: "0.000000000001 W/m2" },
+    MetricScale { metric: "dst", scale: 1.0, step: "1 nT" },
+    MetricScale { metric: "imf_bz", scale: 100.0, step: "0.01 nT" },
+];
+
+pub fn metric_scale(metric: &str) -> Option<&'static MetricScale> {
+    METRIC_SCALES.iter().find(|m| m.metric == metric)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ThresholdError {
+    UnknownMetric,
+    NotFinite,
+    OutOfRange,
+    /// The caller gave more precision than the metric stores.
+    TooPrecise { step: &'static str },
+}
+
+/// Converts a caller supplied threshold into the metric's stored units.
+///
+/// Nothing meaningful is rounded. A value carrying more precision than the
+/// metric can hold is rejected rather than quietly moved, because silently
+/// shifting a threshold changes when someone's alert fires and they would never
+/// know. The only rounding absorbs IEEE-754 representation error: scaling
+/// -10.05 by 100 lands on -1005.0000000000001, which is the same number.
+///
+/// The tolerance has to be absolute rather than relative. Representation error
+/// grows with magnitude, but a meaningful digit is always worth at least a
+/// fraction of one stored unit whatever the scale, so a purely relative
+/// tolerance gets looser exactly where it needs to stay tight: at the xray_flux
+/// scale of 1e12, a relative 1e-6 would allow 12 whole units of slack and
+/// swallow a real 0.1 error. This is mostly absolute, with a small relative
+/// term for the largest values, capped so it can never reach the 0.1 that marks
+/// genuine extra precision.
+pub fn scale_threshold(metric: &str, value: f64) -> Result<i64, ThresholdError> {
+    let Some(m) = metric_scale(metric) else {
+        return Err(ThresholdError::UnknownMetric);
+    };
+    if !value.is_finite() {
+        return Err(ThresholdError::NotFinite);
+    }
+    let scaled = value * m.scale;
+    if !scaled.is_finite() || scaled.abs() >= 9.0e18 {
+        return Err(ThresholdError::OutOfRange);
+    }
+    let nearest = scaled.round();
+    let tolerance = (1e-6 + nearest.abs() * 1e-12).min(1e-3);
+    if (scaled - nearest).abs() > tolerance {
+        return Err(ThresholdError::TooPrecise { step: m.step });
+    }
+    Ok(nearest as i64)
+}
+
+/// Back to the caller's units, for display.
+pub fn unscale_threshold(metric: &str, scaled: i64) -> f64 {
+    match metric_scale(metric) {
+        Some(m) => scaled as f64 / m.scale,
+        None => scaled as f64,
+    }
+}
+
 fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let rules = db.get_enabled_custom_rules()?;
     if rules.is_empty() {
@@ -237,22 +319,23 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
     }
     let hour_bucket = now() / 3600;
     for rule in &rules {
+        // Both sides stay in the metric's stored units, so a reading exactly
+        // on the threshold compares exactly.
         let raw = match rule.metric.as_str() {
-            "kp" => db.latest_kp_raw()?.map(|(_, v)| v as f64 / 100.0),
-            "solar_wind_speed" => db
-                .latest_solar_wind_speed_raw()?
-                .map(|(_, v)| v as f64 / 10.0),
-            "xray_flux" => db.latest_xray_flux_raw()?.map(|(_, v)| v as f64 / 1e12),
-            "dst" => db.latest_dst_raw()?.map(|(_, v)| v as f64),
-            "imf_bz" => db.latest_imf_bz_raw()?.map(|(_, v)| v as f64 / 100.0),
+            "kp" => db.latest_kp_raw()?.map(|(_, v)| v),
+            "solar_wind_speed" => db.latest_solar_wind_speed_raw()?.map(|(_, v)| v),
+            "xray_flux" => db.latest_xray_flux_raw()?.map(|(_, v)| v),
+            "dst" => db.latest_dst_raw()?.map(|(_, v)| v),
+            "imf_bz" => db.latest_imf_bz_raw()?.map(|(_, v)| v),
             _ => None,
         };
-        let Some(val) = raw else { continue };
+        let Some(scaled_val) = raw else { continue };
+        let val = unscale_threshold(&rule.metric, scaled_val);
         let triggered = match rule.operator.as_str() {
-            "gt" => val > rule.threshold,
-            "lt" => val < rule.threshold,
-            "gte" => val >= rule.threshold,
-            "lte" => val <= rule.threshold,
+            "gt" => scaled_val > rule.threshold_scaled,
+            "lt" => scaled_val < rule.threshold_scaled,
+            "gte" => scaled_val >= rule.threshold_scaled,
+            "lte" => scaled_val <= rule.threshold_scaled,
             _ => false,
         };
         if !triggered {
@@ -275,7 +358,10 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
         };
         let msg = format!(
             "Custom rule '{}': {} {} {}",
-            rule.name, metric_str, op_label, rule.threshold
+            rule.name,
+            metric_str,
+            op_label,
+            unscale_threshold(&rule.metric, rule.threshold_scaled)
         );
         writer.fire(WriteCmd::Anomaly {
             anomaly_type: format!("custom:{}", rule.id),
@@ -343,5 +429,116 @@ mod tests {
         assert_eq!(forecast_severity(499), None);
         assert_eq!(forecast_severity(500), Some("warning"));
         assert_eq!(forecast_severity(800), Some("critical"));
+    }
+}
+
+#[cfg(test)]
+mod threshold_tests {
+    use super::*;
+
+    /// Realistic thresholds convert exactly, in the metric's own units.
+    #[test]
+    fn thresholds_convert_to_the_metrics_own_units() {
+        for (metric, value, expected) in [
+            ("kp", 5.0, 500),
+            ("kp", 5.67, 567),
+            ("kp", 4.33, 433),
+            ("solar_wind_speed", 700.0, 7_000),
+            ("solar_wind_speed", 700.5, 7_005),
+            ("dst", -50.0, -50),
+            ("imf_bz", -10.0, -1_000),
+            // Scaling -10.05 by 100 lands on -1005.0000000000001 in f64. That
+            // is the same number, and must not be mistaken for extra precision.
+            ("imf_bz", -10.05, -1_005),
+            // M-class and X-class, the two thresholds anyone actually sets.
+            ("xray_flux", 1e-5, 10_000_000),
+            ("xray_flux", 1e-4, 100_000_000),
+            ("xray_flux", 5e-6, 5_000_000),
+        ] {
+            assert_eq!(
+                scale_threshold(metric, value),
+                Ok(expected),
+                "{metric} {value}"
+            );
+            let back = unscale_threshold(metric, expected);
+            assert!(
+                (back - value).abs() <= value.abs() * 1e-9 + f64::EPSILON,
+                "{metric} {value} came back as {back}"
+            );
+        }
+    }
+
+    /// More precision than the metric holds is refused, not quietly moved.
+    /// Shifting someone's threshold changes when their alert fires.
+    #[test]
+    fn extra_precision_is_refused_rather_than_rounded() {
+        assert_eq!(
+            scale_threshold("kp", 5.005),
+            Err(ThresholdError::TooPrecise { step: "0.01" })
+        );
+        assert_eq!(
+            scale_threshold("dst", -50.5),
+            Err(ThresholdError::TooPrecise { step: "1 nT" })
+        );
+        assert_eq!(
+            scale_threshold("solar_wind_speed", 700.55),
+            Err(ThresholdError::TooPrecise { step: "0.1 km/s" })
+        );
+        // xray_flux is the one where this bites: 1e12 leaves a lot of room, but
+        // a value below a millionth of a millionth still has nowhere to go.
+        assert!(matches!(
+            scale_threshold("xray_flux", 1.23456789e-5),
+            Err(ThresholdError::TooPrecise { .. })
+        ));
+        assert!(matches!(
+            scale_threshold("xray_flux", 1e-15),
+            Err(ThresholdError::TooPrecise { .. })
+        ));
+    }
+
+    #[test]
+    fn unusable_values_are_refused() {
+        assert_eq!(scale_threshold("kp", f64::NAN), Err(ThresholdError::NotFinite));
+        assert_eq!(scale_threshold("kp", f64::INFINITY), Err(ThresholdError::NotFinite));
+        assert_eq!(scale_threshold("kp", 1e30), Err(ThresholdError::OutOfRange));
+        assert_eq!(scale_threshold("nonsense", 1.0), Err(ThresholdError::UnknownMetric));
+    }
+
+    /// Every metric a rule may name must have a scale, or its threshold would
+    /// be stored in units nothing compares against.
+    #[test]
+    fn every_rule_metric_has_a_scale() {
+        for metric in ["kp", "solar_wind_speed", "xray_flux", "dst", "imf_bz"] {
+            assert!(metric_scale(metric).is_some(), "{metric} has no scale");
+        }
+        assert_eq!(METRIC_SCALES.len(), 5);
+    }
+
+    /// The reason for the change: a reading exactly on the threshold. As f64 the
+    /// comparison went through a division that cannot represent every decimal,
+    /// so the boundary was not reliable. As integers it is exact.
+    #[test]
+    fn a_reading_exactly_on_the_threshold_compares_exactly() {
+        // Kp 5.67 stored as 567. A rule at 5.67 with gte must fire, gt must not.
+        // Mirrors the operator match in check_custom_rules.
+        let fires = |op: &str, v: i64, t: i64| match op {
+            "gt" => v > t,
+            "lt" => v < t,
+            "gte" => v >= t,
+            "lte" => v <= t,
+            _ => false,
+        };
+
+        let stored: i64 = 567;
+        let threshold = scale_threshold("kp", 5.67).expect("scale");
+        assert_eq!(stored, threshold);
+        assert!(fires("gte", stored, threshold), "gte fires on the boundary");
+        assert!(!fires("gt", stored, threshold), "gt does not fire on the boundary");
+        assert!(fires("lte", stored, threshold), "lte fires on the boundary");
+        assert!(!fires("lt", stored, threshold), "lt does not fire on the boundary");
+
+        // One step either side behaves as expected.
+        assert!(fires("gt", stored + 1, threshold));
+        assert!(fires("lt", stored - 1, threshold));
     }
 }
