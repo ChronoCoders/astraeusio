@@ -1123,7 +1123,7 @@ async fn list_custom_rules(
                 "name":       r.name,
                 "metric":     r.metric,
                 "operator":   r.operator,
-                "threshold":  r.threshold,
+                "threshold":  crate::anomaly::unscale_threshold(&r.metric, r.threshold_scaled),
                 "severity":   r.severity,
                 "enabled":    r.enabled,
                 "created_at": r.created_at,
@@ -1172,13 +1172,31 @@ async fn create_custom_rule(
         )
             .into_response();
     }
-    if !body.threshold.is_finite() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "threshold must be a finite number" })),
-        )
-            .into_response();
-    }
+    // The column holds the metric's own scaled integer, so the threshold is
+    // converted here and refused if it carries more precision than the metric
+    // stores. Silently moving someone's threshold changes when their alert fires
+    // and they would never know.
+    let threshold_scaled = match crate::anomaly::scale_threshold(&body.metric, body.threshold) {
+        Ok(v) => v,
+        Err(crate::anomaly::ThresholdError::TooPrecise { step }) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error": "threshold_too_precise",
+                    "smallest_step": step,
+                    "message": format!("This metric is measured in steps of {step}. Round your threshold to that."),
+                })),
+            )
+                .into_response();
+        }
+        Err(_) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({ "error": "threshold must be a finite number in range" })),
+            )
+                .into_response();
+        }
+    };
 
     // Enforce per-user rule cap
     let count = match lock_db(&s.db)
@@ -1211,7 +1229,7 @@ async fn create_custom_rule(
         name: name.clone(),
         metric: body.metric.clone(),
         operator: body.operator.clone(),
-        threshold: body.threshold,
+        threshold_scaled,
         severity: body.severity.clone(),
         enabled: true,
         created_at: now_ts,

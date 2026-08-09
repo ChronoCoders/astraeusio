@@ -372,6 +372,10 @@ const ANOMALY_OWNER_MIGRATION: &str = "2026-08-alerts-anomaly-user-email";
 /// is the ambiguity that causes the next leak.
 const TOTP_ENCRYPTION_MIGRATION: &str = "2026-08-encrypt-totp-secrets";
 
+/// Moves custom rule thresholds from DOUBLE to the metric's own scaled integer,
+/// so a reading exactly on the threshold compares exactly.
+const RULE_THRESHOLD_MIGRATION: &str = "2026-08-scale-custom-rule-thresholds";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -492,6 +496,7 @@ impl Store {
             "ALTER TABLE api_keys ADD COLUMN revoked_at BIGINT",
             "ALTER TABLE alerts_anomaly ADD COLUMN user_email TEXT",
             "ALTER TABLE users ADD COLUMN totp_secret_enc TEXT",
+            "ALTER TABLE custom_anomaly_rules ADD COLUMN threshold_scaled BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -681,6 +686,55 @@ impl Store {
             info!(
                 migrated = plaintext.len(),
                 "encrypted stored TOTP secrets and dropped the plaintext column"
+            );
+        }
+
+        let rule_threshold_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![RULE_THRESHOLD_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if rule_threshold_applied == 0 {
+            let existing: Vec<(String, String, f64)> = {
+                let mut stmt = conn.prepare(
+                    "SELECT id, metric, threshold FROM custom_anomaly_rules
+                     WHERE threshold IS NOT NULL",
+                )?;
+                stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            for (id, metric, threshold) in &existing {
+                // A stored threshold was already accepted once, so it is not
+                // rejected here. Anything the scale cannot hold is recorded and
+                // the nearest representable value kept, since dropping the rule
+                // silently would be worse.
+                let scaled = crate::anomaly::scale_threshold(metric, *threshold)
+                    .unwrap_or_else(|e| {
+                        let m = crate::anomaly::metric_scale(metric);
+                        let fallback = m.map_or(*threshold, |m| (*threshold * m.scale).round());
+                        warn!(
+                            rule = id.as_str(),
+                            metric = metric.as_str(),
+                            threshold = *threshold,
+                            "threshold does not fit the metric scale ({e:?}), keeping nearest"
+                        );
+                        fallback as i64
+                    });
+                conn.execute(
+                    "UPDATE custom_anomaly_rules SET threshold_scaled = ? WHERE id = ?",
+                    params![scaled, id],
+                )?;
+            }
+            conn.execute_batch(
+                "ALTER TABLE custom_anomaly_rules DROP COLUMN IF EXISTS threshold",
+            )?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![RULE_THRESHOLD_MIGRATION, now()],
+            )?;
+            info!(
+                migrated = existing.len(),
+                "scaled custom rule thresholds and dropped the floating point column"
             );
         }
 
@@ -2175,7 +2229,9 @@ pub struct CustomRule {
     pub name: String,
     pub metric: String,
     pub operator: String,
-    pub threshold: f64,
+    /// In the metric's stored units, not the caller's. Use
+    /// `anomaly::unscale_threshold` to display it.
+    pub threshold_scaled: i64,
     pub severity: String,
     pub enabled: bool,
     pub created_at: i64,
@@ -2185,7 +2241,7 @@ impl Store {
     pub fn insert_custom_rule(&self, rule: &CustomRule) -> Result<(), DbError> {
         self.conn.execute(
             "INSERT INTO custom_anomaly_rules
-             (id, user_email, name, metric, operator, threshold, severity, enabled, created_at)
+             (id, user_email, name, metric, operator, threshold_scaled, severity, enabled, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 rule.id,
@@ -2193,7 +2249,7 @@ impl Store {
                 rule.name,
                 rule.metric,
                 rule.operator,
-                rule.threshold,
+                rule.threshold_scaled,
                 rule.severity,
                 rule.enabled,
                 rule.created_at,
@@ -2204,7 +2260,7 @@ impl Store {
 
     pub fn list_custom_rules(&self, user_email: &str) -> Result<Vec<CustomRule>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, user_email, name, metric, operator, threshold, severity, enabled, created_at
+            "SELECT id, user_email, name, metric, operator, threshold_scaled, severity, enabled, created_at
              FROM custom_anomaly_rules WHERE user_email = ? ORDER BY created_at ASC",
         )?;
         let rows = stmt
@@ -2215,7 +2271,7 @@ impl Store {
                     name: row.get(2)?,
                     metric: row.get(3)?,
                     operator: row.get(4)?,
-                    threshold: row.get(5)?,
+                    threshold_scaled: row.get(5)?,
                     severity: row.get(6)?,
                     enabled: row.get(7)?,
                     created_at: row.get(8)?,
@@ -2248,7 +2304,7 @@ impl Store {
 
     pub fn get_enabled_custom_rules(&self) -> Result<Vec<CustomRule>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, user_email, name, metric, operator, threshold, severity, enabled, created_at
+            "SELECT id, user_email, name, metric, operator, threshold_scaled, severity, enabled, created_at
              FROM custom_anomaly_rules WHERE enabled = TRUE",
         )?;
         let rows = stmt
@@ -2259,7 +2315,7 @@ impl Store {
                     name: row.get(2)?,
                     metric: row.get(3)?,
                     operator: row.get(4)?,
-                    threshold: row.get(5)?,
+                    threshold_scaled: row.get(5)?,
                     severity: row.get(6)?,
                     enabled: row.get(7)?,
                     created_at: row.get(8)?,
