@@ -968,6 +968,12 @@ impl FromRequestParts<AppState> for AuthClaims {
                 .into_response()
         })?;
 
+        // Count the request. This used to happen only on the API key branch, so
+        // the browser dashboard, which is the primary access path and carries a
+        // session JWT, was never counted against the published quota and
+        // /api/usage reported zero for it.
+        rate_limit::check_and_increment(&state.usage_counter, &state.db, &claims.sub).await?;
+
         Ok(claims)
     }
 }
@@ -1139,6 +1145,46 @@ mod tests {
             extract(&state, &token).await.err(),
             Some(StatusCode::UNAUTHORIZED),
             "the old partial token shape must not authenticate a session"
+        );
+    }
+
+    /// The quota call used to sit only on the API key branch, so the browser
+    /// dashboard, which carries a session JWT and is the main way the service is
+    /// used, was never counted. The published free tier limit bound nothing.
+    #[tokio::test]
+    async fn session_requests_are_counted_against_the_quota() {
+        let state = test_state();
+        let token = session_jwt("counted@example.com", SECRET).expect("mint");
+
+        assert!(state.usage_counter.get("counted@example.com").is_none());
+        for expected in 1..=3u64 {
+            extract(&state, &token).await.expect("accepted");
+            let counted = state
+                .usage_counter
+                .get("counted@example.com")
+                .map(|e| e.count)
+                .expect("counter entry");
+            assert_eq!(counted, expected, "request {expected} must be counted");
+        }
+    }
+
+    /// Past the plan limit the session path returns 429 rather than serving.
+    /// An account with no row in the database resolves to `starter`, which is
+    /// the 100 per day tier.
+    #[tokio::test]
+    async fn a_session_over_the_quota_is_refused() {
+        let state = test_state();
+        let token = session_jwt("busy@example.com", SECRET).expect("mint");
+        let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
+
+        for _ in 0..limit {
+            extract(&state, &token).await.expect("within the limit");
+        }
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::TOO_MANY_REQUESTS),
+            "request {} must be refused",
+            limit + 1
         );
     }
 
