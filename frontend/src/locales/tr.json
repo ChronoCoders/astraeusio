@@ -301,6 +301,20 @@
     "savePlan": "Kaydet"
   },
   "apiKeys": {
+    "revoke": "İptal et",
+    "colExpires": "Bitiş",
+    "colStatus": "Durum",
+    "expiryLabel": "Anahtar ömrü",
+    "expiryNone": "Süresiz",
+    "expiry30": "30 gün",
+    "expiry90": "90 gün",
+    "expiry365": "1 yıl",
+    "activeOfLimit": "{{limit}} anahtardan {{active}} etkin",
+    "state": {
+      "active": "Etkin",
+      "revoked": "İptal edildi",
+      "expired": "Süresi doldu"
+    },
     "createTitle": "API Anahtarı Oluştur",
     "namePlaceholder": "Anahtar adı (örn. benim-uygulamam)",
     "generate": "Oluştur",

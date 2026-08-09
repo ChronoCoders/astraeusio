@@ -301,6 +301,20 @@
     "savePlan": "Save"
   },
   "apiKeys": {
+    "revoke": "Revoke",
+    "colExpires": "Expires",
+    "colStatus": "Status",
+    "expiryLabel": "Key lifetime",
+    "expiryNone": "No expiry",
+    "expiry30": "30 days",
+    "expiry90": "90 days",
+    "expiry365": "1 year",
+    "activeOfLimit": "{{active}} of {{limit}} active",
+    "state": {
+      "active": "Active",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    },
     "createTitle": "Generate API Key",
     "namePlaceholder": "Key name (e.g. my-app)",
     "generate": "Generate",

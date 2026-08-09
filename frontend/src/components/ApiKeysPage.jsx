@@ -8,11 +8,23 @@ function authHeader() {
 }
 
 function fmtTs(ts) {
-  if (ts == null) return '-'
+  // Empty stays empty. A key with no expiry has nothing to show, not a dash.
+  if (ts == null) return ''
   return new Date(ts * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
 }
 
+// A key is usable only while it is neither revoked nor past its expiry. This
+// mirrors the lookup the backend runs on every authenticated request.
+function keyState(k, nowSecs) {
+  if (k.revoked_at != null) return 'revoked'
+  if (k.expires_at != null && k.expires_at <= nowSecs) return 'expired'
+  return 'active'
+}
+
 // ── Endpoint docs ──────────────────────────────────────────────────────────────
+
+// Mirrors MAX_KEYS_PER_USER in backend/src/api_keys.rs.
+const MAX_KEYS = 10
 
 const ENDPOINTS = [
   { method: 'GET',  path: '/api/kp',               desc: 'NOAA 1-min Kp index (last 24 h)' },
@@ -38,8 +50,10 @@ const ENDPOINTS = [
 
 export default function ApiKeysPage({ plan, onNavigate }) {
   const { t } = useTranslation()
-  const [{ keys, error, loadedSeq }, setListState] = useState({ keys: [], error: null, loadedSeq: -1 })
+  const [{ keys, error, loadedSeq, nowSecs }, setListState] =
+    useState({ keys: [], error: null, loadedSeq: -1, nowSecs: 0 })
   const [name, setName]           = useState('')
+  const [expiryDays, setExpiryDays] = useState('')
   const [creating, setCreating]   = useState(false)
   const [createError, setCreateError] = useState(null)
   const [newKey, setNewKey]       = useState(null)   // { id, key, name } shown once
@@ -47,13 +61,24 @@ export default function ApiKeysPage({ plan, onNavigate }) {
   const [confirmed, setConfirmed] = useState(false)
   const [seq, setSeq]             = useState(0)
   const loading = loadedSeq !== seq
+  const activeCount = keys.filter(k => keyState(k, nowSecs) === 'active').length
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/keys', { headers: authHeader() })
       .then(r => r.json())
-      .then(d => { if (!cancelled) setListState({ keys: Array.isArray(d) ? d : [], error: null, loadedSeq: seq }) })
-      .catch(e => { if (!cancelled) setListState({ keys: [], error: e.message, loadedSeq: seq }) })
+      .then(d => {
+        if (!cancelled) setListState({
+          keys: Array.isArray(d) ? d : [], error: null, loadedSeq: seq,
+          nowSecs: Math.floor(Date.now() / 1000),
+        })
+      })
+      .catch(e => {
+        if (!cancelled) setListState({
+          keys: [], error: e.message, loadedSeq: seq,
+          nowSecs: Math.floor(Date.now() / 1000),
+        })
+      })
     return () => { cancelled = true }
   }, [seq])
 
@@ -67,7 +92,11 @@ export default function ApiKeysPage({ plan, onNavigate }) {
       const r = await fetch('/api/keys', {
         method: 'POST',
         headers: { ...authHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n }),
+        body: JSON.stringify(
+          expiryDays === ''
+            ? { name: n }
+            : { name: n, expires_in_days: Number(expiryDays) }
+        ),
       })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
@@ -76,6 +105,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
         const d = await r.json()
         setNewKey(d)
         setName('')
+        setExpiryDays('')
         setCopied(false)
         setConfirmed(false)
         setSeq(n => n + 1)
@@ -87,7 +117,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
     }
   }
 
-  async function handleDelete(id) {
+  async function handleRevoke(id) {
     const r = await fetch(`/api/keys/${id}`, {
       method: 'DELETE',
       headers: authHeader(),
@@ -185,6 +215,18 @@ export default function ApiKeysPage({ plan, onNavigate }) {
             maxLength={64}
             className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
           />
+          <select
+            name="api-key-expiry"
+            value={expiryDays}
+            onChange={e => setExpiryDays(e.target.value)}
+            aria-label={t('apiKeys.expiryLabel')}
+            className="shrink-0 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 font-mono focus:outline-none focus:border-zinc-500"
+          >
+            <option value="">{t('apiKeys.expiryNone')}</option>
+            <option value="30">{t('apiKeys.expiry30')}</option>
+            <option value="90">{t('apiKeys.expiry90')}</option>
+            <option value="365">{t('apiKeys.expiry365')}</option>
+          </select>
           <button
             type="submit"
             disabled={creating || !name.trim()}
@@ -204,7 +246,9 @@ export default function ApiKeysPage({ plan, onNavigate }) {
           <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">
             {t('apiKeys.listTitle')}
           </span>
-          <span className="text-zinc-700 text-xs font-mono">{keys.length} {t('apiKeys.keys')}</span>
+          <span className="text-zinc-700 text-xs font-mono">
+            {t('apiKeys.activeOfLimit', { active: activeCount, limit: MAX_KEYS })}
+          </span>
         </div>
 
         {loading ? (
@@ -221,32 +265,61 @@ export default function ApiKeysPage({ plan, onNavigate }) {
                   <th className="text-left px-4 py-2 font-normal">{t('apiKeys.colName')}</th>
                   <th className="text-left px-4 py-2 font-normal">{t('apiKeys.colCreated')}</th>
                   <th className="text-left px-4 py-2 font-normal">{t('apiKeys.colLastUsed')}</th>
+                  <th className="text-left px-4 py-2 font-normal">{t('apiKeys.colExpires')}</th>
+                  <th className="text-left px-4 py-2 font-normal">{t('apiKeys.colStatus')}</th>
                   <th className="text-right px-4 py-2 font-normal">{t('apiKeys.colRequests')}</th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
-                {keys.map(k => (
-                  <tr key={k.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                    <td className="px-4 py-2 text-zinc-300">{k.name}</td>
-                    <td className="px-4 py-2 text-zinc-500">{fmtTs(k.created_at)}</td>
-                    <td className="px-4 py-2 text-zinc-500">{fmtTs(k.last_used_at)}</td>
-                    <td className="px-4 py-2 text-right text-zinc-400 tabular-nums">{k.request_count}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => handleDelete(k.id)}
-                        className="text-zinc-600 hover:text-red-400 transition-colors"
-                        title={t('apiKeys.delete')}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                          <line x1="1" y1="1" x2="13" y2="13" />
-                          <line x1="13" y1="1" x2="1" y2="13" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {keys.map(k => {
+                  const state = keyState(k, nowSecs)
+                  const dead  = state !== 'active'
+                  return (
+                    <tr
+                      key={k.id}
+                      className={[
+                        'border-b border-zinc-800/50',
+                        dead ? 'bg-zinc-950/60' : 'hover:bg-zinc-800/30',
+                      ].join(' ')}
+                    >
+                      <td className={dead ? 'px-4 py-2 text-zinc-600 line-through' : 'px-4 py-2 text-zinc-300'}>
+                        {k.name}
+                      </td>
+                      <td className="px-4 py-2 text-zinc-500">{fmtTs(k.created_at)}</td>
+                      <td className="px-4 py-2 text-zinc-500">{fmtTs(k.last_used_at)}</td>
+                      <td className="px-4 py-2 text-zinc-500">{fmtTs(k.expires_at)}</td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={[
+                            'px-1.5 py-0.5 rounded border',
+                            state === 'active'  ? 'border-emerald-800 text-emerald-400' : '',
+                            state === 'revoked' ? 'border-red-900 text-red-400'         : '',
+                            state === 'expired' ? 'border-amber-900 text-amber-500'     : '',
+                          ].join(' ')}
+                        >
+                          {t('apiKeys.state.' + state)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right text-zinc-400 tabular-nums">{k.request_count}</td>
+                      <td className="px-4 py-2 text-right">
+                        {state === 'active' && (
+                          <button
+                            onClick={() => handleRevoke(k.id)}
+                            className="text-zinc-600 hover:text-red-400 transition-colors"
+                            title={t('apiKeys.revoke')}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                              <line x1="1" y1="1" x2="13" y2="13" />
+                              <line x1="13" y1="1" x2="1" y2="13" />
+                            </svg>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -637,7 +710,7 @@ function WebhookRow({ hook, onDelete, t }) {
                   <span className={`shrink-0 w-12 text-center ${
                     d.success ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {d.status_code ?? '—'}
+                    {d.status_code ?? ''}
                   </span>
                   <span className="text-zinc-600 truncate flex-1 text-right">
                     {d.success ? t('webhooks.deliveryOk') : (d.error ?? t('webhooks.deliveryFail'))}
