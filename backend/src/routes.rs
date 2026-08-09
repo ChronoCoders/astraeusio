@@ -943,19 +943,48 @@ struct UpdatePlanBody {
     plan: String,
 }
 
+pub(crate) const VALID_PLANS: &[&str] = &[
+    "free",
+    "starter",
+    "developer",
+    "pro",
+    "business",
+    "enterprise",
+];
+
+/// Whether a signed in account may set its own tier.
+///
+/// Off unless `ALLOW_SELF_SERVE_PLAN_CHANGE` is `1` or `true`. No payment
+/// processor is connected, so nothing in the system can tell a paid tier from
+/// an unpaid one, and the endpoint validated only that the string was a known
+/// plan name. Any account could therefore grant itself enterprise and with it
+/// unlimited quota, CSV export, API keys, email alerts, webhooks and custom
+/// rules. The flag keeps the endpoint usable in development and closes it
+/// everywhere the variable is unset, which includes production.
+pub(crate) fn self_serve_plan_change_enabled() -> bool {
+    matches!(
+        std::env::var("ALLOW_SELF_SERVE_PLAN_CHANGE").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("True")
+    )
+}
+
+/// Moves an account to a tier and clears the cached counter so the new tier
+/// applies to the next request.
+///
+/// This is the whole mutation. When billing is connected, the payment webhook
+/// calls this and becomes the only caller that may raise a tier; the handler
+/// below and its environment flag are then deleted, and nothing else moves.
+async fn apply_plan_change(s: &AppState, email: &str, plan: String) -> Result<(), crate::db::DbError> {
+    s.writer.update_user_plan(email.to_string(), plan).await?;
+    s.usage_counter.remove(email);
+    Ok(())
+}
+
 async fn update_user_plan(
     State(s): State<AppState>,
     claims: AuthClaims,
     Json(body): Json<UpdatePlanBody>,
 ) -> Response {
-    const VALID_PLANS: &[&str] = &[
-        "free",
-        "starter",
-        "developer",
-        "pro",
-        "business",
-        "enterprise",
-    ];
     if !VALID_PLANS.contains(&body.plan.as_str()) {
         return (
             StatusCode::BAD_REQUEST,
@@ -963,15 +992,24 @@ async fn update_user_plan(
         )
             .into_response();
     }
-    match s
-        .writer
-        .update_user_plan(claims.sub.clone(), body.plan)
-        .await
-    {
-        Ok(()) => {
-            s.usage_counter.remove(&claims.sub);
-            StatusCode::NO_CONTENT.into_response()
-        }
+    if !self_serve_plan_change_enabled() {
+        warn!(
+            source = "api/user/plan",
+            subject = %claims.sub,
+            requested = %body.plan,
+            "self serve plan change is disabled, refusing"
+        );
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "plan_change_unavailable",
+                "message": "Plans cannot be changed here. Contact sales to change your plan.",
+            })),
+        )
+            .into_response();
+    }
+    match apply_plan_change(&s, &claims.sub, body.plan).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             tracing::error!("update_user_plan: {e}");
             (
@@ -1513,6 +1551,50 @@ mod mcp_tests {
         for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
             let v = call_tool(&state, tool, Some(&token)).await;
             assert!(!is_auth_error(&v), "{tool} must accept a session token, got {v}");
+        }
+    }
+
+    /// Self serve tier changes are refused unless the environment opts in, and
+    /// the flag is the whole gate: with no payment processor connected, nothing
+    /// else in the system can tell a paid tier from an unpaid one, so any
+    /// account could grant itself enterprise with one request.
+    #[test]
+    fn self_serve_plan_change_is_off_unless_the_environment_opts_in() {
+        // SAFETY: single threaded test, and the variable is read only here.
+        unsafe { std::env::remove_var("ALLOW_SELF_SERVE_PLAN_CHANGE") };
+        assert!(!self_serve_plan_change_enabled(), "unset must be closed");
+
+        for off in ["", "0", "false", "no", "yes", "enabled"] {
+            unsafe { std::env::set_var("ALLOW_SELF_SERVE_PLAN_CHANGE", off) };
+            assert!(
+                !self_serve_plan_change_enabled(),
+                "{off:?} must not open the endpoint"
+            );
+        }
+        for on in ["1", "true", "TRUE", "True"] {
+            unsafe { std::env::set_var("ALLOW_SELF_SERVE_PLAN_CHANGE", on) };
+            assert!(self_serve_plan_change_enabled(), "{on:?} must open it");
+        }
+        unsafe { std::env::remove_var("ALLOW_SELF_SERVE_PLAN_CHANGE") };
+    }
+
+    /// The tier names the backend accepts must match the tiers the frontend
+    /// offers. `starter` is the internal default and the frontend renders it as
+    /// `free`, so it is the one name that exists on only one side.
+    #[test]
+    fn the_backend_tier_set_matches_the_frontend() {
+        let frontend = ["free", "developer", "pro", "business", "enterprise"];
+        for tier in frontend {
+            assert!(
+                VALID_PLANS.contains(&tier),
+                "frontend offers {tier}, backend does not accept it"
+            );
+        }
+        for tier in VALID_PLANS {
+            assert!(
+                frontend.contains(tier) || *tier == "starter",
+                "backend accepts {tier}, which the frontend does not offer"
+            );
         }
     }
 
