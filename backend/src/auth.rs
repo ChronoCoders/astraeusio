@@ -63,6 +63,10 @@ pub struct AuthClaims {
     pub sub: String,
     pub exp: u64,
     pub aud: String,
+    /// `users.token_version` at the moment this token was minted. A password
+    /// change bumps the stored value, so tokens carrying an older one stop
+    /// validating instead of outliving the change for their full 24 hours.
+    pub ver: i64,
     #[serde(skip)]
     pub auth_type: AuthType,
 }
@@ -320,7 +324,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
         }
     }
 
-    issue_jwt(&user.email, &s.jwt_secret)
+    issue_jwt(&s, &user.email).await
 }
 
 pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequest>) -> Response {
@@ -373,7 +377,7 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
     match check_totp(secret, &email, &body.code) {
         Ok(true) => {
             rate_limit::clear_failures(&s.login_failures, &email);
-            issue_jwt(&email, &s.jwt_secret)
+            issue_jwt(&s, &email).await
         }
         Ok(false) => {
             rate_limit::record_failure(&s.login_failures, &email);
@@ -790,8 +794,15 @@ pub async fn change_password(
             }
         };
 
+    // The version bump happens in the same UPDATE as the hash, but the cached
+    // copy beside the plan must go too, or the old value keeps validating the
+    // very tokens this is meant to invalidate.
+    let subject = claims.sub.clone();
     match s.writer.update_password(claims.sub, new_hash).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => {
+            rate_limit::clear_user_cache(&s.usage_counter, &subject);
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => {
             warn!("change_password update error: {e}");
             (
@@ -870,8 +881,12 @@ pub async fn reset_password(
             }
         };
 
+    let subject = email.clone();
     match s.writer.update_password(email, new_hash).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => {
+            rate_limit::clear_user_cache(&s.usage_counter, &subject);
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => {
             warn!("reset_password update error: {e}");
             (
@@ -893,12 +908,17 @@ fn sha256_hex(input: &str) -> String {
 }
 
 /// Mint a 24h session JWT string (the token returned on successful login).
-pub(crate) fn session_jwt(email: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub(crate) fn session_jwt(
+    email: &str,
+    secret: &str,
+    token_version: i64,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let exp = (chrono::Utc::now().timestamp() + 86_400) as u64;
     let claims = AuthClaims {
         sub: email.to_string(),
         exp,
         aud: AUD_SESSION.to_string(),
+        ver: token_version,
         auth_type: AuthType::Jwt,
     };
     encode(
@@ -908,8 +928,9 @@ pub(crate) fn session_jwt(email: &str, secret: &str) -> Result<String, jsonwebto
     )
 }
 
-fn issue_jwt(email: &str, secret: &str) -> Response {
-    match session_jwt(email, secret) {
+async fn issue_jwt(s: &AppState, email: &str) -> Response {
+    let version = rate_limit::resolve_token_version(&s.usage_counter, &s.db, email).await;
+    match session_jwt(email, &s.jwt_secret, version) {
         Ok(token) => Json(LoginResponse { token }).into_response(),
         Err(e) => {
             warn!("jwt encode error: {e}");
@@ -967,6 +988,8 @@ impl FromRequestParts<AppState> for AuthClaims {
                         sub,
                         exp: u64::MAX,
                         aud: AUD_SESSION.to_string(),
+                        // An API key is not a session, so no version applies.
+                        ver: 0,
                         auth_type: AuthType::ApiKey,
                     });
                 }
@@ -1010,6 +1033,30 @@ impl FromRequestParts<AppState> for AuthClaims {
         // accrue separately and each can carry its own limit. Counting both into
         // one bucket is the thing to avoid, because then the two products
         // compete for the same allowance.
+
+        // Reject a token minted before the account's current version. The
+        // lookup is cached beside the plan, so this costs a map hit on the warm
+        // path.
+        let current = rate_limit::resolve_token_version(
+            &state.usage_counter,
+            &state.db,
+            &claims.sub,
+        )
+        .await;
+        if claims.ver != current {
+            warn!(
+                source = "auth",
+                subject = %claims.sub,
+                token_version = claims.ver,
+                current_version = current,
+                "session token predates a credential change"
+            );
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "invalid or expired token" })),
+            )
+                .into_response());
+        }
 
         Ok(claims)
     }
@@ -1086,7 +1133,7 @@ mod tests {
     #[tokio::test]
     async fn a_session_token_is_accepted_by_the_session_extractor() {
         let state = test_state();
-        let token = session_jwt("user@example.com", SECRET).expect("mint");
+        let token = session_jwt("user@example.com", SECRET, 0).expect("mint");
         let claims = extract(&state, &token).await.expect("session accepted");
         assert_eq!(claims.sub, "user@example.com");
         assert_eq!(claims.aud, AUD_SESSION);
@@ -1097,7 +1144,7 @@ mod tests {
     /// else's 2FA login or password reset.
     #[test]
     fn a_session_token_is_rejected_where_a_purpose_token_is_required() {
-        let session = session_jwt("user@example.com", SECRET).expect("mint");
+        let session = session_jwt("user@example.com", SECRET, 0).expect("mint");
         for purpose in EVERY_PURPOSE {
             assert!(
                 decode_purpose(&session, purpose, SECRET).is_err(),
@@ -1191,16 +1238,21 @@ mod tests {
     #[tokio::test]
     async fn session_requests_do_not_touch_the_quota() {
         let state = test_state();
-        let token = session_jwt("dashboard@example.com", SECRET).expect("mint");
+        let token = session_jwt("dashboard@example.com", SECRET, 0).expect("mint");
         let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
 
         for _ in 0..limit + 5 {
             extract(&state, &token).await.expect("sessions are never throttled");
         }
-        assert!(
-            state.usage_counter.get("dashboard@example.com").is_none(),
-            "a session must not create a quota entry"
-        );
+        // The extractor caches the token version beside the plan, so an entry
+        // does exist. What must stay at zero is the count: a session may be
+        // known to the counter, it must never spend against it.
+        let counted = state
+            .usage_counter
+            .get("dashboard@example.com")
+            .map(|e| e.count)
+            .unwrap_or(0);
+        assert_eq!(counted, 0, "a session must never spend quota");
     }
 
     /// The API key path is the one that counts, and the limit still binds there.
@@ -1236,10 +1288,84 @@ mod tests {
         );
     }
 
+    /// A session minted before a password change must stop working. Without
+    /// this a stolen token outlived a reset for the rest of its 24 hours.
+    #[tokio::test]
+    async fn a_password_change_invalidates_existing_sessions() {
+        let state = test_state();
+        let email = "rotate@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "irrelevant-hash").expect("create user");
+            assert_eq!(db.get_token_version(email).expect("version"), 0);
+        }
+
+        let old_token = session_jwt(email, SECRET, 0).expect("mint");
+        extract(&state, &old_token).await.expect("valid before the change");
+
+        {
+            let db = state.db.lock().await;
+            db.update_password_hash(email, "new-hash").expect("change password");
+            assert_eq!(
+                db.get_token_version(email).expect("version"),
+                1,
+                "the hash and the version must move together"
+            );
+        }
+        // The handler clears the cache; do the same here.
+        rate_limit::clear_user_cache(&state.usage_counter, email);
+
+        assert_eq!(
+            extract(&state, &old_token).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "a token minted before the change must be refused"
+        );
+
+        let new_token = session_jwt(email, SECRET, 1).expect("mint");
+        extract(&state, &new_token).await.expect("a fresh token works");
+    }
+
+    /// The cache is the hazard. A plan change already clears the entry; a
+    /// password change must too, or the pre change version keeps being served
+    /// and the invalidation does nothing at all.
+    #[tokio::test]
+    async fn a_stale_cache_entry_would_defeat_the_invalidation() {
+        let state = test_state();
+        let email = "stale@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "irrelevant-hash").expect("create user");
+        }
+
+        let old_token = session_jwt(email, SECRET, 0).expect("mint");
+        extract(&state, &old_token).await.expect("valid, and now cached");
+        assert!(
+            state.usage_counter.get(email).is_some(),
+            "the lookup must have cached the version"
+        );
+
+        {
+            let db = state.db.lock().await;
+            db.update_password_hash(email, "new-hash").expect("change password");
+        }
+
+        // Deliberately skip clear_user_cache to show what it is preventing.
+        extract(&state, &old_token)
+            .await
+            .expect("the stale cache still accepts the old token");
+
+        // Clearing it, as both password paths do, closes the hole.
+        rate_limit::clear_user_cache(&state.usage_counter, email);
+        assert_eq!(
+            extract(&state, &old_token).await.err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
+    }
+
     /// A token signed with a different secret must fail whatever its audience.
     #[tokio::test]
     async fn a_foreign_signature_is_rejected() {
-        let token = session_jwt("user@example.com", "some-other-secret").expect("mint");
+        let token = session_jwt("user@example.com", "some-other-secret", 0).expect("mint");
         let state = test_state();
         assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
     }

@@ -324,6 +324,10 @@ const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-s
 /// Identifier for the one-shot removal of the observed_at indexes.
 const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-indexes";
 
+/// Adds `users.token_version`, the counter that lets a password change or reset
+/// invalidate sessions that were issued before it.
+const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -436,6 +440,7 @@ impl Store {
             "ALTER TABLE users ADD COLUMN totp_secret TEXT",
             "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'password'",
+            "ALTER TABLE users ADD COLUMN token_version BIGINT DEFAULT 0",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -501,6 +506,23 @@ impl Store {
                 params![DROP_OBSERVED_AT_INDEXES_MIGRATION, now()],
             )?;
             info!("dropped observed_at indexes");
+        }
+
+        // token_version is added by the ALTER list above, which DuckDB fills
+        // with the default for existing rows. This records that the step ran so
+        // the migration history names every schema change, not just the ones
+        // that also move data.
+        let token_version_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![TOKEN_VERSION_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if token_version_applied == 0 {
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![TOKEN_VERSION_MIGRATION, now()],
+            )?;
+            info!("added users.token_version");
         }
 
         // Backfill observed_at. The three upstream time_tag formats (bare,
@@ -1504,12 +1526,28 @@ impl Store {
         }
     }
 
+    /// Sets a new password and invalidates every session issued before it, in
+    /// one statement so the two cannot be applied separately.
     pub fn update_password_hash(&self, email: &str, new_hash: &str) -> Result<(), DbError> {
         self.conn.execute(
-            "UPDATE users SET password_hash = ? WHERE email = ?",
+            "UPDATE users SET password_hash = ?, token_version = COALESCE(token_version, 0) + 1              WHERE email = ?",
             params![new_hash, email],
         )?;
         Ok(())
+    }
+
+    /// Current token version for an account. A missing account reads as 0, which
+    /// no valid token can match because the extractor also checks the account
+    /// exists via its plan lookup.
+    pub fn get_token_version(&self, email: &str) -> Result<i64, DbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT COALESCE(token_version, 0) FROM users WHERE email = ?",
+                params![email],
+                |row| row.get(0),
+            )
+            .unwrap_or(0))
     }
 
     pub fn update_user_plan(&self, email: &str, plan: &str) -> Result<(), DbError> {
@@ -3451,3 +3489,4 @@ mod tests {
         assert_eq!(got, 1_778_471_220);
     }
 }
+

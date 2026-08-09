@@ -980,7 +980,7 @@ pub(crate) fn self_serve_plan_change_enabled() -> bool {
 /// below and its environment flag are then deleted, and nothing else moves.
 async fn apply_plan_change(s: &AppState, email: &str, plan: String) -> Result<(), crate::db::DbError> {
     s.writer.update_user_plan(email.to_string(), plan).await?;
-    s.usage_counter.remove(email);
+    crate::rate_limit::clear_user_cache(&s.usage_counter, email);
     Ok(())
 }
 
@@ -1557,7 +1557,7 @@ mod mcp_tests {
     #[tokio::test]
     async fn mcp_accepts_a_session_token() {
         let state = test_state();
-        let token = session_jwt("user@example.com", SECRET).expect("mint");
+        let token = session_jwt("user@example.com", SECRET, 0).expect("mint");
         for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
             let v = call_tool(&state, tool, Some(&token)).await;
             assert!(!is_auth_error(&v), "{tool} must accept a session token, got {v}");
