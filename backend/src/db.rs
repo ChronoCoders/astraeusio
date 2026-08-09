@@ -271,6 +271,10 @@ pub struct SeriesFreshness {
     /// Name this series reports under on the status page.
     pub component: &'static str,
     pub table: &'static str,
+    /// Column holding the observation time as Unix seconds. The NOAA series
+    /// derive `observed_at` from an ISO text `time_tag`; `iss_position` is
+    /// already keyed on an epoch, so it has no such column.
+    pub time_column: &'static str,
     pub max_age_secs: i64,
 }
 
@@ -281,30 +285,35 @@ pub struct SeriesFreshness {
 /// existed, the imf feed was dead for forty days while the charts kept drawing
 /// its last day of data and the status page stayed green, because one Kp query
 /// stood in for the whole of NOAA.
-pub const SERIES_FRESHNESS: [SeriesFreshness; 6] = [
+pub const SERIES_FRESHNESS: [SeriesFreshness; 7] = [
     SeriesFreshness {
         component: "noaa_kp",
         table: "kp",
+        time_column: "observed_at",
         max_age_secs: 1_800,
     },
     SeriesFreshness {
         component: "noaa_kp_3h",
         table: "kp_3h",
+        time_column: "observed_at",
         max_age_secs: 21_600,
     },
     SeriesFreshness {
         component: "noaa_solar_wind",
         table: "solar_wind",
+        time_column: "observed_at",
         max_age_secs: 1_800,
     },
     SeriesFreshness {
         component: "noaa_xray",
         table: "xray",
+        time_column: "observed_at",
         max_age_secs: 1_800,
     },
     SeriesFreshness {
         component: "noaa_imf",
         table: "imf",
+        time_column: "observed_at",
         max_age_secs: 1_800,
     },
     // Kyoto publishes provisional Dst a day or more after the hour it covers,
@@ -312,8 +321,18 @@ pub const SERIES_FRESHNESS: [SeriesFreshness; 6] = [
     // wrong. 36 hours is the smallest limit that clears the normal lag.
     SeriesFreshness {
         component: "noaa_dst",
+        time_column: "observed_at",
         table: "dst",
         max_age_secs: 129_600,
+    },
+    // The ISS poll runs every five seconds, so anything older than five minutes
+    // means the feed has stopped. Without an entry here a frozen position drew
+    // the station parked at one point with nothing saying it was stale.
+    SeriesFreshness {
+        component: "iss",
+        table: "iss_position",
+        time_column: "ts",
+        max_age_secs: 300,
     },
 ];
 
@@ -1075,7 +1094,11 @@ impl Store {
     ///
     /// `table` always comes from SERIES_FRESHNESS, never from a request.
     fn newest_observation(&self, table: &str) -> Result<Option<i64>, DbError> {
-        let sql = format!("SELECT MAX(observed_at) FROM {table}");
+        let Some(series) = SERIES_FRESHNESS.iter().find(|s| s.table == table) else {
+            return Ok(None);
+        };
+        // Both identifiers come from SERIES_FRESHNESS, never from a request.
+        let sql = format!("SELECT MAX({}) FROM {table}", series.time_column);
         Ok(self.conn.query_row(&sql, [], |row| row.get(0))?)
     }
 
@@ -1336,7 +1359,13 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Latest ISS position, or null when the feed has stopped. A stale fix is
+    /// worse than none: it draws the station parked at one point with nothing
+    /// indicating the position is old.
     pub fn get_iss_latest(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("iss_position")? {
+            return Ok(serde_json::Value::Null);
+        }
         let mut stmt = self.conn.prepare(
             "SELECT ts, lat_e6, lon_e6, altitude_m, velocity_m_h FROM iss_position \
              ORDER BY ts DESC LIMIT 1",
@@ -3084,6 +3113,52 @@ mod tests {
         let store = mem_store();
         assert_eq!(store.get_imf_recent().unwrap().as_array().unwrap().len(), 0);
         assert_eq!(store.get_dst_recent().unwrap().as_array().unwrap().len(), 0);
+    }
+
+    /// The ISS feed polls every five seconds, so a stale fix means it stopped.
+    /// Drawing the last known position with nothing marking it old put the
+    /// station parked at one point on the map.
+    #[test]
+    fn a_stale_iss_position_reads_as_empty() {
+        let store = mem_store();
+        let fix = |ts: i64| crate::iss::IssPosition {
+            latitude: 15.4372,
+            longitude: 37.6327,
+            altitude: 420.0,
+            velocity: 27_600.0,
+            timestamp: ts,
+        };
+
+        assert!(store.get_iss_latest().expect("empty table").is_null());
+
+        store.insert_iss_position(&fix(now() - 3_600)).expect("insert stale");
+        assert!(
+            store.get_iss_latest().expect("stale").is_null(),
+            "an hour old fix must not be served as the current position"
+        );
+
+        store.insert_iss_position(&fix(now() - 5)).expect("insert current");
+        let v = store.get_iss_latest().expect("current");
+        assert!(!v.is_null(), "a current fix must be served");
+        assert!((v["latitude"].as_f64().expect("lat") - 15.4372).abs() < 1e-5);
+    }
+
+    /// Freshness reads whichever column holds the observation time. The NOAA
+    /// series derive `observed_at`; `iss_position` is already keyed on an epoch.
+    #[test]
+    fn every_series_names_the_column_holding_its_observation_time() {
+        let store = mem_store();
+        for series in SERIES_FRESHNESS {
+            store
+                .newest_observation(series.table)
+                .unwrap_or_else(|e| panic!("{} on {}: {e}", series.time_column, series.table));
+        }
+        let iss = SERIES_FRESHNESS
+            .iter()
+            .find(|s| s.table == "iss_position")
+            .expect("iss_position has a freshness entry");
+        assert_eq!(iss.time_column, "ts");
+        assert_eq!(iss.component, "iss");
     }
 
     /// One live series must not cover for a dead one. The status page read a

@@ -444,6 +444,7 @@
     "noaaXray": "X-ray flux",
     "noaaImf": "Magnetic field",
     "noaaDst": "Dst index",
+    "iss": "ISS position",
     "nasa": "NASA Data",
     "nasaDesc": "APOD, NEO, EPIC · 30-min poll",
     "celestrak": "Satellite Data",

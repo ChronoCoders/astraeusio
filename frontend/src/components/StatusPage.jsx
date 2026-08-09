@@ -94,6 +94,7 @@ export default function StatusPage({ onSignIn }) {
     { nameKey: 'status.noaaXray',      key: 'noaa_xray',       status: error ? 'unknown': (c.noaa_xray?.status       ?? 'unknown'), lastUpdate: c.noaa_xray?.last_update       },
     { nameKey: 'status.noaaImf',       key: 'noaa_imf',        status: error ? 'unknown': (c.noaa_imf?.status        ?? 'unknown'), lastUpdate: c.noaa_imf?.last_update        },
     { nameKey: 'status.noaaDst',       key: 'noaa_dst',        status: error ? 'unknown': (c.noaa_dst?.status        ?? 'unknown'), lastUpdate: c.noaa_dst?.last_update        },
+    { nameKey: 'status.iss',           key: 'iss',             status: error ? 'unknown': (c.iss?.status             ?? 'unknown'), lastUpdate: c.iss?.last_update            },
     { nameKey: 'status.nasa',        key: 'nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
     { nameKey: 'status.celestrak',   key: 'celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
   ]

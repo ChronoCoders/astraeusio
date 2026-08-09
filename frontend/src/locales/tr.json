@@ -395,6 +395,7 @@
     "noaaXray": "X-ışını akısı",
     "noaaImf": "Manyetik alan",
     "noaaDst": "Dst indeksi",
+    "iss": "İSS konumu",
     "nasa": "NASA Verisi",
     "nasaDesc": "APOD, NEO, EPIC · 30 dk. yoklama",
     "celestrak": "Uydu Verisi",
