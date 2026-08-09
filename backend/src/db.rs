@@ -23,6 +23,14 @@ pub enum DbError {
     KeyNotFound,
     #[error("insufficient Kp history: have {have} three-hour readings, need {need}")]
     InsufficientHistory { have: usize, need: usize },
+    /// The message reaches the reader as the body of the failed forecast, so it
+    /// says what happened rather than naming the table. `series` and
+    /// `newest_observed_at` are for the log line.
+    #[error("Kp history is not up to date. The forecast will return when new readings arrive.")]
+    StaleSeries {
+        series: &'static str,
+        newest_observed_at: Option<i64>,
+    },
     #[error("writer channel closed")]
     WriterClosed,
 }
@@ -994,7 +1002,19 @@ impl Store {
     /// three-hour period. Errors rather than returning a short vector, because
     /// a short sequence would be silently padded by the ML service and produce
     /// a forecast from mostly synthetic input.
+    ///
+    /// Stale input fails on the same footing. A full window of readings that
+    /// stopped arriving weeks ago still yields a forecast that reads as current,
+    /// which is the same wrong answer by a different route. The limit is the one
+    /// SERIES_FRESHNESS already holds for this series, so the model, the chart
+    /// and the status page all agree on when kp_3h has gone quiet.
     pub fn get_recent_kp_3h(&self, n: usize) -> Result<Vec<f64>, DbError> {
+        if !self.series_is_current("kp_3h")? {
+            return Err(DbError::StaleSeries {
+                series: "kp_3h",
+                newest_observed_at: self.newest_observation("kp_3h")?,
+            });
+        }
         let mut stmt = self
             .conn
             .prepare("SELECT kp_e2 FROM kp_3h ORDER BY observed_at DESC LIMIT ?")?;
@@ -3271,13 +3291,95 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A full window of stale readings must fail, not forecast. The model would
+    /// otherwise take readings that stopped arriving weeks ago and return a
+    /// prediction that reads as current.
+    #[test]
+    fn stale_kp_3h_history_errors_instead_of_forecasting_from_old_readings() {
+        let store = mem_store();
+        let seq_len = 16;
+
+        // A complete window, but it ends forty days ago.
+        let frozen = now() - 40 * 86_400;
+        let stale: Vec<Kp3hRecord> = (0..seq_len)
+            .map(|i| Kp3hRecord {
+                time_tag: iso(frozen + i as i64 * 10_800),
+                kp: 3.0,
+            })
+            .collect();
+        store.insert_kp_3h_batch(&stale).unwrap();
+
+        match store.get_recent_kp_3h(seq_len) {
+            Err(DbError::StaleSeries {
+                series,
+                newest_observed_at,
+            }) => {
+                assert_eq!(series, "kp_3h");
+                assert_eq!(
+                    newest_observed_at,
+                    Some(frozen + (seq_len as i64 - 1) * 10_800)
+                );
+            }
+            other => panic!("expected StaleSeries, got {other:?}"),
+        }
+
+        // A current window of the same length forecasts normally.
+        let fresh_base = now() - (seq_len as i64 - 1) * 10_800;
+        let fresh: Vec<Kp3hRecord> = (0..seq_len)
+            .map(|i| Kp3hRecord {
+                time_tag: iso(fresh_base + i as i64 * 10_800),
+                kp: 4.5,
+            })
+            .collect();
+        store.insert_kp_3h_batch(&fresh).unwrap();
+
+        let seq = store
+            .get_recent_kp_3h(seq_len)
+            .expect("a current window still yields a sequence");
+        assert_eq!(seq.len(), seq_len);
+        assert!((seq[seq_len - 1] - 4.5).abs() < 1e-9);
+    }
+
+    /// Staleness is measured against the limit SERIES_FRESHNESS already holds
+    /// for this series, so there is only ever one number to change.
+    #[test]
+    fn stale_kp_3h_uses_the_shared_series_limit() {
+        let limit = SERIES_FRESHNESS
+            .iter()
+            .find(|s| s.table == "kp_3h")
+            .map(|s| s.max_age_secs)
+            .expect("kp_3h has a freshness limit");
+
+        let seq_len = 8;
+        let build = |newest_age: i64| {
+            let store = mem_store();
+            let base = now() - newest_age - (seq_len as i64 - 1) * 10_800;
+            let rows: Vec<Kp3hRecord> = (0..seq_len)
+                .map(|i| Kp3hRecord {
+                    time_tag: iso(base + i as i64 * 10_800),
+                    kp: 3.0,
+                })
+                .collect();
+            store.insert_kp_3h_batch(&rows).unwrap();
+            store.get_recent_kp_3h(seq_len)
+        };
+
+        assert!(build(limit - 60).is_ok(), "inside the limit must forecast");
+        assert!(
+            matches!(build(limit + 60), Err(DbError::StaleSeries { .. })),
+            "past the limit must be the staleness error"
+        );
+    }
+
     /// A short history must be an error, never a short vector: the ML service
     /// would pad the shortfall and forecast from mostly synthetic input.
     #[test]
     fn short_kp_3h_history_errors_instead_of_returning_a_short_sequence() {
         let store = mem_store();
-        let base = 1_700_000_000_i64;
         let seq_len = 16;
+        // Ends at the current period, so this test sees the short history error
+        // and not the staleness error.
+        let base = now() - (seq_len as i64 - 1) * 10_800;
 
         let short: Vec<Kp3hRecord> = (0..seq_len - 1)
             .map(|i| Kp3hRecord {
