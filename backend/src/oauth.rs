@@ -293,7 +293,9 @@ pub async fn callback(
             }
         }
     } else {
-        match auth::session_jwt(&email, &s.jwt_secret) {
+        let version =
+            crate::rate_limit::resolve_token_version(&s.usage_counter, &s.db, &email).await;
+        match auth::session_jwt(&email, &s.jwt_secret, version) {
             Ok(t) => frontend_redirect(&app_url, &format!("token={t}")),
             Err(e) => {
                 warn!("oauth jwt error: {e}");

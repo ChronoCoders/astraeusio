@@ -14,6 +14,9 @@ pub struct UsageEntry {
     pub count: u64,
     pub period_start: i64,
     pub plan: String,
+    /// Cached `users.token_version`. Anything that invalidates sessions must
+    /// remove the whole entry, or a stale value here defeats the check.
+    pub token_version: i64,
 }
 
 pub type UsageCounter = DashMap<String, UsageEntry>;
@@ -110,6 +113,7 @@ pub async fn check_and_increment(
             count: 0,
             period_start: p_start,
             plan: plan.clone(),
+            token_version: 0,
         });
 
     // Reset if an existing entry belongs to a prior period.
@@ -250,6 +254,49 @@ pub fn too_many_attempts_response(retry_after_secs: u64) -> Response {
         })),
     )
         .into_response()
+}
+
+// ── Token version cache ───────────────────────────────────────────────────────
+
+/// Current token version for an account, cached beside the plan.
+///
+/// The cache is what makes the per request check cheap, and it is also the
+/// hazard: any path that invalidates sessions must call `clear_user_cache`, or
+/// this keeps handing back the pre change value and the invalidation does
+/// nothing. `update_user_plan` already clears it; `change_password` and
+/// `reset_password` must too.
+pub async fn resolve_token_version(
+    counter: &Arc<UsageCounter>,
+    db: &Arc<Mutex<Store>>,
+    email: &str,
+) -> i64 {
+    if let Some(entry) = counter.get(email) {
+        return entry.token_version;
+    }
+    let (version, plan) = {
+        let guard = db.lock().await;
+        (
+            guard.get_token_version(email).unwrap_or(0),
+            guard
+                .get_user_plan(email)
+                .unwrap_or_else(|_| "free".to_string()),
+        )
+    };
+    let now_ts = chrono::Utc::now().timestamp();
+    let p_start = current_period_start(&plan, now_ts);
+    counter.entry(email.to_string()).or_insert(UsageEntry {
+        count: 0,
+        period_start: p_start,
+        plan,
+        token_version: version,
+    });
+    version
+}
+
+/// Drops the cached plan and token version for an account. Call after anything
+/// that changes either.
+pub fn clear_user_cache(counter: &Arc<UsageCounter>, email: &str) {
+    counter.remove(email);
 }
 
 #[cfg(test)]
