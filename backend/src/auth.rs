@@ -358,12 +358,24 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
         }
     };
 
-    let Some(ref secret) = user.totp_secret else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "2FA not configured" })),
-        )
-            .into_response();
+    // The stored secret is encrypted, so reading it needs the key.
+    let secret = match s.db.lock().await.totp_secret(&user) {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "2FA not configured" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!(source = "auth/2fa", "could not read second factor: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
     };
 
     // A six digit code has about three valid values at any moment out of a
@@ -374,7 +386,7 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
         return rate_limit::too_many_attempts_response(wait);
     }
 
-    match check_totp(secret, &email, &body.code) {
+    match check_totp(&secret, &email, &body.code) {
         Ok(true) => {
             rate_limit::clear_failures(&s.login_failures, &email);
             issue_jwt(&s, &email).await
@@ -565,6 +577,23 @@ pub async fn setup_2fa(State(s): State<AppState>, claims: AuthClaims) -> Respons
         .set_totp_secret(claims.sub, secret_b32.clone())
         .await
     {
+        // Without a key the secret cannot be stored encrypted, and storing it
+        // in the clear is the thing this change exists to stop. Refuse, and say
+        // so plainly rather than reporting an internal error.
+        if matches!(e, DbError::EncryptionUnavailable) {
+            warn!(
+                source = "auth/2fa",
+                "refusing 2FA setup: TOTP_ENCRYPTION_KEY is not configured"
+            );
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "error": "totp_unavailable",
+                    "message": "Two factor sign in is not available yet. Contact support.",
+                })),
+            )
+                .into_response();
+        }
         warn!("set_totp_secret: {e}");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -604,15 +633,27 @@ pub async fn verify_2fa(
             .into_response();
     }
 
-    let Some(ref secret) = user.totp_secret else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "2FA setup not initiated" })),
-        )
-            .into_response();
+    // The stored secret is encrypted, so reading it needs the key.
+    let secret = match s.db.lock().await.totp_secret(&user) {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "2FA setup not initiated" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!(source = "auth/2fa", "could not read second factor: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
     };
 
-    match check_totp(secret, &claims.sub, &body.code) {
+    match check_totp(&secret, &claims.sub, &body.code) {
         Ok(true) => {}
         Ok(false) => {
             return (
@@ -667,15 +708,27 @@ pub async fn disable_2fa(
             .into_response();
     }
 
-    let Some(ref secret) = user.totp_secret else {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": "internal error" })),
-        )
-            .into_response();
+    // The stored secret is encrypted, so reading it needs the key.
+    let secret = match s.db.lock().await.totp_secret(&user) {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            warn!(source = "auth/2fa", "could not read second factor: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
     };
 
-    match check_totp(secret, &claims.sub, &body.code) {
+    match check_totp(&secret, &claims.sub, &body.code) {
         Ok(true) => {}
         Ok(false) => {
             return (

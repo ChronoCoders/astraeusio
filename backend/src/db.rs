@@ -21,6 +21,18 @@ pub enum DbError {
     EmailTaken,
     #[error("api key not found")]
     KeyNotFound,
+    #[error("{0}")]
+    EncryptionKey(#[from] crate::secretbox::KeyError),
+    #[error(
+        "TOTP_ENCRYPTION_KEY is not set but {count} account(s) have an encrypted second factor.          Refusing to start: without the key those accounts cannot sign in, and 2FA could be          silently turned off underneath them. Set the key, or clear totp_enabled and          totp_secret_enc for those accounts to disable 2FA deliberately."
+    )]
+    EncryptionKeyMissing { count: i64 },
+    #[error(
+        "TOTP_ENCRYPTION_KEY does not decrypt the stored second factors. Refusing to start:          this is the wrong key, not a missing one. Restore the original key."
+    )]
+    EncryptionKeyWrong,
+    #[error("second factor storage is not available")]
+    EncryptionUnavailable,
     #[error("insufficient Kp history: have {have} three-hour readings, need {need}")]
     InsufficientHistory { have: usize, need: usize },
     /// The message reaches the reader as the body of the failed forecast, so it
@@ -355,6 +367,11 @@ const API_KEY_LIFECYCLE_MIGRATION: &str = "2026-08-api-keys-lifecycle";
 /// written by a custom rule. NULL means the anomaly is global.
 const ANOMALY_OWNER_MIGRATION: &str = "2026-08-alerts-anomaly-user-email";
 
+/// Moves TOTP secrets from a plaintext column to an encrypted one and drops the
+/// plaintext column. A column that sometimes holds a plaintext bearer credential
+/// is the ambiguity that causes the next leak.
+const TOTP_ENCRYPTION_MIGRATION: &str = "2026-08-encrypt-totp-secrets";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -454,6 +471,9 @@ fn row_group_stats(conn: &Connection, table: &str) -> String {
 
 pub struct Store {
     conn: Connection,
+    /// None when no key is configured, which is allowed only while no account
+    /// has an encrypted second factor. `Store::open` enforces that.
+    secret_box: Option<crate::secretbox::SecretBox>,
 }
 
 impl Store {
@@ -471,6 +491,7 @@ impl Store {
             "ALTER TABLE api_keys ADD COLUMN expires_at BIGINT",
             "ALTER TABLE api_keys ADD COLUMN revoked_at BIGINT",
             "ALTER TABLE alerts_anomaly ADD COLUMN user_email TEXT",
+            "ALTER TABLE users ADD COLUMN totp_secret_enc TEXT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -615,7 +636,83 @@ impl Store {
 
         self_check_observed_at(&conn);
 
-        Ok(Self { conn })
+        // ── Second factor encryption ──────────────────────────────
+        //
+        // Four states, and two of them refuse to start. A missing or wrong key
+        // means every enrolled account is locked out either way; starting would
+        // turn that into logins failing one at a time, and disable_2fa would
+        // appear to work while login_2fa failed, quietly pushing users off their
+        // second factor. Refusing is loud and is fixed by supplying the key.
+        let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_default();
+        let secret_box = crate::secretbox::SecretBox::from_env(&jwt_secret)?;
+
+        let totp_encryption_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![TOTP_ENCRYPTION_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if totp_encryption_applied == 0 {
+            let plaintext: Vec<(String, String)> = {
+                let mut stmt = conn.prepare(
+                    "SELECT email, totp_secret FROM users WHERE totp_secret IS NOT NULL",
+                )?;
+                stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            if !plaintext.is_empty() {
+                let Some(ref sb) = secret_box else {
+                    return Err(DbError::EncryptionKeyMissing {
+                        count: plaintext.len() as i64,
+                    });
+                };
+                for (email, secret) in &plaintext {
+                    let sealed = sb.seal(secret).map_err(|_| DbError::EncryptionUnavailable)?;
+                    conn.execute(
+                        "UPDATE users SET totp_secret_enc = ? WHERE email = ?",
+                        params![sealed, email],
+                    )?;
+                }
+            }
+            conn.execute_batch("ALTER TABLE users DROP COLUMN IF EXISTS totp_secret")?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![TOTP_ENCRYPTION_MIGRATION, now()],
+            )?;
+            info!(
+                migrated = plaintext.len(),
+                "encrypted stored TOTP secrets and dropped the plaintext column"
+            );
+        }
+
+        let enrolled: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM users WHERE totp_secret_enc IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        match (&secret_box, enrolled) {
+            (None, 0) => warn!(
+                "TOTP_ENCRYPTION_KEY is not set. No account has a second factor, so this is \
+                 allowed, but enabling 2FA will be refused until a key is configured."
+            ),
+            (None, count) => return Err(DbError::EncryptionKeyMissing { count }),
+            (Some(sb), count) if count > 0 => {
+                // A wrong key is as damaging as a missing one and far more
+                // likely, through a copy paste error or a restore from the wrong
+                // environment. It is only detectable by trying.
+                let sample: String = conn.query_row(
+                    "SELECT totp_secret_enc FROM users WHERE totp_secret_enc IS NOT NULL LIMIT 1",
+                    [],
+                    |row| row.get(0),
+                )?;
+                if sb.open(&sample).is_err() {
+                    return Err(DbError::EncryptionKeyWrong);
+                }
+                info!(enrolled = count, "second factor encryption key verified");
+            }
+            (Some(_), _) => {}
+        }
+
+        Ok(Self { conn, secret_box })
     }
 
     pub fn begin(&self) -> Result<(), DbError> {
@@ -635,6 +732,9 @@ impl Store {
     pub fn try_clone(&self) -> Result<Self, DbError> {
         Ok(Self {
             conn: self.conn.try_clone()?,
+            secret_box: crate::secretbox::SecretBox::from_env(
+                &std::env::var("JWT_SECRET").unwrap_or_default(),
+            )?,
         })
     }
 }
@@ -1570,7 +1670,9 @@ pub struct User {
     pub email: String,
     pub password_hash: String,
     pub email_verified: bool,
-    pub totp_secret: Option<String>,
+    /// Encrypted, in the `v1:{nonce}:{ciphertext}` form. Use `totp_secret` to
+    /// read the plaintext; the raw value is never usable directly.
+    pub totp_secret_enc: Option<String>,
     pub totp_enabled: bool,
 }
 
@@ -1637,7 +1739,7 @@ impl Store {
 
     pub fn find_user_by_email(&self, email: &str) -> Result<Option<User>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT email, password_hash, email_verified, totp_secret, totp_enabled \
+            "SELECT email, password_hash, email_verified, totp_secret_enc, totp_enabled \
              FROM users WHERE email = ?",
         )?;
         let mut rows = stmt.query([email])?;
@@ -1646,7 +1748,7 @@ impl Store {
                 email: row.get(0)?,
                 password_hash: row.get(1)?,
                 email_verified: row.get::<_, Option<bool>>(2)?.unwrap_or(false),
-                totp_secret: row.get(3)?,
+                totp_secret_enc: row.get(3)?,
                 totp_enabled: row.get::<_, Option<bool>>(4)?.unwrap_or(false),
             }))
         } else {
@@ -2527,10 +2629,29 @@ impl Store {
         Ok(())
     }
 
+    /// Decrypts a stored second factor. None when the account has none.
+    pub fn totp_secret(&self, user: &User) -> Result<Option<String>, DbError> {
+        let Some(ref sealed) = user.totp_secret_enc else {
+            return Ok(None);
+        };
+        let Some(ref sb) = self.secret_box else {
+            return Err(DbError::EncryptionUnavailable);
+        };
+        sb.open(sealed)
+            .map(Some)
+            .map_err(|_| DbError::EncryptionKeyWrong)
+    }
+
+    /// Stores an encrypted second factor. Fails when no key is configured, so
+    /// a secret is never written in the clear.
     pub fn set_totp_secret(&self, email: &str, secret: &str) -> Result<(), DbError> {
+        let Some(ref sb) = self.secret_box else {
+            return Err(DbError::EncryptionUnavailable);
+        };
+        let sealed = sb.seal(secret).map_err(|_| DbError::EncryptionUnavailable)?;
         self.conn.execute(
-            "UPDATE users SET totp_secret = ? WHERE email = ?",
-            params![secret, email],
+            "UPDATE users SET totp_secret_enc = ? WHERE email = ?",
+            params![sealed, email],
         )?;
         Ok(())
     }
@@ -2545,7 +2666,7 @@ impl Store {
 
     pub fn disable_totp(&self, email: &str) -> Result<(), DbError> {
         self.conn.execute(
-            "UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE email = ?",
+            "UPDATE users SET totp_secret_enc = NULL, totp_enabled = FALSE WHERE email = ?",
             params![email],
         )?;
         Ok(())
@@ -3285,6 +3406,84 @@ mod tests {
         // Own rows are capped separately, so the response stays bounded.
         let own = rows.iter().filter(|v| v["message"] == "noise").count();
         assert_eq!(own, 50, "own anomalies are windowed at 50, got {own}");
+    }
+
+    /// A stored second factor must not be readable from the row itself. The
+    /// whole point is that a database dump does not hand over 2FA alongside the
+    /// password hashes it sits next to.
+    #[test]
+    fn a_stored_second_factor_is_encrypted_at_rest() {
+        let key = "1".repeat(64);
+        // SAFETY: single threaded test.
+        unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", &key) };
+        let store = mem_store();
+        store.create_user("tot@example.com", "hash").expect("user");
+        store
+            .set_totp_secret("tot@example.com", "JBSWY3DPEHPK3PXP")
+            .expect("store secret");
+
+        let raw: String = store
+            .conn
+            .query_row(
+                "SELECT totp_secret_enc FROM users WHERE email = ?",
+                params!["tot@example.com"],
+                |r| r.get(0),
+            )
+            .expect("raw column");
+        assert!(raw.starts_with("v1:"), "stored as {raw}");
+        assert!(
+            !raw.contains("JBSWY3DPEHPK3PXP"),
+            "the plaintext secret must not be in the row"
+        );
+
+        let user = store
+            .find_user_by_email("tot@example.com")
+            .expect("lookup")
+            .expect("user exists");
+        assert_eq!(
+            store.totp_secret(&user).expect("decrypt"),
+            Some("JBSWY3DPEHPK3PXP".to_string())
+        );
+
+        // Clearing removes it entirely.
+        store.disable_totp("tot@example.com").expect("clear");
+        let user = store
+            .find_user_by_email("tot@example.com")
+            .expect("lookup")
+            .expect("user exists");
+        assert_eq!(store.totp_secret(&user).expect("decrypt"), None);
+        unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
+    }
+
+    /// With no key configured, enrolling must fail rather than fall back to
+    /// storing the secret in the clear.
+    #[test]
+    fn without_a_key_a_second_factor_cannot_be_stored() {
+        // SAFETY: single threaded test.
+        unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
+        let store = mem_store();
+        store.create_user("nokey@example.com", "hash").expect("user");
+        assert!(matches!(
+            store.set_totp_secret("nokey@example.com", "JBSWY3DPEHPK3PXP"),
+            Err(DbError::EncryptionUnavailable)
+        ));
+    }
+
+    /// The plaintext column is gone, so there is no place left for a secret to
+    /// be written unencrypted by mistake.
+    #[test]
+    fn the_plaintext_totp_column_no_longer_exists() {
+        let store = mem_store();
+        let n: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM information_schema.columns \
+                 WHERE table_name = 'users' AND column_name = 'totp_secret'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("column lookup");
+        assert_eq!(n, 0, "users.totp_secret must have been dropped");
     }
 
     /// One live series must not cover for a dead one. The status page read a

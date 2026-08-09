@@ -14,6 +14,7 @@ mod plan;
 mod poller;
 mod rate_limit;
 mod routes;
+mod secretbox;
 mod starlink;
 mod webhook_sender;
 mod webhooks;
