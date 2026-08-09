@@ -105,9 +105,10 @@ pub enum WriteCmd {
         user_email: String,
         key_hash: String,
         name: String,
+        expires_at: Option<i64>,
         reply: oneshot::Sender<Result<(), DbError>>,
     },
-    DeleteApiKey {
+    RevokeApiKey {
         id: String,
         user_email: String,
         reply: oneshot::Sender<Result<bool, DbError>>,
@@ -214,6 +215,7 @@ impl DbWriterHandle {
         user_email: String,
         key_hash: String,
         name: String,
+        expires_at: Option<i64>,
     ) -> Result<(), DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
@@ -222,6 +224,7 @@ impl DbWriterHandle {
                 user_email,
                 key_hash,
                 name,
+                expires_at,
                 reply: tx,
             })
             .await
@@ -229,10 +232,10 @@ impl DbWriterHandle {
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
-    pub async fn delete_api_key(&self, id: String, user_email: String) -> Result<bool, DbError> {
+    pub async fn revoke_api_key(&self, id: String, user_email: String) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
-            .send(WriteCmd::DeleteApiKey {
+            .send(WriteCmd::RevokeApiKey {
                 id,
                 user_email,
                 reply: tx,
@@ -597,16 +600,17 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
             user_email,
             key_hash,
             name,
+            expires_at,
             reply,
         } => {
-            let _ = reply.send(db.create_api_key(&id, &user_email, &key_hash, &name));
+            let _ = reply.send(db.create_api_key(&id, &user_email, &key_hash, &name, expires_at));
         }
-        WriteCmd::DeleteApiKey {
+        WriteCmd::RevokeApiKey {
             id,
             user_email,
             reply,
         } => {
-            let _ = reply.send(db.delete_api_key(&id, &user_email));
+            let _ = reply.send(db.revoke_api_key(&id, &user_email));
         }
         WriteCmd::UpsertEmailAlert {
             id,

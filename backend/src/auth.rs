@@ -1263,7 +1263,7 @@ mod tests {
         let email = "apiuser@example.com";
         {
             let db = state.db.lock().await;
-            db.create_api_key("key-1", email, &sha256_hex(key), "test key")
+            db.create_api_key("key-1", email, &sha256_hex(key), "test key", None)
                 .expect("create key");
         }
 

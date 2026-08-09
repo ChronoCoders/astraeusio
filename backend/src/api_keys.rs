@@ -35,7 +35,17 @@ fn sha256_hex(input: &str) -> String {
 #[derive(Deserialize)]
 pub struct CreateKeyRequest {
     pub name: String,
+    /// Optional lifetime in days. Absent means the key does not expire, which
+    /// is what every key created before this existed does.
+    #[serde(default)]
+    pub expires_in_days: Option<u32>,
 }
+
+/// Active keys one account may hold. Revoking a key frees a slot.
+pub const MAX_KEYS_PER_USER: i64 = 10;
+
+/// Longest lifetime a caller may ask for.
+const MAX_EXPIRY_DAYS: u32 = 3650;
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -66,13 +76,55 @@ pub async fn create_api_key(
             .into_response();
     }
 
+    let expires_at = match body.expires_in_days {
+        None => None,
+        Some(days) if (1..=MAX_EXPIRY_DAYS).contains(&days) => {
+            Some(chrono::Utc::now().timestamp() + i64::from(days) * 86_400)
+        }
+        Some(_) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({
+                    "error": "invalid_expiry",
+                    "message": "Key lifetime must be between 1 and 3650 days.",
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    // Nothing capped how many keys an account could hold, so one account could
+    // mint an unbounded number of long lived credentials.
+    let active = match s.db.lock().await.count_active_api_keys(&claims.sub) {
+        Ok(n) => n,
+        Err(e) => {
+            warn!("count_active_api_keys error: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "internal error" })),
+            )
+                .into_response();
+        }
+    };
+    if active >= MAX_KEYS_PER_USER {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "key_limit_reached",
+                "limit": MAX_KEYS_PER_USER,
+                "message": "You have reached the limit of API keys. Revoke one to create another.",
+            })),
+        )
+            .into_response();
+    }
+
     let raw_key = generate_key();
     let key_hash = sha256_hex(&raw_key);
     let id = random_id();
 
     match s
         .writer
-        .create_api_key(id.clone(), claims.sub, key_hash, name.clone())
+        .create_api_key(id.clone(), claims.sub, key_hash, name.clone(), expires_at)
         .await
     {
         Ok(()) => (
@@ -81,6 +133,7 @@ pub async fn create_api_key(
                 "id":  id,
                 "key": raw_key,
                 "name": name,
+                "expires_at": expires_at,
             })),
         )
             .into_response(),
@@ -107,6 +160,8 @@ pub async fn list_api_keys(State(s): State<AppState>, claims: AuthClaims) -> Res
                         "created_at":    k.created_at,
                         "last_used_at":  k.last_used_at,
                         "request_count": k.request_count,
+                        "expires_at":    k.expires_at,
+                        "revoked_at":    k.revoked_at,
                     })
                 })
                 .collect();
@@ -128,7 +183,7 @@ pub async fn delete_api_key(
     claims: AuthClaims,
     Path(id): Path<String>,
 ) -> Response {
-    match s.writer.delete_api_key(id, claims.sub).await {
+    match s.writer.revoke_api_key(id, claims.sub).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => (
             StatusCode::NOT_FOUND,

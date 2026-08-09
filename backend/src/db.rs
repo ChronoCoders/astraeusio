@@ -328,6 +328,10 @@ const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-index
 /// invalidate sessions that were issued before it.
 const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
 
+/// Adds `api_keys.expires_at` and `api_keys.revoked_at`. Both nullable, so an
+/// existing key stays unexpiring and unrevoked, which is the behaviour it had.
+const API_KEY_LIFECYCLE_MIGRATION: &str = "2026-08-api-keys-lifecycle";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -441,6 +445,8 @@ impl Store {
             "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'password'",
             "ALTER TABLE users ADD COLUMN token_version BIGINT DEFAULT 0",
+            "ALTER TABLE api_keys ADD COLUMN expires_at BIGINT",
+            "ALTER TABLE api_keys ADD COLUMN revoked_at BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -523,6 +529,19 @@ impl Store {
                 params![TOKEN_VERSION_MIGRATION, now()],
             )?;
             info!("added users.token_version");
+        }
+
+        let api_key_lifecycle_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![API_KEY_LIFECYCLE_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if api_key_lifecycle_applied == 0 {
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![API_KEY_LIFECYCLE_MIGRATION, now()],
+            )?;
+            info!("added api_keys.expires_at and api_keys.revoked_at");
         }
 
         // Backfill observed_at. The three upstream time_tag formats (bare,
@@ -2319,6 +2338,8 @@ pub struct ApiKey {
     pub created_at: i64,
     pub last_used_at: Option<i64>,
     pub request_count: i64,
+    pub expires_at: Option<i64>,
+    pub revoked_at: Option<i64>,
 }
 
 impl Store {
@@ -2328,11 +2349,13 @@ impl Store {
         user_email: &str,
         key_hash: &str,
         name: &str,
+        expires_at: Option<i64>,
     ) -> Result<(), DbError> {
         let result = self.conn.execute(
-            "INSERT INTO api_keys (id, user_email, key_hash, name, created_at, request_count)
-             VALUES (?, ?, ?, ?, ?, 0)",
-            params![id, user_email, key_hash, name, now()],
+            "INSERT INTO api_keys
+                 (id, user_email, key_hash, name, created_at, request_count, expires_at)
+             VALUES (?, ?, ?, ?, ?, 0, ?)",
+            params![id, user_email, key_hash, name, now(), expires_at],
         );
         match result {
             Ok(_) => Ok(()),
@@ -2343,7 +2366,7 @@ impl Store {
 
     pub fn list_api_keys(&self, user_email: &str) -> Result<Vec<ApiKey>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, created_at, last_used_at, request_count \
+            "SELECT id, name, created_at, last_used_at, request_count, expires_at, revoked_at \
              FROM api_keys WHERE user_email = ? ORDER BY created_at DESC",
         )?;
         let rows = stmt
@@ -2354,6 +2377,8 @@ impl Store {
                     created_at: row.get(2)?,
                     last_used_at: row.get(3)?,
                     request_count: row.get(4)?,
+                    expires_at: row.get(5)?,
+                    revoked_at: row.get(6)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -2361,20 +2386,41 @@ impl Store {
     }
 
     /// Returns true if deleted, false if key not found for this user.
-    pub fn delete_api_key(&self, id: &str, user_email: &str) -> Result<bool, DbError> {
+    /// Revokes a key rather than deleting it, so its name and request count
+    /// survive as an audit trail. The lookup refuses revoked keys, so the effect
+    /// on a caller is the same as deletion was.
+    pub fn revoke_api_key(&self, id: &str, user_email: &str) -> Result<bool, DbError> {
         let n = self.conn.execute(
-            "DELETE FROM api_keys WHERE id = ? AND user_email = ?",
-            params![id, user_email],
+            "UPDATE api_keys SET revoked_at = ?
+             WHERE id = ? AND user_email = ? AND revoked_at IS NULL",
+            params![now(), id, user_email],
         )?;
         Ok(n > 0)
+    }
+
+    /// Keys an account can still use. Revoked and expired keys do not count, so
+    /// revoking one frees a slot under the cap.
+    pub fn count_active_api_keys(&self, user_email: &str) -> Result<i64, DbError> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM api_keys
+             WHERE user_email = ? AND revoked_at IS NULL
+               AND (expires_at IS NULL OR expires_at > ?)",
+            params![user_email, now()],
+            |row| row.get(0),
+        )?)
     }
 
     /// Returns the user_email for the given key hash, if it exists.
     pub fn find_api_key_by_hash(&self, key_hash: &str) -> Result<Option<String>, DbError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT user_email FROM api_keys WHERE key_hash = ? LIMIT 1")?;
-        let mut rows = stmt.query([key_hash])?;
+            .prepare(
+                "SELECT user_email FROM api_keys
+                 WHERE key_hash = ? AND revoked_at IS NULL
+                   AND (expires_at IS NULL OR expires_at > ?)
+                 LIMIT 1",
+            )?;
+        let mut rows = stmt.query(params![key_hash, now()])?;
         match rows.next()? {
             Some(row) => Ok(Some(row.get(0)?)),
             None => Ok(None),
@@ -2892,6 +2938,110 @@ mod tests {
         let v = |i: usize| kp[i]["estimated_kp"].as_f64().unwrap();
         assert!((v(0) - 2.33).abs() < 1e-9, "oldest first: {kp:?}");
         assert!((v(1) - 3.67).abs() < 1e-9);
+    }
+
+    /// A revoked key stops authenticating but keeps its row, so the name and
+    /// request count survive as an audit trail. Deleting the row destroyed both.
+    #[test]
+    fn a_revoked_key_stops_working_but_keeps_its_history() {
+        let store = mem_store();
+        store
+            .create_api_key("k1", "user@example.com", "hash-1", "laptop", None)
+            .expect("create");
+        assert_eq!(
+            store.find_api_key_by_hash("hash-1").expect("lookup"),
+            Some("user@example.com".to_string())
+        );
+
+        assert!(store.revoke_api_key("k1", "user@example.com").expect("revoke"));
+        assert_eq!(
+            store.find_api_key_by_hash("hash-1").expect("lookup"),
+            None,
+            "a revoked key must not authenticate"
+        );
+
+        let keys = store.list_api_keys("user@example.com").expect("list");
+        assert_eq!(keys.len(), 1, "the row must survive revocation");
+        assert_eq!(keys[0].name, "laptop");
+        assert!(keys[0].revoked_at.is_some());
+
+        // Revoking twice reports nothing further to do.
+        assert!(!store.revoke_api_key("k1", "user@example.com").expect("revoke again"));
+    }
+
+    /// One account must not be able to revoke another account's key.
+    #[test]
+    fn revocation_is_scoped_to_the_owner() {
+        let store = mem_store();
+        store
+            .create_api_key("k1", "owner@example.com", "hash-1", "key", None)
+            .expect("create");
+        assert!(!store.revoke_api_key("k1", "attacker@example.com").expect("revoke"));
+        assert_eq!(
+            store.find_api_key_by_hash("hash-1").expect("lookup"),
+            Some("owner@example.com".to_string()),
+            "the key must still work for its owner"
+        );
+    }
+
+    /// An expired key stops authenticating on its own, with no revocation.
+    #[test]
+    fn an_expired_key_stops_working() {
+        let store = mem_store();
+        let past = now() - 60;
+        let future = now() + 3_600;
+        store
+            .create_api_key("expired", "user@example.com", "hash-old", "old", Some(past))
+            .expect("create expired");
+        store
+            .create_api_key("live", "user@example.com", "hash-new", "new", Some(future))
+            .expect("create live");
+
+        assert_eq!(store.find_api_key_by_hash("hash-old").expect("lookup"), None);
+        assert_eq!(
+            store.find_api_key_by_hash("hash-new").expect("lookup"),
+            Some("user@example.com".to_string())
+        );
+        // A key with no expiry keeps working, which is every key made before this.
+        store
+            .create_api_key("forever", "user@example.com", "hash-forever", "old style", None)
+            .expect("create unexpiring");
+        assert_eq!(
+            store.find_api_key_by_hash("hash-forever").expect("lookup"),
+            Some("user@example.com".to_string())
+        );
+    }
+
+    /// The cap counts only keys that can still be used, so revoking or letting
+    /// one expire frees a slot.
+    #[test]
+    fn the_active_key_count_ignores_revoked_and_expired_keys() {
+        let store = mem_store();
+        let email = "counter@example.com";
+        for i in 0..3 {
+            store
+                .create_api_key(&format!("k{i}"), email, &format!("h{i}"), "key", None)
+                .expect("create");
+        }
+        assert_eq!(store.count_active_api_keys(email).expect("count"), 3);
+
+        store.revoke_api_key("k0", email).expect("revoke");
+        assert_eq!(store.count_active_api_keys(email).expect("count"), 2);
+
+        store
+            .create_api_key("expired", email, "h-exp", "key", Some(now() - 1))
+            .expect("create expired");
+        assert_eq!(
+            store.count_active_api_keys(email).expect("count"),
+            2,
+            "an expired key must not occupy a slot"
+        );
+
+        // Another account's keys are counted separately.
+        store
+            .create_api_key("other", "someone@example.com", "h-other", "key", None)
+            .expect("create");
+        assert_eq!(store.count_active_api_keys(email).expect("count"), 2);
     }
 
     /// A series past its freshness limit must read as empty rather than as its
