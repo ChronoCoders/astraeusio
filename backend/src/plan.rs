@@ -6,7 +6,7 @@ use crate::{db::Store, rate_limit::UsageCounter};
 // ── Hierarchy ─────────────────────────────────────────────────────────────────
 // free/starter < developer < pro < business < enterprise
 
-fn rank(plan: &str) -> u8 {
+pub fn rank(plan: &str) -> u8 {
     match plan {
         "free" | "starter" => 0,
         "developer" => 1,
