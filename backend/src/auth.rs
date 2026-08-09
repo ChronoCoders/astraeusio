@@ -998,11 +998,18 @@ impl FromRequestParts<AppState> for AuthClaims {
                 .into_response()
         })?;
 
-        // Count the request. This used to happen only on the API key branch, so
-        // the browser dashboard, which is the primary access path and carries a
-        // session JWT, was never counted against the published quota and
-        // /api/usage reported zero for it.
-        rate_limit::check_and_increment(&state.usage_counter, &state.db, &claims.sub).await?;
+        // Session requests are deliberately not counted. The quota is the thing
+        // being sold and the dashboard is the product, so a user browsing their
+        // own dashboard must not spend the allowance they bought for the API.
+        // Sessions remain subject to the failed sign in backoff, and to whatever
+        // abuse limit the edge grows later.
+        //
+        // If a paid dashboard tier ever makes this the wrong call, the change is
+        // one line here plus a second counter: give AuthType::Jwt its own key
+        // space, for example `session:{email}`, so dashboard usage and API usage
+        // accrue separately and each can carry its own limit. Counting both into
+        // one bucket is the thing to avoid, because then the two products
+        // compete for the same allowance.
 
         Ok(claims)
     }
@@ -1178,43 +1185,54 @@ mod tests {
         );
     }
 
-    /// The quota call used to sit only on the API key branch, so the browser
-    /// dashboard, which carries a session JWT and is the main way the service is
-    /// used, was never counted. The published free tier limit bound nothing.
+    /// The quota is what is sold and the dashboard is the product, so browsing
+    /// the dashboard must not spend the API allowance. Well past the starter
+    /// limit of 100 a day, a session still serves and still counts nothing.
     #[tokio::test]
-    async fn session_requests_are_counted_against_the_quota() {
+    async fn session_requests_do_not_touch_the_quota() {
         let state = test_state();
-        let token = session_jwt("counted@example.com", SECRET).expect("mint");
-
-        assert!(state.usage_counter.get("counted@example.com").is_none());
-        for expected in 1..=3u64 {
-            extract(&state, &token).await.expect("accepted");
-            let counted = state
-                .usage_counter
-                .get("counted@example.com")
-                .map(|e| e.count)
-                .expect("counter entry");
-            assert_eq!(counted, expected, "request {expected} must be counted");
-        }
-    }
-
-    /// Past the plan limit the session path returns 429 rather than serving.
-    /// An account with no row in the database resolves to `starter`, which is
-    /// the 100 per day tier.
-    #[tokio::test]
-    async fn a_session_over_the_quota_is_refused() {
-        let state = test_state();
-        let token = session_jwt("busy@example.com", SECRET).expect("mint");
+        let token = session_jwt("dashboard@example.com", SECRET).expect("mint");
         let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
 
-        for _ in 0..limit {
-            extract(&state, &token).await.expect("within the limit");
+        for _ in 0..limit + 5 {
+            extract(&state, &token).await.expect("sessions are never throttled");
+        }
+        assert!(
+            state.usage_counter.get("dashboard@example.com").is_none(),
+            "a session must not create a quota entry"
+        );
+    }
+
+    /// The API key path is the one that counts, and the limit still binds there.
+    #[tokio::test]
+    async fn api_key_requests_are_counted_and_capped() {
+        let state = test_state();
+        let key = "ast_testkey_0123456789";
+        let email = "apiuser@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_api_key("key-1", email, &sha256_hex(key), "test key")
+                .expect("create key");
+        }
+
+        let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
+        for expected in 1..=3u64 {
+            extract(&state, key).await.expect("accepted");
+            let counted = state
+                .usage_counter
+                .get(email)
+                .map(|e| e.count)
+                .expect("counter entry");
+            assert_eq!(counted, expected, "API key request {expected} must count");
+        }
+
+        for _ in 3..limit {
+            extract(&state, key).await.expect("within the limit");
         }
         assert_eq!(
-            extract(&state, &token).await.err(),
+            extract(&state, key).await.err(),
             Some(StatusCode::TOO_MANY_REQUESTS),
-            "request {} must be refused",
-            limit + 1
+            "the API key path must still be capped"
         );
     }
 
