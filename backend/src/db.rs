@@ -257,6 +257,58 @@ const OBSERVED_AT_PARAM_SQL: &str = "epoch(?::TIMESTAMP)::BIGINT";
 
 const OBSERVED_AT_TABLES: [&str; 6] = ["kp", "kp_3h", "solar_wind", "xray", "imf", "dst"];
 
+/// One series and how old its newest observation may be before it counts as
+/// stale.
+pub struct SeriesFreshness {
+    /// Name this series reports under on the status page.
+    pub component: &'static str,
+    pub table: &'static str,
+    pub max_age_secs: i64,
+}
+
+/// The freshness limit for every series, used by both the read path and the
+/// status page so the two cannot disagree about what current means.
+///
+/// A series past its limit is not drawn and reports degraded. Before this
+/// existed, the imf feed was dead for forty days while the charts kept drawing
+/// its last day of data and the status page stayed green, because one Kp query
+/// stood in for the whole of NOAA.
+pub const SERIES_FRESHNESS: [SeriesFreshness; 6] = [
+    SeriesFreshness {
+        component: "noaa_kp",
+        table: "kp",
+        max_age_secs: 1_800,
+    },
+    SeriesFreshness {
+        component: "noaa_kp_3h",
+        table: "kp_3h",
+        max_age_secs: 21_600,
+    },
+    SeriesFreshness {
+        component: "noaa_solar_wind",
+        table: "solar_wind",
+        max_age_secs: 1_800,
+    },
+    SeriesFreshness {
+        component: "noaa_xray",
+        table: "xray",
+        max_age_secs: 1_800,
+    },
+    SeriesFreshness {
+        component: "noaa_imf",
+        table: "imf",
+        max_age_secs: 1_800,
+    },
+    // Kyoto publishes provisional Dst a day or more after the hour it covers,
+    // so a limit near the others would report degraded every day with nothing
+    // wrong. 36 hours is the smallest limit that clears the normal lag.
+    SeriesFreshness {
+        component: "noaa_dst",
+        table: "dst",
+        max_age_secs: 129_600,
+    },
+];
+
 /// Identifier for the one-shot purge of forecasts generated before the model
 /// input was corrected to read the three-hour series.
 const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-series";
@@ -958,9 +1010,58 @@ impl Store {
         Ok(rows.into_iter().rev().map(|v| v as f64 / 100.0).collect())
     }
 
+    /// Newest observation time in a series, or None when nothing is stored.
+    ///
+    /// `table` always comes from SERIES_FRESHNESS, never from a request.
+    fn newest_observation(&self, table: &str) -> Result<Option<i64>, DbError> {
+        let sql = format!("SELECT MAX(observed_at) FROM {table}");
+        Ok(self.conn.query_row(&sql, [], |row| row.get(0))?)
+    }
+
+    /// True when a series is recent enough to draw.
+    ///
+    /// An empty table and an unrecognised name both read as not current, so a
+    /// caller never draws on a guess.
+    fn series_is_current(&self, table: &str) -> Result<bool, DbError> {
+        let Some(limit) = SERIES_FRESHNESS.iter().find(|s| s.table == table) else {
+            return Ok(false);
+        };
+        match self.newest_observation(table)? {
+            Some(newest) => Ok(now() - newest <= limit.max_age_secs),
+            None => Ok(false),
+        }
+    }
+
+    /// Per-series status for the status page: component, status, and the newest
+    /// observation time. Read from `observed_at`, the time the measurement was
+    /// taken, not from `fetched_at`, which keeps moving whenever a poll runs
+    /// even if the poll brought nothing new.
+    pub fn series_health(&self) -> Vec<(&'static str, &'static str, Option<i64>)> {
+        let now = now();
+        SERIES_FRESHNESS
+            .iter()
+            .map(|s| {
+                let newest = self.newest_observation(s.table).ok().flatten();
+                let status = match newest {
+                    None => "unknown",
+                    Some(t) if now - t > s.max_age_secs => "degraded",
+                    Some(_) => "operational",
+                };
+                (s.component, status, newest)
+            })
+            .collect()
+    }
+
     /// Most recent 1440 Kp readings, oldest-first. Selected DESC so the LIMIT
     /// takes the newest window, then reversed for the caller.
+    ///
+    /// A series past its freshness limit returns empty rather than its last
+    /// good window, so the panel draws nothing instead of drawing old readings
+    /// as current.
     pub fn get_kp_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("kp")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY observed_at DESC LIMIT 1440",
         )?;
@@ -1032,8 +1133,11 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
-    /// Most recent 240 three-hour Kp readings, oldest-first.
+    /// Most recent 240 three-hour Kp readings, oldest-first. Empty when stale.
     pub fn get_kp_3h_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("kp_3h")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self
             .conn
             .prepare("SELECT time_tag, kp_e2 FROM kp_3h ORDER BY observed_at DESC LIMIT 240")?;
@@ -1051,10 +1155,14 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Most recent 1440 solar wind readings, oldest-first. Empty when stale.
     pub fn get_solar_wind_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("solar_wind")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
-             ORDER BY time_tag DESC LIMIT 1440",
+             ORDER BY observed_at DESC LIMIT 1440",
         )?;
         let rows = stmt
             .query_map([], |row| {
@@ -1074,8 +1182,11 @@ impl Store {
     }
 
     /// Most recent 2880 X-ray rows, oldest-first. The limit spans 1440 timestamps
-    /// because each carries both the long and short energy band.
+    /// because each carries both the long and short energy band. Empty when stale.
     pub fn get_xray_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("xray")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self.conn.prepare(
             "SELECT time_tag, energy, satellite, flux_e12, observed_flux_e12 FROM xray \
              ORDER BY observed_at DESC LIMIT 2880",
@@ -1120,10 +1231,14 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Most recent 1440 IMF readings, oldest-first. Empty when stale.
     pub fn get_imf_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("imf")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self
             .conn
-            .prepare("SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY time_tag DESC LIMIT 1440")?;
+            .prepare("SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY observed_at DESC LIMIT 1440")?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -1139,10 +1254,14 @@ impl Store {
         Ok(serde_json::Value::Array(rows))
     }
 
+    /// Most recent 1440 Dst readings, oldest-first. Empty when stale.
     pub fn get_dst_recent(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("dst")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self
             .conn
-            .prepare("SELECT time_tag, dst_nt FROM dst ORDER BY time_tag DESC LIMIT 1440")?;
+            .prepare("SELECT time_tag, dst_nt FROM dst ORDER BY observed_at DESC LIMIT 1440")?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -2088,10 +2207,14 @@ impl Store {
 // ── Public endpoints (no auth) ────────────────────────────────────────────────
 
 impl Store {
-    /// Returns the last 60 Kp readings oldest-first - same shape as /api/kp.
+    /// Returns the last 60 Kp readings oldest-first - same shape as /api/kp,
+    /// and empty on the same terms when the series is stale.
     pub fn get_kp_array_public(&self) -> Result<serde_json::Value, DbError> {
+        if !self.series_is_current("kp")? {
+            return Ok(serde_json::Value::Array(Vec::new()));
+        }
         let mut stmt = self.conn.prepare(
-            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 60",
+            "SELECT time_tag, kp_index, estimated_kp_e2 FROM kp ORDER BY observed_at DESC LIMIT 60",
         )?;
         let mut rows: Vec<serde_json::Value> = stmt
             .query_map([], |row| {
@@ -2646,21 +2769,24 @@ impl Store {
         Ok(rows)
     }
 
-    /// Returns (noaa_last_write, nasa_last_write, celestrak_last_write) as Unix timestamps.
+    /// Returns (nasa_last_write, celestrak_last_write) as Unix timestamps.
     /// Each is None if the table has no rows yet.
-    pub fn health_freshness(&self) -> (Option<i64>, Option<i64>, Option<i64>) {
+    ///
+    /// The NOAA series are not here. They report one component each through
+    /// `series_health`, because a single query over one table let a dead feed
+    /// hide behind a live one.
+    pub fn external_freshness(&self) -> (Option<i64>, Option<i64>) {
         let q = |sql: &str| -> Option<i64> {
             self.conn
                 .query_row(sql, [], |row| row.get::<_, Option<i64>>(0))
                 .ok()
                 .flatten()
         };
-        let noaa = q("SELECT MAX(fetched_at) FROM kp");
         let nasa = q(
             "SELECT MAX(m) FROM (SELECT MAX(fetched_at) AS m FROM apod UNION ALL SELECT MAX(fetched_at) FROM neo UNION ALL SELECT MAX(fetched_at) FROM epic)",
         );
         let celestrak = q("SELECT MAX(fetched_at) FROM starlink");
-        (noaa, nasa, celestrak)
+        (nasa, celestrak)
     }
 }
 
@@ -2692,10 +2818,12 @@ mod tests {
     #[test]
     fn kp_scaled_round_trip() {
         let store = mem_store();
+        // Timestamps are recent because the read path drops a stale series.
+        let base = now() - 120;
         store
             .insert_kp_batch(&[
-                KpRecord { time_tag: "2024-01-01T00:00:00".into(), kp_index: 2, estimated_kp: 2.33 },
-                KpRecord { time_tag: "2024-01-01T01:00:00".into(), kp_index: 3, estimated_kp: 3.67 },
+                KpRecord { time_tag: iso(base), kp_index: 2, estimated_kp: 2.33 },
+                KpRecord { time_tag: iso(base + 60), kp_index: 3, estimated_kp: 3.67 },
             ])
             .unwrap();
 
@@ -2706,6 +2834,118 @@ mod tests {
         let v = |i: usize| kp[i]["estimated_kp"].as_f64().unwrap();
         assert!((v(0) - 2.33).abs() < 1e-9, "oldest first: {kp:?}");
         assert!((v(1) - 3.67).abs() < 1e-9);
+    }
+
+    /// A series past its freshness limit must read as empty rather than as its
+    /// last good window. Before this, a feed dead since June still drew a full
+    /// day of June readings on a chart labelled current.
+    #[test]
+    fn a_stale_series_reads_as_empty() {
+        let store = mem_store();
+        let stale = now() - 40 * 86_400;
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: iso(stale),
+                bz_gsm: Some(1.01),
+                bt: Some(14.71),
+            }])
+            .unwrap();
+
+        let out = store.get_imf_recent().unwrap();
+        assert_eq!(
+            out.as_array().unwrap().len(),
+            0,
+            "a series frozen forty days ago must not be served"
+        );
+
+        // The same read returns data once a current reading arrives.
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: iso(now() - 60),
+                bz_gsm: Some(-2.5),
+                bt: Some(9.0),
+            }])
+            .unwrap();
+        let out = store.get_imf_recent().unwrap();
+        assert_eq!(out.as_array().unwrap().len(), 2);
+    }
+
+    /// An empty table is not current either, so nothing is drawn on a guess.
+    #[test]
+    fn an_empty_series_reads_as_empty() {
+        let store = mem_store();
+        assert_eq!(store.get_imf_recent().unwrap().as_array().unwrap().len(), 0);
+        assert_eq!(store.get_dst_recent().unwrap().as_array().unwrap().len(), 0);
+    }
+
+    /// One live series must not cover for a dead one. The status page read a
+    /// single Kp query and called the whole of NOAA healthy while the
+    /// magnetometer feed had been dead for forty days.
+    #[test]
+    fn series_health_reports_each_series_on_its_own() {
+        let store = mem_store();
+        store
+            .insert_kp_batch(&[KpRecord {
+                time_tag: iso(now() - 60),
+                kp_index: 2,
+                estimated_kp: 2.33,
+            }])
+            .unwrap();
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: iso(now() - 40 * 86_400),
+                bz_gsm: Some(1.01),
+                bt: Some(14.71),
+            }])
+            .unwrap();
+
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(component, _, _)| *component == c)
+                .map(|(_, s, _)| *s)
+                .unwrap()
+        };
+        assert_eq!(status("noaa_kp"), "operational");
+        assert_eq!(status("noaa_imf"), "degraded");
+        // Never written, so its state is unknown rather than a false green.
+        assert_eq!(status("noaa_xray"), "unknown");
+        assert_eq!(health.len(), SERIES_FRESHNESS.len());
+    }
+
+    /// Kyoto publishes provisional Dst a day or more late. A reading that is
+    /// stale for every other series is normal for Dst, and the looser limit is
+    /// what stops the status page reporting degraded every day.
+    #[test]
+    fn dst_tolerates_the_kyoto_publishing_lag() {
+        let store = mem_store();
+        let a_day_ago = iso(now() - 86_400);
+        store
+            .insert_dst_batch(&[DstRecord {
+                time_tag: a_day_ago.clone(),
+                dst_nt: Some(-45),
+            }])
+            .unwrap();
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: a_day_ago,
+                bz_gsm: Some(1.01),
+                bt: Some(14.71),
+            }])
+            .unwrap();
+
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(component, _, _)| *component == c)
+                .map(|(_, s, _)| *s)
+                .unwrap()
+        };
+        assert_eq!(status("noaa_dst"), "operational");
+        assert_eq!(status("noaa_imf"), "degraded");
+        assert_eq!(store.get_dst_recent().unwrap().as_array().unwrap().len(), 1);
     }
 
     #[test]
@@ -2818,7 +3058,8 @@ mod tests {
     #[test]
     fn recent_endpoints_return_the_newest_window() {
         let store = mem_store();
-        let base = 1_700_000_000_i64;
+        // Ends at the current minute, because a stale series reads as empty.
+        let base = now() - 1499 * 60;
 
         // 1500 minutes of Kp, more than the 1440 row limit.
         let kp: Vec<KpRecord> = (0..1500)
@@ -2841,9 +3082,10 @@ mod tests {
         );
 
         // 300 three-hour periods, more than the 240 row limit.
+        let base3 = now() - 299 * 10_800;
         let kp3: Vec<Kp3hRecord> = (0..300)
             .map(|i| Kp3hRecord {
-                time_tag: iso(base + i * 10_800),
+                time_tag: iso(base3 + i * 10_800),
                 kp: 2.0,
             })
             .collect();
@@ -2854,11 +3096,11 @@ mod tests {
         assert_eq!(arr3.len(), 240);
         assert_eq!(
             arr3[0]["time_tag"].as_str().unwrap(),
-            iso(base + 60 * 10_800)
+            iso(base3 + 60 * 10_800)
         );
         assert_eq!(
             arr3[239]["time_tag"].as_str().unwrap(),
-            iso(base + 299 * 10_800)
+            iso(base3 + 299 * 10_800)
         );
     }
 

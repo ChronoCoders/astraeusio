@@ -178,7 +178,11 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     };
 
     // ── DB freshness ─────────────────────────────────────────────────────────
-    let (noaa_ts, nasa_ts, celestrak_ts) = lock_db(&s.db).await.health_freshness();
+    let (series, nasa_ts, celestrak_ts) = {
+        let guard = lock_db(&s.db).await;
+        let (nasa, celestrak) = guard.external_freshness();
+        (guard.series_health(), nasa, celestrak)
+    };
 
     fn component_status(
         last: Option<i64>,
@@ -192,58 +196,61 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         }
     }
 
-    let (noaa_status, noaa_last) = component_status(noaa_ts, now, 600);
     let (nasa_status, nasa_last) = component_status(nasa_ts, now, 90_000);
     let (celestrak_status, celestrak_last) = component_status(celestrak_ts, now, 14_400);
-    let db_status = if noaa_ts.is_some() {
+    // The database is reachable if any series has ever stored a reading. That
+    // is separate from whether the feeds are still arriving, which is what the
+    // per-series components report.
+    let db_last = series.iter().filter_map(|(_, _, ts)| *ts).max();
+    let db_status = if db_last.is_some() {
         "operational"
     } else {
         "unknown"
     };
 
     // ── Overall ───────────────────────────────────────────────────────────────
-    let statuses = [
-        ml_status,
-        db_status,
-        noaa_status,
-        nasa_status,
-        celestrak_status,
-    ];
-    let overall = if statuses.iter().all(|&s| s == "operational") {
+    let overall = if [ml_status, db_status, nasa_status, celestrak_status]
+        .iter()
+        .all(|&s| s == "operational")
+        && series.iter().all(|(_, status, _)| *status == "operational")
+    {
         "operational"
     } else {
         "degraded"
     };
 
+    let mut components = serde_json::Map::new();
+    components.insert(
+        "backend_api".into(),
+        serde_json::json!({ "status": "operational", "last_checked": now }),
+    );
+    components.insert(
+        "ml_forecast".into(),
+        serde_json::json!({ "status": ml_status, "last_checked": now }),
+    );
+    components.insert(
+        "database".into(),
+        serde_json::json!({ "status": db_status, "last_write": db_last }),
+    );
+    for (component, status, last) in &series {
+        components.insert(
+            (*component).into(),
+            serde_json::json!({ "status": status, "last_update": last }),
+        );
+    }
+    components.insert(
+        "nasa".into(),
+        serde_json::json!({ "status": nasa_status, "last_update": nasa_last }),
+    );
+    components.insert(
+        "celestrak".into(),
+        serde_json::json!({ "status": celestrak_status, "last_update": celestrak_last }),
+    );
+
     Json(serde_json::json!({
         "status":     overall,
         "checked_at": now,
-        "components": {
-            "backend_api": {
-                "status":      "operational",
-                "last_checked": now
-            },
-            "ml_forecast": {
-                "status":      ml_status,
-                "last_checked": now
-            },
-            "database": {
-                "status":     db_status,
-                "last_write": noaa_last
-            },
-            "noaa": {
-                "status":      noaa_status,
-                "last_update": noaa_last
-            },
-            "nasa": {
-                "status":      nasa_status,
-                "last_update": nasa_last
-            },
-            "celestrak": {
-                "status":      celestrak_status,
-                "last_update": celestrak_last
-            }
-        }
+        "components": components
     }))
 }
 
@@ -253,7 +260,10 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
         let rows = lock_db(&s.db).await.uptime_by_day(DAYS)?;
         // rows: (component, day_idx, samples, operational_samples)
         // day_idx 0 = today, larger = further past
-        let components = ["backend_api", "ml_forecast", "database", "noaa", "nasa", "celestrak"];
+        let fixed = ["backend_api", "ml_forecast", "database", "nasa", "celestrak"];
+        let components = fixed
+            .into_iter()
+            .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component));
         let mut out = serde_json::Map::new();
         for comp in components {
             // 90 entries, oldest first (index 0 = 89 days ago, last = today)
@@ -1340,15 +1350,29 @@ async fn mcp_handler(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs() as i64;
-                    let (noaa_ts, nasa_ts, _) = lock_db(&s.db).await.health_freshness();
-                    let noaa_ok = noaa_ts.is_some_and(|t| now - t < 600);
+                    let (series, nasa_ts) = {
+                        let guard = lock_db(&s.db).await;
+                        let (nasa, _) = guard.external_freshness();
+                        (guard.series_health(), nasa)
+                    };
+                    // The noaa field is a rollup over every series, so one live
+                    // feed can no longer cover for a dead one. Per-series detail
+                    // sits alongside it.
+                    let noaa_ok = series.iter().all(|(_, status, _)| *status == "operational");
                     let nasa_ok = nasa_ts.is_some_and(|t| now - t < 90_000);
+                    let per_series: serde_json::Map<String, serde_json::Value> = series
+                        .iter()
+                        .map(|(component, status, _)| {
+                            ((*component).to_string(), serde_json::json!(status))
+                        })
+                        .collect();
                     McpResp::ok(
                         id,
                         mcp_text(serde_json::json!({
                             "status": if noaa_ok && nasa_ok { "operational" } else { "degraded" },
                             "noaa":   if noaa_ok { "operational" } else { "degraded" },
                             "nasa":   if nasa_ok { "operational" } else { "degraded" },
+                            "series": per_series,
                             "checked_at": now,
                         })),
                     )
