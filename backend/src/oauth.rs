@@ -26,6 +26,10 @@ use tracing::warn;
 use crate::{auth, routes::AppState};
 
 const USER_AGENT: &str = "astraeusio";
+/// Audience of the OAuth state token. It is minted for an anonymous caller by
+/// the start endpoint, so it must never validate as a session.
+const AUD_OAUTH_STATE: &str = "astraeus:oauth_state";
+
 const STATE_TTL_SECS: i64 = 600;
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -96,6 +100,7 @@ struct StateClaims {
     provider: String,
     nonce: String,
     exp: u64,
+    aud: String,
 }
 
 fn random_hex(n_bytes: usize) -> String {
@@ -113,16 +118,23 @@ fn sign_state(provider: &str, secret: &str) -> Result<String, jsonwebtoken::erro
             provider: provider.to_string(),
             nonce: random_hex(16),
             exp,
+            aud: AUD_OAUTH_STATE.to_string(),
         },
         &EncodingKey::from_secret(secret.as_bytes()),
     )
 }
 
 fn verify_state(token: &str, provider: &str, secret: &str) -> bool {
+    // The state token is handed to an anonymous caller by the start endpoint,
+    // so it must not validate anywhere else. It carries no `sub`, so its
+    // required claims differ from every other token this service mints.
+    let mut validation = Validation::default();
+    validation.set_audience(&[AUD_OAUTH_STATE]);
+    validation.set_required_spec_claims(&["exp", "aud"]);
     decode::<StateClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )
     .map(|d| d.claims.provider == provider)
     .unwrap_or(false)
@@ -273,7 +285,7 @@ pub async fn callback(
 
     // 2FA is enforced even for social login: hand back a partial token instead.
     if totp_enabled {
-        match auth::purpose_token(&email, "2fa_partial", 300, &s.jwt_secret) {
+        match auth::purpose_token(&email, auth::TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret) {
             Ok(t) => frontend_redirect(&app_url, &format!("partial_token={t}")),
             Err(e) => {
                 warn!("oauth 2fa partial token error: {e}");

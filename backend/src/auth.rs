@@ -21,20 +21,58 @@ pub enum AuthType {
     ApiKey,
 }
 
+/// Audience of a session token. Held in the signed claims, so a token minted
+/// for any other audience cannot be replayed as a session.
+pub(crate) const AUD_SESSION: &str = "astraeus:session";
+
+/// What a short lived token was minted to do. One secret signs every token this
+/// service issues, so the audience inside the claims is the only thing that
+/// separates them. Before this existed, a 2FA partial token, an email
+/// verification token and a password reset token were all accepted as full
+/// session tokens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TokenPurpose {
+    TwoFactorPartial,
+    VerifyEmail,
+    ResetPassword,
+}
+
+impl TokenPurpose {
+    pub(crate) const fn aud(self) -> &'static str {
+        match self {
+            Self::TwoFactorPartial => "astraeus:2fa_partial",
+            Self::VerifyEmail => "astraeus:verify_email",
+            Self::ResetPassword => "astraeus:reset_password",
+        }
+    }
+}
+
+/// Validation that accepts exactly one audience and refuses a token that omits
+/// `aud`, `exp` or `sub`. `Validation::default` checks the signature and `exp`
+/// and nothing else, which is why any token signed with the shared secret used
+/// to be interchangeable.
+pub(crate) fn validation_for(aud: &str) -> Validation {
+    let mut v = Validation::default();
+    v.set_audience(&[aud]);
+    v.set_required_spec_claims(&["exp", "aud", "sub"]);
+    v
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthClaims {
     pub sub: String,
     pub exp: u64,
+    pub aud: String,
     #[serde(skip)]
     pub auth_type: AuthType,
 }
 
-/// Short-lived token with a `purpose` discriminant (verify_email / 2fa_partial).
+/// Short lived token carrying the audience of the one thing it may be used for.
 #[derive(Serialize, Deserialize)]
 struct PurposeClaims {
     sub: String,
     exp: u64,
-    purpose: String,
+    aud: String,
 }
 
 #[derive(Deserialize)]
@@ -86,7 +124,7 @@ struct LoginResponse {
 
 pub(crate) fn purpose_token(
     sub: &str,
-    purpose: &str,
+    purpose: TokenPurpose,
     ttl: i64,
     secret: &str,
 ) -> Result<String, jsonwebtoken::errors::Error> {
@@ -96,23 +134,24 @@ pub(crate) fn purpose_token(
         &PurposeClaims {
             sub: sub.to_string(),
             exp,
-            purpose: purpose.to_string(),
+            aud: purpose.aud().to_string(),
         },
         &EncodingKey::from_secret(secret.as_bytes()),
     )
 }
 
-fn decode_purpose(token: &str, purpose: &str, secret: &str) -> Result<String, &'static str> {
+fn decode_purpose(
+    token: &str,
+    purpose: TokenPurpose,
+    secret: &str,
+) -> Result<String, &'static str> {
     let claims = decode::<PurposeClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation_for(purpose.aud()),
     )
     .map_err(|_| "invalid or expired token")?
     .claims;
-    if claims.purpose != purpose {
-        return Err("wrong token purpose");
-    }
     Ok(claims.sub)
 }
 
@@ -171,7 +210,7 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
         Ok(()) => {
             // Fire verification email if mailer is configured.
             if let Some(ref mc) = s.mailer
-                && let Ok(token) = purpose_token(&email, "verify_email", 86_400, &s.jwt_secret)
+                && let Ok(token) = purpose_token(&email, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret)
             {
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
@@ -249,7 +288,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
 
     // If 2FA is active, issue a short-lived partial token instead of a full JWT.
     if user.totp_enabled {
-        match purpose_token(&user.email, "2fa_partial", 300, &s.jwt_secret) {
+        match purpose_token(&user.email, TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret) {
             Ok(partial) => {
                 return Json(serde_json::json!({ "requires_2fa": true, "partial_token": partial }))
                     .into_response();
@@ -269,7 +308,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
 }
 
 pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequest>) -> Response {
-    let email = match decode_purpose(&body.partial_token, "2fa_partial", &s.jwt_secret) {
+    let email = match decode_purpose(&body.partial_token, TokenPurpose::TwoFactorPartial, &s.jwt_secret) {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -325,7 +364,7 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
 // ── Email verification ─────────────────────────────────────────────────────────
 
 pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) -> Response {
-    let email = match decode_purpose(&token, "verify_email", &s.jwt_secret) {
+    let email = match decode_purpose(&token, TokenPurpose::VerifyEmail, &s.jwt_secret) {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -386,7 +425,7 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
             .into_response();
     }
 
-    let token = match purpose_token(&claims.sub, "verify_email", 86_400, &s.jwt_secret) {
+    let token = match purpose_token(&claims.sub, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret) {
         Ok(t) => t,
         Err(e) => {
             warn!("token gen error: {e}");
@@ -743,7 +782,7 @@ pub async fn forgot_password(
     // Always 204 - never reveal whether the email exists.
     if let Some(ref mc) = s.mailer
         && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email)
-        && let Ok(token) = purpose_token(&body.email, "reset_password", 3_600, &s.jwt_secret)
+        && let Ok(token) = purpose_token(&body.email, TokenPurpose::ResetPassword, 3_600, &s.jwt_secret)
     {
         let url = format!("{}/reset-password?token={}", s.app_url, token);
         let mc = mc.clone();
@@ -767,7 +806,7 @@ pub async fn reset_password(
             .into_response();
     }
 
-    let email = match decode_purpose(&body.token, "reset_password", &s.jwt_secret) {
+    let email = match decode_purpose(&body.token, TokenPurpose::ResetPassword, &s.jwt_secret) {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -829,6 +868,7 @@ pub(crate) fn session_jwt(email: &str, secret: &str) -> Result<String, jsonwebto
     let claims = AuthClaims {
         sub: email.to_string(),
         exp,
+        aud: AUD_SESSION.to_string(),
         auth_type: AuthType::Jwt,
     };
     encode(
@@ -896,6 +936,7 @@ impl FromRequestParts<AppState> for AuthClaims {
                     return Ok(AuthClaims {
                         sub,
                         exp: u64::MAX,
+                        aud: AUD_SESSION.to_string(),
                         auth_type: AuthType::ApiKey,
                     });
                 }
@@ -909,21 +950,203 @@ impl FromRequestParts<AppState> for AuthClaims {
             }
         }
 
-        // JWT path
+        // JWT path. Only a token minted with the session audience is a session.
+        // A 2FA partial, an email verification link or a password reset link is
+        // signed with the same secret and would otherwise be accepted here.
         let claims = decode::<AuthClaims>(
             token,
             &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-            &Validation::default(),
+            &validation_for(AUD_SESSION),
         )
         .map(|data| data.claims)
         .map_err(|e| {
+            warn!(source = "auth", "session token rejected: {e}");
             (
                 StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({ "error": e.to_string() })),
+                Json(serde_json::json!({ "error": "invalid or expired token" })),
             )
                 .into_response()
         })?;
 
         Ok(claims)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+
+    const SECRET: &str = "test-secret-not-used-anywhere-real";
+
+    fn test_state() -> AppState {
+        let db = crate::db::Store::open(":memory:").expect("in-memory store");
+        let client = reqwest::Client::new();
+        let writer = crate::db_writer::spawn(
+            crate::db::Store::open(":memory:").expect("writer store"),
+            client.clone(),
+        );
+        AppState::new(
+            client,
+            db,
+            writer,
+            "http://ml".to_string(),
+            SECRET.to_string(),
+            None,
+            "http://app".to_string(),
+            crate::oauth::OAuthConfig {
+                github: None,
+                google: None,
+                redirect_base: "http://app".to_string(),
+            },
+        )
+    }
+
+    /// Runs a bearer token through the real session extractor.
+    async fn extract(state: &AppState, token: &str) -> Result<AuthClaims, StatusCode> {
+        let req = Request::builder()
+            .header("Authorization", format!("Bearer {token}"))
+            .body(())
+            .expect("request");
+        let (mut parts, ()) = req.into_parts();
+        AuthClaims::from_request_parts(&mut parts, state)
+            .await
+            .map_err(|resp| resp.status())
+    }
+
+    const EVERY_PURPOSE: [TokenPurpose; 3] = [
+        TokenPurpose::TwoFactorPartial,
+        TokenPurpose::VerifyEmail,
+        TokenPurpose::ResetPassword,
+    ];
+
+    /// A 2FA partial, an email verification link and a password reset link are
+    /// all signed with the same secret as a session. Each one used to be a
+    /// working session token, which made TOTP a formality and turned every
+    /// verification email into a bearer credential for its whole lifetime.
+    #[tokio::test]
+    async fn purpose_tokens_are_rejected_by_the_session_extractor() {
+        let state = test_state();
+        for purpose in EVERY_PURPOSE {
+            let token =
+                purpose_token("user@example.com", purpose, 300, SECRET).expect("mint");
+            let got = extract(&state, &token).await;
+            assert_eq!(
+                got.err(),
+                Some(StatusCode::UNAUTHORIZED),
+                "{} must not be accepted as a session",
+                purpose.aud()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_session_token_is_accepted_by_the_session_extractor() {
+        let state = test_state();
+        let token = session_jwt("user@example.com", SECRET).expect("mint");
+        let claims = extract(&state, &token).await.expect("session accepted");
+        assert_eq!(claims.sub, "user@example.com");
+        assert_eq!(claims.aud, AUD_SESSION);
+    }
+
+    /// The other direction: a full session must not stand in for the short
+    /// lived token a flow demands, so a stolen session cannot complete someone
+    /// else's 2FA login or password reset.
+    #[test]
+    fn a_session_token_is_rejected_where_a_purpose_token_is_required() {
+        let session = session_jwt("user@example.com", SECRET).expect("mint");
+        for purpose in EVERY_PURPOSE {
+            assert!(
+                decode_purpose(&session, purpose, SECRET).is_err(),
+                "a session token must not satisfy {}",
+                purpose.aud()
+            );
+        }
+    }
+
+    /// Each purpose token works for its own purpose and no other.
+    #[test]
+    fn a_purpose_token_is_accepted_only_for_its_own_purpose() {
+        for minted in EVERY_PURPOSE {
+            let token = purpose_token("user@example.com", minted, 300, SECRET).expect("mint");
+            assert_eq!(
+                decode_purpose(&token, minted, SECRET).ok().as_deref(),
+                Some("user@example.com"),
+                "{} must satisfy its own purpose",
+                minted.aud()
+            );
+            for other in EVERY_PURPOSE {
+                if other == minted {
+                    continue;
+                }
+                assert!(
+                    decode_purpose(&token, other, SECRET).is_err(),
+                    "{} must not satisfy {}",
+                    minted.aud(),
+                    other.aud()
+                );
+            }
+        }
+    }
+
+    /// The pre-fix token shape, `{sub, exp}` with no audience at all. Tokens
+    /// already issued have this shape, so they must fail rather than be
+    /// grandfathered in.
+    #[tokio::test]
+    async fn a_token_without_an_audience_is_rejected() {
+        #[derive(Serialize)]
+        struct Legacy {
+            sub: String,
+            exp: u64,
+        }
+        let token = encode(
+            &Header::default(),
+            &Legacy {
+                sub: "user@example.com".to_string(),
+                exp: (chrono::Utc::now().timestamp() + 300) as u64,
+            },
+            &EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("mint");
+        let state = test_state();
+        assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
+    }
+
+    /// The exact 2FA partial token this service used to mint: `{sub, exp,
+    /// purpose}`. On the old code this was accepted as a full session, which is
+    /// how TOTP could be skipped entirely. Tokens of this shape are still in
+    /// circulation until they expire.
+    #[tokio::test]
+    async fn the_pre_fix_partial_token_shape_is_rejected() {
+        #[derive(Serialize)]
+        struct LegacyPurpose {
+            sub: String,
+            exp: u64,
+            purpose: String,
+        }
+        let token = encode(
+            &Header::default(),
+            &LegacyPurpose {
+                sub: "user@example.com".to_string(),
+                exp: (chrono::Utc::now().timestamp() + 300) as u64,
+                purpose: "2fa_partial".to_string(),
+            },
+            &EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("mint");
+        let state = test_state();
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "the old partial token shape must not authenticate a session"
+        );
+    }
+
+    /// A token signed with a different secret must fail whatever its audience.
+    #[tokio::test]
+    async fn a_foreign_signature_is_rejected() {
+        let token = session_jwt("user@example.com", "some-other-secret").expect("mint");
+        let state = test_state();
+        assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
     }
 }
