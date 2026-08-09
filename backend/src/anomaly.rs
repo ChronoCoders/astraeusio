@@ -136,6 +136,7 @@ fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
             source_ref: time_tag,
             severity: severity.to_string(),
             message: msg.clone(),
+            user_email: None,
         });
         warn!(anomaly = "kp_storm", kp, severity, "{msg}");
     }
@@ -153,6 +154,7 @@ fn check_solar_wind(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> 
             source_ref: time_tag,
             severity: severity.to_string(),
             message: msg.clone(),
+            user_email: None,
         });
         warn!(anomaly = "solar_wind_speed", speed, severity, "{msg}");
     }
@@ -181,6 +183,7 @@ fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
             source_ref: time_tag,
             severity: severity.to_string(),
             message: msg.clone(),
+            user_email: None,
         });
         warn!(anomaly = "xray_flare", class, severity, "{msg}");
     }
@@ -200,6 +203,7 @@ fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
             source_ref: source_ref.clone(),
             severity: severity.to_string(),
             message: msg.clone(),
+            user_email: None,
         });
         warn!(anomaly = "asteroid_close", %id, %date, dist_ld, severity, "{msg}");
     }
@@ -219,6 +223,7 @@ fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError>
             source_ref,
             severity: severity.to_string(),
             message: msg.clone(),
+            user_email: None,
         });
         warn!(anomaly = "ml_forecast_storm", kp, severity, "{msg}");
     }
@@ -277,6 +282,10 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
             source_ref: format!("{}:{}", rule.id, hour_bucket),
             severity: rule.severity.clone(),
             message: msg,
+            // Owned by the account whose rule fired. Before this column, the
+            // rule's name and threshold went into a feed every authenticated
+            // caller could read.
+            user_email: Some(rule.user_email.clone()),
         });
     }
     Ok(())
