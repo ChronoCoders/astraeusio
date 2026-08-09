@@ -68,6 +68,9 @@ pub struct AppState {
     pub cache: Arc<Mutex<CacheMap>>,
     pub jwt_secret: String,
     pub usage_counter: Arc<UsageCounter>,
+    /// Consecutive failed sign in attempts per account. In memory and per
+    /// process, so it resets when the container restarts.
+    pub login_failures: Arc<crate::rate_limit::LoginFailures>,
     pub mailer: Option<mailer::MailerConfig>,
     pub app_url: String,
     pub oauth: crate::oauth::OAuthConfig,
@@ -93,6 +96,7 @@ impl AppState {
             cache: Arc::new(Mutex::new(HashMap::new())),
             jwt_secret,
             usage_counter: Arc::new(DashMap::new()),
+            login_failures: Arc::new(DashMap::new()),
             mailer,
             app_url,
             oauth,
@@ -992,18 +996,24 @@ async fn update_user_plan(
         )
             .into_response();
     }
-    if !self_serve_plan_change_enabled() {
+    // Moving down a tier gives nothing away, so it stays self serve. Only a
+    // raise needs the flag, because with no payment processor connected nothing
+    // in the system can tell a paid tier from an unpaid one.
+    let current = plan::resolve(&s.usage_counter, &s.db, &claims.sub).await;
+    let is_raise = plan::rank(&body.plan) > plan::rank(&current);
+    if is_raise && !self_serve_plan_change_enabled() {
         warn!(
             source = "api/user/plan",
             subject = %claims.sub,
+            from = %current,
             requested = %body.plan,
-            "self serve plan change is disabled, refusing"
+            "self serve upgrade is disabled, refusing"
         );
         return (
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({
-                "error": "plan_change_unavailable",
-                "message": "Plans cannot be changed here. Contact sales to change your plan.",
+                "error": "plan_upgrade_unavailable",
+                "message": "Plans cannot be upgraded here. Contact sales to move to a paid plan.",
             })),
         )
             .into_response();
@@ -1576,6 +1586,50 @@ mod mcp_tests {
             assert!(self_serve_plan_change_enabled(), "{on:?} must open it");
         }
         unsafe { std::env::remove_var("ALLOW_SELF_SERVE_PLAN_CHANGE") };
+    }
+
+    /// Moving down a tier gives nothing away and stays self serve, so the
+    /// Billing page's downgrade to Free keeps working with the flag unset.
+    /// Moving up needs the flag, because nothing can tell a paid tier from an
+    /// unpaid one.
+    #[test]
+    fn only_a_raise_needs_the_flag() {
+        use crate::plan::rank;
+        // Same shape as the handler: is_raise = rank(requested) > rank(current)
+        let is_raise = |current: &str, requested: &str| rank(requested) > rank(current);
+
+        // Downgrades and sideways moves, allowed whatever the flag says.
+        for (current, requested) in [
+            ("enterprise", "free"),
+            ("enterprise", "business"),
+            ("business", "pro"),
+            ("pro", "developer"),
+            ("developer", "free"),
+            ("free", "free"),
+            ("free", "starter"),
+            ("starter", "free"),
+            ("pro", "pro"),
+        ] {
+            assert!(
+                !is_raise(current, requested),
+                "{current} to {requested} must not need the flag"
+            );
+        }
+
+        // Raises, refused unless the flag is on.
+        for (current, requested) in [
+            ("free", "enterprise"),
+            ("free", "developer"),
+            ("starter", "developer"),
+            ("developer", "pro"),
+            ("pro", "business"),
+            ("business", "enterprise"),
+        ] {
+            assert!(
+                is_raise(current, requested),
+                "{current} to {requested} must need the flag"
+            );
+        }
     }
 
     /// The tier names the backend accepts must match the tiers the frontend
