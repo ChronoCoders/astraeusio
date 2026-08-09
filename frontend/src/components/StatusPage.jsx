@@ -86,7 +86,14 @@ export default function StatusPage({ onSignIn }) {
     { nameKey: 'status.backendApi',  key: 'backend_api', status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
     { nameKey: 'status.mlForecast',  key: 'ml_forecast', status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
     { nameKey: 'status.database',    key: 'database',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
-    { nameKey: 'status.noaa',        key: 'noaa',        status: error ? 'unknown': (c.noaa?.status         ?? 'unknown'), lastUpdate: c.noaa?.last_update          },
+    // Each space weather series reports on its own. One of them stopped for
+    // forty days while a shared NOAA row stayed green.
+    { nameKey: 'status.noaaKp',        key: 'noaa_kp',         status: error ? 'unknown': (c.noaa_kp?.status         ?? 'unknown'), lastUpdate: c.noaa_kp?.last_update         },
+    { nameKey: 'status.noaaKp3h',      key: 'noaa_kp_3h',      status: error ? 'unknown': (c.noaa_kp_3h?.status      ?? 'unknown'), lastUpdate: c.noaa_kp_3h?.last_update      },
+    { nameKey: 'status.noaaSolarWind', key: 'noaa_solar_wind', status: error ? 'unknown': (c.noaa_solar_wind?.status ?? 'unknown'), lastUpdate: c.noaa_solar_wind?.last_update },
+    { nameKey: 'status.noaaXray',      key: 'noaa_xray',       status: error ? 'unknown': (c.noaa_xray?.status       ?? 'unknown'), lastUpdate: c.noaa_xray?.last_update       },
+    { nameKey: 'status.noaaImf',       key: 'noaa_imf',        status: error ? 'unknown': (c.noaa_imf?.status        ?? 'unknown'), lastUpdate: c.noaa_imf?.last_update        },
+    { nameKey: 'status.noaaDst',       key: 'noaa_dst',        status: error ? 'unknown': (c.noaa_dst?.status        ?? 'unknown'), lastUpdate: c.noaa_dst?.last_update        },
     { nameKey: 'status.nasa',        key: 'nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
     { nameKey: 'status.celestrak',   key: 'celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
   ]
