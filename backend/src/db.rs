@@ -351,6 +351,10 @@ const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
 /// existing key stays unexpiring and unrevoked, which is the behaviour it had.
 const API_KEY_LIFECYCLE_MIGRATION: &str = "2026-08-api-keys-lifecycle";
 
+/// Adds `alerts_anomaly.user_email` and recovers the owner of rows already
+/// written by a custom rule. NULL means the anomaly is global.
+const ANOMALY_OWNER_MIGRATION: &str = "2026-08-alerts-anomaly-user-email";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -466,6 +470,7 @@ impl Store {
             "ALTER TABLE users ADD COLUMN token_version BIGINT DEFAULT 0",
             "ALTER TABLE api_keys ADD COLUMN expires_at BIGINT",
             "ALTER TABLE api_keys ADD COLUMN revoked_at BIGINT",
+            "ALTER TABLE alerts_anomaly ADD COLUMN user_email TEXT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_lower_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN ci_upper_e2 BIGINT",
             "ALTER TABLE kp_forecast ADD COLUMN uncertainty_e4 BIGINT",
@@ -561,6 +566,30 @@ impl Store {
                 params![API_KEY_LIFECYCLE_MIGRATION, now()],
             )?;
             info!("added api_keys.expires_at and api_keys.revoked_at");
+        }
+
+        // Rows written by a custom rule carry the rule id in `anomaly_type` as
+        // `custom:{id}`, so the owner is recoverable from custom_anomaly_rules.
+        // Everything else was a global detection and stays NULL.
+        let anomaly_owner_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![ANOMALY_OWNER_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if anomaly_owner_applied == 0 {
+            let recovered = conn.execute(
+                "UPDATE alerts_anomaly SET user_email = (
+                     SELECT r.user_email FROM custom_anomaly_rules r
+                     WHERE alerts_anomaly.anomaly_type = 'custom:' || r.id
+                 )
+                 WHERE anomaly_type LIKE 'custom:%' AND user_email IS NULL",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![ANOMALY_OWNER_MIGRATION, now()],
+            )?;
+            info!(recovered, "added alerts_anomaly.user_email");
         }
 
         // Backfill observed_at. The three upstream time_tag formats (bare,
@@ -1811,18 +1840,22 @@ impl Store {
 // ── Anomaly detection ─────────────────────────────────────────────────────────
 
 impl Store {
+    /// `user_email` is None for a global detection and Some for an anomaly
+    /// raised by one account's custom rule.
     pub fn insert_anomaly(
         &self,
         anomaly_type: &str,
         source_ref: &str,
         severity: &str,
         message: &str,
+        user_email: Option<&str>,
     ) -> Result<(), DbError> {
         self.conn.execute(
-            "INSERT INTO alerts_anomaly (anomaly_type, source_ref, detected_at, severity, message)
-             VALUES (?, ?, ?, ?, ?)
+            "INSERT INTO alerts_anomaly
+                 (anomaly_type, source_ref, detected_at, severity, message, user_email)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT (anomaly_type, source_ref) DO NOTHING",
-            params![anomaly_type, source_ref, now(), severity, message],
+            params![anomaly_type, source_ref, now(), severity, message, user_email],
         )?;
         Ok(())
     }
@@ -1888,13 +1921,30 @@ impl Store {
         }))
     }
 
-    pub fn get_anomalies_recent(&self) -> Result<serde_json::Value, DbError> {
+    /// Anomalies visible to one account: every global detection, plus the ones
+    /// raised by that account's own custom rules.
+    ///
+    /// The two are windowed separately on purpose. A single ORDER BY over the
+    /// union let one noisy rule fill the whole limit and push real global
+    /// anomalies out of the feed, and before `user_email` existed it also served
+    /// every account's rule names and thresholds to every authenticated caller.
+    pub fn get_anomalies_recent(&self, user_email: &str) -> Result<serde_json::Value, DbError> {
+        const GLOBAL_LIMIT: i64 = 100;
+        const OWN_LIMIT: i64 = 50;
         let mut stmt = self.conn.prepare(
-            "SELECT anomaly_type, source_ref, detected_at, severity, message
-             FROM alerts_anomaly ORDER BY detected_at DESC LIMIT 100",
+            "SELECT anomaly_type, source_ref, detected_at, severity, message FROM (
+                 SELECT * FROM alerts_anomaly WHERE user_email IS NULL
+                 ORDER BY detected_at DESC LIMIT ?
+             )
+             UNION ALL
+             SELECT anomaly_type, source_ref, detected_at, severity, message FROM (
+                 SELECT * FROM alerts_anomaly WHERE user_email = ?
+                 ORDER BY detected_at DESC LIMIT ?
+             )
+             ORDER BY detected_at DESC",
         )?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map(params![GLOBAL_LIMIT, user_email, OWN_LIMIT], |row| {
                 let anomaly_type: String = row.get(0)?;
                 let source_ref: String = row.get(1)?;
                 let detected_at: i64 = row.get(2)?;
@@ -3159,6 +3209,82 @@ mod tests {
             .expect("iss_position has a freshness entry");
         assert_eq!(iss.time_column, "ts");
         assert_eq!(iss.component, "iss");
+    }
+
+    /// One account's custom rule anomalies must not reach another account, and
+    /// global detections must reach everyone. Before user_email existed, every
+    /// authenticated caller read every account's rule names and thresholds.
+    #[test]
+    fn anomalies_are_scoped_to_global_plus_the_callers_own() {
+        let store = mem_store();
+        store
+            .insert_anomaly("kp_storm", "g1", "warning", "Kp 5.0", None)
+            .expect("global");
+        store
+            .insert_anomaly("custom:r1", "r1:1", "warning", "alice rule", Some("alice@example.com"))
+            .expect("alice");
+        store
+            .insert_anomaly("custom:r2", "r2:1", "critical", "bob secret threshold", Some("bob@example.com"))
+            .expect("bob");
+
+        let msgs = |email: &str| -> Vec<String> {
+            store
+                .get_anomalies_recent(email)
+                .expect("read")
+                .as_array()
+                .expect("array")
+                .iter()
+                .map(|v| v["message"].as_str().unwrap_or_default().to_string())
+                .collect()
+        };
+
+        let alice = msgs("alice@example.com");
+        assert!(alice.iter().any(|m| m == "Kp 5.0"), "global must be visible");
+        assert!(alice.iter().any(|m| m == "alice rule"), "own rule must be visible");
+        assert!(
+            !alice.iter().any(|m| m.contains("bob")),
+            "another account's rule must not appear: {alice:?}"
+        );
+
+        let bob = msgs("bob@example.com");
+        assert!(bob.iter().any(|m| m == "Kp 5.0"));
+        assert!(bob.iter().any(|m| m == "bob secret threshold"));
+        assert!(!bob.iter().any(|m| m.contains("alice")));
+
+        // An account with no rules of its own still sees the global feed.
+        let stranger = msgs("nobody@example.com");
+        assert_eq!(stranger, vec!["Kp 5.0".to_string()]);
+    }
+
+    /// A noisy rule filled the shared limit and pushed global anomalies out of
+    /// everyone's feed. The two windows are taken separately so it cannot.
+    #[test]
+    fn a_noisy_rule_cannot_evict_global_anomalies() {
+        let store = mem_store();
+        for i in 0..200 {
+            store
+                .insert_anomaly(
+                    "custom:noisy",
+                    &format!("noisy:{i}"),
+                    "warning",
+                    "noise",
+                    Some("noisy@example.com"),
+                )
+                .expect("noise");
+        }
+        store
+            .insert_anomaly("kp_storm", "g1", "critical", "Kp 8.0", None)
+            .expect("global");
+
+        let out = store.get_anomalies_recent("noisy@example.com").expect("read");
+        let rows = out.as_array().expect("array");
+        assert!(
+            rows.iter().any(|v| v["message"] == "Kp 8.0"),
+            "the global anomaly must survive 200 rows of one rule"
+        );
+        // Own rows are capped separately, so the response stays bounded.
+        let own = rows.iter().filter(|v| v["message"] == "noise").count();
+        assert_eq!(own, 50, "own anomalies are windowed at 50, got {own}");
     }
 
     /// One live series must not cover for a dead one. The status page read a

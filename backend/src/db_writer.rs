@@ -32,6 +32,8 @@ pub enum WriteCmd {
         source_ref: String,
         severity: String,
         message: String,
+        /// None for a global detection, Some for one account's custom rule.
+        user_email: Option<String>,
     },
     KpForecast {
         ts: i64,
@@ -493,7 +495,14 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
             source_ref,
             severity,
             message,
-        } => match db.insert_anomaly(&anomaly_type, &source_ref, &severity, &message) {
+            user_email,
+        } => match db.insert_anomaly(
+            &anomaly_type,
+            &source_ref,
+            &severity,
+            &message,
+            user_email.as_deref(),
+        ) {
             Err(e) => error!(source = "db_writer", "anomaly: {e}"),
             Ok(()) => match db.list_active_webhooks_for_event(&anomaly_type) {
                 Ok(hooks) if !hooks.is_empty() => {

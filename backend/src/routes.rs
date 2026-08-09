@@ -1033,19 +1033,18 @@ async fn update_user_plan(
 
 // ── Anomaly handler ───────────────────────────────────────────────────────────
 
+/// Not cached. The response is now per account, and the response cache is keyed
+/// on a single static string, so caching here would hand one account's custom
+/// rule anomalies to whoever asked next. That is the same disclosure the
+/// user_email column exists to stop. The query is bounded to 150 rows against a
+/// small table, so the cost of reading it each time is slight.
 async fn get_anomalies(
     State(s): State<AppState>,
-    _claims: AuthClaims,
+    claims: AuthClaims,
 ) -> Result<Response, AppError> {
-    Ok(
-        cached(&s.cache, "anomalies", Duration::from_secs(30), || async {
-            let val = lock_db(&s.db).await.get_anomalies_recent()?;
-            info!("api/anomalies: served from db");
-            Ok(val)
-        })
-        .await?
-        .into_response(),
-    )
+    let val = lock_db(&s.db).await.get_anomalies_recent(&claims.sub)?;
+    info!(source = "api/anomalies", "served from db");
+    Ok(Json(val).into_response())
 }
 
 // ── Usage handler ─────────────────────────────────────────────────────────────
@@ -1449,7 +1448,7 @@ async fn mcp_handler(
                     };
                     info!(source = "mcp", tool = name, subject = %claims.sub, "tool call");
                     match name {
-                        "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent() {
+                        "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent(&claims.sub) {
                             Ok(v) => McpResp::ok(id, mcp_text(v)),
                             Err(e) => McpResp::err(id, -32603, &e.to_string()),
                         },
