@@ -4,6 +4,8 @@ import Navbar from './Navbar'
 import Footer from './Footer'
 
 const REFRESH_INTERVAL = 30_000
+// Matches DAYS in the uptime handler.
+const UPTIME_WINDOW_DAYS = 90
 
 function statusMeta(status) {
   switch (status) {
@@ -30,6 +32,15 @@ function fmtAgo(ts) {
   return `${Math.floor(secs / 3600)}h ago`
 }
 
+// Days of history behind the percentage, or null when it covers the whole
+// window and needs no qualifier.
+function partialWindow(up) {
+  const recorded = up?.recorded_days
+  if (recorded == null || recorded <= 0) return null
+  if (recorded >= UPTIME_WINDOW_DAYS) return null
+  return recorded
+}
+
 function dayColor(s) {
   switch (s) {
     case 'operational': return 'bg-green-500/80'
@@ -39,15 +50,21 @@ function dayColor(s) {
   }
 }
 
-function UptimeStrip({ days, label }) {
+function UptimeStrip({ days, label, noDataLabel }) {
   if (!days?.length) return null
   return (
     <div className="flex items-center gap-px mt-2" aria-label={label}>
       {days.map((d, i) => (
         <span
           key={i}
-          className={`flex-1 h-7 rounded-[1px] ${dayColor(d.status)}`}
-          title={d.uptime_pct != null ? `${d.uptime_pct}% uptime` : 'No data'}
+          className={[
+            'flex-1 h-7 rounded-[1px]',
+            dayColor(d.status),
+            // A day nobody recorded is drawn hollow, so it reads as absent
+            // rather than as a filled bar in a dark colour.
+            d.status === 'no_data' ? 'border border-zinc-800 bg-transparent' : '',
+          ].join(' ')}
+          title={d.uptime_pct != null ? `${d.uptime_pct}% uptime` : noDataLabel}
         />
       ))}
     </div>
@@ -152,13 +169,25 @@ export default function StatusPage({ onSignIn }) {
                       <span className="text-zinc-400 text-xs font-mono w-16 text-right tabular-nums">
                         {up?.uptime_pct != null ? `${up.uptime_pct.toFixed(2)}%` : ''}
                       </span>
+                      {/* The percentage covers only the days actually recorded.
+                          Saying so means a component added last week is not read
+                          against a 90 day window it was never in. */}
+                      <span className="text-zinc-600 text-xs font-mono w-20 text-right hidden sm:block">
+                        {partialWindow(up) != null
+                          ? t('status.recordedDays', { count: partialWindow(up) })
+                          : ''}
+                      </span>
                       <span className="text-zinc-600 text-xs font-mono w-16 text-right tabular-nums hidden sm:block">
                         {comp.lastUpdate != null ? fmtAgo(comp.lastUpdate) : ''}
                       </span>
                       <span className={`text-xs font-mono w-24 text-right ${meta.text}`}>{t(meta.label)}</span>
                     </div>
                   </div>
-                  <UptimeStrip days={up?.days} label={`${t(comp.nameKey)} 90-day uptime`} />
+                  <UptimeStrip
+                    days={up?.days}
+                    label={`${t(comp.nameKey)} ${t('status.uptimeWindow')}`}
+                    noDataLabel={t('common.noData')}
+                  />
                 </div>
               )
             })}

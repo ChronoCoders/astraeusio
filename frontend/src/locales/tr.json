@@ -367,6 +367,8 @@
     "deliveryFail": "Başarısız"
   },
   "status": {
+    "recordedDays": "{{count}} gün",
+    "recordedDays_other": "{{count}} gün",
     "eyebrow": "Sistem Durumu",
     "title": "Tüm sistemlerin durumu",
     "allOperational": "Tüm Sistemler Çalışıyor",

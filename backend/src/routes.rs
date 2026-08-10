@@ -276,15 +276,17 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
                 .collect();
             let mut total_samples = 0i64;
             let mut total_ok = 0i64;
+            let mut recorded_days = 0i64;
             for (c, day_idx, samples, ok) in &rows {
                 if c != comp || *day_idx < 0 || *day_idx >= DAYS {
                     continue;
                 }
-                let pct = if *samples > 0 {
-                    (*ok as f64 / *samples as f64) * 100.0
-                } else {
-                    0.0
-                };
+                // A day with no samples was not observed. It is not a day the
+                // component was down, so it stays no_data.
+                if *samples <= 0 {
+                    continue;
+                }
+                let pct = (*ok as f64 / *samples as f64) * 100.0;
                 let status = if pct >= 99.0 {
                     "operational"
                 } else if pct >= 90.0 {
@@ -299,17 +301,26 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
                 });
                 total_samples += *samples;
                 total_ok += *ok;
+                recorded_days += 1;
             }
+            // Null, not zero, when nothing was ever recorded. A component added
+            // yesterday has no history, and reporting 0 percent would read as
+            // three months of downtime. The percentage covers only the days
+            // actually observed, and recorded_days says how many that is, so the
+            // figure can be labelled with the window it really describes.
             let overall = if total_samples > 0 {
-                (total_ok as f64 / total_samples as f64) * 100.0
+                serde_json::json!(
+                    ((total_ok as f64 / total_samples as f64) * 10_000.0).round() / 100.0
+                )
             } else {
-                0.0
+                serde_json::Value::Null
             };
             out.insert(
                 comp.to_string(),
                 serde_json::json!({
-                    "uptime_pct": (overall * 100.0).round() / 100.0,
-                    "days": days,
+                    "uptime_pct":    overall,
+                    "recorded_days": recorded_days,
+                    "days":          days,
                 }),
             );
         }
@@ -1691,6 +1702,91 @@ mod mcp_tests {
             );
         }
         assert!(!VALID_PLANS.contains(&"starter"), "starter is gone");
+    }
+
+    /// A component with no recorded history must not read as downtime. It used
+    /// to report 0 percent, which on a page of components at 100 percent looks
+    /// like three months of outage rather than an absence of records.
+    #[tokio::test]
+    async fn a_component_with_no_history_reports_null_not_zero() {
+        let state = test_state();
+        let now_ts = chrono::Utc::now().timestamp();
+        {
+            let db = state.db.lock().await;
+            // Two days of history for one component, all healthy.
+            for day in 0..2i64 {
+                for sample in 0..5i64 {
+                    db.insert_health_snapshot(
+                        "backend_api",
+                        now_ts - day * 86_400 - sample * 300,
+                        "operational",
+                    )
+                    .expect("snapshot");
+                }
+            }
+        }
+
+        let Ok(resp) = uptime(State(state.clone())).await else {
+            panic!("uptime handler failed");
+        };
+        let bytes = axum::body::to_bytes(resp.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let comps = &v["components"];
+
+        // Recorded: a real figure, and the window it covers.
+        assert!(
+            comps["backend_api"]["uptime_pct"].is_f64(),
+            "a recorded component must report a percentage"
+        );
+        assert_eq!(comps["backend_api"]["recorded_days"], 2);
+
+        // Never recorded: null, and no days claimed.
+        assert!(
+            comps["noaa_imf"]["uptime_pct"].is_null(),
+            "no history must be null, not zero: {}",
+            comps["noaa_imf"]["uptime_pct"]
+        );
+        assert_eq!(comps["noaa_imf"]["recorded_days"], 0);
+
+        // And its strip is entirely no_data rather than outage.
+        let days = comps["noaa_imf"]["days"].as_array().expect("days");
+        assert_eq!(days.len(), 90);
+        assert!(
+            days.iter().all(|d| d["status"] == "no_data"),
+            "unrecorded days must be no_data, never outage"
+        );
+    }
+
+    /// The percentage covers the days actually observed. An unrecorded day is
+    /// not counted against the component.
+    #[tokio::test]
+    async fn uptime_is_measured_over_the_recorded_days_only() {
+        let state = test_state();
+        let now_ts = chrono::Utc::now().timestamp();
+        {
+            let db = state.db.lock().await;
+            // One day, half the samples degraded.
+            for sample in 0..4i64 {
+                let status = if sample < 2 { "operational" } else { "degraded" };
+                db.insert_health_snapshot("database", now_ts - sample * 300, status)
+                    .expect("snapshot");
+            }
+        }
+
+        let Ok(resp) = uptime(State(state.clone())).await else {
+            panic!("uptime handler failed");
+        };
+        let bytes = axum::body::to_bytes(resp.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let db_comp = &v["components"]["database"];
+
+        assert_eq!(db_comp["recorded_days"], 1, "one day of history");
+        // 2 of 4 samples operational over that one day, not 2 of 4 over ninety.
+        assert_eq!(db_comp["uptime_pct"], 50.0);
     }
 
     /// The four unauthenticated tools stay unauthenticated.
