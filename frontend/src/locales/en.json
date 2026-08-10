@@ -154,6 +154,7 @@
     "visible": ">{{lat}}° latitude"
   },
   "anomaly": {
+    "yourRule": "Your rule",
     "title": "Anomaly Alerts",
     "none": "No anomalies detected",
     "warning": "Warning",
@@ -959,6 +960,7 @@
     "techDetectionVal": "Multi-signal anomaly pipeline (Kp, solar wind, X-ray, NEO, ML forecast)"
   },
   "billing": {
+    "apiRequests": "API requests",
     "title": "Billing & Subscription",
     "subtitle": "Manage your plan and track API usage for the current period.",
     "currentPlan": "Current plan",

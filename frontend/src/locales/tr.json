@@ -154,6 +154,7 @@
     "visible": ">{{lat}}° enlem"
   },
   "anomaly": {
+    "yourRule": "Kendi kuralınız",
     "title": "Anomali Uyarıları",
     "none": "Anomali tespit edilmedi",
     "warning": "Uyarı",
@@ -959,6 +960,7 @@
     "techDetectionVal": "Çoklu sinyal anomali hattı (Kp, güneş rüzgarı, X-ışını, NEO, ML tahmini)"
   },
   "billing": {
+    "apiRequests": "API istekleri",
     "title": "Faturalandırma ve Abonelik",
     "subtitle": "Planınızı yönetin ve geçerli dönem için API kullanımını takip edin.",
     "currentPlan": "Mevcut plan",
