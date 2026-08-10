@@ -1,41 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const PLANS = [
-  {
-    id: 'free',
-    features: ['Public API access', 'Basic Kp data'],
-  },
-  {
-    id: 'starter',
-    features: ['Dashboard access', 'Live space weather data', 'ISS tracking'],
-  },
-  {
-    id: 'developer',
-    features: ['API keys', 'ML Kp forecast', 'Anomaly detection', 'Email alerts', 'CSV export'],
-  },
-  {
-    id: 'pro',
-    features: ['Everything in Developer', 'Webhooks', 'Priority support'],
-  },
-  {
-    id: 'business',
-    features: ['Everything in Pro', 'Historical data access', 'Team seats'],
-  },
-  {
-    id: 'enterprise',
-    features: ['Everything in Business', 'SLA', 'Custom integrations'],
-  },
-]
-
-const PLAN_COLOR = {
-  free:       'border-zinc-700 text-zinc-400',
-  starter:    'border-zinc-600 text-zinc-300',
-  developer:  'border-blue-700 text-blue-400',
-  pro:        'border-purple-700 text-purple-400',
-  business:   'border-amber-700 text-amber-400',
-  enterprise: 'border-orange-600 text-orange-400',
-}
+import { PLANS, PLAN_FEATURES, PLAN_COLOR, normalizePlan, planRank } from '../lib/plans'
 
 const LANGS = ['en', 'tr']
 
@@ -301,7 +266,7 @@ function TwoFactorSection({ user, onUserChange }) {
 
 function PlanSection({ user, onUserChange }) {
   const { t } = useTranslation()
-  const plan = user?.plan ?? 'starter'
+  const plan = normalizePlan(user?.plan)
   const [open, setOpen]       = useState(false)
   const [selected, setSelected] = useState(plan)
   const [saving, setSaving]   = useState(false)
@@ -321,8 +286,10 @@ function PlanSection({ user, onUserChange }) {
         onUserChange?.({ ...user, plan: selected })
         setOpen(false)
       } else {
+        // Fallback for a page loaded before the server state changed. The
+        // backend sends a readable message; its error code is not shown.
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(d.message ?? t('settings.planChangeFailed'))
       }
     } catch {
       setErr(t('auth.networkError'))
@@ -331,8 +298,9 @@ function PlanSection({ user, onUserChange }) {
     }
   }
 
-  const current = PLANS.find(p => p.id === plan) ?? PLANS[1]
-  const planCls = PLAN_COLOR[plan] ?? PLAN_COLOR.starter
+  const currentRank = planRank(plan)
+  const planCls = PLAN_COLOR[plan] ?? PLAN_COLOR.free
+  const currentFeatures = PLAN_FEATURES[plan] ?? []
 
   return (
     <Section title={t('settings.planTitle')}>
@@ -352,8 +320,10 @@ function PlanSection({ user, onUserChange }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        {current.features.map(f => (
-          <span key={f} className="text-zinc-500 text-xs font-mono">· {f}</span>
+        {currentFeatures.map(f => (
+          <span key={f} className="text-zinc-500 text-xs font-mono">
+            · {t(`pricing.features.${f}`)}
+          </span>
         ))}
       </div>
 
@@ -368,24 +338,39 @@ function PlanSection({ user, onUserChange }) {
 
             <div className="flex flex-col gap-2">
               {PLANS.map(p => {
-                const cls = PLAN_COLOR[p.id] ?? PLAN_COLOR.starter
-                const isSelected = selected === p.id
+                const cls = PLAN_COLOR[p.key] ?? PLAN_COLOR.free
+                const isSelected = selected === p.key
+                // Moving down a tier is self serve. Moving up is not, because no
+                // payment processor is connected, so the API refuses it. Showing
+                // it as clickable would offer an action that always fails.
+                const locked = p.rank > currentRank
+                const features = PLAN_FEATURES[p.key] ?? []
                 return (
                   <button
-                    key={p.id}
-                    onClick={() => setSelected(p.id)}
+                    key={p.key}
+                    onClick={() => { if (!locked) setSelected(p.key) }}
+                    disabled={locked}
                     className={[
                       'flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors',
-                      isSelected
-                        ? 'border-zinc-400 bg-zinc-800'
-                        : 'border-zinc-800 hover:border-zinc-600',
+                      locked
+                        ? 'border-zinc-800/60 opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? 'border-zinc-400 bg-zinc-800'
+                          : 'border-zinc-800 hover:border-zinc-600',
                     ].join(' ')}
                   >
                     <span className={`text-xs font-mono border rounded px-1.5 py-0.5 shrink-0 ${cls}`}>
-                      {t(`plan.${p.id}`)}
+                      {t(`plan.${p.key}`)}
                     </span>
-                    <span className="text-zinc-400 text-xs">{p.features[0]}{p.features.length > 1 ? ` +${p.features.length - 1} more` : ''}</span>
-                    {isSelected && <span className="ml-auto text-zinc-300 text-xs">✓</span>}
+                    <span className="text-zinc-400 text-xs">
+                      {features.length > 0 ? t(`pricing.features.${features[0]}`) : ''}
+                    </span>
+                    {locked && (
+                      <span className="ml-auto text-zinc-500 text-xs font-mono shrink-0">
+                        {t('settings.contactSales')}
+                      </span>
+                    )}
+                    {!locked && isSelected && <span className="ml-auto text-zinc-300 text-xs">✓</span>}
                   </button>
                 )
               })}

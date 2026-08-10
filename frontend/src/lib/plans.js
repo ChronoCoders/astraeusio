@@ -32,7 +32,11 @@ export const PLAN_COLOR = {
   enterprise: 'border-orange-600 text-orange-400',
 }
 
-// The default account plan is "starter"; the public tiers call it "free".
+// The backend retired the "starter" tier in 2026-08 and free is now the default,
+// so this normally has nothing to normalise. It survives as a guard: a session
+// token minted before that change, or a value read from a stale cache, can still
+// carry "starter", and an absent plan must resolve to something rather than
+// rendering an empty badge.
 export const normalizePlan = (plan) => (plan === 'starter' ? 'free' : (plan ?? 'free'))
 
 export const planRank = (plan) =>

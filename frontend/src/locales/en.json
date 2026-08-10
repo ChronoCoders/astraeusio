@@ -263,6 +263,8 @@
     "noData": "TLE data unavailable - awaiting Celestrak sync"
   },
   "settings": {
+    "contactSales": "Contact sales",
+    "planChangeFailed": "Your plan could not be changed.",
     "languageTitle": "Language",
     "changePasswordTitle": "Change Password",
     "currentPassword": "Current password",
@@ -479,7 +481,6 @@
   },
   "plan": {
     "free": "Free",
-    "starter": "Starter",
     "developer": "Developer",
     "pro": "Pro",
     "business": "Business",
