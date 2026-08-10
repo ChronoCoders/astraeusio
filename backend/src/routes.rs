@@ -949,7 +949,6 @@ struct UpdatePlanBody {
 
 pub(crate) const VALID_PLANS: &[&str] = &[
     "free",
-    "starter",
     "developer",
     "pro",
     "business",
@@ -1650,8 +1649,6 @@ mod mcp_tests {
             ("pro", "developer"),
             ("developer", "free"),
             ("free", "free"),
-            ("free", "starter"),
-            ("starter", "free"),
             ("pro", "pro"),
         ] {
             assert!(
@@ -1664,7 +1661,6 @@ mod mcp_tests {
         for (current, requested) in [
             ("free", "enterprise"),
             ("free", "developer"),
-            ("starter", "developer"),
             ("developer", "pro"),
             ("pro", "business"),
             ("business", "enterprise"),
@@ -1677,8 +1673,8 @@ mod mcp_tests {
     }
 
     /// The tier names the backend accepts must match the tiers the frontend
-    /// offers. `starter` is the internal default and the frontend renders it as
-    /// `free`, so it is the one name that exists on only one side.
+    /// offers, exactly. `starter` used to exist on the backend only, which is
+    /// why the frontend had to normalise it away.
     #[test]
     fn the_backend_tier_set_matches_the_frontend() {
         let frontend = ["free", "developer", "pro", "business", "enterprise"];
@@ -1690,10 +1686,11 @@ mod mcp_tests {
         }
         for tier in VALID_PLANS {
             assert!(
-                frontend.contains(tier) || *tier == "starter",
+                frontend.contains(tier),
                 "backend accepts {tier}, which the frontend does not offer"
             );
         }
+        assert!(!VALID_PLANS.contains(&"starter"), "starter is gone");
     }
 
     /// The four unauthenticated tools stay unauthenticated.
