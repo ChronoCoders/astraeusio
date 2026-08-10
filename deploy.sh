@@ -185,19 +185,47 @@ done
 [ "$ready" = "1" ] || { echo "backend did not bind within 10 minutes" >&2; exit 1; }
 echo "   backend bound"
 
+# Wait for a 200 rather than demanding one immediately.
+#
+# The backend gets a readiness loop above; the HTTP checks used to fire the
+# instant `up -d` returned. On 2026-08-10 that failed a healthy deploy: nginx
+# had started but was not completing TLS handshakes yet, so the first request
+# died with SSL_ERROR_SYSCALL and never even reached its access log, and the
+# script printed a rollback instruction for a site that was fine. A check that
+# cries wolf teaches everyone to ignore it.
+await_http() {  # await_http <label> <url> [seconds]
+  local label=$1 url=$2 limit=${3:-60}
+  local deadline=$(( $(date +%s) + limit )) code=000
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+    if [ "$code" = "200" ]; then
+      printf '   %-16s %s\n' "$label" "$code"
+      return 0
+    fi
+    sleep 2
+  done
+  printf '   %-16s %s after %ss\n' "$label" "$code" "$limit"
+  return 1
+}
+
 fail=0
-code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 15 https://127.0.0.1/ || true)
-echo "   frontend https: $code"; [ "$code" = "200" ] || fail=1
-code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 15 https://127.0.0.1/api/health || true)
-echo "   backend api:    $code"; [ "$code" = "200" ] || fail=1
+await_http "frontend https:" "https://127.0.0.1/" 90 || fail=1
+await_http "backend api:" "https://127.0.0.1/api/health" 90 || fail=1
 
 # The ML contract the backend depends on. A 200 alone does not prove the image
-# is the matching version, which is how a stale ml image went unnoticed.
+# is the matching version, which is how a stale ml image went unnoticed. Given
+# its own wait, since a recreated ml container loads a model before it answers.
 if echo "$SERVICES" | grep -q ml; then
-  seq=$(docker run --rm --network astraeusio_default curlimages/curl:latest \
-          -sS --max-time 8 http://ml:8000/health 2>/dev/null \
-        | python3 -c 'import sys,json; print(json.load(sys.stdin).get("seq_len","ABSENT"))' 2>/dev/null || echo ABSENT)
-  echo "   ml seq_len:     $seq"
+  seq=ABSENT
+  ml_deadline=$(( $(date +%s) + 90 ))
+  while [ "$(date +%s)" -lt "$ml_deadline" ]; do
+    seq=$(docker run --rm --network astraeusio_default curlimages/curl:latest \
+            -sS --max-time 8 http://ml:8000/health 2>/dev/null \
+          | python3 -c 'import sys,json; print(json.load(sys.stdin).get("seq_len","ABSENT"))' 2>/dev/null || echo ABSENT)
+    [ "$seq" != "ABSENT" ] && break
+    sleep 3
+  done
+  echo "   ml seq_len:      $seq"
   [ "$seq" = "ABSENT" ] && fail=1
 fi
 
