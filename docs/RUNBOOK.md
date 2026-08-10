@@ -92,6 +92,40 @@ disappearing without explanation looks like a compromise.
 
 ---
 
+## The deploy verification account
+
+`deploy-verify@astraeusio.com` is a permanent account that exists only so a
+deploy can be verified end to end: a real sign in, a real token, and the failed
+sign in backoff. Every future deploy verification uses it rather than anyone's
+personal account.
+
+It is on the free tier with no privileges, no API keys, no webhooks and no
+custom rules, and it must stay that way. It is not email verified, which is
+deliberate: nothing about the verification needs a delivered message, and the
+address has no mailbox.
+
+Credentials live on the host at `/opt/astraeusio/.deploy-verify-account`, mode
+600, owned by root, untracked like the other secrets beside it. They are not in
+the repository and must never be printed into a log or a report.
+
+```bash
+CRED=/opt/astraeusio/.deploy-verify-account
+EMAIL=$(grep -E '^DEPLOY_VERIFY_EMAIL=' "$CRED" | cut -d= -f2-)
+PASS=$(grep -E '^DEPLOY_VERIFY_PASSWORD=' "$CRED" | cut -d= -f2-)
+curl -sSk -X POST -H 'Content-Type: application/json'   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" https://127.0.0.1/auth/login
+```
+
+Two things to know when using it. Six wrong passwords in a row put the account
+into backoff and even the correct password is then refused until the wait
+expires, so a verification run that ends in failures should wait it out rather
+than retrying. And a successful sign in clears that counter, so ordinary use
+leaves no trace.
+
+If the credentials file is lost, delete the account row from `users` and create
+it again through `POST /auth/register`; nothing depends on its identity.
+
+---
+
 ## Data caveats
 
 Things that are true of the stored data and not visible from the schema.
