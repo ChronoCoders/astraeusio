@@ -5,6 +5,7 @@ mod auth;
 mod db;
 mod db_writer;
 mod email_alerts;
+mod fetch;
 mod iss;
 mod mailer;
 mod nasa;

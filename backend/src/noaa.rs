@@ -2,6 +2,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::fetch::{Fetched, PollOutcome};
+
 #[derive(Error, Debug)]
 pub enum NoaaError {
     #[error("request failed: {0}")]
@@ -64,7 +66,7 @@ pub struct SolarWindRecord {
 
 /// NOAA sometimes encodes numeric fields as JSON strings (same as IMF feed),
 /// so we parse via Value and coerce manually to tolerate both formats.
-pub async fn fetch_solar_wind(client: &Client) -> Result<Vec<SolarWindRecord>, NoaaError> {
+pub async fn fetch_solar_wind(client: &Client) -> Result<Fetched<SolarWindRecord>, NoaaError> {
     let items: Vec<serde_json::Value> = client
         .get(format!("{SWPC}/json/rtsw/rtsw_wind_1m.json"))
         .send()
@@ -73,7 +75,10 @@ pub async fn fetch_solar_wind(client: &Client) -> Result<Vec<SolarWindRecord>, N
         .json()
         .await?;
 
-    let records = items
+    // Held before the filter_map consumes the vector, so a feed that changes
+    // shape reports "sent 1440, kept 0" instead of a silent zero.
+    let received = items.len();
+    let records: Vec<SolarWindRecord> = items
         .into_iter()
         .filter_map(|item| {
             let time_tag = item.get("time_tag")?.as_str()?.to_owned();
@@ -86,7 +91,7 @@ pub async fn fetch_solar_wind(client: &Client) -> Result<Vec<SolarWindRecord>, N
         })
         .collect();
 
-    Ok(records)
+    Ok(Fetched::lossy(records, received))
 }
 
 // ── X-ray flux ────────────────────────────────────────────────────────────────
@@ -144,7 +149,7 @@ pub struct ImfRecord {
 /// 2-D array. NOAA retired it and it returned 404 for forty days while the
 /// poller logged an error every minute and wrote nothing, so the table sat
 /// frozen. This reads the rtsw family, the same shape fetch_solar_wind uses.
-pub async fn fetch_imf(client: &Client) -> Result<Vec<ImfRecord>, NoaaError> {
+pub async fn fetch_imf(client: &Client) -> Result<Fetched<ImfRecord>, NoaaError> {
     let items: Vec<serde_json::Value> = client
         .get(format!("{SWPC}/json/rtsw/rtsw_mag_1m.json"))
         .send()
@@ -153,7 +158,12 @@ pub async fn fetch_imf(client: &Client) -> Result<Vec<ImfRecord>, NoaaError> {
         .json()
         .await?;
 
-    parse_imf(items)
+    // `parse_imf` returns one record per entry or fails the whole batch, so it
+    // cannot drop a row quietly. That makes the count strict: zero records can
+    // only mean an empty payload, never a parser that swallowed the feed.
+    let records = parse_imf(items)?;
+    let outcome = PollOutcome::strict(records.len());
+    Ok(Fetched { items: records, outcome })
 }
 
 /// Maps the raw feed to records. Separate from the request so it can be tested.
@@ -208,7 +218,7 @@ pub struct DstRecord {
 }
 
 /// Parses the array-of-objects format: [{"time_tag":"...","dst":-45}, ...].
-pub async fn fetch_dst(client: &Client) -> Result<Vec<DstRecord>, NoaaError> {
+pub async fn fetch_dst(client: &Client) -> Result<Fetched<DstRecord>, NoaaError> {
     let items: Vec<serde_json::Value> = client
         .get(format!("{SWPC}/products/kyoto-dst.json"))
         .send()
@@ -217,7 +227,8 @@ pub async fn fetch_dst(client: &Client) -> Result<Vec<DstRecord>, NoaaError> {
         .json()
         .await?;
 
-    let records = items
+    let received = items.len();
+    let records: Vec<DstRecord> = items
         .into_iter()
         .filter_map(|item| {
             let time_tag = item.get("time_tag")?.as_str()?.to_owned();
@@ -230,7 +241,7 @@ pub async fn fetch_dst(client: &Client) -> Result<Vec<DstRecord>, NoaaError> {
         })
         .collect();
 
-    Ok(records)
+    Ok(Fetched::lossy(records, received))
 }
 
 #[cfg(test)]
