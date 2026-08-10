@@ -304,11 +304,18 @@ pub const SERIES_FRESHNESS: [SeriesFreshness; 7] = [
         time_column: "observed_at",
         max_age_secs: 1_800,
     },
+    // NOAA publishes this series about three hours after the period it covers,
+    // so the newest stored value is normally between three and six hours old.
+    // Six hours brushed the boundary before every new value arrived: the series
+    // flipped to degraded for the last stretch of each cycle and, because the
+    // forecast refuses a stale input, took the forecast down with it for roughly
+    // thirty minutes in every three hours. Nine hours clears a full missed
+    // publication plus the lag and still catches a dead feed within one cycle.
     SeriesFreshness {
         component: "noaa_kp_3h",
         table: "kp_3h",
         time_column: "observed_at",
-        max_age_secs: 21_600,
+        max_age_secs: 32_400,
     },
     SeriesFreshness {
         component: "noaa_solar_wind",
@@ -3937,6 +3944,55 @@ mod tests {
 
         drop(store);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The publication lag is the reason the limit is nine hours, not six. A
+    /// value covering 21:00 appears around 00:00, so at 05:00 the newest stored
+    /// value is eight hours old and the series is healthy. Six hours called that
+    /// stale and took the forecast down with it.
+    #[test]
+    fn kp_3h_tolerates_the_noaa_publishing_lag() {
+        let store = mem_store();
+        // Eight hours old: normal for this series near the end of a cycle.
+        store
+            .insert_kp_3h_batch(&[Kp3hRecord {
+                time_tag: iso(now() - 8 * 3_600),
+                kp: 2.0,
+            }])
+            .unwrap();
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(component, _, _)| *component == c)
+                .map(|(_, s, _)| *s)
+                .expect("component")
+        };
+        assert_eq!(
+            status("noaa_kp_3h"),
+            "operational",
+            "an eight hour old three hourly value is normal, not stale"
+        );
+        assert!(
+            !store.get_kp_3h_recent().unwrap().as_array().unwrap().is_empty(),
+            "and it must still be served"
+        );
+
+        // Ten hours old is past the limit and does count as stale.
+        let store = mem_store();
+        store
+            .insert_kp_3h_batch(&[Kp3hRecord {
+                time_tag: iso(now() - 10 * 3_600),
+                kp: 2.0,
+            }])
+            .unwrap();
+        let health = store.series_health();
+        let stale = health
+            .iter()
+            .find(|(component, _, _)| *component == "noaa_kp_3h")
+            .map(|(_, s, _)| *s)
+            .expect("component");
+        assert_eq!(stale, "degraded", "ten hours is a genuinely stopped feed");
     }
 
     /// Kyoto publishes Dst provisionally and corrects it later. Both the
