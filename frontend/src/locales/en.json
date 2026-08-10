@@ -416,6 +416,8 @@
     }
   },
   "status": {
+    "recordedDays": "{{count}} day",
+    "recordedDays_other": "{{count}} days",
     "eyebrow": "System Status",
     "title": "All systems status",
     "allOperational": "All Systems Operational",
