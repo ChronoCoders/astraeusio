@@ -1287,21 +1287,22 @@ impl Store {
         }
     }
 
+    /// Writes the whole returned window rather than only hours newer than the
+    /// newest stored one.
+    ///
+    /// Kyoto publishes Dst provisionally and corrects it afterwards, and the
+    /// feed re-offers a rolling window of past hours with values that can have
+    /// changed. Two separate mechanisms were discarding those corrections: the
+    /// incremental filter dropped every hour at or below the newest stored one
+    /// before the insert ran, and the conflict clause would have dropped any
+    /// that survived. The stored series was therefore provisional values frozen
+    /// at first sight, permanently.
+    ///
+    /// Both are removed here. The cost is upserting the returned window each
+    /// poll instead of only its new rows, which for this feed is 168 rows every
+    /// 300 seconds. `kp` and `kp_3h` already work this way.
     pub fn insert_dst_batch(&self, records: &[DstRecord]) -> Result<(), DbError> {
         if records.is_empty() {
-            return Ok(());
-        }
-        let max_tag: Option<String> = self
-            .conn
-            .query_row("SELECT MAX(time_tag) FROM dst", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })
-            .unwrap_or(None);
-        let to_insert: Vec<&DstRecord> = match &max_tag {
-            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
-            None => records.iter().collect(),
-        };
-        if to_insert.is_empty() {
             return Ok(());
         }
         self.begin()?;
@@ -1309,9 +1310,11 @@ impl Store {
             let mut stmt = self.conn.prepare(&format!(
                 "INSERT INTO dst (time_tag, dst_nt, observed_at, fetched_at)
                  VALUES (?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
-                 ON CONFLICT (time_tag) DO NOTHING"
+                 ON CONFLICT (time_tag) DO UPDATE SET
+                   dst_nt     = excluded.dst_nt,
+                   fetched_at = excluded.fetched_at"
             ))?;
-            for r in to_insert {
+            for r in records {
                 stmt.execute(params![r.time_tag, r.dst_nt, r.time_tag, now()])?;
             }
             Ok(())
@@ -3848,6 +3851,87 @@ mod tests {
                 .expect("collect")
         };
         assert_eq!(sats, vec![16, 18]);
+    }
+
+    /// Kyoto publishes Dst provisionally and corrects it later. Both the
+    /// incremental filter and the conflict clause used to discard the
+    /// correction, so the stored series was frozen at first sight.
+    #[test]
+    fn a_corrected_dst_value_replaces_the_provisional_one() {
+        let store = mem_store();
+        // Bound once. Calling now() per use let a second tick over between the
+        // insert and the read, which made the lookup miss under load.
+        let base = now();
+        let hour = |offset: i64| iso(base - offset * 3_600);
+
+        // First poll: three hours of provisional values.
+        store
+            .insert_dst_batch(&[
+                DstRecord { time_tag: hour(3), dst_nt: Some(-20) },
+                DstRecord { time_tag: hour(2), dst_nt: Some(-30) },
+                DstRecord { time_tag: hour(1), dst_nt: Some(-40) },
+            ])
+            .expect("first poll");
+
+        // Second poll: the same window, two hours corrected, one hour new. This
+        // is exactly the shape the live feed returns.
+        store
+            .insert_dst_batch(&[
+                DstRecord { time_tag: hour(3), dst_nt: Some(-22) },
+                DstRecord { time_tag: hour(2), dst_nt: Some(-30) },
+                DstRecord { time_tag: hour(1), dst_nt: Some(-45) },
+                DstRecord { time_tag: hour(0), dst_nt: Some(-51) },
+            ])
+            .expect("second poll");
+
+        let read = |tag: String| -> Option<i32> {
+            store
+                .conn
+                .query_row(
+                    "SELECT dst_nt FROM dst WHERE time_tag = ?",
+                    params![tag],
+                    |r| r.get(0),
+                )
+                .ok()
+        };
+        assert_eq!(read(hour(3)), Some(-22), "a corrected hour must be updated");
+        assert_eq!(read(hour(2)), Some(-30), "an unchanged hour stays as it was");
+        assert_eq!(read(hour(1)), Some(-45), "the most recent hour corrects too");
+        assert_eq!(read(hour(0)), Some(-51), "a new hour is still inserted");
+
+        let n: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM dst", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(n, 4, "corrections must update rows, not add them");
+    }
+
+    /// The old behaviour, stated so a reintroduced filter fails here: an hour at
+    /// or below the newest stored one used to be dropped before the insert ran.
+    #[test]
+    fn an_older_dst_hour_is_no_longer_filtered_out() {
+        let store = mem_store();
+        let newest = iso(now());
+        let older = iso(now() - 7_200);
+
+        store
+            .insert_dst_batch(&[DstRecord { time_tag: newest.clone(), dst_nt: Some(-10) }])
+            .expect("newest first");
+        // Arrives after a newer hour is already stored, which the incremental
+        // filter would have discarded.
+        store
+            .insert_dst_batch(&[DstRecord { time_tag: older.clone(), dst_nt: Some(-99) }])
+            .expect("older hour");
+
+        let stored: Option<i32> = store
+            .conn
+            .query_row(
+                "SELECT dst_nt FROM dst WHERE time_tag = ?",
+                params![older],
+                |r| r.get(0),
+            )
+            .ok();
+        assert_eq!(stored, Some(-99), "an older hour must still be written");
     }
 
     /// A revised reading replaces the first one, within a batch. NOAA applies
