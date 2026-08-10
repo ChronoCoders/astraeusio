@@ -1,3 +1,5 @@
+import { planRank } from './plans'
+
 // ── Kp / Storm ────────────────────────────────────────────────────────────────
 
 export function kpDesc(kp) {
@@ -204,10 +206,11 @@ export function epicImageUrl(item) {
 
 // ── Plan hierarchy ────────────────────────────────────────────────────────────
 
-const PLAN_RANK = { free: 0, starter: 0, developer: 1, pro: 2, business: 3, enterprise: 4 }
-
+// Ranks come from lib/plans.js. This file used to carry its own copy, which was
+// the fourth in the codebase and the last one still naming the retired starter
+// tier.
 export function planSatisfies(userPlan, required) {
-  return (PLAN_RANK[userPlan] ?? 0) >= (PLAN_RANK[required] ?? 0)
+  return planRank(userPlan) >= planRank(required)
 }
 
 // ── Formatting ────────────────────────────────────────────────────────────────
