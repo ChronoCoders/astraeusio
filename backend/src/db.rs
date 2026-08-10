@@ -965,6 +965,10 @@ impl Store {
     }
 
     pub fn insert_epic_batch(&self, images: &[EpicImage]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if images.is_empty() {
             return Ok(());
         }
@@ -1051,6 +1055,10 @@ impl Store {
     }
 
     pub fn insert_exoplanet_batch(&self, planets: &[Exoplanet]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if planets.is_empty() {
             return Ok(());
         }
@@ -1090,6 +1098,10 @@ impl Store {
 
 impl Store {
     pub fn insert_kp_batch(&self, records: &[KpRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -1137,6 +1149,10 @@ impl Store {
     }
 
     pub fn insert_solar_wind_batch(&self, records: &[SolarWindRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -1182,6 +1198,10 @@ impl Store {
     }
 
     pub fn insert_xray_batch(&self, records: &[XRayRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -1245,6 +1265,10 @@ impl Store {
     }
 
     pub fn insert_alerts_batch(&self, alerts: &[SpaceWeatherAlert]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if alerts.is_empty() {
             return Ok(());
         }
@@ -1271,6 +1295,10 @@ impl Store {
     }
 
     pub fn insert_imf_batch(&self, records: &[ImfRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -1329,6 +1357,10 @@ impl Store {
     /// poll instead of only its new rows, which for this feed is 168 rows every
     /// 300 seconds. `kp` and `kp_3h` already work this way.
     pub fn insert_dst_batch(&self, records: &[DstRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -1356,6 +1388,10 @@ impl Store {
     }
 
     pub fn insert_kp_3h_batch(&self, records: &[Kp3hRecord]) -> Result<(), DbError> {
+        // Optimisation only: skip the mutex and the empty transaction. This
+        // table is append only, so falling through would write no rows and
+        // lose nothing. Contrast insert_starlink_batch, where the same check
+        // is the only thing preventing a full replace from wiping the table.
         if records.is_empty() {
             return Ok(());
         }
@@ -3080,6 +3116,17 @@ impl Store {
 
 impl Store {
     pub fn insert_starlink_batch(&self, sats: &[StarlinkSat]) -> Result<(), DbError> {
+        // Load bearing, not an optimisation. Unlike every other batch insert,
+        // this one is a full replace, so the DELETE below runs before any row is
+        // written. An empty batch that got past here would commit a table with
+        // nothing in it.
+        //
+        // Empty batches are routine: Celestrak refreshes every two hours and we
+        // poll hourly, so roughly every other poll returns "no change" and the
+        // poller hands the writer an empty vector. The poller does not skip that
+        // call. This is the only thing standing between a normal 403 and an
+        // emptied table, and `empty_starlink_batch_must_not_wipe_the_table`
+        // fails if it is removed.
         if sats.is_empty() {
             return Ok(());
         }
@@ -4766,6 +4813,54 @@ mod tests {
             .unwrap();
         assert_eq!(got, 1_778_471_220);
     }
+
+    fn sat(norad_id: i32) -> StarlinkSat {
+        StarlinkSat {
+            norad_id,
+            name: format!("STARLINK-{norad_id}"),
+            tle_line1: format!("1 {norad_id:05}U 24001A   26001.00000000  .00000000  00000-0  00000-0 0  9990"),
+            tle_line2: format!("2 {norad_id:05}  53.0000   0.0000 0001000   0.0000   0.0000 15.00000000    00"),
+        }
+    }
+
+    /// The starlink table is the only full replace in the schema, so its empty
+    /// batch guard is data protection rather than an optimisation.
+    ///
+    /// Celestrak answers 403 "GP data has not updated" on roughly every other
+    /// poll, which reaches the writer as an empty batch. Delete the
+    /// `sats.is_empty()` early return in insert_starlink_batch and the
+    /// unconditional DELETE at the top of the transaction empties the table on
+    /// the next no-change poll. This test is what makes that removal loud.
+    #[test]
+    fn empty_starlink_batch_must_not_wipe_the_table() {
+        let store = mem_store();
+        store.insert_starlink_batch(&[sat(44713), sat(44714)]).unwrap();
+        let before = store.get_starlink_all().unwrap();
+        assert_eq!(before.as_array().unwrap().len(), 2, "setup failed");
+
+        // A no-change poll: the fetch succeeded and produced no rows.
+        store.insert_starlink_batch(&[]).unwrap();
+
+        let after = store.get_starlink_all().unwrap();
+        assert_eq!(
+            after.as_array().unwrap().len(),
+            2,
+            "an empty batch wiped the starlink table; the guard in \
+             insert_starlink_batch is load bearing and must stay"
+        );
+    }
+
+    /// The replace still has to replace. A non-empty batch is a fresh snapshot
+    /// and must not merge with what was there.
+    #[test]
+    fn a_non_empty_starlink_batch_still_replaces_everything() {
+        let store = mem_store();
+        store.insert_starlink_batch(&[sat(1), sat(2), sat(3)]).unwrap();
+        store.insert_starlink_batch(&[sat(9)]).unwrap();
+
+        let rows = store.get_starlink_all().unwrap();
+        let rows = rows.as_array().unwrap();
+        assert_eq!(rows.len(), 1, "the snapshot did not replace the old rows");
+        assert_eq!(rows[0]["norad_id"].as_i64().unwrap(), 9);
+    }
 }
-
-
