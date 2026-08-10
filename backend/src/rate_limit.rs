@@ -23,7 +23,7 @@ pub type UsageCounter = DashMap<String, UsageEntry>;
 
 pub fn plan_limit(plan: &str) -> Option<u64> {
     match plan {
-        "free" | "starter" => Some(100),
+        "free" => Some(100),
         "developer" => Some(10_000),
         "pro" => Some(100_000),
         "business" => Some(1_000_000),
@@ -33,7 +33,7 @@ pub fn plan_limit(plan: &str) -> Option<u64> {
 }
 
 fn is_daily(plan: &str) -> bool {
-    matches!(plan, "free" | "starter")
+    matches!(plan, "free")
 }
 
 pub fn current_period_start(plan: &str, now: i64) -> i64 {
@@ -101,7 +101,7 @@ pub async fn check_and_increment(
         let guard: tokio::sync::MutexGuard<'_, Store> = db.lock().await;
         guard
             .get_user_plan(email)
-            .unwrap_or_else(|_| "starter".to_string())
+            .unwrap_or_else(|_| "free".to_string())
     };
     let p_start = current_period_start(&plan, now_ts);
     let p_end = period_end(&plan, p_start);

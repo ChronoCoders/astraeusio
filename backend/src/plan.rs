@@ -4,11 +4,11 @@ use tokio::sync::Mutex;
 use crate::{db::Store, rate_limit::UsageCounter};
 
 // ── Hierarchy ─────────────────────────────────────────────────────────────────
-// free/starter < developer < pro < business < enterprise
+// free < developer < pro < business < enterprise
 
 pub fn rank(plan: &str) -> u8 {
     match plan {
-        "free" | "starter" => 0,
+        "free" => 0,
         "developer" => 1,
         "pro" => 2,
         "business" => 3,
@@ -30,5 +30,5 @@ pub async fn resolve(counter: &Arc<UsageCounter>, db: &Arc<Mutex<Store>>, email:
     db.lock()
         .await
         .get_user_plan(email)
-        .unwrap_or_else(|_| "starter".to_string())
+        .unwrap_or_else(|_| "free".to_string())
 }

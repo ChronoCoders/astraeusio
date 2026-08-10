@@ -1286,13 +1286,13 @@ mod tests {
     }
 
     /// The quota is what is sold and the dashboard is the product, so browsing
-    /// the dashboard must not spend the API allowance. Well past the starter
+    /// the dashboard must not spend the API allowance. Well past the free
     /// limit of 100 a day, a session still serves and still counts nothing.
     #[tokio::test]
     async fn session_requests_do_not_touch_the_quota() {
         let state = test_state();
         let token = session_jwt("dashboard@example.com", SECRET, 0).expect("mint");
-        let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
+        let limit = crate::rate_limit::plan_limit("free").expect("free is capped");
 
         for _ in 0..limit + 5 {
             extract(&state, &token).await.expect("sessions are never throttled");
@@ -1320,7 +1320,7 @@ mod tests {
                 .expect("create key");
         }
 
-        let limit = crate::rate_limit::plan_limit("starter").expect("starter is capped");
+        let limit = crate::rate_limit::plan_limit("free").expect("free is capped");
         for expected in 1..=3u64 {
             extract(&state, key).await.expect("accepted");
             let counted = state

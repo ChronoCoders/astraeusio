@@ -386,6 +386,11 @@ const USAGE_HISTORY_MIGRATION: &str = "2026-08-usage-records-history";
 /// dropped by ON CONFLICT DO NOTHING.
 const XRAY_SATELLITE_KEY_MIGRATION: &str = "2026-08-xray-satellite-in-primary-key";
 
+/// Retires the `starter` tier. It existed only in the backend as the default for
+/// a new account, ranked and priced identically to `free`, and the pricing page
+/// never sold it, so the frontend had to translate it away on every render.
+const RETIRE_STARTER_MIGRATION: &str = "2026-08-retire-starter-tier";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -496,7 +501,7 @@ impl Store {
         conn.execute_batch(SCHEMA)?;
         // Migrate existing DBs that pre-date the plan column.
         for sql in [
-            "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'starter'",
+            "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'",
             "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN totp_secret TEXT",
             "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
@@ -835,6 +840,21 @@ impl Store {
                 ms = started.elapsed().as_millis() as u64,
                 "rebuilt xray with satellite in the primary key"
             );
+        }
+
+        let retire_starter_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![RETIRE_STARTER_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if retire_starter_applied == 0 {
+            let moved = conn.execute("UPDATE users SET plan = 'free' WHERE plan = 'starter'", [])?;
+            conn.execute_batch("ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'free'")?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![RETIRE_STARTER_MIGRATION, now()],
+            )?;
+            info!(moved, "retired the starter tier, accounts moved to free");
         }
 
         let enrolled: i64 = conn.query_row(
@@ -1851,7 +1871,7 @@ pub struct User {
 impl Store {
     pub fn create_user(&self, email: &str, hash: &str) -> Result<(), DbError> {
         let result = self.conn.execute(
-            "INSERT INTO users (email, password_hash, created_at, plan) VALUES (?, ?, ?, 'starter')",
+            "INSERT INTO users (email, password_hash, created_at, plan) VALUES (?, ?, ?, 'free')",
             params![email, hash, now()],
         );
         match result {
@@ -1867,7 +1887,7 @@ impl Store {
     pub fn create_oauth_user(&self, email: &str, provider: &str, hash: &str) -> Result<(), DbError> {
         let result = self.conn.execute(
             "INSERT INTO users (email, password_hash, created_at, plan, email_verified, auth_provider) \
-             VALUES (?, ?, ?, 'starter', TRUE, ?)",
+             VALUES (?, ?, ?, 'free', TRUE, ?)",
             params![email, hash, now(), provider],
         );
         match result {
@@ -1937,7 +1957,7 @@ impl Store {
             Some(row) => {
                 let plan = row
                     .get::<_, Option<String>>(0)?
-                    .unwrap_or_else(|| "starter".to_string());
+                    .unwrap_or_else(|| "free".to_string());
                 let verified = row.get::<_, Option<bool>>(1)?.unwrap_or(false);
                 let totp_on = row.get::<_, Option<bool>>(2)?.unwrap_or(false);
                 Ok(serde_json::json!({
@@ -1949,7 +1969,7 @@ impl Store {
             }
             None => Ok(serde_json::json!({
                 "email":          email,
-                "plan":           "starter",
+                "plan":           "free",
                 "email_verified": false,
                 "totp_enabled":   false,
             })),
@@ -2854,8 +2874,8 @@ impl Store {
         Ok(match rows.next()? {
             Some(row) => row
                 .get::<_, Option<String>>(0)?
-                .unwrap_or_else(|| "starter".to_string()),
-            None => "starter".to_string(),
+                .unwrap_or_else(|| "free".to_string()),
+            None => "free".to_string(),
         })
     }
 
@@ -3851,6 +3871,48 @@ mod tests {
                 .expect("collect")
         };
         assert_eq!(sats, vec![16, 18]);
+    }
+
+    /// The starter tier existed only in the backend, ranked and priced the same
+    /// as free, and the pricing page never sold it. Existing accounts move
+    /// rather than being left naming a tier nothing recognises.
+    #[test]
+    fn existing_starter_accounts_are_moved_to_free() {
+        let dir = std::env::temp_dir().join(format!("starter-{}", now()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("legacy.duckdb");
+        let path_str = path.to_string_lossy().to_string();
+
+        {
+            let conn = Connection::open(&path_str).expect("open");
+            conn.execute_batch(
+                "CREATE TABLE users (
+                     email TEXT NOT NULL PRIMARY KEY,
+                     password_hash TEXT NOT NULL,
+                     created_at BIGINT NOT NULL,
+                     plan TEXT DEFAULT 'starter'
+                 );
+                 INSERT INTO users VALUES
+                     ('old@example.com', 'hash', 1767225600, 'starter'),
+                     ('paid@example.com', 'hash', 1767225600, 'pro');",
+            )
+            .expect("seed");
+        }
+
+        let store = Store::open(&path_str).expect("open through the migration");
+        assert_eq!(store.get_user_plan("old@example.com").expect("plan"), "free");
+        assert_eq!(
+            store.get_user_plan("paid@example.com").expect("plan"),
+            "pro",
+            "a paid tier must not be touched"
+        );
+
+        // A new account gets free, not starter.
+        store.create_user("new@example.com", "hash").expect("create");
+        assert_eq!(store.get_user_plan("new@example.com").expect("plan"), "free");
+
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Kyoto publishes Dst provisionally and corrects it later. Both the
