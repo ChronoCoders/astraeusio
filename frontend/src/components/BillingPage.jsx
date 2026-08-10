@@ -52,6 +52,9 @@ function UsageMeter({ usage, loading, error }) {
         </span>
         {!unlimited && <span className={`text-xs font-mono ${near ? 'text-red-400' : 'text-zinc-500'}`}>{pct}%</span>}
       </div>
+      {/* Only API key requests are counted. Without this label a zero reads as
+          a bug to anyone who has been using the dashboard all day. */}
+      <span className="text-zinc-500 text-xs font-mono">{t('billing.apiRequests')}</span>
       {!unlimited && (
         <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
           <div className={`h-full rounded-full transition-all ${barCls}`} style={{ width: `${pct}%` }} />

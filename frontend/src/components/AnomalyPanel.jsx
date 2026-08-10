@@ -83,6 +83,14 @@ export default function AnomalyPanel({ data, loading, error, onNavigate }) {
                   <span className="text-zinc-400 text-xs font-mono">
                     {t(TYPE_LABELS[a.type] ?? a.type)}
                   </span>
+                  {/* Global detections are the default and carry no label. Only
+                      a row raised by this account's own rule is marked, so the
+                      two are never confused. */}
+                  {a.source === 'rule' && (
+                    <span className="text-zinc-500 text-[10px] font-mono border border-zinc-700 rounded px-1.5 py-0.5">
+                      {t('anomaly.yourRule')}
+                    </span>
+                  )}
                 </div>
                 <p className="text-zinc-200 text-xs leading-snug mt-0.5">{a.message}</p>
                 <p className="text-zinc-600 text-[10px] font-mono mt-0.5">{fmtTs(a.detected_at)}</p>

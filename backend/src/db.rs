@@ -2226,13 +2226,13 @@ impl Store {
         const GLOBAL_LIMIT: i64 = 100;
         const OWN_LIMIT: i64 = 50;
         let mut stmt = self.conn.prepare(
-            "SELECT anomaly_type, source_ref, detected_at, severity, message FROM (
-                 SELECT * FROM alerts_anomaly WHERE user_email IS NULL
+            "SELECT anomaly_type, source_ref, detected_at, severity, message, source FROM (
+                 SELECT *, 'global' AS source FROM alerts_anomaly WHERE user_email IS NULL
                  ORDER BY detected_at DESC LIMIT ?
              )
              UNION ALL
-             SELECT anomaly_type, source_ref, detected_at, severity, message FROM (
-                 SELECT * FROM alerts_anomaly WHERE user_email = ?
+             SELECT anomaly_type, source_ref, detected_at, severity, message, source FROM (
+                 SELECT *, 'rule' AS source FROM alerts_anomaly WHERE user_email = ?
                  ORDER BY detected_at DESC LIMIT ?
              )
              ORDER BY detected_at DESC",
@@ -2244,12 +2244,17 @@ impl Store {
                 let detected_at: i64 = row.get(2)?;
                 let severity: String = row.get(3)?;
                 let message: String = row.get(4)?;
+                // "global" is a detection that applies to everyone; "rule" is
+                // one the caller's own custom rule raised. Stated by the server
+                // so a reader does not have to infer it from the type string.
+                let source: String = row.get(5)?;
                 Ok(serde_json::json!({
                     "type":        anomaly_type,
                     "source_ref":  source_ref,
                     "detected_at": detected_at,
                     "severity":    severity,
                     "message":     message,
+                    "source":      source,
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -3596,6 +3601,25 @@ mod tests {
                 .map(|v| v["message"].as_str().unwrap_or_default().to_string())
                 .collect()
         };
+
+        // Each row says which kind it is, so the reader is not left inferring it.
+        let sources: Vec<(String, String)> = store
+            .get_anomalies_recent("alice@example.com")
+            .expect("read")
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| {
+                (
+                    v["message"].as_str().unwrap_or_default().to_string(),
+                    v["source"].as_str().unwrap_or_default().to_string(),
+                )
+            })
+            .collect();
+        for (msg, source) in &sources {
+            let expected = if msg == "Kp 5.0" { "global" } else { "rule" };
+            assert_eq!(source, expected, "{msg} should be {expected}");
+        }
 
         let alice = msgs("alice@example.com");
         assert!(alice.iter().any(|m| m == "Kp 5.0"), "global must be visible");
