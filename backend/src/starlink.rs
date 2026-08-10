@@ -1,6 +1,8 @@
 use reqwest::Client;
 use thiserror::Error;
 
+use crate::fetch::Fetched;
+
 #[derive(Error, Debug)]
 pub enum StarlinkError {
     #[error("request failed: {0}")]
@@ -19,10 +21,19 @@ pub struct StarlinkSat {
 /// FORMAT=json from Celestrak returns GP elements without TLE strings;
 /// FORMAT=tle returns the classic format that contains the actual TLE lines.
 ///
-/// Celestrak refreshes data every 2 hours and returns 304 or 403 when no new
-/// data is available since the last download. Both are treated as soft
-/// "no update needed" - the poller skips the insert, keeping existing DB rows.
-pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, StarlinkError> {
+/// Celestrak refreshes every 2 hours and we poll hourly, so roughly every other
+/// poll it answers 403 with "GP data has not updated since your last successful
+/// download" (or 304 when it uses the conditional path). That is a no-change
+/// response, not a failure and not an empty constellation, so it comes back as
+/// [`PollOutcome::NoChange`] and the existing rows stand.
+///
+/// Nothing downstream skips on that. The poller still hands the empty batch to
+/// the writer, and `Store::insert_starlink_batch` is what declines to touch the
+/// table. That guard is load bearing: this table is a full replace, so an empty
+/// batch reaching the DELETE would wipe it. An earlier version of this comment
+/// claimed the poller skipped the insert, which was never true and made the
+/// real protection look optional.
+pub async fn fetch_starlink(client: &Client) -> Result<Fetched<StarlinkSat>, StarlinkError> {
     let resp = client
         .get("https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle")
         .send()
@@ -30,7 +41,7 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
 
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_MODIFIED || status == reqwest::StatusCode::FORBIDDEN {
-        return Ok(Vec::new());
+        return Ok(Fetched::no_change());
     }
 
     let text = resp.error_for_status()?.text().await?;
@@ -40,6 +51,11 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect();
+
+    // Three lines to a satellite. Counting the triplets upstream sent, rather
+    // than the ones we managed to parse, is what separates "Celestrak sent an
+    // empty file" from "the TLE format changed and we dropped every record".
+    let received = lines.len() / 3;
 
     let mut sats = Vec::new();
     let mut i = 0;
@@ -67,5 +83,5 @@ pub async fn fetch_starlink(client: &Client) -> Result<Vec<StarlinkSat>, Starlin
         i += 3;
     }
 
-    Ok(sats)
+    Ok(Fetched::lossy(sats, received))
 }

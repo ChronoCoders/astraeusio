@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use tokio::sync::Mutex;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     anomaly,
     db::Store,
     db_writer::{DbWriterHandle, WriteCmd},
+    fetch::PollOutcome,
     iss, mailer, nasa, noaa, starlink,
 };
 
@@ -229,6 +230,37 @@ async fn poll_iss(
     }
 }
 
+/// Logs how a poll ended, at a level that matches what it means.
+///
+/// The point is that the three ways a poll can come back with nothing no longer
+/// share a line. A no-change response is routine, an empty payload is odd but
+/// possible, and a payload whose every row failed to parse is a broken feed
+/// contract. That last one logs at ERROR deliberately: the hourly poller check
+/// on the host greps for ERROR, so the case that silently froze the IMF table
+/// for forty days now reaches the alert on its own.
+fn log_poll(source: &str, unit: &str, outcome: PollOutcome) {
+    match outcome {
+        PollOutcome::NoChange => {
+            info!(source, "upstream reports no change, existing rows kept")
+        }
+        PollOutcome::EmptyPayload => {
+            warn!(source, "upstream returned an empty payload, nothing written")
+        }
+        PollOutcome::Parsed { received, kept: 0 } => error!(
+            source,
+            received, "every row failed to parse, the feed shape has probably changed"
+        ),
+        PollOutcome::Parsed { received, kept } if kept < received => warn!(
+            source,
+            received,
+            kept,
+            dropped = received - kept,
+            "some rows failed to parse"
+        ),
+        PollOutcome::Parsed { kept, .. } => info!("{source}: {kept} {unit}"),
+    }
+}
+
 async fn poll_kp(
     client: reqwest::Client,
     writer: DbWriterHandle,
@@ -239,7 +271,7 @@ async fn poll_kp(
     loop {
         match noaa::fetch_kp(&client).await {
             Ok(records) => {
-                info!("poller/kp: {} records", records.len());
+                log_poll("poller/kp", "records", PollOutcome::strict(records.len()));
                 writer.fire(WriteCmd::Kp(records));
             }
             Err(e) => error!(source = "poller/kp", "fetch: {e}"),
@@ -258,7 +290,7 @@ async fn poll_kp_3h(
     loop {
         match noaa::fetch_kp_3h(&client).await {
             Ok(records) => {
-                info!("poller/kp-3h: {} records", records.len());
+                log_poll("poller/kp-3h", "records", PollOutcome::strict(records.len()));
                 writer.fire(WriteCmd::Kp3h(records));
             }
             Err(e) => error!(source = "poller/kp-3h", "fetch: {e}"),
@@ -276,9 +308,9 @@ async fn poll_solar_wind(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_solar_wind(&client).await {
-            Ok(records) => {
-                info!("poller/solar-wind: {} records", records.len());
-                writer.fire(WriteCmd::SolarWind(records));
+            Ok(fetched) => {
+                log_poll("poller/solar-wind", "records", fetched.outcome);
+                writer.fire(WriteCmd::SolarWind(fetched.items));
             }
             Err(e) => error!(source = "poller/solar-wind", "fetch: {e}"),
         }
@@ -296,7 +328,7 @@ async fn poll_xray(
     loop {
         match noaa::fetch_xray(&client).await {
             Ok(records) => {
-                info!("poller/xray: {} records", records.len());
+                log_poll("poller/xray", "records", PollOutcome::strict(records.len()));
                 writer.fire(WriteCmd::Xray(records));
             }
             Err(e) => error!(source = "poller/xray", "fetch: {e}"),
@@ -315,7 +347,7 @@ async fn poll_alerts(
     loop {
         match noaa::fetch_alerts(&client).await {
             Ok(alerts) => {
-                info!("poller/alerts: {}", alerts.len());
+                log_poll("poller/alerts", "alerts", PollOutcome::strict(alerts.len()));
                 writer.fire(WriteCmd::Alerts(alerts));
             }
             Err(e) => error!(source = "poller/alerts", "fetch: {e}"),
@@ -339,7 +371,11 @@ async fn poll_neo(
             .to_string();
         match nasa::fetch_neo_feed(&client, &start, &end).await {
             Ok(feed) => {
-                info!("poller/neo: {} objects", feed.element_count);
+                log_poll(
+                    "poller/neo",
+                    "objects",
+                    PollOutcome::strict(feed.element_count as usize),
+                );
                 let fetched_at = Utc::now().timestamp();
                 writer.fire(WriteCmd::Neo(Box::new(feed), fetched_at));
             }
@@ -359,7 +395,7 @@ async fn poll_epic(
     loop {
         match nasa::fetch_epic(&client).await {
             Ok(images) => {
-                info!("poller/epic: {} images", images.len());
+                log_poll("poller/epic", "images", PollOutcome::strict(images.len()));
                 writer.fire(WriteCmd::Epic(images));
             }
             Err(e) => error!(source = "poller/epic", "fetch: {e}"),
@@ -397,7 +433,7 @@ async fn poll_exoplanets(
     loop {
         match nasa::fetch_exoplanets(&client).await {
             Ok(planets) => {
-                info!("poller/exoplanets: {}", planets.len());
+                log_poll("poller/exoplanets", "planets", PollOutcome::strict(planets.len()));
                 writer.fire(WriteCmd::Exoplanets(planets));
             }
             Err(e) => error!(source = "poller/exoplanets", "fetch: {e}"),
@@ -415,9 +451,9 @@ async fn poll_imf(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_imf(&client).await {
-            Ok(records) => {
-                info!("poller/imf: {} records", records.len());
-                writer.fire(WriteCmd::Imf(records));
+            Ok(fetched) => {
+                log_poll("poller/imf", "records", fetched.outcome);
+                writer.fire(WriteCmd::Imf(fetched.items));
             }
             Err(e) => error!(source = "poller/imf", "fetch: {e}"),
         }
@@ -434,9 +470,9 @@ async fn poll_dst(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_dst(&client).await {
-            Ok(records) => {
-                info!("poller/dst: {} records", records.len());
-                writer.fire(WriteCmd::Dst(records));
+            Ok(fetched) => {
+                log_poll("poller/dst", "records", fetched.outcome);
+                writer.fire(WriteCmd::Dst(fetched.items));
             }
             Err(e) => error!(source = "poller/dst", "fetch: {e}"),
         }
@@ -453,9 +489,9 @@ async fn poll_starlink(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match starlink::fetch_starlink(&client).await {
-            Ok(sats) => {
-                info!("poller/starlink: {} satellites", sats.len());
-                writer.fire(WriteCmd::Starlink(sats));
+            Ok(fetched) => {
+                log_poll("poller/starlink", "satellites", fetched.outcome);
+                writer.fire(WriteCmd::Starlink(fetched.items));
             }
             Err(e) => error!(source = "poller/starlink", "fetch: {e}"),
         }
