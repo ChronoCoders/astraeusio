@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS xray (
     observed_flux_e12 BIGINT  NOT NULL,
     observed_at       BIGINT,
     fetched_at        BIGINT  NOT NULL,
-    PRIMARY KEY (time_tag, energy)
+    PRIMARY KEY (time_tag, energy, satellite)
 );
 
 CREATE TABLE IF NOT EXISTS space_weather_alert (
@@ -380,6 +380,11 @@ const RULE_THRESHOLD_MIGRATION: &str = "2026-08-scale-custom-rule-thresholds";
 /// (user_email). One row per user meant the previous period was overwritten by
 /// the current one, so no billing history existed.
 const USAGE_HISTORY_MIGRATION: &str = "2026-08-usage-records-history";
+
+/// Rebuilds xray with satellite in the primary key. Without it, two satellites
+/// reporting the same minute and band collided and one reading was silently
+/// dropped by ON CONFLICT DO NOTHING.
+const XRAY_SATELLITE_KEY_MIGRATION: &str = "2026-08-xray-satellite-in-primary-key";
 
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
@@ -778,6 +783,60 @@ impl Store {
             info!(carried, "rebuilt usage_records keyed by period");
         }
 
+        // xray was keyed on (time_tag, energy), so when NOAA switches the primary
+        // satellite and republishes a minute under a new number, the second
+        // reading collided with the first and ON CONFLICT DO NOTHING discarded
+        // it. Which satellite won each row therefore depended on arrival order,
+        // which is why the satellite column cannot be trusted for any row
+        // written before this migration. Existing rows are kept: the flux series
+        // is what anything actually reads, and a hole in it would be worse than
+        // an unreliable label on a column nothing renders.
+        let xray_key_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![XRAY_SATELLITE_KEY_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if xray_key_applied == 0 {
+            let before: i64 = conn
+                .query_row("SELECT COUNT(*) FROM xray", [], |row| row.get(0))
+                .unwrap_or(0);
+            let started = std::time::Instant::now();
+            conn.execute_batch(
+                "CREATE TABLE xray_new (
+                     time_tag          TEXT    NOT NULL,
+                     energy            TEXT    NOT NULL,
+                     satellite         INTEGER NOT NULL,
+                     flux_e12          BIGINT  NOT NULL,
+                     observed_flux_e12 BIGINT  NOT NULL,
+                     observed_at       BIGINT,
+                     fetched_at        BIGINT  NOT NULL,
+                     PRIMARY KEY (time_tag, energy, satellite)
+                 );
+                 INSERT INTO xray_new
+                     SELECT time_tag, energy, satellite, flux_e12, observed_flux_e12,
+                            observed_at, fetched_at
+                     FROM xray;
+                 DROP TABLE xray;
+                 ALTER TABLE xray_new RENAME TO xray;",
+            )?;
+            let after: i64 = conn.query_row("SELECT COUNT(*) FROM xray", [], |row| row.get(0))?;
+            if after != before {
+                error!(
+                    before,
+                    after, "xray rebuild did not preserve every row"
+                );
+            }
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![XRAY_SATELLITE_KEY_MIGRATION, now()],
+            )?;
+            info!(
+                rows = after,
+                ms = started.elapsed().as_millis() as u64,
+                "rebuilt xray with satellite in the primary key"
+            );
+        }
+
         let enrolled: i64 = conn.query_row(
             "SELECT COUNT(*) FROM users WHERE totp_secret_enc IS NOT NULL",
             [],
@@ -1118,7 +1177,7 @@ impl Store {
                 "INSERT INTO xray
                  (time_tag, energy, satellite, flux_e12, observed_flux_e12, observed_at, fetched_at)
                  VALUES (?, ?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
-                 ON CONFLICT (time_tag, energy) DO NOTHING"
+                 ON CONFLICT (time_tag, energy, satellite) DO NOTHING"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -3726,6 +3785,132 @@ mod tests {
         assert_eq!(store.list_usage_history("b@example.com", 24).expect("history").len(), 1);
     }
 
+    /// The defect: two satellites reporting the same minute and band collided on
+    /// a key of (time_tag, energy), and ON CONFLICT DO NOTHING dropped whichever
+    /// arrived second. Which one survived depended on arrival order.
+    #[test]
+    fn two_satellites_reporting_the_same_minute_both_survive() {
+        let store = mem_store();
+        let t = iso(now() - 60);
+        store
+            .insert_xray_batch(&[
+                XRayRecord {
+                    time_tag: t.clone(),
+                    satellite: 16,
+                    flux: 1.0e-6,
+                    observed_flux: 1.1e-6,
+                    energy: "0.1-0.8nm".into(),
+                },
+                XRayRecord {
+                    time_tag: t.clone(),
+                    satellite: 18,
+                    flux: 2.0e-6,
+                    observed_flux: 2.1e-6,
+                    energy: "0.1-0.8nm".into(),
+                },
+            ])
+            .expect("insert both");
+
+        let n: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM xray WHERE time_tag = ? AND energy = '0.1-0.8nm'",
+                params![t],
+                |r| r.get(0),
+            )
+            .expect("count");
+        assert_eq!(n, 2, "both satellites must be stored, not one");
+
+        let sats: Vec<i32> = {
+            let mut stmt = store
+                .conn
+                .prepare("SELECT satellite FROM xray WHERE time_tag = ? ORDER BY satellite")
+                .expect("prepare");
+            stmt.query_map(params![t], |r| r.get(0))
+                .expect("query")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect")
+        };
+        assert_eq!(sats, vec![16, 18]);
+    }
+
+    /// Re-fetching the same measurement is not a duplicate. The poller re-reads
+    /// the whole one day window every two minutes.
+    #[test]
+    fn refetching_the_same_reading_does_not_duplicate_it() {
+        let store = mem_store();
+        let t = iso(now() - 60);
+        let rec = || XRayRecord {
+            time_tag: t.clone(),
+            satellite: 18,
+            flux: 1.0e-6,
+            observed_flux: 1.1e-6,
+            energy: "0.1-0.8nm".into(),
+        };
+        store.insert_xray_batch(&[rec()]).expect("first");
+        store.insert_xray_batch(&[rec()]).expect("second");
+        let n: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM xray", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(n, 1);
+    }
+
+    /// The rebuild carries every existing row. Losing 262k rows of flux to gain
+    /// a trustworthy label on a column nothing renders would be a bad trade.
+    #[test]
+    fn the_xray_rebuild_keeps_every_existing_row() {
+        let dir = std::env::temp_dir().join(format!("xray-rebuild-{}", now()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("legacy.duckdb");
+        let path_str = path.to_string_lossy().to_string();
+
+        // A database in the shape that predates the migration: old primary key,
+        // and no schema_migrations row for it.
+        {
+            let conn = Connection::open(&path_str).expect("open");
+            conn.execute_batch(
+                "CREATE TABLE xray (
+                     time_tag TEXT NOT NULL, energy TEXT NOT NULL, satellite INTEGER NOT NULL,
+                     flux_e12 BIGINT NOT NULL, observed_flux_e12 BIGINT NOT NULL,
+                     observed_at BIGINT, fetched_at BIGINT NOT NULL,
+                     PRIMARY KEY (time_tag, energy)
+                 );
+                 INSERT INTO xray VALUES
+                     ('2026-01-01T00:00:00Z', '0.1-0.8nm',  16, 100, 110, 1767225600, 1767225600),
+                     ('2026-01-01T00:01:00Z', '0.1-0.8nm',  16, 200, 210, 1767225660, 1767225660),
+                     ('2026-01-01T00:01:00Z', '0.05-0.4nm', 16, 300, 310, 1767225660, 1767225660);",
+            )
+            .expect("seed");
+        }
+
+        let store = Store::open(&path_str).expect("open through the migration");
+        let n: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM xray", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(n, 3, "every pre-existing row must survive the rebuild");
+
+        // And the new key is in force: the same minute under a second satellite
+        // now lands instead of being dropped.
+        store
+            .conn
+            .execute(
+                "INSERT INTO xray VALUES
+                     ('2026-01-01T00:00:00Z', '0.1-0.8nm', 18, 999, 999, 1767225600, 1767225600)",
+                [],
+            )
+            .expect("second satellite must be accepted");
+        let n: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM xray", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(n, 4);
+
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// One live series must not cover for a dead one. The status page read a
     /// single Kp query and called the whole of NOAA healthy while the
     /// magnetometer feed had been dead for forty days.
@@ -4279,4 +4464,5 @@ mod tests {
         assert_eq!(got, 1_778_471_220);
     }
 }
+
 

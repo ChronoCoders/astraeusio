@@ -92,6 +92,39 @@ disappearing without explanation looks like a compromise.
 
 ---
 
+## Data caveats
+
+Things that are true of the stored data and not visible from the schema.
+
+### xray.satellite is unreliable before 2026-08
+
+The `xray` table was keyed on `(time_tag, energy)` until the
+`2026-08-xray-satellite-in-primary-key` migration. NOAA publishes from whichever
+GOES satellite is currently primary, and at a switchover the same minute can be
+republished under a new satellite number. Under the old key that collided with
+the row already stored and `ON CONFLICT DO NOTHING` discarded the newcomer, so
+which satellite is recorded against a row written before the migration depended
+on which arrived first.
+
+The flux values are unaffected: each row's `flux_e12` belongs with its own
+`time_tag` and `energy`. Only the `satellite` label is untrustworthy, and only
+for rows written before the migration.
+
+To find the boundary date:
+
+```bash
+/opt/astraeusio/duckdb -readonly <copy> -c "
+  SELECT applied_at, to_timestamp(applied_at) FROM schema_migrations
+  WHERE id = '2026-08-xray-satellite-in-primary-key';"
+```
+
+Rows with `fetched_at` at or after that value have a trustworthy satellite.
+Nothing in the product reads the column; it is returned by `/api/xray` and is
+not rendered anywhere, so this matters only to an API consumer analysing by
+spacecraft.
+
+---
+
 ## Rolling back a deploy
 
 Images are tagged with the commit they were built from, so a rollback is a
