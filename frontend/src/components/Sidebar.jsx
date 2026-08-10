@@ -1,13 +1,7 @@
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import Logo from './Logo'
-
-const PLAN_BADGE = {
-  starter:    'text-zinc-500 border-zinc-700',
-  pro:        'text-blue-400 border-blue-800',
-  business:   'text-purple-400 border-purple-800',
-  enterprise: 'text-amber-400 border-amber-700',
-}
+import { PLAN_COLOR, normalizePlan } from '../lib/plans'
 
 const NAV = [
   { id: 'dashboard', icon: IconDashboard },
@@ -24,8 +18,8 @@ const NAV = [
 
 const Sidebar = memo(function Sidebar({ page, onNavigate, open, onClose, onLogout, user }) {
   const { t } = useTranslation()
-  const plan = user?.plan ?? 'starter'
-  const planCls = PLAN_BADGE[plan] ?? PLAN_BADGE.starter
+  const plan = normalizePlan(user?.plan)
+  const planCls = PLAN_COLOR[plan] ?? PLAN_COLOR.free
 
   const handleNav = useCallback((id) => {
     onNavigate(id)

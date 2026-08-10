@@ -45,8 +45,8 @@ export default function Root() {
         }
         return r.ok ? r.json() : null
       })
-      .then(d => { if (!cancelled && d !== null) setUser(d ?? { email: '', plan: 'starter' }) })
-      .catch(() => { if (!cancelled) setUser({ email: '', plan: 'starter' }) })
+      .then(d => { if (!cancelled && d !== null) setUser(d ?? { email: '', plan: 'free' }) })
+      .catch(() => { if (!cancelled) setUser({ email: '', plan: 'free' }) })
       .finally(() => clearTimeout(timeout))
     return () => { cancelled = true; ctrl.abort() }
   }, [token])

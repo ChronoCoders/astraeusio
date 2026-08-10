@@ -787,7 +787,7 @@ curl -X POST https://your-domain.com/api/email-alerts \\
           <Code lang="json">{`{
   "error":         "plan_required",
   "required_plan": "developer",
-  "your_plan":     "starter"
+  "your_plan":     "free"
 }`}</Code>
 
           <H4>429 rate_limit_exceeded response</H4>

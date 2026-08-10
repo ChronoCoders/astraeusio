@@ -263,6 +263,8 @@
     "noData": "TLE verisi mevcut değil - Celestrak senkronizasyonu bekleniyor"
   },
   "settings": {
+    "contactSales": "Satışla görüşün",
+    "planChangeFailed": "Planınız değiştirilemedi.",
     "languageTitle": "Dil",
     "changePasswordTitle": "Şifre Değiştir",
     "currentPassword": "Mevcut şifre",
@@ -479,7 +481,6 @@
   },
   "plan": {
     "free": "Ücretsiz",
-    "starter": "Başlangıç",
     "developer": "Geliştirici",
     "pro": "Pro",
     "business": "İş",

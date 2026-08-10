@@ -149,9 +149,8 @@ export default function BillingPage({ user, onUserChange }) {
   const [err, setErr] = useState(null)
   const [done, setDone] = useState(false)
 
-  const plan = user?.plan ?? 'starter'
-  const effective = normalizePlan(plan)
-  const currentRank = planRank(plan)
+  const effective = normalizePlan(user?.plan)
+  const currentRank = planRank(effective)
   const planCls = PLAN_COLOR[effective] ?? PLAN_COLOR.free
 
   async function downgradeToFree() {
