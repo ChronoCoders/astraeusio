@@ -376,6 +376,11 @@ const TOTP_ENCRYPTION_MIGRATION: &str = "2026-08-encrypt-totp-secrets";
 /// so a reading exactly on the threshold compares exactly.
 const RULE_THRESHOLD_MIGRATION: &str = "2026-08-scale-custom-rule-thresholds";
 
+/// Rebuilds usage_records so its key is (user_email, period_start) instead of
+/// (user_email). One row per user meant the previous period was overwritten by
+/// the current one, so no billing history existed.
+const USAGE_HISTORY_MIGRATION: &str = "2026-08-usage-records-history";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -736,6 +741,41 @@ impl Store {
                 migrated = existing.len(),
                 "scaled custom rule thresholds and dropped the floating point column"
             );
+        }
+
+        // usage_records held one row per user, so each new period overwrote the
+        // last and no history survived. DuckDB cannot change a primary key in
+        // place, so this is a rebuild: create, copy, drop, rename. Payment is
+        // not connected yet, which is exactly why this is cheap now.
+        let usage_history_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![USAGE_HISTORY_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if usage_history_applied == 0 {
+            let carried: i64 = conn
+                .query_row("SELECT COUNT(*) FROM usage_records", [], |row| row.get(0))
+                .unwrap_or(0);
+            conn.execute_batch(
+                "CREATE TABLE usage_records_new (
+                     user_email    TEXT   NOT NULL,
+                     request_count BIGINT NOT NULL DEFAULT 0,
+                     period_start  BIGINT NOT NULL,
+                     period_end    BIGINT NOT NULL,
+                     updated_at    BIGINT NOT NULL,
+                     PRIMARY KEY (user_email, period_start)
+                 );
+                 INSERT INTO usage_records_new
+                     SELECT user_email, request_count, period_start, period_end, updated_at
+                     FROM usage_records;
+                 DROP TABLE usage_records;
+                 ALTER TABLE usage_records_new RENAME TO usage_records;",
+            )?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![USAGE_HISTORY_MIGRATION, now()],
+            )?;
+            info!(carried, "rebuilt usage_records keyed by period");
         }
 
         let enrolled: i64 = conn.query_row(
@@ -2741,6 +2781,16 @@ impl Store {
         })
     }
 
+    /// Records usage for one account in one period.
+    ///
+    /// A zero count never creates a row. A dashboard only account is known to
+    /// the counter, because the session path caches its token version there, but
+    /// it spends no quota; writing it an empty row every period would accumulate
+    /// one per account per period forever. The absence of a row is the same
+    /// information.
+    ///
+    /// A row that already exists is still updated when the count is zero, so a
+    /// correction downward is possible and nothing already recorded disappears.
     pub fn upsert_usage_record(
         &self,
         email: &str,
@@ -2748,13 +2798,23 @@ impl Store {
         period_start: i64,
         period_end: i64,
     ) -> Result<(), DbError> {
+        if count == 0 {
+            let updated = self.conn.execute(
+                "UPDATE usage_records SET request_count = ?, period_end = ?, updated_at = ?
+                 WHERE user_email = ? AND period_start = ?",
+                params![count, period_end, now(), email, period_start],
+            )?;
+            if updated == 0 {
+                return Ok(());
+            }
+            return Ok(());
+        }
         self.conn.execute(
             "INSERT INTO usage_records
                  (user_email, request_count, period_start, period_end, updated_at)
              VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT (user_email) DO UPDATE SET
+             ON CONFLICT (user_email, period_start) DO UPDATE SET
                  request_count = excluded.request_count,
-                 period_start  = excluded.period_start,
                  period_end    = excluded.period_end,
                  updated_at    = excluded.updated_at",
             params![email, count, period_start, period_end, now()],
@@ -2762,17 +2822,41 @@ impl Store {
         Ok(())
     }
 
-    /// Returns `(request_count, period_start, period_end)` from the last DB flush, if any.
-    pub fn get_usage_for_user(&self, email: &str) -> Result<Option<(i64, i64, i64)>, DbError> {
+    /// Usage for one account in one period. `None` means no row, which is the
+    /// same as no usage; callers report zero rather than failing.
+    pub fn get_usage_for_period(
+        &self,
+        email: &str,
+        period_start: i64,
+    ) -> Result<Option<(i64, i64, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT request_count, period_start, period_end \
-             FROM usage_records WHERE user_email = ?",
+            "SELECT request_count, period_start, period_end FROM usage_records
+             WHERE user_email = ? AND period_start = ?",
         )?;
-        let mut rows = stmt.query([email])?;
+        let mut rows = stmt.query(params![email, period_start])?;
         match rows.next()? {
             Some(row) => Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?))),
             None => Ok(None),
         }
+    }
+
+    /// Past periods for one account, newest first. The billing history that one
+    /// row per user could not hold.
+    pub fn list_usage_history(
+        &self,
+        email: &str,
+        limit: i64,
+    ) -> Result<Vec<(i64, i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT request_count, period_start, period_end FROM usage_records
+             WHERE user_email = ? ORDER BY period_start DESC LIMIT ?",
+        )?;
+        let rows = stmt
+            .query_map(params![email, limit], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 }
 
@@ -3540,6 +3624,106 @@ mod tests {
             )
             .expect("column lookup");
         assert_eq!(n, 0, "users.totp_secret must have been dropped");
+    }
+
+    /// Each period keeps its own row. One row per user meant every new period
+    /// overwrote the last, so no billing history existed.
+    #[test]
+    fn usage_is_recorded_per_period() {
+        let store = mem_store();
+        let day = 86_400;
+        for (start, count) in [(day, 10), (day * 2, 20), (day * 3, 30)] {
+            store
+                .upsert_usage_record("u@example.com", count, start, start + day)
+                .expect("record");
+        }
+
+        assert_eq!(
+            store.get_usage_for_period("u@example.com", day * 2).expect("read"),
+            Some((20, day * 2, day * 3))
+        );
+
+        let history = store.list_usage_history("u@example.com", 24).expect("history");
+        assert_eq!(history.len(), 3, "every period must survive");
+        assert_eq!(history[0].1, day * 3, "newest first");
+        assert_eq!(history[2].1, day, "oldest last");
+
+        // A later flush for the same period corrects it rather than adding a row.
+        store
+            .upsert_usage_record("u@example.com", 25, day * 2, day * 3)
+            .expect("correct");
+        assert_eq!(
+            store.get_usage_for_period("u@example.com", day * 2).expect("read"),
+            Some((25, day * 2, day * 3))
+        );
+        assert_eq!(store.list_usage_history("u@example.com", 24).expect("history").len(), 3);
+    }
+
+    /// A dashboard only account is known to the counter, because the session
+    /// path caches its token version there, but spends no quota. Writing it an
+    /// empty row every period would accrue one per account per period forever.
+    #[test]
+    fn a_zero_count_never_creates_a_row() {
+        let store = mem_store();
+        let day = 86_400;
+        for period in 1..=5 {
+            store
+                .upsert_usage_record("dash@example.com", 0, day * period, day * (period + 1))
+                .expect("flush");
+        }
+        assert!(
+            store.list_usage_history("dash@example.com", 24).expect("history").is_empty(),
+            "no rows should exist for an account that spent nothing"
+        );
+        // And reading such a period reports zero rather than failing.
+        assert_eq!(
+            store.get_usage_for_period("dash@example.com", day).expect("read"),
+            None
+        );
+    }
+
+    /// A row that already exists must still be updated when the count is zero,
+    /// so a correction downward is possible and nothing recorded disappears.
+    #[test]
+    fn a_zero_count_updates_an_existing_row_rather_than_deleting_it() {
+        let store = mem_store();
+        let day = 86_400;
+        store
+            .upsert_usage_record("u@example.com", 42, day, day * 2)
+            .expect("record");
+        assert_eq!(
+            store.get_usage_for_period("u@example.com", day).expect("read"),
+            Some((42, day, day * 2))
+        );
+
+        store
+            .upsert_usage_record("u@example.com", 0, day, day * 2)
+            .expect("correct to zero");
+
+        let stored = store.get_usage_for_period("u@example.com", day).expect("read");
+        assert_eq!(
+            stored,
+            Some((0, day, day * 2)),
+            "the row must survive and read zero, not vanish"
+        );
+        assert_eq!(
+            store.list_usage_history("u@example.com", 24).expect("history").len(),
+            1
+        );
+    }
+
+    /// One account's usage must not appear under another's.
+    #[test]
+    fn usage_history_is_scoped_to_one_account() {
+        let store = mem_store();
+        let day = 86_400;
+        store.upsert_usage_record("a@example.com", 5, day, day * 2).expect("a");
+        store.upsert_usage_record("b@example.com", 7, day, day * 2).expect("b");
+        assert_eq!(
+            store.get_usage_for_period("a@example.com", day).expect("read"),
+            Some((5, day, day * 2))
+        );
+        assert_eq!(store.list_usage_history("b@example.com", 24).expect("history").len(), 1);
     }
 
     /// One live series must not cover for a dead one. The status page read a

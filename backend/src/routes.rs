@@ -1049,33 +1049,59 @@ async fn get_anomalies(
 
 // ── Usage handler ─────────────────────────────────────────────────────────────
 
+#[derive(Deserialize)]
+struct UsageQuery {
+    /// Optional. Absent means the period in progress. A period with no stored
+    /// row reports zero rather than failing, because no row and no usage are
+    /// the same thing.
+    period_start: Option<i64>,
+}
+
 async fn get_usage(
     State(s): State<AppState>,
     claims: AuthClaims,
+    Query(q): Query<UsageQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let email = &claims.sub;
-
-    // Live count from the in-memory counter (already incremented for this request).
-    let live = s
-        .usage_counter
-        .get(email.as_str())
-        .map(|e| (e.count, e.period_start));
-
     let now_ts = chrono::Utc::now().timestamp();
     let db = lock_db(&s.db).await;
     let plan = db.get_user_plan(email)?;
+    let current_start = crate::rate_limit::current_period_start(&plan, now_ts);
 
-    let (count, p_start) = if let Some(l) = live {
-        l
-    } else {
-        // Fall back to last flushed DB record (e.g. counter was restarted).
-        match db.get_usage_for_user(email)? {
-            Some((cnt, ps, _pe)) => (cnt as u64, ps),
-            None => (0, crate::rate_limit::current_period_start(&plan, now_ts)),
+    let (count, p_start) = match q.period_start {
+        // A named past period comes from the record alone. Absent means zero.
+        Some(requested) => {
+            let stored = db.get_usage_for_period(email, requested)?;
+            (stored.map(|(c, _, _)| c as u64).unwrap_or(0), requested)
+        }
+        // The period in progress: the counter is authoritative because the
+        // flush only runs every 60 seconds. Quota is charged to API keys only,
+        // so a dashboard only account correctly reads zero.
+        None => {
+            let live = s
+                .usage_counter
+                .get(email.as_str())
+                .filter(|e| e.period_start == current_start)
+                .map(|e| e.count);
+            match live {
+                Some(c) => (c, current_start),
+                None => {
+                    let stored = db.get_usage_for_period(email, current_start)?;
+                    (stored.map(|(c, _, _)| c as u64).unwrap_or(0), current_start)
+                }
+            }
         }
     };
+
     let p_end = crate::rate_limit::period_end(&plan, p_start);
     let limit = crate::rate_limit::plan_limit(&plan);
+    let history: Vec<serde_json::Value> = db
+        .list_usage_history(email, 24)?
+        .into_iter()
+        .map(|(c, ps, pe)| {
+            serde_json::json!({ "period_start": ps, "period_end": pe, "count": c })
+        })
+        .collect();
 
     Ok(Json(serde_json::json!({
         "email":        email,
@@ -1086,6 +1112,7 @@ async fn get_usage(
         "period_end":   p_end,
         "count":        count,
         "limit":        limit,
+        "history":      history,
     })))
 }
 
