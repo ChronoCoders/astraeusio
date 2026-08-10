@@ -1173,11 +1173,27 @@ impl Store {
         }
         self.begin()?;
         let result = (|| {
+            // The poller re-reads the whole one day window every two minutes, so
+            // the same reading is offered many times. NOAA applies corrections,
+            // which the payload advertises with electron_correction and
+            // electron_contaminaton, so first-write-wins would pin the original
+            // and discard every later revision. kp and kp_3h already update for
+            // the same reason.
+            //
+            // The measured values update: flux_e12 and observed_flux_e12, plus
+            // fetched_at to record when the newest version arrived. observed_at
+            // does not, because it is derived from time_tag and so cannot change
+            // without the key changing. time_tag, energy and satellite are the
+            // key itself: they identify which reading this is, so a different
+            // value there is a different row, not a revision of this one.
             let mut stmt = self.conn.prepare(&format!(
                 "INSERT INTO xray
                  (time_tag, energy, satellite, flux_e12, observed_flux_e12, observed_at, fetched_at)
                  VALUES (?, ?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
-                 ON CONFLICT (time_tag, energy, satellite) DO NOTHING"
+                 ON CONFLICT (time_tag, energy, satellite) DO UPDATE SET
+                   flux_e12          = excluded.flux_e12,
+                   observed_flux_e12 = excluded.observed_flux_e12,
+                   fetched_at        = excluded.fetched_at"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -3832,6 +3848,67 @@ mod tests {
                 .expect("collect")
         };
         assert_eq!(sats, vec![16, 18]);
+    }
+
+    /// A revised reading replaces the first one, within a batch. NOAA applies
+    /// corrections, and first-write-wins pinned whatever arrived first.
+    #[test]
+    fn a_revised_xray_reading_replaces_the_original() {
+        let store = mem_store();
+        let t = iso(now() - 60);
+        let reading = |flux: f64, observed: f64| XRayRecord {
+            time_tag: t.clone(),
+            satellite: 18,
+            flux,
+            observed_flux: observed,
+            energy: "0.1-0.8nm".into(),
+        };
+
+        store
+            .insert_xray_batch(&[reading(1.0e-6, 1.1e-6), reading(3.0e-6, 3.3e-6)])
+            .expect("insert");
+
+        let (flux, observed, n): (i64, i64, i64) = store
+            .conn
+            .query_row(
+                "SELECT flux_e12, observed_flux_e12, (SELECT COUNT(*) FROM xray) FROM xray",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("read back");
+        assert_eq!(n, 1, "a revision must not add a row");
+        assert_eq!(flux, 3_000_000, "the revised flux must win");
+        assert_eq!(observed, 3_300_000, "the revised observed flux must win");
+    }
+
+    /// A revision arriving in a LATER batch never reaches the conflict clause,
+    /// because insert_xray_batch drops everything at or below MAX(time_tag)
+    /// before inserting. This pins the limitation rather than leaving it to be
+    /// rediscovered: DO UPDATE fixes revisions within one fetch, and the
+    /// incremental filter is what blocks them across fetches.
+    #[test]
+    fn a_revision_in_a_later_batch_is_dropped_by_the_incremental_filter() {
+        let store = mem_store();
+        let t = iso(now() - 60);
+        let reading = |flux: f64| XRayRecord {
+            time_tag: t.clone(),
+            satellite: 18,
+            flux,
+            observed_flux: flux,
+            energy: "0.1-0.8nm".into(),
+        };
+
+        store.insert_xray_batch(&[reading(1.0e-6)]).expect("first");
+        store.insert_xray_batch(&[reading(3.0e-6)]).expect("later revision");
+
+        let flux: i64 = store
+            .conn
+            .query_row("SELECT flux_e12 FROM xray", [], |r| r.get(0))
+            .expect("read back");
+        assert_eq!(
+            flux, 1_000_000,
+            "known limitation: the incremental filter drops the later revision"
+        );
     }
 
     /// Re-fetching the same measurement is not a duplicate. The poller re-reads
