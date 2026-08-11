@@ -15,6 +15,7 @@ mod plan;
 mod poller;
 mod rate_limit;
 mod redact;
+mod retry;
 mod routes;
 mod secretbox;
 mod starlink;

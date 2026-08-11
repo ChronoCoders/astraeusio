@@ -27,3 +27,8 @@ resend-rs = "0.5"
 totp-rs = { version = "5", features = ["gen_secret", "qr"] }
 tower-http = { version = "0.6", features = ["cors"] }
 chacha20poly1305 = "0.10"
+
+[dev-dependencies]
+# start_paused, for testing retry backoff without sleeping in real time.
+# tokio's "full" feature deliberately excludes test-util.
+tokio = { version = "1", features = ["test-util"] }

@@ -10,7 +10,7 @@ use crate::{
     db::Store,
     db_writer::{DbWriterHandle, WriteCmd},
     fetch::PollOutcome,
-    iss, mailer, nasa, noaa, starlink,
+    iss, mailer, nasa, noaa, retry, starlink,
 };
 
 // ── Poller configuration ──────────────────────────────────────────────────────
@@ -31,7 +31,12 @@ pub struct PollerConfig {
     pub starlink_interval: u64,
     pub anomaly_interval: u64,
     pub forecast_interval: u64,
+    /// Total attempts per poll, including the first. Clamped to 1..=5, where 1
+    /// means no retry. Parsed and then ignored until 2026-08-11, while both
+    /// CLAUDE.md and README.md promised three attempts with backoff.
     pub retry_count: u32,
+    /// The client's own timeout, needed to bound a single attempt.
+    pub http_timeout: u64,
 }
 
 impl PollerConfig {
@@ -58,11 +63,27 @@ impl PollerConfig {
             starlink_interval: secs("STARLINK_INTERVAL", 3600),
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
             forecast_interval: secs("FORECAST_INTERVAL", 1800),
+            // 0 means off, so it clamps to a single attempt rather than
+            // silently falling back to three. An unparseable value keeps the
+            // default, because that is a typo and not an intent.
             retry_count: std::env::var("RETRY_COUNT")
                 .ok()
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(3)
+                .clamp(1, 5),
+            http_timeout: std::env::var("HTTP_TIMEOUT")
+                .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(3),
+                .unwrap_or(60),
         }
+    }
+}
+
+impl PollerConfig {
+    /// One source's retry policy. The budget is that source's own interval, so
+    /// a retry can never outlast the poll it belongs to.
+    fn policy(&self, source: &'static str, interval: u64) -> retry::Policy {
+        retry::Policy::new(source, self.retry_count, interval, self.http_timeout)
     }
 }
 
@@ -104,7 +125,7 @@ pub fn spawn(
         client.clone(),
         writer.clone(),
         0,
-        cfg.iss_interval,
+        cfg.policy("poller/iss", cfg.iss_interval),
     ));
     tokio::spawn(poll_anomaly(
         db.clone(),
@@ -114,74 +135,79 @@ pub fn spawn(
         cfg.anomaly_interval,
     ));
     // Tier 1 - small inserts, 5-second spacing
-    tokio::spawn(poll_kp(client.clone(), writer.clone(), 5, cfg.kp_interval));
+    tokio::spawn(poll_kp(
+        client.clone(),
+        writer.clone(),
+        5,
+        cfg.policy("poller/kp", cfg.kp_interval),
+    ));
     tokio::spawn(poll_alerts(
         client.clone(),
         writer.clone(),
         10,
-        cfg.alerts_interval,
+        cfg.policy("poller/alerts", cfg.alerts_interval),
     ));
     tokio::spawn(poll_neo(
         client.clone(),
         writer.clone(),
         15,
-        cfg.neo_interval,
+        cfg.policy("poller/neo", cfg.neo_interval),
     ));
     tokio::spawn(poll_epic(
         client.clone(),
         writer.clone(),
         20,
-        cfg.epic_interval,
+        cfg.policy("poller/epic", cfg.epic_interval),
     ));
     tokio::spawn(poll_apod(
         client.clone(),
         writer.clone(),
         25,
-        cfg.apod_interval,
+        cfg.policy("poller/apod", cfg.apod_interval),
     ));
     // Tier 2 - large initial inserts (hundreds to thousands of rows), 8-second spacing
     tokio::spawn(poll_kp_3h(
         client.clone(),
         writer.clone(),
         30,
-        cfg.kp_3h_interval,
+        cfg.policy("poller/kp-3h", cfg.kp_3h_interval),
     ));
     tokio::spawn(poll_dst(
         client.clone(),
         writer.clone(),
         38,
-        cfg.dst_interval,
+        cfg.policy("poller/dst", cfg.dst_interval),
     ));
     tokio::spawn(poll_exoplanets(
         client.clone(),
         writer.clone(),
         46,
-        cfg.exoplanet_interval,
+        cfg.policy("poller/exoplanets", cfg.exoplanet_interval),
     ));
     tokio::spawn(poll_imf(
         client.clone(),
         writer.clone(),
         54,
-        cfg.imf_interval,
+        cfg.policy("poller/imf", cfg.imf_interval),
     ));
     tokio::spawn(poll_solar_wind(
         client.clone(),
         writer.clone(),
         62,
-        cfg.solar_wind_interval,
+        cfg.policy("poller/solar-wind", cfg.solar_wind_interval),
     ));
     tokio::spawn(poll_xray(
         client.clone(),
         writer.clone(),
         70,
-        cfg.xray_interval,
+        cfg.policy("poller/xray", cfg.xray_interval),
     ));
     // Tier 3 - Starlink: DELETE + 7000+ inserts in one transaction, start last
     tokio::spawn(poll_starlink(
         client.clone(),
         writer.clone(),
         90,
-        cfg.starlink_interval,
+        cfg.policy("poller/starlink", cfg.starlink_interval),
     ));
     // Forecast - calls the ML sidecar on a fixed cadence so kp_forecast builds
     // a continuous time series (the Forecast page chart + metrics depend on it).
@@ -192,7 +218,7 @@ pub fn spawn(
         writer.clone(),
         ml_url.clone(),
         45,
-        cfg.forecast_interval,
+        cfg.policy("poller/forecast", cfg.forecast_interval),
     ));
     // Health snapshots - record per-component status every 5 minutes for the
     // status page's 90-day uptime strip.
@@ -212,32 +238,19 @@ async fn poll_iss(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match iss::fetch_iss_position(&client).await {
-            Ok(pos) => {
-                info!(
-                    "poller/iss: lat={:.4} lon={:.4}",
-                    pos.latitude, pos.longitude
-                );
-                writer.fire(WriteCmd::Iss(pos));
-            }
-            Err(e) => log_fetch_error("poller/iss", e),
+        if let Some(pos) = retry::run(&policy, || iss::fetch_iss_position(&client)).await {
+            info!(
+                "poller/iss: lat={:.4} lon={:.4}",
+                pos.latitude, pos.longitude
+            );
+            writer.fire(WriteCmd::Iss(pos));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
-}
-
-/// Logs a failed fetch with any credential in the URL removed.
-///
-/// `reqwest` errors carry the URL that produced them. When api.nasa.gov
-/// answered 503, the key in that URL went into the log in plaintext and stayed
-/// there. Every fetch error goes through here so a new poller cannot reopen
-/// that hole by writing `error!("fetch: {e}")` out of habit.
-fn log_fetch_error(source: &str, e: impl std::fmt::Display) {
-    error!(source, "fetch: {}", crate::redact::secrets(&e.to_string()));
 }
 
 /// Logs how a poll ended, at a level that matches what it means.
@@ -275,18 +288,15 @@ async fn poll_kp(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_kp(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/kp", "records", fetched.outcome);
-                writer.fire(WriteCmd::Kp(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/kp", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_kp(&client)).await {
+            log_poll("poller/kp", "records", fetched.outcome);
+            writer.fire(WriteCmd::Kp(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -294,18 +304,15 @@ async fn poll_kp_3h(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_kp_3h(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/kp-3h", "records", fetched.outcome);
-                writer.fire(WriteCmd::Kp3h(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/kp-3h", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_kp_3h(&client)).await {
+            log_poll("poller/kp-3h", "records", fetched.outcome);
+            writer.fire(WriteCmd::Kp3h(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -313,18 +320,15 @@ async fn poll_solar_wind(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_solar_wind(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/solar-wind", "records", fetched.outcome);
-                writer.fire(WriteCmd::SolarWind(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/solar-wind", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_solar_wind(&client)).await {
+            log_poll("poller/solar-wind", "records", fetched.outcome);
+            writer.fire(WriteCmd::SolarWind(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -332,18 +336,15 @@ async fn poll_xray(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_xray(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/xray", "records", fetched.outcome);
-                writer.fire(WriteCmd::Xray(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/xray", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_xray(&client)).await {
+            log_poll("poller/xray", "records", fetched.outcome);
+            writer.fire(WriteCmd::Xray(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -351,18 +352,15 @@ async fn poll_alerts(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_alerts(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/alerts", "alerts", fetched.outcome);
-                writer.fire(WriteCmd::Alerts(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/alerts", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_alerts(&client)).await {
+            log_poll("poller/alerts", "alerts", fetched.outcome);
+            writer.fire(WriteCmd::Alerts(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -370,7 +368,7 @@ async fn poll_neo(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
@@ -379,19 +377,16 @@ async fn poll_neo(
         let end = (today + ChronoDuration::days(7))
             .format("%Y-%m-%d")
             .to_string();
-        match nasa::fetch_neo_feed(&client, &start, &end).await {
-            Ok(feed) => {
-                log_poll(
-                    "poller/neo",
-                    "objects",
-                    PollOutcome::strict(feed.element_count as usize),
-                );
-                let fetched_at = Utc::now().timestamp();
-                writer.fire(WriteCmd::Neo(Box::new(feed), fetched_at));
-            }
-            Err(e) => log_fetch_error("poller/neo", e),
+        if let Some(feed) = retry::run(&policy, || nasa::fetch_neo_feed(&client, &start, &end)).await {
+            log_poll(
+                "poller/neo",
+                "objects",
+                PollOutcome::strict(feed.element_count as usize),
+            );
+            let fetched_at = Utc::now().timestamp();
+            writer.fire(WriteCmd::Neo(Box::new(feed), fetched_at));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -399,18 +394,15 @@ async fn poll_epic(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match nasa::fetch_epic(&client).await {
-            Ok(images) => {
-                log_poll("poller/epic", "images", PollOutcome::strict(images.len()));
-                writer.fire(WriteCmd::Epic(images));
-            }
-            Err(e) => log_fetch_error("poller/epic", e),
+        if let Some(images) = retry::run(&policy, || nasa::fetch_epic(&client)).await {
+            log_poll("poller/epic", "images", PollOutcome::strict(images.len()));
+            writer.fire(WriteCmd::Epic(images));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -418,18 +410,15 @@ async fn poll_apod(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match nasa::fetch_apod(&client).await {
-            Ok(apod) => {
-                info!("poller/apod: {}", apod.date);
-                writer.fire(WriteCmd::Apod(apod));
-            }
-            Err(e) => log_fetch_error("poller/apod", e),
+        if let Some(apod) = retry::run(&policy, || nasa::fetch_apod(&client)).await {
+            info!("poller/apod: {}", apod.date);
+            writer.fire(WriteCmd::Apod(apod));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -437,18 +426,15 @@ async fn poll_exoplanets(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match nasa::fetch_exoplanets(&client).await {
-            Ok(planets) => {
-                log_poll("poller/exoplanets", "planets", PollOutcome::strict(planets.len()));
-                writer.fire(WriteCmd::Exoplanets(planets));
-            }
-            Err(e) => log_fetch_error("poller/exoplanets", e),
+        if let Some(planets) = retry::run(&policy, || nasa::fetch_exoplanets(&client)).await {
+            log_poll("poller/exoplanets", "planets", PollOutcome::strict(planets.len()));
+            writer.fire(WriteCmd::Exoplanets(planets));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -456,18 +442,15 @@ async fn poll_imf(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_imf(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/imf", "records", fetched.outcome);
-                writer.fire(WriteCmd::Imf(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/imf", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_imf(&client)).await {
+            log_poll("poller/imf", "records", fetched.outcome);
+            writer.fire(WriteCmd::Imf(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -475,18 +458,15 @@ async fn poll_dst(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match noaa::fetch_dst(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/dst", "records", fetched.outcome);
-                writer.fire(WriteCmd::Dst(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/dst", e),
+        if let Some(fetched) = retry::run(&policy, || noaa::fetch_dst(&client)).await {
+            log_poll("poller/dst", "records", fetched.outcome);
+            writer.fire(WriteCmd::Dst(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -494,18 +474,15 @@ async fn poll_starlink(
     client: reqwest::Client,
     writer: DbWriterHandle,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        match starlink::fetch_starlink(&client).await {
-            Ok(fetched) => {
-                log_poll("poller/starlink", "satellites", fetched.outcome);
-                writer.fire(WriteCmd::Starlink(fetched.items));
-            }
-            Err(e) => log_fetch_error("poller/starlink", e),
+        if let Some(fetched) = retry::run(&policy, || starlink::fetch_starlink(&client)).await {
+            log_poll("poller/starlink", "satellites", fetched.outcome);
+            writer.fire(WriteCmd::Starlink(fetched.items));
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 
@@ -515,7 +492,7 @@ async fn poll_forecast(
     writer: DbWriterHandle,
     ml_url: String,
     init_delay_secs: u64,
-    interval: u64,
+    policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     let ml_timeout = std::env::var("ML_TIMEOUT")
@@ -529,7 +506,7 @@ async fn poll_forecast(
             Ok(n) => n,
             Err(e) => {
                 error!(source = "poller/forecast", "ml seq_len: {}", crate::redact::secrets(&e.to_string()));
-                tokio::time::sleep(Duration::from_secs(interval)).await;
+                tokio::time::sleep(policy.budget).await;
                 continue;
             }
         };
@@ -540,14 +517,22 @@ async fn poll_forecast(
         };
         match readings {
             Ok(r) if !r.is_empty() => {
-                let resp = client
-                    .post(format!("{ml_url}/predict"))
-                    .timeout(Duration::from_secs(ml_timeout))
-                    .json(&serde_json::json!({ "readings": r }))
-                    .send()
-                    .await;
+                // error_for_status inside the closure so a 5xx from the sidecar
+                // is a retryable failure rather than a success carrying a bad
+                // status. The forecast went down once for a transient reason,
+                // and it is the same loop and the same failure shape as the
+                // feeds above.
+                let resp = retry::run(&policy, || {
+                    client
+                        .post(format!("{ml_url}/predict"))
+                        .timeout(Duration::from_secs(ml_timeout))
+                        .json(&serde_json::json!({ "readings": &r }))
+                        .send()
+                })
+                .await
+                .map(|resp| resp.error_for_status());
                 match resp {
-                    Ok(resp) if resp.status().is_success() => match resp
+                    Some(Ok(resp)) => match resp
                         .json::<serde_json::Value>()
                         .await
                     {
@@ -585,16 +570,21 @@ async fn poll_forecast(
                         }
                         Err(e) => error!(source = "poller/forecast", "parse: {}", crate::redact::secrets(&e.to_string())),
                     },
-                    Ok(resp) => {
-                        error!(source = "poller/forecast", "ml status: {}", resp.status())
-                    }
-                    Err(e) => error!(source = "poller/forecast", "ml request: {}", crate::redact::secrets(&e.to_string())),
+                    // A status that survived every attempt, so it is not
+                    // transient. retry::run already reported a failure to
+                    // reach the sidecar at all.
+                    Some(Err(e)) => error!(
+                        source = "poller/forecast",
+                        "ml status: {}",
+                        crate::redact::secrets(&e.to_string())
+                    ),
+                    None => {}
                 }
             }
             Ok(_) => info!("poller/forecast: no Kp data yet, skipping"),
             Err(e) => error!(source = "poller/forecast", "db: {}", crate::redact::secrets(&e.to_string())),
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        tokio::time::sleep(policy.budget).await;
     }
 }
 

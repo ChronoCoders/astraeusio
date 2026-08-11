@@ -36,7 +36,7 @@ Browser
 
 ### Backend
 
-Written in Rust (Edition 2024) using Axum 0.8 as the HTTP framework and Tokio as the async runtime. All external API calls use `reqwest` with a 60-second timeout and per-source retry logic (3 attempts, exponential backoff).
+Written in Rust (Edition 2024) using Axum 0.8 as the HTTP framework and Tokio as the async runtime. External API calls use `reqwest` with a 60-second client timeout. Poller fetches and the ML prediction call retry transient failures only (connect errors, timeouts, 5xx) up to `RETRY_COUNT` attempts with exponential backoff, with each attempt and the whole sequence bounded so a retry cannot outlast the poll interval it belongs to. Permanent failures such as 404 are not retried, and a rate limit is left to the next scheduled poll. OAuth, email, and webhook delivery are not covered.
 
 Route handlers never call external APIs directly. Every data type is maintained by a dedicated background Tokio task that fetches, validates, and enqueues writes to DuckDB through an async `db_writer` channel (batched and non-blocking). Handlers read from the database and serve responses in single-digit milliseconds. An in-process TTL cache (10–3600 seconds depending on the endpoint) prevents redundant DB reads under concurrent browser connections.
 
