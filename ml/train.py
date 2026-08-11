@@ -10,6 +10,7 @@ Usage: python ml/train.py
 Output: ml/models/kp_lstm.pt
 """
 
+import io
 import logging
 import sys
 from pathlib import Path
@@ -337,8 +338,7 @@ def main() -> None:
 
     # ── Save ─────────────────────────────────────────────────────────────────
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
+    checkpoint = {
             "model_state": final_model.state_dict(),
             "hyperparams": {
                 "seq_len": SEQ_LEN,
@@ -367,9 +367,31 @@ def main() -> None:
                 "mean_mae": mean_mae,
             },
             "trained_through": str(df.timestamp.iloc[-1].date()),
-        },
-        MODEL_OUT,
-    )
+    }
+
+    # serve.py loads with weights_only=True, whose restricted unpickler accepts
+    # tensors and builtins and nothing else. A numpy scalar reaching the
+    # metadata would not fail here, it would fail when the ML service next
+    # started in production. So do exactly what serve.py will do, in memory,
+    # before anything is written. AUD-010.
+    #
+    # This deliberately is not a json.dumps round-trip. np.float64 subclasses
+    # float, so json accepts it while the restricted unpickler refuses it, and
+    # np.float64 is precisely what np.mean() and np.sqrt() return in evaluate().
+    # A json check would pass the one case most likely to occur.
+    buffer = io.BytesIO()
+    torch.save(checkpoint, buffer)
+    buffer.seek(0)
+    try:
+        torch.load(buffer, map_location="cpu", weights_only=True)
+    except Exception as exc:
+        raise TypeError(
+            "checkpoint does not load under weights_only=True, so the ML "
+            f"service would refuse to start with it: {exc}. Wrap numpy values "
+            "in float() or int() before saving."
+        ) from exc
+
+    torch.save(checkpoint, MODEL_OUT)
     log.info("Saved model → %s", MODEL_OUT)
 
 
