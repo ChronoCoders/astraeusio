@@ -224,10 +224,20 @@ async fn poll_iss(
                 );
                 writer.fire(WriteCmd::Iss(pos));
             }
-            Err(e) => error!(source = "poller/iss", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/iss", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
+}
+
+/// Logs a failed fetch with any credential in the URL removed.
+///
+/// `reqwest` errors carry the URL that produced them. When api.nasa.gov
+/// answered 503, the key in that URL went into the log in plaintext and stayed
+/// there. Every fetch error goes through here so a new poller cannot reopen
+/// that hole by writing `error!("fetch: {e}")` out of habit.
+fn log_fetch_error(source: &str, e: impl std::fmt::Display) {
+    error!(source, "fetch: {}", crate::redact::secrets(&e.to_string()));
 }
 
 /// Logs how a poll ended, at a level that matches what it means.
@@ -274,7 +284,7 @@ async fn poll_kp(
                 log_poll("poller/kp", "records", fetched.outcome);
                 writer.fire(WriteCmd::Kp(fetched.items));
             }
-            Err(e) => error!(source = "poller/kp", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/kp", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -293,7 +303,7 @@ async fn poll_kp_3h(
                 log_poll("poller/kp-3h", "records", fetched.outcome);
                 writer.fire(WriteCmd::Kp3h(fetched.items));
             }
-            Err(e) => error!(source = "poller/kp-3h", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/kp-3h", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -312,7 +322,7 @@ async fn poll_solar_wind(
                 log_poll("poller/solar-wind", "records", fetched.outcome);
                 writer.fire(WriteCmd::SolarWind(fetched.items));
             }
-            Err(e) => error!(source = "poller/solar-wind", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/solar-wind", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -331,7 +341,7 @@ async fn poll_xray(
                 log_poll("poller/xray", "records", fetched.outcome);
                 writer.fire(WriteCmd::Xray(fetched.items));
             }
-            Err(e) => error!(source = "poller/xray", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/xray", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -350,7 +360,7 @@ async fn poll_alerts(
                 log_poll("poller/alerts", "alerts", fetched.outcome);
                 writer.fire(WriteCmd::Alerts(fetched.items));
             }
-            Err(e) => error!(source = "poller/alerts", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/alerts", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -379,7 +389,7 @@ async fn poll_neo(
                 let fetched_at = Utc::now().timestamp();
                 writer.fire(WriteCmd::Neo(Box::new(feed), fetched_at));
             }
-            Err(e) => error!(source = "poller/neo", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/neo", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -398,7 +408,7 @@ async fn poll_epic(
                 log_poll("poller/epic", "images", PollOutcome::strict(images.len()));
                 writer.fire(WriteCmd::Epic(images));
             }
-            Err(e) => error!(source = "poller/epic", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/epic", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -417,7 +427,7 @@ async fn poll_apod(
                 info!("poller/apod: {}", apod.date);
                 writer.fire(WriteCmd::Apod(apod));
             }
-            Err(e) => error!(source = "poller/apod", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/apod", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -436,7 +446,7 @@ async fn poll_exoplanets(
                 log_poll("poller/exoplanets", "planets", PollOutcome::strict(planets.len()));
                 writer.fire(WriteCmd::Exoplanets(planets));
             }
-            Err(e) => error!(source = "poller/exoplanets", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/exoplanets", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -455,7 +465,7 @@ async fn poll_imf(
                 log_poll("poller/imf", "records", fetched.outcome);
                 writer.fire(WriteCmd::Imf(fetched.items));
             }
-            Err(e) => error!(source = "poller/imf", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/imf", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -474,7 +484,7 @@ async fn poll_dst(
                 log_poll("poller/dst", "records", fetched.outcome);
                 writer.fire(WriteCmd::Dst(fetched.items));
             }
-            Err(e) => error!(source = "poller/dst", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/dst", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -493,7 +503,7 @@ async fn poll_starlink(
                 log_poll("poller/starlink", "satellites", fetched.outcome);
                 writer.fire(WriteCmd::Starlink(fetched.items));
             }
-            Err(e) => error!(source = "poller/starlink", "fetch: {e}"),
+            Err(e) => log_fetch_error("poller/starlink", e),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
@@ -518,7 +528,7 @@ async fn poll_forecast(
         let seq_len = match crate::routes::ml_seq_len(&client, &ml_url).await {
             Ok(n) => n,
             Err(e) => {
-                error!(source = "poller/forecast", "ml seq_len: {e}");
+                error!(source = "poller/forecast", "ml seq_len: {}", crate::redact::secrets(&e.to_string()));
                 tokio::time::sleep(Duration::from_secs(interval)).await;
                 continue;
             }
@@ -573,16 +583,16 @@ async fn poll_forecast(
                                 info!("poller/forecast: predicted Kp {kp:.2} @ +3h");
                             }
                         }
-                        Err(e) => error!(source = "poller/forecast", "parse: {e}"),
+                        Err(e) => error!(source = "poller/forecast", "parse: {}", crate::redact::secrets(&e.to_string())),
                     },
                     Ok(resp) => {
                         error!(source = "poller/forecast", "ml status: {}", resp.status())
                     }
-                    Err(e) => error!(source = "poller/forecast", "ml request: {e}"),
+                    Err(e) => error!(source = "poller/forecast", "ml request: {}", crate::redact::secrets(&e.to_string())),
                 }
             }
             Ok(_) => info!("poller/forecast: no Kp data yet, skipping"),
-            Err(e) => error!(source = "poller/forecast", "db: {e}"),
+            Err(e) => error!(source = "poller/forecast", "db: {}", crate::redact::secrets(&e.to_string())),
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }

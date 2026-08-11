@@ -14,6 +14,7 @@ mod oauth;
 mod plan;
 mod poller;
 mod rate_limit;
+mod redact;
 mod routes;
 mod secretbox;
 mod starlink;
