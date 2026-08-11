@@ -297,7 +297,7 @@ pub struct SeriesFreshness {
 /// existed, the imf feed was dead for forty days while the charts kept drawing
 /// its last day of data and the status page stayed green, because one Kp query
 /// stood in for the whole of NOAA.
-pub const SERIES_FRESHNESS: [SeriesFreshness; 7] = [
+pub const SERIES_FRESHNESS: [SeriesFreshness; 11] = [
     SeriesFreshness {
         component: "noaa_kp",
         table: "kp",
@@ -352,6 +352,44 @@ pub const SERIES_FRESHNESS: [SeriesFreshness; 7] = [
         table: "iss_position",
         time_column: "ts",
         max_age_secs: 300,
+    },
+    // The NASA feeds below reported as one aggregate "nasa" component, taking
+    // MAX(fetched_at) across apod, neo and epic. One live feed stood in for all
+    // three, so APOD arriving daily kept the component green with NEO and EPIC
+    // both dead. That is the same fault that let a single Kp query stand in for
+    // the whole of NOAA, fixed the same way: one entry each.
+    //
+    // These key on `fetched_at` rather than an observation time because that is
+    // what the tables carry. For it to mean "the poller is still working" the
+    // inserts had to move from ON CONFLICT DO NOTHING to DO UPDATE of
+    // `fetched_at`; previously it only advanced when a genuinely new row
+    // appeared, so a quiet week in the exoplanet archive was indistinguishable
+    // from a dead poller. Now it is the time of the last successful poll that
+    // returned rows, and an empty payload correctly fails to advance it.
+    SeriesFreshness {
+        component: "nasa_apod",
+        table: "apod",
+        time_column: "fetched_at",
+        max_age_secs: 10_800,
+    },
+    SeriesFreshness {
+        component: "nasa_neo",
+        table: "neo",
+        time_column: "fetched_at",
+        max_age_secs: 7_200,
+    },
+    SeriesFreshness {
+        component: "nasa_epic",
+        table: "epic",
+        time_column: "fetched_at",
+        max_age_secs: 7_200,
+    },
+    // Polled once a day, so the limit has to clear a full cycle plus a retry.
+    SeriesFreshness {
+        component: "nasa_exoplanets",
+        table: "exoplanet",
+        time_column: "fetched_at",
+        max_age_secs: 172_800,
     },
 ];
 
@@ -950,7 +988,7 @@ impl Store {
         self.conn.execute(
             "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (date) DO NOTHING",
+             ON CONFLICT (date) DO UPDATE SET fetched_at = excluded.fetched_at",
             params![
                 a.date,
                 a.title,
@@ -979,7 +1017,7 @@ impl Store {
                  (identifier, caption, image, date,
                   centroid_lat_e6, centroid_lon_e6, fetched_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT (identifier) DO NOTHING",
+                 ON CONFLICT (identifier) DO UPDATE SET fetched_at = excluded.fetched_at",
             )?;
             for img in images {
                 stmt.execute(params![
@@ -1012,7 +1050,7 @@ impl Store {
                   diameter_min_m, diameter_max_m,
                   velocity_m_per_h, miss_distance_m, fetched_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT (id, close_approach_date) DO NOTHING",
+                 ON CONFLICT (id, close_approach_date) DO UPDATE SET fetched_at = excluded.fetched_at",
             )?;
             for neos in feed.near_earth_objects.values() {
                 for neo in neos {
@@ -1069,7 +1107,7 @@ impl Store {
                  (pl_name, hostname, orbital_period_md,
                   radius_me3, mass_me3, disc_year, fetched_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT (pl_name) DO NOTHING",
+                 ON CONFLICT (pl_name) DO UPDATE SET fetched_at = excluded.fetched_at",
             )?;
             for exo in planets {
                 stmt.execute(params![
@@ -3376,18 +3414,16 @@ impl Store {
     /// The NOAA series are not here. They report one component each through
     /// `series_health`, because a single query over one table let a dead feed
     /// hide behind a live one.
-    pub fn external_freshness(&self) -> (Option<i64>, Option<i64>) {
-        let q = |sql: &str| -> Option<i64> {
-            self.conn
-                .query_row(sql, [], |row| row.get::<_, Option<i64>>(0))
-                .ok()
-                .flatten()
-        };
-        let nasa = q(
-            "SELECT MAX(m) FROM (SELECT MAX(fetched_at) AS m FROM apod UNION ALL SELECT MAX(fetched_at) FROM neo UNION ALL SELECT MAX(fetched_at) FROM epic)",
-        );
-        let celestrak = q("SELECT MAX(fetched_at) FROM starlink");
-        (nasa, celestrak)
+    pub fn external_freshness(&self) -> Option<i64> {
+        // The NASA aggregate that used to live here is gone: apod, neo, epic and
+        // exoplanets each report themselves through SERIES_FRESHNESS, because
+        // one live feed was hiding two dead ones.
+        self.conn
+            .query_row("SELECT MAX(fetched_at) FROM starlink", [], |row| {
+                row.get::<_, Option<i64>>(0)
+            })
+            .ok()
+            .flatten()
     }
 }
 
@@ -4259,6 +4295,88 @@ mod tests {
 
         drop(store);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn test_apod(date: &str) -> crate::nasa::Apod {
+        crate::nasa::Apod {
+            date: date.to_owned(),
+            title: "Test".into(),
+            explanation: "Test".into(),
+            url: "https://example.invalid/a.jpg".into(),
+            media_type: "image".into(),
+            hdurl: None,
+        }
+    }
+
+    fn test_epic(identifier: &str) -> crate::nasa::EpicImage {
+        crate::nasa::EpicImage {
+            identifier: identifier.to_owned(),
+            caption: "Test".into(),
+            image: "epic_test".into(),
+            date: "2026-08-10 00:00:00".into(),
+            centroid_coordinates: crate::nasa::CentroidCoordinates { lat: 1.0, lon: 2.0 },
+        }
+    }
+
+    /// The nasa component used to be one aggregate over apod, neo and epic, so
+    /// APOD arriving daily kept it green while the other two were dead. That is
+    /// the same fault the NOAA split fixed, and each feed now answers for itself.
+    #[test]
+    fn each_nasa_feed_reports_its_own_freshness() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-08-10")).unwrap();
+        store.insert_epic_batch(&[test_epic("epic-1")]).unwrap();
+        // Age only the EPIC write, well past its limit.
+        store
+            .conn
+            .execute_batch("UPDATE epic SET fetched_at = fetched_at - 100000")
+            .unwrap();
+
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(component, _, _)| *component == c)
+                .map(|(_, s, _)| *s)
+                .unwrap_or("missing")
+        };
+        // The live feed must not cover for the dead one.
+        assert_eq!(status("nasa_apod"), "operational");
+        assert_eq!(status("nasa_epic"), "degraded");
+        // Never written, so unknown rather than a false green.
+        assert_eq!(status("nasa_neo"), "unknown");
+        assert_eq!(status("nasa_exoplanets"), "unknown");
+    }
+
+    /// `fetched_at` has to mean "the last poll that returned rows", not "the
+    /// first time this row appeared". With ON CONFLICT DO NOTHING it only moved
+    /// when something new arrived, so a quiet week in the exoplanet archive was
+    /// indistinguishable from a dead poller.
+    #[test]
+    fn a_repeat_poll_refreshes_fetched_at() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-08-10")).unwrap();
+        store
+            .conn
+            .execute_batch("UPDATE apod SET fetched_at = fetched_at - 100000")
+            .unwrap();
+
+        // The same row again, which is what every poll returns until tomorrow.
+        store.insert_apod(&test_apod("2026-08-10")).unwrap();
+
+        let newest: i64 = store
+            .conn
+            .query_row("SELECT MAX(fetched_at) FROM apod", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            now() - newest < 5,
+            "a repeat poll must refresh fetched_at, or a working poller reads as dead"
+        );
+        let rows: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 1, "the upsert must not duplicate the row");
     }
 
     /// One live series must not cover for a dead one. The status page read a

@@ -702,10 +702,10 @@ async fn poll_health_snapshots(
             _ => "degraded",
         };
 
-        let (series, nasa_ts, celestrak_ts) = {
+        let (series, celestrak_ts) = {
             let guard = db.lock().await;
-            let (nasa, celestrak) = guard.external_freshness();
-            (guard.series_health(), nasa, celestrak)
+            let celestrak = guard.external_freshness();
+            (guard.series_health(), celestrak)
         };
 
         fn component_status(last: Option<i64>, now: i64, stale_secs: i64) -> &'static str {
@@ -716,7 +716,6 @@ async fn poll_health_snapshots(
             }
         }
 
-        let nasa_status = component_status(nasa_ts, now, 90_000);
         let celestrak_status = component_status(celestrak_ts, now, 14_400);
         let db_status = if series.iter().any(|(_, _, ts)| ts.is_some()) {
             "operational"
@@ -738,7 +737,6 @@ async fn poll_health_snapshots(
             ("backend_api", "operational"),
             ("ml_forecast", ml_status),
             ("database", db_status),
-            ("nasa", nasa_status),
             ("celestrak", celestrak_status),
         ] {
             writer.fire(WriteCmd::HealthSnapshot {
@@ -754,7 +752,7 @@ async fn poll_health_snapshots(
             .map(|(component, _, _)| *component)
             .collect();
         info!(
-            "poller/health: snapshot recorded (ml={ml_status} nasa={nasa_status} \
+            "poller/health: snapshot recorded (ml={ml_status} \
              celestrak={celestrak_status} series_not_operational={degraded:?})"
         );
 

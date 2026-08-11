@@ -112,7 +112,12 @@ export default function StatusPage({ onSignIn }) {
     { nameKey: 'status.noaaImf',       key: 'noaa_imf',        status: error ? 'unknown': (c.noaa_imf?.status        ?? 'unknown'), lastUpdate: c.noaa_imf?.last_update        },
     { nameKey: 'status.noaaDst',       key: 'noaa_dst',        status: error ? 'unknown': (c.noaa_dst?.status        ?? 'unknown'), lastUpdate: c.noaa_dst?.last_update        },
     { nameKey: 'status.iss',           key: 'iss',             status: error ? 'unknown': (c.iss?.status             ?? 'unknown'), lastUpdate: c.iss?.last_update            },
-    { nameKey: 'status.nasa',        key: 'nasa',        status: error ? 'unknown': (c.nasa?.status         ?? 'unknown'), lastUpdate: c.nasa?.last_update          },
+    // Likewise for NASA. A single row here averaged apod, neo and epic, so the
+    // daily APOD kept it green with the other two dead.
+    { nameKey: 'status.nasaApod',       key: 'nasa_apod',        status: error ? 'unknown': (c.nasa_apod?.status        ?? 'unknown'), lastUpdate: c.nasa_apod?.last_update        },
+    { nameKey: 'status.nasaNeo',        key: 'nasa_neo',         status: error ? 'unknown': (c.nasa_neo?.status         ?? 'unknown'), lastUpdate: c.nasa_neo?.last_update         },
+    { nameKey: 'status.nasaEpic',       key: 'nasa_epic',        status: error ? 'unknown': (c.nasa_epic?.status        ?? 'unknown'), lastUpdate: c.nasa_epic?.last_update        },
+    { nameKey: 'status.nasaExoplanets', key: 'nasa_exoplanets',  status: error ? 'unknown': (c.nasa_exoplanets?.status  ?? 'unknown'), lastUpdate: c.nasa_exoplanets?.last_update  },
     { nameKey: 'status.celestrak',   key: 'celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
   ]
 
