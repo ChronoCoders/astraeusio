@@ -8,6 +8,23 @@ services:
     volumes:
       - data:/data
     restart: unless-stopped
+    # Measured 111.7 MiB resident. The ceiling covers the torch import plus the
+    # 50 MC dropout passes a prediction runs, with room to spare.
+    mem_limit: 768m
+    cpu_shares: 1024
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    # Asserts seq_len, not just a 200. A deploy once shipped an ml image whose
+    # /health answered 200 without that field; every forecast returned 503 for
+    # as long as it took to notice, because the only probe looked at the status
+    # code. start_period covers the torch import and the checkpoint load.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=5)); raise SystemExit(0 if d.get('status')=='ok' and d.get('seq_len') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     logging:
       driver: json-file
       options:
@@ -28,6 +45,38 @@ services:
     depends_on:
       - ml
     restart: unless-stopped
+    # Measured 218.9 to 222.9 MiB, and it did not move under a 90 day uptime
+    # query, reports over 24h/7d/30d, the full Starlink set, or a 30 day CSV
+    # export. 768m is roughly 3.4x that peak. Revisit if a future migration
+    # rebuilds a large table.
+    mem_limit: 768m
+    # Shares, not a cpus cap. A hard cap throttles the backend even when the box
+    # is idle, which on 2 vCPU costs real latency for nothing. Shares only bite
+    # under contention, which is the case that matters: a deploy build competing
+    # with the live stack. Note buildkit runs outside these cgroups, so this
+    # bounds the app's share, not the build's.
+    cpu_shares: 2048
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    # Checks what /health returns, not just that it returns. The assertion is
+    # that the backend can still read its own database; upstream feeds going
+    # degraded is NOT unhealthy, because that is NOAA's or NASA's problem and
+    # the backend is doing its job.
+    #
+    # start_period is 120s. Boot is currently 1.24s including eight schema
+    # migrations and a 265k row xray rebuild, so this is about 100x the observed
+    # worst case. It is deliberately generous because a future migration over a
+    # large table is the one thing that legitimately extends boot, and marking
+    # the container unhealthy mid-migration would be a false alarm during
+    # exactly the riskiest minute of a deploy. deploy.sh does its own wait, so
+    # nothing depends on this being tight.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 5 http://127.0.0.1:3000/health | grep -qE '\"components\".*\"database\"[^}]*\"status\":\"operational\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
     logging:
       driver: json-file
       options:
@@ -49,6 +98,21 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    # Measured 3.3 MiB. 128m is a wide ceiling for nginx serving static files.
+    mem_limit: 128m
+    cpu_shares: 2048
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    # Over https on purpose: port 80 is a 301 to https, so an http probe would
+    # pass on a redirect body without ever proving the app is served. -k because
+    # the origin certificate is issued for astraeusio.com, not 127.0.0.1.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSk --max-time 5 https://127.0.0.1/ | grep -q 'id=\"root\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     logging:
       driver: json-file
       options:
