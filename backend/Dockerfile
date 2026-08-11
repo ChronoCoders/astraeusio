@@ -13,8 +13,12 @@ RUN cargo build --release
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
+# curl is here for the container healthcheck, which asks /health what it says
+# rather than only whether it answers. The image carried no HTTP client at all,
+# so the alternative was a bare TCP probe, and a port that accepts connections
+# would not have caught any failure this service has actually had.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
