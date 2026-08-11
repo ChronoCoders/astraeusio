@@ -186,7 +186,21 @@ async def lifespan(app: FastAPI):
     if not MODEL_PATH.exists():
         raise RuntimeError(f"Model not found: {MODEL_PATH} - run train.py first")
 
-    ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    # weights_only=True uses the restricted unpickler, so a tampered checkpoint
+    # cannot execute arbitrary code the moment it is loaded. AUD-010.
+    #
+    # The audit assumed the hyperparams and validation dicts were what forced
+    # the unrestricted loader. They are not: the restricted unpickler already
+    # permits tensors and plain containers, and every value under both keys is a
+    # builtin int, float or str, because train.py wraps each metric in float().
+    # The deployed checkpoint was checked under both loaders and produced
+    # identical weights and identical predictions, so nothing had to move out of
+    # the file.
+    #
+    # The cost of the stricter loader is that anything non-primitive added to
+    # the metadata later will fail here rather than at training time. Keep
+    # train.py's saved metadata to builtins.
+    ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
     hp = ckpt["hyperparams"]
     state.hp = hp
     state.meta = {
