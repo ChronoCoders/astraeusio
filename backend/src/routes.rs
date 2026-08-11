@@ -182,10 +182,10 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     };
 
     // ── DB freshness ─────────────────────────────────────────────────────────
-    let (series, nasa_ts, celestrak_ts) = {
+    let (series, celestrak_ts) = {
         let guard = lock_db(&s.db).await;
-        let (nasa, celestrak) = guard.external_freshness();
-        (guard.series_health(), nasa, celestrak)
+        let celestrak = guard.external_freshness();
+        (guard.series_health(), celestrak)
     };
 
     fn component_status(
@@ -200,7 +200,6 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         }
     }
 
-    let (nasa_status, nasa_last) = component_status(nasa_ts, now, 90_000);
     let (celestrak_status, celestrak_last) = component_status(celestrak_ts, now, 14_400);
     // The database is reachable if any series has ever stored a reading. That
     // is separate from whether the feeds are still arriving, which is what the
@@ -213,7 +212,7 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     };
 
     // ── Overall ───────────────────────────────────────────────────────────────
-    let overall = if [ml_status, db_status, nasa_status, celestrak_status]
+    let overall = if [ml_status, db_status, celestrak_status]
         .iter()
         .all(|&s| s == "operational")
         && series.iter().all(|(_, status, _)| *status == "operational")
@@ -243,10 +242,6 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         );
     }
     components.insert(
-        "nasa".into(),
-        serde_json::json!({ "status": nasa_status, "last_update": nasa_last }),
-    );
-    components.insert(
         "celestrak".into(),
         serde_json::json!({ "status": celestrak_status, "last_update": celestrak_last }),
     );
@@ -264,7 +259,10 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
         let rows = lock_db(&s.db).await.uptime_by_day(DAYS)?;
         // rows: (component, day_idx, samples, operational_samples)
         // day_idx 0 = today, larger = further past
-        let fixed = ["backend_api", "ml_forecast", "database", "nasa", "celestrak"];
+        // "nasa" is deliberately absent: it was split into one component per
+        // feed, which now come from SERIES_FRESHNESS below. Its historical rows
+        // stay in health_snapshots and simply stop being rendered.
+        let fixed = ["backend_api", "ml_forecast", "database", "celestrak"];
         let components = fixed
             .into_iter()
             .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component));
@@ -1457,16 +1455,22 @@ async fn mcp_handler(
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs() as i64;
-                    let (series, nasa_ts) = {
-                        let guard = lock_db(&s.db).await;
-                        let (nasa, _) = guard.external_freshness();
-                        (guard.series_health(), nasa)
+                    let series = lock_db(&s.db).await.series_health();
+                    // Each rollup covers only its own family, and is degraded if
+                    // any one member is, so a live feed cannot cover for a dead
+                    // one. Per-series detail sits alongside them. nasa is derived
+                    // the same way as noaa now; it used to be a single
+                    // MAX(fetched_at) across apod, neo and epic, which the daily
+                    // APOD held green while the other two were dead.
+                    let group_ok = |prefix: &str| {
+                        series
+                            .iter()
+                            .filter(|(component, _, _)| component.starts_with(prefix))
+                            .all(|(_, status, _)| *status == "operational")
                     };
-                    // The noaa field is a rollup over every series, so one live
-                    // feed can no longer cover for a dead one. Per-series detail
-                    // sits alongside it.
-                    let noaa_ok = series.iter().all(|(_, status, _)| *status == "operational");
-                    let nasa_ok = nasa_ts.is_some_and(|t| now - t < 90_000);
+                    let noaa_ok = group_ok("noaa_");
+                    let nasa_ok = group_ok("nasa_");
+                    let all_ok = series.iter().all(|(_, status, _)| *status == "operational");
                     let per_series: serde_json::Map<String, serde_json::Value> = series
                         .iter()
                         .map(|(component, status, _)| {
@@ -1476,7 +1480,7 @@ async fn mcp_handler(
                     McpResp::ok(
                         id,
                         mcp_text(serde_json::json!({
-                            "status": if noaa_ok && nasa_ok { "operational" } else { "degraded" },
+                            "status": if all_ok { "operational" } else { "degraded" },
                             "noaa":   if noaa_ok { "operational" } else { "degraded" },
                             "nasa":   if nasa_ok { "operational" } else { "degraded" },
                             "series": per_series,
