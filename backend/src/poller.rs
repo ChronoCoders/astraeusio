@@ -270,9 +270,9 @@ async fn poll_kp(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_kp(&client).await {
-            Ok(records) => {
-                log_poll("poller/kp", "records", PollOutcome::strict(records.len()));
-                writer.fire(WriteCmd::Kp(records));
+            Ok(fetched) => {
+                log_poll("poller/kp", "records", fetched.outcome);
+                writer.fire(WriteCmd::Kp(fetched.items));
             }
             Err(e) => error!(source = "poller/kp", "fetch: {e}"),
         }
@@ -289,9 +289,9 @@ async fn poll_kp_3h(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_kp_3h(&client).await {
-            Ok(records) => {
-                log_poll("poller/kp-3h", "records", PollOutcome::strict(records.len()));
-                writer.fire(WriteCmd::Kp3h(records));
+            Ok(fetched) => {
+                log_poll("poller/kp-3h", "records", fetched.outcome);
+                writer.fire(WriteCmd::Kp3h(fetched.items));
             }
             Err(e) => error!(source = "poller/kp-3h", "fetch: {e}"),
         }
@@ -327,9 +327,9 @@ async fn poll_xray(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_xray(&client).await {
-            Ok(records) => {
-                log_poll("poller/xray", "records", PollOutcome::strict(records.len()));
-                writer.fire(WriteCmd::Xray(records));
+            Ok(fetched) => {
+                log_poll("poller/xray", "records", fetched.outcome);
+                writer.fire(WriteCmd::Xray(fetched.items));
             }
             Err(e) => error!(source = "poller/xray", "fetch: {e}"),
         }
@@ -346,9 +346,9 @@ async fn poll_alerts(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         match noaa::fetch_alerts(&client).await {
-            Ok(alerts) => {
-                log_poll("poller/alerts", "alerts", PollOutcome::strict(alerts.len()));
-                writer.fire(WriteCmd::Alerts(alerts));
+            Ok(fetched) => {
+                log_poll("poller/alerts", "alerts", fetched.outcome);
+                writer.fire(WriteCmd::Alerts(fetched.items));
             }
             Err(e) => error!(source = "poller/alerts", "fetch: {e}"),
         }
