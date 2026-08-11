@@ -120,12 +120,46 @@ pub fn spawn(
         "poller: intervals loaded"
     );
 
+
+    // Each policy is constructed once here and then moved into its poller, so
+    // the line below reports what the running process actually computed rather
+    // than a second derivation that could drift from it. The per-attempt
+    // ceiling was previously only inferable from the inputs.
+    let p_iss = cfg.policy("poller/iss", cfg.iss_interval);
+    let p_kp = cfg.policy("poller/kp", cfg.kp_interval);
+    let p_kp3h = cfg.policy("poller/kp-3h", cfg.kp_3h_interval);
+    let p_solar_wind = cfg.policy("poller/solar-wind", cfg.solar_wind_interval);
+    let p_xray = cfg.policy("poller/xray", cfg.xray_interval);
+    let p_alerts = cfg.policy("poller/alerts", cfg.alerts_interval);
+    let p_neo = cfg.policy("poller/neo", cfg.neo_interval);
+    let p_epic = cfg.policy("poller/epic", cfg.epic_interval);
+    let p_apod = cfg.policy("poller/apod", cfg.apod_interval);
+    let p_exoplanets = cfg.policy("poller/exoplanets", cfg.exoplanet_interval);
+    let p_imf = cfg.policy("poller/imf", cfg.imf_interval);
+    let p_dst = cfg.policy("poller/dst", cfg.dst_interval);
+    let p_starlink = cfg.policy("poller/starlink", cfg.starlink_interval);
+    let p_forecast = cfg.policy("poller/forecast", cfg.forecast_interval);
+    info!(
+        retry_count = cfg.retry_count,
+        http_timeout = cfg.http_timeout,
+        "poller: attempt timeouts {}",
+        [&p_iss, &p_kp, &p_kp3h, &p_solar_wind, &p_xray, &p_alerts, &p_neo, &p_epic, &p_apod, &p_exoplanets, &p_imf, &p_dst, &p_starlink, &p_forecast]
+            .iter()
+            .map(|p| format!(
+                "{}={}s",
+                p.source.trim_start_matches("poller/"),
+                p.attempt_timeout.as_secs()
+            ))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+
     // Tier 0 - tiny/read-only, start immediately
     tokio::spawn(poll_iss(
         client.clone(),
         writer.clone(),
         0,
-        cfg.policy("poller/iss", cfg.iss_interval),
+        p_iss,
     ));
     tokio::spawn(poll_anomaly(
         db.clone(),
@@ -139,75 +173,75 @@ pub fn spawn(
         client.clone(),
         writer.clone(),
         5,
-        cfg.policy("poller/kp", cfg.kp_interval),
+        p_kp,
     ));
     tokio::spawn(poll_alerts(
         client.clone(),
         writer.clone(),
         10,
-        cfg.policy("poller/alerts", cfg.alerts_interval),
+        p_alerts,
     ));
     tokio::spawn(poll_neo(
         client.clone(),
         writer.clone(),
         15,
-        cfg.policy("poller/neo", cfg.neo_interval),
+        p_neo,
     ));
     tokio::spawn(poll_epic(
         client.clone(),
         writer.clone(),
         20,
-        cfg.policy("poller/epic", cfg.epic_interval),
+        p_epic,
     ));
     tokio::spawn(poll_apod(
         client.clone(),
         writer.clone(),
         25,
-        cfg.policy("poller/apod", cfg.apod_interval),
+        p_apod,
     ));
     // Tier 2 - large initial inserts (hundreds to thousands of rows), 8-second spacing
     tokio::spawn(poll_kp_3h(
         client.clone(),
         writer.clone(),
         30,
-        cfg.policy("poller/kp-3h", cfg.kp_3h_interval),
+        p_kp3h,
     ));
     tokio::spawn(poll_dst(
         client.clone(),
         writer.clone(),
         38,
-        cfg.policy("poller/dst", cfg.dst_interval),
+        p_dst,
     ));
     tokio::spawn(poll_exoplanets(
         client.clone(),
         writer.clone(),
         46,
-        cfg.policy("poller/exoplanets", cfg.exoplanet_interval),
+        p_exoplanets,
     ));
     tokio::spawn(poll_imf(
         client.clone(),
         writer.clone(),
         54,
-        cfg.policy("poller/imf", cfg.imf_interval),
+        p_imf,
     ));
     tokio::spawn(poll_solar_wind(
         client.clone(),
         writer.clone(),
         62,
-        cfg.policy("poller/solar-wind", cfg.solar_wind_interval),
+        p_solar_wind,
     ));
     tokio::spawn(poll_xray(
         client.clone(),
         writer.clone(),
         70,
-        cfg.policy("poller/xray", cfg.xray_interval),
+        p_xray,
     ));
     // Tier 3 - Starlink: DELETE + 7000+ inserts in one transaction, start last
     tokio::spawn(poll_starlink(
         client.clone(),
         writer.clone(),
         90,
-        cfg.policy("poller/starlink", cfg.starlink_interval),
+        p_starlink,
     ));
     // Forecast - calls the ML sidecar on a fixed cadence so kp_forecast builds
     // a continuous time series (the Forecast page chart + metrics depend on it).
@@ -218,7 +252,7 @@ pub fn spawn(
         writer.clone(),
         ml_url.clone(),
         45,
-        cfg.policy("poller/forecast", cfg.forecast_interval),
+        p_forecast,
     ));
     // Health snapshots - record per-component status every 5 minutes for the
     // status page's 90-day uptime strip.
