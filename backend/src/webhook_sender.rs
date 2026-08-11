@@ -49,7 +49,14 @@ pub async fn send(
     {
         Ok(r) => {
             let code = r.status().as_u16() as i32;
-            info!("webhook {}: {} -> {}", hook.id, hook.url, r.status());
+            // The customer's own URL, which often carries their token in the
+                // query string. Their secret deserves the same treatment as ours.
+                info!(
+                    "webhook {}: {} -> {}",
+                    hook.id,
+                    crate::redact::secrets(&hook.url),
+                    r.status()
+                );
             DeliveryResult {
                 status_code: Some(code),
                 success: (200..300).contains(&code),
@@ -58,7 +65,7 @@ pub async fn send(
         }
         Err(e) => {
             let err = e.to_string();
-            warn!("webhook {} delivery failed: {err}", hook.id);
+            warn!("webhook {} delivery failed: {}", hook.id, crate::redact::secrets(&err.to_string()));
             DeliveryResult {
                 status_code: None,
                 success: false,

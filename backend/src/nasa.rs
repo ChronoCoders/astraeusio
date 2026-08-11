@@ -11,6 +11,17 @@ pub enum NasaError {
     Env(#[from] std::env::VarError),
 }
 
+/// api.nasa.gov accepts the key as a query parameter or as this header.
+///
+/// It goes in the header. A key in the query string ends up inside every
+/// `reqwest` error, because those carry the URL that produced them, and one
+/// upstream 503 was enough to write it into the log in plaintext. A header is
+/// never part of the URL, so it cannot be logged by an error at all.
+///
+/// `redact` covers whatever still reaches a logger with a secret in a query
+/// string. This makes sure that, for our own key, there is nothing to cover.
+const API_KEY_HEADER: &str = "X-Api-Key";
+
 fn api_key() -> Result<String, NasaError> {
     Ok(std::env::var("NASA_API_KEY")?)
 }
@@ -30,7 +41,8 @@ pub struct Apod {
 pub async fn fetch_apod(client: &Client) -> Result<Apod, NasaError> {
     let key = api_key()?;
     Ok(client
-        .get(format!("https://api.nasa.gov/planetary/apod?api_key={key}"))
+        .get("https://api.nasa.gov/planetary/apod")
+        .header(API_KEY_HEADER, key)
         .send()
         .await?
         .error_for_status()?
@@ -92,8 +104,9 @@ pub async fn fetch_neo_feed(
     Ok(client
         .get(format!(
             "https://api.nasa.gov/neo/rest/v1/feed\
-             ?start_date={start_date}&end_date={end_date}&api_key={key}"
+             ?start_date={start_date}&end_date={end_date}"
         ))
+        .header(API_KEY_HEADER, key)
         .send()
         .await?
         .error_for_status()?
@@ -121,9 +134,8 @@ pub struct CentroidCoordinates {
 pub async fn fetch_epic(client: &Client) -> Result<Vec<EpicImage>, NasaError> {
     let key = api_key()?;
     Ok(client
-        .get(format!(
-            "https://api.nasa.gov/EPIC/api/natural?api_key={key}"
-        ))
+        .get("https://api.nasa.gov/EPIC/api/natural")
+        .header(API_KEY_HEADER, key)
         .send()
         .await?
         .error_for_status()?
