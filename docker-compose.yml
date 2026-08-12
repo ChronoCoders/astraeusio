@@ -107,8 +107,13 @@ services:
     # Over https on purpose: port 80 is a 301 to https, so an http probe would
     # pass on a redirect body without ever proving the app is served. -k because
     # the origin certificate is issued for astraeusio.com, not 127.0.0.1.
+    #
+    # --resolve rather than hitting 127.0.0.1 directly, because curl sends no
+    # SNI for an IP literal. Since the catch-all server block rejects handshakes
+    # with unmatched SNI, an IP probe would be refused at the TLS layer and this
+    # container would report unhealthy while serving perfectly well.
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsSk --max-time 5 https://127.0.0.1/ | grep -q 'id=\"root\"'"]
+      test: ["CMD-SHELL", "curl -fsSk --resolve astraeusio.com:443:127.0.0.1 --max-time 5 https://astraeusio.com/ | grep -q 'id=\"root\"'"]
       interval: 30s
       timeout: 10s
       retries: 3
