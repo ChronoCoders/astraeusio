@@ -196,11 +196,17 @@ echo "   backend bound"
 # died with SSL_ERROR_SYSCALL and never even reached its access log, and the
 # script printed a rollback instruction for a site that was fine. A check that
 # cries wolf teaches everyone to ignore it.
-await_http() {  # await_http <label> <url> [seconds]
-  local label=$1 url=$2 limit=${3:-60}
+# Requests go to the real server name resolved onto the loopback, not to
+# 127.0.0.1 directly, because curl sends no SNI for an IP literal. Since
+# 2026-08-12 nginx has a catch-all server block with ssl_reject_handshake, so an
+# IP request is refused at the TLS layer and this check reported a dead site
+# while the site was serving every request Cloudflare sent it.
+SNI_HOST=${DEPLOY_SNI_HOST:-astraeusio.com}
+await_http() {  # await_http <label> <path> [seconds]
+  local label=$1 path=$2 limit=${3:-60}
   local deadline=$(( $(date +%s) + limit )) code=000
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+    code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 10              --resolve "$SNI_HOST:443:127.0.0.1" "https://$SNI_HOST$path" || true)
     if [ "$code" = "200" ]; then
       printf '   %-16s %s\n' "$label" "$code"
       return 0
@@ -212,8 +218,8 @@ await_http() {  # await_http <label> <url> [seconds]
 }
 
 fail=0
-await_http "frontend https:" "https://127.0.0.1/" 90 || fail=1
-await_http "backend api:" "https://127.0.0.1/api/health" 90 || fail=1
+await_http "frontend https:" "/" 90 || fail=1
+await_http "backend api:" "/api/health" 90 || fail=1
 
 # The ML contract the backend depends on. A 200 alone does not prove the image
 # is the matching version, which is how a stale ml image went unnoticed. Given
