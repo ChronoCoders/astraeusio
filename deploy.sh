@@ -208,10 +208,14 @@ fi
 # ── Verify ────────────────────────────────────────────────────────────────────
 
 log "waiting for the backend to bind"
+# Scoped to the current boot. A bare `docker logs | grep` matches the bind line
+# from whichever boot happens to still be in the log, so a deploy that does not
+# recreate the backend would "confirm" a bind that never happened in this run.
 deadline=$(( $(date +%s) + 600 ))
 ready=0
 while [ "$(date +%s)" -lt "$deadline" ]; do
-  if docker logs astraeusio-backend-1 2>&1 | grep -q 'listening on'; then ready=1; break; fi
+  since=$(docker inspect -f '{{.State.StartedAt}}' astraeusio-backend-1 2>/dev/null || echo '')
+  if [ -n "$since" ] && docker logs --since "$since" astraeusio-backend-1 2>&1 | grep -q 'listening on'; then ready=1; break; fi
   if [ "$(docker inspect -f '{{.State.Running}}' astraeusio-backend-1 2>/dev/null)" != "true" ]; then
     echo "backend container is not running" >&2
     docker logs --tail 40 astraeusio-backend-1 >&2
