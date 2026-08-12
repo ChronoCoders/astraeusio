@@ -27,6 +27,30 @@
 #      backup with a post migration one and destroy the thing being relied on.
 set -euo pipefail
 
+# ── Run from a copy of this file ──────────────────────────────────────────────
+#
+# bash reads a script lazily, by byte offset. This script pulls, and a pull can
+# change this script. On 2026-08-12 exactly that happened twice: the pull
+# replaced the post-deploy HTTP checks, the already-running process carried on
+# with the old ones against an address that no longer works, and it printed a
+# rollback instruction for a site that was serving every request.
+#
+# Copying first removes the window rather than closing it afterwards. Nothing
+# the pull writes can touch the bytes this process is reading, so one run
+# executes exactly one version of this script from start to finish. A pulled
+# change takes effect on the next deploy, which is the only sane moment for it.
+if [ "${DEPLOY_FROM_COPY:-0}" != "1" ]; then
+  _src=$(readlink -f "$0")
+  _copy=$(mktemp /tmp/deploy-running.XXXXXX)
+  cp "$_src" "$_copy"
+  chmod 700 "$_copy"
+  export DEPLOY_FROM_COPY=1 DEPLOY_COPY_PATH="$_copy" DEPLOY_SRC_PATH="$_src"
+  exec bash "$_copy" "$@"
+fi
+if [ -n "${DEPLOY_COPY_PATH:-}" ]; then
+  trap 'rm -f "$DEPLOY_COPY_PATH"' EXIT
+fi
+
 REPO=/opt/astraeusio
 BACKUP_DIR=$REPO/backups
 BACKUP_MAX_AGE_H=30
@@ -151,6 +175,16 @@ run git pull --ff-only
 if [ "$DRY" = "0" ] && [ "$(git rev-parse --short HEAD)" != "$NEW" ]; then
   echo "HEAD is $(git rev-parse --short HEAD) after the pull, expected $NEW" >&2
   exit 1
+fi
+
+# If the pull changed this script, say so. The run continues on the copy it
+# started from, which is the point, but the operator should know the version on
+# disk is no longer the version executing.
+if [ "$DRY" = "0" ] && [ -n "${DEPLOY_SRC_PATH:-}" ] && [ -n "${DEPLOY_COPY_PATH:-}" ]; then
+  if ! cmp -s "$DEPLOY_SRC_PATH" "$DEPLOY_COPY_PATH"; then
+    echo "   note: this pull changed deploy.sh. This run continues on the copy it"
+    echo "         started with; the new version applies from the next deploy."
+  fi
 fi
 
 log "building: $SERVICES"
