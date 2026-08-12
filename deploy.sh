@@ -215,7 +215,20 @@ deadline=$(( $(date +%s) + 600 ))
 ready=0
 while [ "$(date +%s)" -lt "$deadline" ]; do
   since=$(docker inspect -f '{{.State.StartedAt}}' astraeusio-backend-1 2>/dev/null || echo '')
-  if [ -n "$since" ] && docker logs --since "$since" astraeusio-backend-1 2>&1 | grep -q 'listening on'; then ready=1; break; fi
+  if [ -n "$since" ]; then
+    # Read into a variable instead of piping into grep -q. That pipeline looks
+    # correct and is not: grep exits at the first match, docker logs still has
+    # the rest to write, takes SIGPIPE and exits 141, and under `set -o pipefail`
+    # the pipeline reports 141, so a successful match reads as a failure.
+    #
+    # It stays hidden while the log is small enough that docker finishes writing
+    # before grep exits, which is why this passed for months and then failed
+    # every deploy once the backend had been up long enough: the bind line is at
+    # line 4 of 2382. Measured on 2026-08-12, exit 0 without pipefail and 141
+    # with it, for the same matching log.
+    boot_log=$(docker logs --since "$since" astraeusio-backend-1 2>&1 || true)
+    case "$boot_log" in *"listening on"*) ready=1; break ;; esac
+  fi
   if [ "$(docker inspect -f '{{.State.Running}}' astraeusio-backend-1 2>/dev/null)" != "true" ]; then
     echo "backend container is not running" >&2
     docker logs --tail 40 astraeusio-backend-1 >&2
