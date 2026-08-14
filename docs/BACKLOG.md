@@ -58,19 +58,23 @@ or in the commit that created the deferral.
 
 ## Operational
 
-- No ID. `NASA_API_KEY` was to be rotated after it was found in plaintext in a log line. The
-  redaction shipped in `df07971`; whether the key itself was replaced is not recorded anywhere and
-  was not verified when this file was written.
+- No ID. `NASA_API_KEY` was never rotated after it was found in plaintext in a log line, and that is
+  a decision rather than an oversight: `api.data.gov` has no self-service revocation, so issuing a
+  new key would not disable the old one and the exposure would be unchanged. The redaction shipped
+  in `df07971`. It stays open because the old key is still live and only NASA can retire it.
+
+## Process
+
+- No ID. Nothing records which of the 29 audit findings are closed. `docs/AUDIT-2026-08.md` carries
+  a `**Resolved**` marker on exactly one, AUD-013, and `docs/AUDIT-INDEX.md` has severity and a file
+  location but no status column, so the true state can only be reconstructed by reading git history
+  against each finding one at a time. Deferred because it is a day of careful archaeology rather
+  than a change, and listed here because that is exactly the kind of work that otherwise never gets
+  written down and never gets done.
 
 ## What could not be accounted for
 
-The open or closed status of the 29 audit findings cannot be read from `docs/AUDIT-2026-08.md`.
-Exactly one of them, AUD-013, carries a `**Resolved**` marker naming its commit. The rest were
-resolved, partially resolved, or not started, and telling which requires reading the git history
-against each finding rather than reading the document. `docs/AUDIT-INDEX.md` lists all 29 with a
-severity and a file location but has no status column either.
-
-So this file is seeded only from deferrals that were stated explicitly at the time the decision was
-made. It is not a complete list of open audit findings, and it should not be read as one. Closing
-that gap means adding a resolution line to each finding in the audit report, which is its own piece
-of work.
+This file is seeded only from deferrals that were stated explicitly at the time the decision was
+made. It is not a complete list of open audit findings and should not be read as one, because
+nothing currently records which findings are closed. That gap is itself an item, under Process
+above.
