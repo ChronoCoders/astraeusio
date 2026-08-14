@@ -247,17 +247,19 @@ echo "   backend bound"
 # died with SSL_ERROR_SYSCALL and never even reached its access log, and the
 # script printed a rollback instruction for a site that was fine. A check that
 # cries wolf teaches everyone to ignore it.
-# Requests go to the real server name resolved onto the loopback, not to
-# 127.0.0.1 directly, because curl sends no SNI for an IP literal. Since
-# 2026-08-12 nginx has a catch-all server block with ssl_reject_handshake, so an
-# IP request is refused at the TLS layer and this check reported a dead site
-# while the site was serving every request Cloudflare sent it.
-SNI_HOST=${DEPLOY_SNI_HOST:-astraeusio.com}
+# Two questions, deliberately asked separately.
+#
+# "Is the application serving" goes to the internal listener on 8081, which is
+# plaintext and asks for no client certificate. Until 2026-08-14 it went to 443,
+# which succeeds only while ssl_verify_client is `optional`. That dependency was
+# invisible and shared with three other callers, so tightening the site block
+# would have broken all four at once with nothing pointing at the cause.
+INTERNAL=${DEPLOY_INTERNAL_URL:-http://127.0.0.1:8081}
 await_http() {  # await_http <label> <path> [seconds]
   local label=$1 path=$2 limit=${3:-60}
   local deadline=$(( $(date +%s) + limit )) code=000
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 10              --resolve "$SNI_HOST:443:127.0.0.1" "https://$SNI_HOST$path" || true)
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$INTERNAL$path" || true)
     if [ "$code" = "200" ]; then
       printf '   %-16s %s\n' "$label" "$code"
       return 0
@@ -268,9 +270,40 @@ await_http() {  # await_http <label> <path> [seconds]
   return 1
 }
 
+# "Is TLS up" is the other question, and moving the checks above to plaintext
+# would have stopped anything asking it at the one moment it matters most. On
+# 2026-08-10 nginx had started but was not yet completing handshakes, and a
+# deploy that only proves the app is serving would call that a success.
+#
+# Requests go to the real server name resolved onto the loopback, not to
+# 127.0.0.1 directly, because curl sends no SNI for an IP literal and the
+# catch-all block refuses an unmatched SNI at the TLS layer.
+#
+# It asserts the handshake completes and deliberately does not care which HTTP
+# code follows. That keeps it correct if ssl_verify_client is ever set to `on`,
+# where a request holding no client certificate completes the handshake and is
+# then answered with 400.
+SNI_HOST=${DEPLOY_SNI_HOST:-astraeusio.com}
+await_tls() {  # await_tls [seconds]
+  local limit=${1:-60}
+  local deadline=$(( $(date +%s) + limit )) code=000
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    code=$(curl -sSk -o /dev/null -w '%{http_code}' --max-time 10 \
+             --resolve "$SNI_HOST:443:127.0.0.1" "https://$SNI_HOST/" || true)
+    if [ "$code" != "000" ]; then
+      printf '   %-16s handshake ok, http %s\n' "tls:" "$code"
+      return 0
+    fi
+    sleep 2
+  done
+  printf '   %-16s no handshake after %ss\n' "tls:" "$limit"
+  return 1
+}
+
 fail=0
-await_http "frontend https:" "/" 90 || fail=1
+await_http "frontend:" "/" 90 || fail=1
 await_http "backend api:" "/api/health" 90 || fail=1
+await_tls 90 || fail=1
 
 # The ML contract the backend depends on. A 200 alone does not prove the image
 # is the matching version, which is how a stale ml image went unnoticed. Given
