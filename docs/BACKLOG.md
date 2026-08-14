@@ -32,7 +32,10 @@ or in the commit that created the deferral.
 - **AUD-012** Authenticated Origin Pulls runs at `ssl_verify_client optional` and is not enforced,
   because 27 hours of observation saw exactly one Cloudflare colo (DFW) and roughly a third of that
   traffic is self-generated from the Dallas host, so the sample cannot establish that the fleet
-  presents a valid certificate.
+  presents a valid certificate. The origin-side work is finished: as of `0e2fca0` no check depends
+  on the site block serving a client that holds no certificate, and all four were shown to survive
+  `ssl_verify_client on` against a throwaway nginx. What is missing is evidence about Cloudflare,
+  not readiness here.
 - No ID. SSH is exposed to the internet and takes roughly 1500 failed attempts a day with no
   fail2ban; key-only authentication is holding, so this is hardening rather than a live hole, and a
   proposal was never written.
@@ -43,8 +46,6 @@ or in the commit that created the deferral.
   `curl -w "%{http_code}"` prints `000` and then exits non-zero so the `|| echo "000"` appends a
   second copy; harmless, since every spelling satisfies the `!= "200"` test, and deliberately not
   folded into a change about alert noise.
-- No ID. Four callers reach the origin over loopback with no client certificate, so a listener that
-  does not require one is needed on its own merit rather than as a prerequisite for enforcing AOP.
 
 ## Deferred data correctness
 
