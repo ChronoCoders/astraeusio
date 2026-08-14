@@ -90,6 +90,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # Internal listener, bound to loopback so Docker publishes it only on
+      # 127.0.0.1 and nothing off the box can reach it. See the 8081 server
+      # block in frontend/nginx.conf for what it is and why it is plaintext.
+      # The host cron checks need it published; the container healthcheck
+      # reaches the port directly and does not.
+      - "127.0.0.1:8081:8081"
     volumes:
       - /opt/astraeusio/cf-origin.crt:/etc/ssl/astraeusio/selfsigned.crt:ro
       - /opt/astraeusio/cf-origin.key:/etc/ssl/astraeusio/selfsigned.key:ro
