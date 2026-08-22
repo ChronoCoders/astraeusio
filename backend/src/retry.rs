@@ -258,11 +258,32 @@ where
         // leaves the poll inside its own interval.
         let backoff = BACKOFF_BASE * 2u32.pow(attempt - 1);
         if started.elapsed() + backoff >= policy.budget {
+            // Two different situations reach this line and they mean opposite
+            // things to whoever reads the log.
+            //
+            // When the attempt timeout is already the whole budget, one attempt
+            // is all this source ever had. That is by construction: the timeout
+            // is min(HTTP_TIMEOUT, max(MIN_ATTEMPT_TIMEOUT, interval)) and the
+            // budget is the interval, so a five second source gets five seconds
+            // for both. Nothing is misconfigured and nothing was abandoned
+            // early. ISS logged the old wording 1223 times through a slow
+            // upstream on 2026-08-18, and it read as a fault in our own
+            // settings rather than a description of correct behaviour, which
+            // sent the first reading of that incident down the wrong path.
+            //
+            // When the timeout is shorter than the budget there genuinely was
+            // room for a retry when the poll began and an attempt ran long
+            // enough to consume it. That one is worth noticing.
+            let msg = if policy.attempt_timeout >= policy.budget {
+                "one attempt is all this source's poll interval allows, so the next scheduled poll is the retry"
+            } else {
+                "no budget left for another attempt inside the poll interval"
+            };
             error!(
                 source = policy.source,
                 attempts = attempt,
                 budget_ms = policy.budget.as_millis() as u64,
-                "fetch: {redacted}; giving up early, a retry would outlast the poll interval"
+                "fetch: {redacted}; {msg}"
             );
             return None;
         }
