@@ -158,11 +158,11 @@ elif [ "$FORCE_ALL" = "1" ] || [ "$OLD" = "$NEW" ]; then
 else
   changed=$(git diff --name-only "HEAD..origin/main")
   SERVICES=""
-  echo "$changed" | grep -q '^backend/'  && SERVICES="$SERVICES backend"
-  echo "$changed" | grep -q '^frontend/' && SERVICES="$SERVICES frontend"
-  echo "$changed" | grep -q '^ml/'       && SERVICES="$SERVICES ml"
+  grep -q '^backend/'  <<< "$changed" && SERVICES="$SERVICES backend"
+  grep -q '^frontend/' <<< "$changed" && SERVICES="$SERVICES frontend"
+  grep -q '^ml/'       <<< "$changed" && SERVICES="$SERVICES ml"
   # A compose change alters every container, so rebuild and recreate all of them.
-  echo "$changed" | grep -q '^docker-compose.yml$' && SERVICES="$SERVICES_ALL"
+  grep -q '^docker-compose\.yml$' <<< "$changed" && SERVICES="$SERVICES_ALL"
   SERVICES=$(echo "$SERVICES" | xargs || true)
   [ -z "$SERVICES" ] && SERVICES="$SERVICES_ALL"
   echo "   changed paths select: $SERVICES"
@@ -308,7 +308,7 @@ await_tls 90 || fail=1
 # The ML contract the backend depends on. A 200 alone does not prove the image
 # is the matching version, which is how a stale ml image went unnoticed. Given
 # its own wait, since a recreated ml container loads a model before it answers.
-if echo "$SERVICES" | grep -q ml; then
+if grep -q ml <<< "$SERVICES"; then
   seq=ABSENT
   ml_deadline=$(( $(date +%s) + 90 ))
   while [ "$(date +%s)" -lt "$ml_deadline" ]; do
