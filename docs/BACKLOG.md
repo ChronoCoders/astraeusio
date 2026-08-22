@@ -64,6 +64,20 @@ or in the commit that created the deferral.
   new key would not disable the old one and the exposure would be unchanged. The redaction shipped
   in `df07971`. It stays open because the old key is still live and only NASA can retire it.
 
+## Measurement
+
+- No ID. Early degradation below the alerting floor is not detectable by rate alone. The throughput
+  check added 2026-08-22 catches a source that stops delivering, but the first hour of the ISS
+  slowdown on 2026-08-18 delivered 696 of 720 samples, 96.7%, and the healthy fifth percentile for
+  that source over 228 measured hours is 97.5%. There is no gap between them to put a threshold in,
+  so the earliest hour of a degradation is structurally invisible to any count-based rule.
+  **We are counting outcomes, not measuring how long they took.** The upstream had already slowed
+  from a 0.055s median to about 1.15s by that hour, which is a twentyfold change and unmissable in
+  latency, while the count moved by three percent. Closing it needs the poller to record per-request
+  duration, a percentile per source per window somewhere a check can read, and a threshold on the
+  shape of that distribution rather than on a total. That is a backend change and a new metric
+  surface, not another rule in a shell script, which is why it is here rather than done.
+
 ## Process
 
 - No ID. Nothing records which of the 29 audit findings are closed. `docs/AUDIT-2026-08.md` carries
