@@ -90,9 +90,6 @@ stands. Every finding in `docs/AUDIT-2026-08.md` now carries a resolution line a
 open, one line each. A finding whose remainder is already stated elsewhere in this file is not
 repeated here.
 
-- **AUD-004** Webhook delivery is unchanged and is still an SSRF primitive: prefix-only URL
-  validation, reqwest's default redirect policy, no address check, and the status code and error
-  string still returned to the account owner. The highest severity item still open.
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
