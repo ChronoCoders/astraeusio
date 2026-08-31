@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
@@ -433,6 +433,63 @@ async fn poll_xray(
     }
 }
 
+/// How long the alerts feed may be quiet before the newest product it is
+/// serving is evidence of a stall rather than of calm space weather.
+///
+/// Measured rather than chosen, because the last threshold picked by intuition
+/// was the six hour one on `kp_3h`, which flapped for half an hour in every
+/// three and took the forecast down with it.
+///
+/// Over the stored history to 2026-08-31, 2026-04-10 to 2026-08-30, 142 days
+/// and 491 gaps between consecutive products: median gap 1.68 h, p95 26.4 h,
+/// p99 62.6 h, longest 97.8 h. Thirty two gaps ran over a day, eleven over two
+/// days, four over three.
+///
+/// Seven days is 1.7 times the longest quiet stretch ever observed here. It is
+/// a margin over a thin tail rather than a bound derived from a distribution:
+/// the four samples past 72 h all come from one stretch of one solar cycle, and
+/// quiet periods lengthen towards solar minimum. Re-derive it from a year, and
+/// treat a single false degraded during a genuinely calm week as the expected
+/// cost of the current sample rather than as a bug.
+const ALERT_QUIET_HORIZON_SECS: i64 = 7 * 86_400;
+
+/// NOAA issues an alert when something happens, so the age of the newest row
+/// cannot say whether the feed is alive. What can: whether our poll returned
+/// anything at all, and whether the rolling window it returned is still being
+/// added to.
+///
+/// An empty payload is degraded. The feed carries a rolling window of recent
+/// products rather than only new ones, so a successful fetch returning nothing
+/// is a fault, not a quiet sun.
+///
+/// A payload whose timestamps this cannot read counts as operational. The fetch
+/// worked and the rows are stored either way, and reporting the feed dead
+/// because NOAA changed a date format would be a worse answer than reporting it
+/// alive.
+fn alerts_liveness(items: &[noaa::SpaceWeatherAlert], now: i64) -> &'static str {
+    if items.is_empty() {
+        return "degraded";
+    }
+    match items
+        .iter()
+        .filter_map(|a| parse_issue_datetime(&a.issue_datetime))
+        .max()
+    {
+        None => "operational",
+        Some(newest) if now - newest > ALERT_QUIET_HORIZON_SECS => "degraded",
+        Some(_) => "operational",
+    }
+}
+
+/// `2026-08-30 05:55:38.333` as stored, with the `T` form and a missing
+/// fraction both accepted because the feed's format is NOAA's to change.
+fn parse_issue_datetime(raw: &str) -> Option<i64> {
+    ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%dT%H:%M:%S%.f"]
+        .iter()
+        .find_map(|f| NaiveDateTime::parse_from_str(raw.trim(), f).ok())
+        .map(|dt| dt.and_utc().timestamp())
+}
+
 async fn poll_alerts(
     client: reqwest::Client,
     writer: DbWriterHandle,
@@ -441,10 +498,26 @@ async fn poll_alerts(
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        if let Some(fetched) = retry::run(&policy, || noaa::fetch_alerts(&client)).await {
-            log_poll("poller/alerts", "alerts", fetched.outcome);
-            writer.fire(WriteCmd::Alerts(fetched.items));
-        }
+        let now = Utc::now().timestamp();
+        // Recorded every cycle, not only on failure, so the status page can
+        // tell a feed that is quiet from one that is gone. Nothing else can:
+        // the table has no freshness entry, and a hard failure is visible only
+        // as an ERROR line that no user surface reads.
+        let verdict = match retry::run(&policy, || noaa::fetch_alerts(&client)).await {
+            Some(fetched) => {
+                log_poll("poller/alerts", "alerts", fetched.outcome);
+                let verdict = alerts_liveness(&fetched.items, now);
+                writer.fire(WriteCmd::Alerts(fetched.items));
+                verdict
+            }
+            // retry::run has already logged why it failed.
+            None => "degraded",
+        };
+        writer.fire(WriteCmd::HealthSnapshot {
+            component: "noaa_alerts".to_string(),
+            ts: now,
+            status: verdict.to_string(),
+        });
         tokio::time::sleep(policy.budget).await;
     }
 }
@@ -900,6 +973,86 @@ mod tests {
             missing.is_empty() && extra.is_empty(),
             "the interval table and the spawns disagree.              spawned with no entry: {missing:?}.              entry with no spawn: {extra:?}.              Every poller belongs in PollerConfig::intervals, including one that              fetches nothing, because that table is what every external check              enumerates pollers from."
         );
+    }
+
+    fn alert(issue: &str) -> noaa::SpaceWeatherAlert {
+        noaa::SpaceWeatherAlert {
+            product_id: "K05".to_owned(),
+            issue_datetime: issue.to_owned(),
+            message: "Space Weather Message".to_owned(),
+        }
+    }
+
+    /// The whole point of the liveness verdict: it has to stay operational
+    /// through a quiet stretch longer than anything NOAA has actually left,
+    /// because a threshold that fires on calm space weather is worse than no
+    /// threshold at all.
+    #[test]
+    fn a_quiet_feed_is_not_a_dead_feed() {
+        let now = 1_756_600_000;
+        let hours = |h: i64| now - h * 3_600;
+
+        // 97.8 h is the longest gap in the stored history. A verdict that
+        // cannot survive it would have cried wolf in August 2026.
+        for quiet_hours in [0, 2, 27, 63, 98, 120, 167] {
+            assert_eq!(
+                alerts_liveness(
+                    &[alert(&fmt_issue(hours(quiet_hours)))],
+                    now
+                ),
+                "operational",
+                "{quiet_hours} h of quiet is normal for this feed"
+            );
+        }
+    }
+
+    /// Past the measured horizon the feed is serving a window it has stopped
+    /// adding to, which no other signal in this codebase can see.
+    #[test]
+    fn a_feed_stuck_past_the_horizon_is_degraded() {
+        let now = 1_756_600_000;
+        for quiet_hours in [169, 240, 24 * 40] {
+            assert_eq!(
+                alerts_liveness(
+                    &[alert(&fmt_issue(now - quiet_hours * 3_600))],
+                    now
+                ),
+                "degraded",
+                "{quiet_hours} h without a product is past the horizon"
+            );
+        }
+    }
+
+    /// A successful fetch returning nothing is a fault. The feed carries a
+    /// rolling window of recent products, not only new ones, so empty is never
+    /// what a healthy quiet period looks like.
+    #[test]
+    fn an_empty_payload_is_degraded() {
+        assert_eq!(alerts_liveness(&[], 1_756_600_000), "degraded");
+    }
+
+    /// A date format we cannot read is not evidence the feed is dead. The rows
+    /// still arrive and are still stored.
+    #[test]
+    fn an_unreadable_timestamp_does_not_condemn_the_feed() {
+        let now = 1_756_600_000;
+        assert_eq!(alerts_liveness(&[alert("30 August 2026, 05:55Z")], now), "operational");
+    }
+
+    /// Both spellings NOAA has used, with and without the fraction.
+    #[test]
+    fn the_issue_timestamp_parses_in_the_forms_the_feed_uses() {
+        let expected = parse_issue_datetime("2026-08-30 05:55:38.333");
+        assert!(expected.is_some());
+        assert_eq!(parse_issue_datetime("2026-08-30T05:55:38.333"), expected);
+        assert_eq!(parse_issue_datetime("2026-08-30 05:55:38"), expected);
+        assert_eq!(parse_issue_datetime("not a date"), None);
+    }
+
+    fn fmt_issue(ts: i64) -> String {
+        chrono::DateTime::from_timestamp(ts, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S%.3f").to_string())
+            .unwrap_or_default()
     }
 
     /// The boot line is parsed off this machine, so its shape is part of the

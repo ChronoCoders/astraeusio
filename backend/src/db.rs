@@ -290,6 +290,40 @@ pub struct SeriesFreshness {
     pub max_age_secs: i64,
 }
 
+/// A component whose health is a statement about our polling rather than about
+/// the age of the data it stores.
+///
+/// `SERIES_FRESHNESS` answers "is the newest row recent enough", which is the
+/// right question for a feed that publishes on a timetable and the wrong one
+/// for a feed that publishes when something happens. The NOAA alerts feed is
+/// episodic: days of silence are correct behaviour, so no row age separates
+/// quiet from dead, and it therefore sat with no entry in either direction and
+/// no component of its own on the status page.
+///
+/// What can be asserted about such a feed is our own poll: it ran, it succeeded,
+/// and it came back with something. The poller writes that verdict into
+/// `health_snapshots` each cycle and this table says how stale that verdict may
+/// get before it stops being believed, which is what stops a stopped poller
+/// repeating its last good answer forever.
+pub struct PollLiveness {
+    pub component: &'static str,
+    /// How old the newest recorded verdict may be. Comfortably several poll
+    /// intervals, so an ordinary restart or one missed cycle does not show as a
+    /// fault.
+    pub max_verdict_age_secs: i64,
+}
+
+/// Every component reported from a poll verdict rather than from row age.
+///
+/// Declared, like `SERIES_FRESHNESS`, so that the status page, `/api/health` and
+/// `component-check.sh` enumerate the same set. A list built from what has
+/// already spoken is how a dead feed stays invisible.
+pub const POLL_LIVENESS: [PollLiveness; 1] = [PollLiveness {
+    // Polls every 300 s; six missed cycles is a fault and one is not.
+    component: "noaa_alerts",
+    max_verdict_age_secs: 1_800,
+}];
+
 /// The freshness limit for every series, used by both the read path and the
 /// status page so the two cannot disagree about what current means.
 ///
@@ -1536,6 +1570,58 @@ impl Store {
                 (s.component, status, newest)
             })
             .collect()
+    }
+
+    /// The newest recorded verdict for each `POLL_LIVENESS` component.
+    ///
+    /// Mirrors `series_health` in shape so the health handler can treat the two
+    /// the same way. A component with no verdict at all is `unknown`, one whose
+    /// newest verdict is older than its limit is `degraded`, because a poller
+    /// that has stopped writing is a fault and not an absence.
+    pub fn poll_liveness(&self) -> Vec<(&'static str, &'static str, Option<i64>)> {
+        let now = now();
+        POLL_LIVENESS
+            .iter()
+            .map(|l| {
+                let newest = self.newest_poll_verdict(l.component).ok().flatten();
+                let status = match newest {
+                    None => "unknown",
+                    Some((_, ts)) if now - ts > l.max_verdict_age_secs => "degraded",
+                    Some((status, _)) => status,
+                };
+                (l.component, status, newest.map(|(_, ts)| ts))
+            })
+            .collect()
+    }
+
+    /// The newest `health_snapshots` row for one component, as `(status, ts)`.
+    ///
+    /// `component` always comes from `POLL_LIVENESS`, never from a request. The
+    /// status is mapped back onto the static strings the rest of the health path
+    /// uses, so an unrecognised value stored by an older build reads as
+    /// `unknown` rather than reaching a caller as an arbitrary string.
+    fn newest_poll_verdict(
+        &self,
+        component: &str,
+    ) -> Result<Option<(&'static str, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT status, ts FROM health_snapshots
+             WHERE component = ? ORDER BY ts DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query(params![component])?;
+        match rows.next()? {
+            None => Ok(None),
+            Some(row) => {
+                let status: String = row.get(0)?;
+                let ts: i64 = row.get(1)?;
+                let status = match status.as_str() {
+                    "operational" => "operational",
+                    "degraded" => "degraded",
+                    _ => "unknown",
+                };
+                Ok(Some((status, ts)))
+            }
+        }
     }
 
     /// Most recent 1440 Kp readings, oldest-first. Selected DESC so the LIMIT
@@ -4490,6 +4576,46 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// The alerts feed reports on the poll that fetched it, not on the age of
+    /// what it fetched, and the recorded verdict has to expire.
+    ///
+    /// A poller that stops writing would otherwise leave its last good answer
+    /// standing forever, which is the same failure as a chart drawing a dead
+    /// feed's final day as if it were current.
+    #[test]
+    fn poll_liveness_expires_a_verdict_nobody_is_refreshing() {
+        let store = mem_store();
+        let status = |s: &Store| {
+            s.poll_liveness()
+                .iter()
+                .find(|(component, _, _)| *component == "noaa_alerts")
+                .map(|(_, st, _)| *st)
+                .expect("noaa_alerts is declared in POLL_LIVENESS")
+        };
+
+        // Nothing recorded yet is not a fault. It is a backend that has not
+        // polled since it started.
+        assert_eq!(status(&store), "unknown");
+
+        store
+            .insert_health_snapshot("noaa_alerts", now() - 60, "operational")
+            .unwrap();
+        assert_eq!(status(&store), "operational");
+
+        store
+            .insert_health_snapshot("noaa_alerts", now() - 30, "degraded")
+            .unwrap();
+        assert_eq!(status(&store), "degraded", "the newest verdict wins");
+
+        // Six missed cycles. The last verdict was operational and it no longer
+        // means anything.
+        let store = mem_store();
+        store
+            .insert_health_snapshot("noaa_alerts", now() - 3_600, "operational")
+            .unwrap();
+        assert_eq!(status(&store), "degraded");
     }
 
     /// One live series must not cover for a dead one. The status page read a

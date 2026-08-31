@@ -149,79 +149,38 @@ repeated here.
 Found 2026-08-30 while checking whether the shape that let `poller/anomaly` sit unmapped appears
 elsewhere. A list built from what has spoken cannot contain what has never spoken.
 
-The second item found here is closed. The `poller: intervals loaded` boot line was a hand-written
-`info!` naming fifteen pollers against sixteen `tokio::spawn` calls, with `health` missing, so the
-one external check that enumerates pollers from something other than the log could not see it. The
-line is now generated from `PollerConfig::intervals`, `health` has an entry and an `HEALTH_INTERVAL`
-override like every other poller, and `every_spawned_poller_is_in_the_interval_table` reads the
-spawns out of the source file and fails when a poller exists with no entry, or an entry with no
-poller. A second test holds the rendered line to the `name=integer` shape `poller-check.sh` parses,
-since that line is an interface and not a debug aid.
+Both items found here are closed. Kept because the shape recurs and the reasoning is worth having
+next to the next instance of it.
 
-- No ID. **The NOAA space weather alerts feed has no watcher for silent failure.** Corrected
-  2026-08-31, because the original entry here overstated it: a hard failure *is* caught. An
-  exhausted fetch logs `error!(source = "poller/alerts")` and `poller-check.sh` alerts on it
-  directly, since `[poller/alerts]=""` means it has nothing to defer to. What nothing watches is the
-  feed failing quietly: a 200 that parses to zero records, or an upstream that keeps serving a list
-  it has stopped updating. `space_weather_alert` has no `SERIES_FRESHNESS` entry, so it is absent
-  from `/api/health`, from the status page, and from `component-check.sh`, which enumerates from
-  that payload. The throughput rule cannot cover it either: `tracks_a_series` is 0 for an empty
-  component, and at a 300 s interval its 12 polls an hour are below `THROUGHPUT_MIN_EXPECTED` of 30
-  even if it were mapped.
+- Closed `8029954`. The `poller: intervals loaded` boot line was a hand-written `info!` naming
+  fifteen pollers against sixteen `tokio::spawn` calls, with `health` missing, so the one external
+  check that enumerates pollers from something other than the log could not see it. The line is now
+  generated from `PollerConfig::intervals`, `health` has an entry and a `HEALTH_INTERVAL` override
+  like every other poller, and `every_spawned_poller_is_in_the_interval_table` reads the spawns out
+  of the source file and fails when a poller exists with no entry, or an entry with no poller. A
+  second test holds the rendered line to the `name=integer` shape `poller-check.sh` parses, since
+  that line is an interface and not a debug aid. Verified on the host after deploy: the check now
+  enumerates sixteen pollers and `--selftest` passes.
+- Closed. The NOAA alerts feed now has a watcher. It could never have a freshness threshold, because
+  alerts are episodic and no row age separates a quiet sun from a dead feed, so it is watched on the
+  verdict its poller records each cycle rather than on the age of what it stored: `POLL_LIVENESS` in
+  `db.rs` declares the component, `poll_alerts` writes operational or degraded every 300 s,
+  `/api/health` publishes it beside the series components, and the status page carries a row for it.
+  A verdict older than 1800 s reads as degraded rather than repeating the last good answer, which is
+  what stops a stopped poller looking healthy forever.
 
-  **Why it cannot have a freshness threshold.** Alerts are episodic. NOAA issues a product when
-  conditions warrant one, so days of silence are correct behaviour and no age of the newest row
-  separates quiet from dead. A threshold small enough to notice a dead feed would cry wolf through
-  every quiet stretch, which is the failure `noaa_kp_3h` already had at six hours.
+  The horizon in the third part was measured, not chosen: over 2026-04-10 to 2026-08-30, 142 days
+  and 491 gaps between consecutive products, the longest quiet stretch was 97.8 h, p99 62.6 h,
+  median 1.68 h, with 32 gaps over a day, 11 over two and 4 over three. Seven days is 1.7 times the
+  longest ever observed. Worth knowing it rests on four samples past 72 h from one stretch of one
+  solar cycle, and quiet periods lengthen towards solar minimum, so it should be re-derived from a
+  year of data.
 
-  **What watching it would take**, in the order the parts are worth doing:
-
-  1. A liveness component rather than a freshness one. `poll_alerts` writes a
-     `HealthSnapshot { component: "noaa_alerts" }` on every cycle: operational when the fetch
-     succeeded and the payload was non-empty, degraded when it failed or came back empty. That is a
-     statement about our poll, not about space weather, so it is true regardless of how quiet the
-     sun is, and it catches the empty-payload case the ERROR rules cannot see.
-  2. Publishing it. `/api/health` builds `components` from `SERIES_FRESHNESS` plus three literals,
-     so a component that is not a series has nowhere to appear today. The smallest honest change is
-     for the handler to read the newest `health_snapshots` row for such components, which keeps one
-     source of truth and puts `noaa_alerts` on the status page and into `component-check.sh` at the
-     same time. `[poller/alerts]=""` then becomes `noaa_alerts` and the deference rule works.
-  3. Only then, a staleness horizon for the case where the upstream serves a frozen list. That
-     needs the longest quiet gap NOAA actually leaves, which is computable from the
-     `issue_datetime` history already stored and has never been computed. Choosing it by intuition
-     is exactly how `noaa_kp_3h` got a threshold that flapped, so it should be measured first.
-
-## Process
-
-- No ID. **Every security fix is public before it is live.** `deploy.sh` deploys what it finds at
-  `origin/main`: it runs `git fetch origin`, selects services from `git diff HEAD..origin/main`,
-  then `git pull --ff-only`. So the push to a public GitHub repository is a precondition of the
-  deploy, not a step that could be reordered, and the window lasts as long as the build. On
-  2026-08-31 the webhook SSRF fix `fedbde7` was pushed at 22:01 and running at 22:27, twenty five
-  minutes during which a public commit named a live hole in production and its message described
-  how to reach it.
-
-  The message is the smaller half. A terse subject would not have helped much, because the diff
-  itself is legible: an address predicate and `redirect::Policy::none()` appearing in a webhook
-  module say what was wrong without a sentence of prose. Anything that only edits the message
-  treats the readable part and leaves the code.
-
-  Three ways out, none taken yet:
-
-  - **A message that says nothing until it is deployed**, with the explanation added afterwards.
-    Cheapest, and the weakest, for the reason above. It also depends on somebody remembering to
-    come back, which is the failure mode this file exists to record.
-  - **Deploy from a local bundle** rather than from `origin`, pushing to GitHub after the health
-    checks pass. Closes the window for the code and the message together, needs no new
-    infrastructure and no new credentials. The cost is that `deploy.sh` would no longer be able to
-    say the deployed sha is `origin/main`, so production could drift ahead of the public repository;
-    that is worth accepting only if the deploy pushes on success and fails loudly if it cannot.
-  - **A private mirror** that the host pulls from, with GitHub pushed afterwards. Same guarantee as
-    the bundle, but it adds a second remote to keep in sync and a new way to deploy the wrong thing.
-
-  **Preference: the bundle, with a push to `origin` on success.** It fixes the property rather than
-  the prose, adds nothing to maintain, and the drift it introduces is the one risk in the list that
-  a script can check for itself at the end of a run.
+- No ID. **The status page enumerates its components by hand.** `StatusPage.jsx` holds a literal
+  `COMPONENTS` array of fifteen rows and renders only those, so a component `/api/health` publishes
+  and this list omits is simply not displayed, silently and with no error anywhere. It is the same
+  shape as the two items above, one layer out, and it was found by adding `noaa_alerts` and having
+  to remember to add the row. Nothing asserts the two agree.
 
 ## History
 
