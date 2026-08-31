@@ -2214,6 +2214,19 @@ impl Store {
 
 // ── Anomaly detection ─────────────────────────────────────────────────────────
 
+/// Which `alerts_anomaly` rows an account may see: every global detection, plus
+/// the ones its own rules raised. Binds one parameter, the caller's email.
+///
+/// It is a shared constant rather than a clause written out per query because
+/// AUD-008 was fixed once and stayed open: `get_anomalies_recent` was scoped and
+/// `get_events_page`, which the finding named in the same list, was not, because
+/// the rule lived inside one query and nothing carried it to the others.
+/// `get_anomalies_recent` still spells the same rule as two separately windowed
+/// selects, for the starvation reason given on it, so it does not read this
+/// constant. `every_anomaly_read_path_is_scoped_to_the_caller` is what holds all
+/// three read paths to the one rule.
+const ANOMALY_VISIBLE_TO: &str = "(user_email IS NULL OR user_email = ?)";
+
 impl Store {
     /// `user_email` is None for a global detection and Some for an anomaly
     /// raised by one account's custom rule.
@@ -2240,6 +2253,7 @@ impl Store {
     /// are optional exact matches. Returns rows + total count for pagination.
     pub fn get_events_page(
         &self,
+        user_email: &str,
         since: i64,
         type_filter: Option<&str>,
         severity_filter: Option<&str>,
@@ -2248,6 +2262,8 @@ impl Store {
     ) -> Result<serde_json::Value, DbError> {
         let mut where_clauses = vec!["detected_at > ?".to_string()];
         let mut bindings: Vec<duckdb::types::Value> = vec![since.into()];
+        where_clauses.push(ANOMALY_VISIBLE_TO.to_string());
+        bindings.push(user_email.to_string().into());
         if let Some(t) = type_filter {
             where_clauses.push("anomaly_type = ?".to_string());
             bindings.push(t.to_string().into());
@@ -2298,6 +2314,10 @@ impl Store {
 
     /// Anomalies visible to one account: every global detection, plus the ones
     /// raised by that account's own custom rules.
+    ///
+    /// Implements [`ANOMALY_VISIBLE_TO`] in a different shape, not a different
+    /// rule. `every_anomaly_read_path_is_scoped_to_the_caller` asserts they
+    /// agree.
     ///
     /// The two are windowed separately on purpose. A single ORDER BY over the
     /// union let one noisy rule fill the whole limit and push real global
@@ -2578,7 +2598,11 @@ fn flux_to_xray_class(flux_e12: i64) -> String {
 }
 
 impl Store {
-    pub fn get_report_summary(&self, since_secs: i64) -> Result<serde_json::Value, DbError> {
+    pub fn get_report_summary(
+        &self,
+        user_email: &str,
+        since_secs: i64,
+    ) -> Result<serde_json::Value, DbError> {
         let cutoff = now() - since_secs;
 
         // Kp: avg and max over the window
@@ -2625,12 +2649,15 @@ impl Store {
             }
         };
 
-        // Anomaly count in window
+        // Anomaly count in window. Scoped, because an unscoped count still
+        // reports how often other accounts' rules fired, and the figure is
+        // labelled as this account's anomalies on the Reports card.
         let anomaly_count: i64 = {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT COUNT(*) FROM alerts_anomaly WHERE detected_at > ?")?;
-            let mut rows = stmt.query([cutoff])?;
+            let sql = format!(
+                "SELECT COUNT(*) FROM alerts_anomaly WHERE detected_at > ? AND {ANOMALY_VISIBLE_TO}"
+            );
+            let mut stmt = self.conn.prepare(&sql)?;
+            let mut rows = stmt.query(params![cutoff, user_email])?;
             match rows.next()? {
                 Some(row) => row.get(0)?,
                 None => 0,
@@ -3729,6 +3756,75 @@ mod tests {
         assert_eq!(stranger, vec!["Kp 5.0".to_string()]);
     }
 
+    /// Every read path over `alerts_anomaly` must show an account the global
+    /// detections plus its own rules and nothing else. The three are asserted
+    /// together on purpose.
+    ///
+    /// AUD-008 was fixed in `get_anomalies_recent` and left open in
+    /// `get_events_page` for three weeks, even though the finding named both in
+    /// the same list, because the rule was written into one query instead of
+    /// into one test. `get_report_summary` counted every account's rule firings
+    /// into the number each account reads as its own. A new reader of this table
+    /// belongs in this test.
+    #[test]
+    fn every_anomaly_read_path_is_scoped_to_the_caller() {
+        let store = mem_store();
+        store
+            .insert_anomaly("kp_storm", "g1", "warning", "Kp 5.0", None)
+            .expect("global");
+        store
+            .insert_anomaly("custom:r1", "r1:1", "warning", "alice rule", Some("alice@example.com"))
+            .expect("alice");
+        store
+            .insert_anomaly("custom:r2", "r2:1", "critical", "bob secret threshold", Some("bob@example.com"))
+            .expect("bob");
+
+        // 1. /api/anomalies and the MCP get_anomalies tool.
+        let feed: Vec<String> = store
+            .get_anomalies_recent("alice@example.com")
+            .expect("read")
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| v["message"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert!(feed.iter().any(|m| m == "Kp 5.0"));
+        assert!(feed.iter().any(|m| m == "alice rule"));
+        assert!(!feed.iter().any(|m| m.contains("bob")), "{feed:?}");
+
+        // 2. /api/events, which was the second door.
+        let page = store
+            .get_events_page("alice@example.com", 0, None, None, 1, 100)
+            .expect("events");
+        let events: Vec<String> = page["events"]
+            .as_array()
+            .expect("array")
+            .iter()
+            .map(|v| v["message"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert!(events.iter().any(|m| m == "Kp 5.0"), "{events:?}");
+        assert!(events.iter().any(|m| m == "alice rule"), "{events:?}");
+        assert!(
+            !events.iter().any(|m| m.contains("bob")),
+            "another account's rule reached the events page: {events:?}"
+        );
+        // The total drives pagination, so it has to be scoped as well or the
+        // page count advertises rows the caller can never receive.
+        assert_eq!(page["total"].as_i64(), Some(2), "total must be scoped too");
+
+        // 3. /api/reports/summary, which reports a count rather than the rows.
+        let count = |email: &str| -> i64 {
+            store
+                .get_report_summary(email, 86_400)
+                .expect("summary")["anomaly_count"]
+                .as_i64()
+                .expect("count")
+        };
+        assert_eq!(count("alice@example.com"), 2);
+        assert_eq!(count("bob@example.com"), 2);
+        assert_eq!(count("nobody@example.com"), 1, "a stranger sees globals only");
+    }
+
     /// A noisy rule filled the shared limit and pushed global anomalies out of
     /// everyone's feed. The two windows are taken separately so it cannot.
     #[test]
@@ -4628,7 +4724,7 @@ mod tests {
             .unwrap();
 
         // A 24 hour window must not see a 30 hour old observation.
-        let summary = store.get_report_summary(24 * 3600).unwrap();
+        let summary = store.get_report_summary("reader@example.com", 24 * 3600).unwrap();
         assert_eq!(summary["kp_count"].as_i64().unwrap(), 0);
         assert!(summary["kp_max"].is_null());
         assert!(summary["solar_wind_max_kms"].is_null());
@@ -4650,7 +4746,7 @@ mod tests {
         // A 48 hour window does include it, proving the row is present and the
         // exclusion above came from the window, not from a broken insert.
         assert_eq!(
-            store.get_report_summary(48 * 3600).unwrap()["kp_count"]
+            store.get_report_summary("reader@example.com", 48 * 3600).unwrap()["kp_count"]
                 .as_i64()
                 .unwrap(),
             1

@@ -737,7 +737,7 @@ async fn get_forecast_history(
 
 async fn get_events(
     State(s): State<AppState>,
-    _claims: AuthClaims,
+    claims: AuthClaims,
     Query(q): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
     let (range, _label) = parse_range(&q);
@@ -759,6 +759,7 @@ async fn get_events(
         .clamp(1, 100);
 
     let val = lock_db(&s.db).await.get_events_page(
+        &claims.sub,
         since,
         type_filter,
         severity_filter,
@@ -850,11 +851,11 @@ fn range_to_secs(r: &str) -> i64 {
 
 async fn get_report_summary(
     State(s): State<AppState>,
-    _claims: AuthClaims,
+    claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
-    let val = lock_db(&s.db).await.get_report_summary(secs)?;
+    let val = lock_db(&s.db).await.get_report_summary(&claims.sub, secs)?;
     info!("api/reports/summary: range={}s", secs);
     Ok(Json(val))
 }
