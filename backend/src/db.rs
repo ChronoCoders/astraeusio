@@ -3098,6 +3098,23 @@ impl Store {
         Ok(())
     }
 
+    /// Every stored webhook target, across all accounts, as `(id, url)`.
+    ///
+    /// For the startup scan only: it reports which stored rows the current
+    /// delivery rules refuse, so tightening those rules is visible at boot
+    /// rather than only as deliveries that quietly stop.
+    pub fn list_webhook_targets(&self) -> Result<Vec<(String, String)>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, url FROM webhooks WHERE active = true")?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     pub fn list_webhooks(&self, user_email: &str) -> Result<Vec<WebhookRow>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, url, secret, events, created_at

@@ -19,11 +19,12 @@ mod retry;
 mod routes;
 mod secretbox;
 mod starlink;
+mod webhook_guard;
 mod webhook_sender;
 mod webhooks;
 
 use anyhow::Result;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -44,7 +45,38 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(http_timeout))
         .build()?;
-    let writer = db_writer::spawn(write_db, client.clone());
+    // Webhook delivery goes out on its own client: https only, no redirects,
+    // and a resolver that refuses any answer containing a non-public address
+    // (AUD-004). `db_writer` uses the client it is handed for webhook delivery
+    // and for nothing else, which is why this one is the one it gets.
+    let webhook_client = webhook_guard::client(std::time::Duration::from_secs(10))?;
+    let writer = db_writer::spawn(write_db, webhook_client);
+
+    // A rule change that silently orphans live integrations is the failure this
+    // audit keeps finding. Syntax only, so startup never waits on DNS.
+    match read_db.list_webhook_targets() {
+        Ok(targets) => {
+            let refused: Vec<String> = targets
+                .iter()
+                .filter_map(|(id, url)| {
+                    webhook_guard::validate_syntax(url)
+                        .err()
+                        .map(|r| format!("{id} ({r})"))
+                })
+                .collect();
+            if refused.is_empty() {
+                info!("webhooks: {} stored, all deliverable", targets.len());
+            } else {
+                warn!(
+                    "webhooks: {} of {} stored targets are refused by the delivery rules and will                      not be sent: {}",
+                    refused.len(),
+                    targets.len(),
+                    refused.join(", ")
+                );
+            }
+        }
+        Err(e) => warn!("webhooks: could not scan stored targets: {e}"),
+    }
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");

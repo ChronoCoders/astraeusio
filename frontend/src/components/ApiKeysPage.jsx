@@ -591,6 +591,7 @@ function WebhooksCrud({ t }) {
             placeholder={t('webhooks.urlPlaceholder')}
             className="bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
           />
+          <p className="text-zinc-500 text-xs -mt-1">{t('webhooks.urlHint')}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {WEBHOOK_EVENTS.map(ev => (
               <label key={ev.id} className="flex items-center gap-1.5 cursor-pointer">
