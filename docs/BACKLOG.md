@@ -164,10 +164,15 @@ elsewhere. A list built from what has spoken cannot contain what has never spoke
   from the env override convention `CLAUDE.md` documents. No test asserts the boot line covers
   every poller, which is the same gap one level below the mapping test that now exists.
 
-## What could not be accounted for
+## History
 
-The audit report names its base tree as commit `6f3a9d5`, which is not in the current history. The
-repository was rewritten at some point after the audit and that sha now exists only as a loose
-object. Its tree is byte-identical to `03df0f6`, which is the parent of the first audit fix, so the
-reconstruction was driven from `03df0f6..HEAD` with no ambiguity, but the sha printed in the report
-header cannot be checked out from a fresh clone.
+- No ID. **The audit's stated baseline sha does not exist in this repository.**
+  `docs/AUDIT-2026-08.md` names its scope as commit `6f3a9d5`; that sha is not reachable from any
+  ref and survives only as a loose object, because the history was rewritten after the audit was
+  written. Its tree is byte-identical to `03df0f6`, which is the parent of `f70c4be`, the first
+  audit fix, so **`6f3a9d5` maps to `03df0f6`** and the status reconstruction of 2026-08-30 was
+  driven from `03df0f6..HEAD` with no ambiguity. Recorded rather than fixed: rewriting the report
+  header would leave the same problem for the next sha anyone wrote down before a rewrite. The
+  general consequence is the one worth carrying, that a sha quoted in an untracked document is only
+  as durable as the history it names, and that a document written against a tree should name the
+  tree it can prove rather than a commit that may be rebased out from under it.
