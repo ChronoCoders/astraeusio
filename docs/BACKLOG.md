@@ -187,6 +187,38 @@ next to the next instance of it.
   than vanishing or rendering a raw i18n key. `ORDER` is still the skeleton when `/api/health` is
   unreachable, because a blank page is the worst answer at the moment somebody is looking at it.
 
+## Process
+
+- No ID. **Every security fix is public before it is live.** `deploy.sh` deploys what it finds at
+  `origin/main`: it runs `git fetch origin`, selects services from `git diff HEAD..origin/main`,
+  then `git pull --ff-only`. So the push to a public GitHub repository is a precondition of the
+  deploy, not a step that could be reordered, and the window lasts as long as the build. On
+  2026-08-31 the webhook SSRF fix `fedbde7` was pushed at 22:01 and running at 22:27, twenty five
+  minutes during which a public commit named a live hole in production and its message described
+  how to reach it.
+
+  The message is the smaller half. A terse subject would not have helped much, because the diff
+  itself is legible: an address predicate and `redirect::Policy::none()` appearing in a webhook
+  module say what was wrong without a sentence of prose. Anything that only edits the message
+  treats the readable part and leaves the code.
+
+  Three ways out, none taken yet:
+
+  - **A message that says nothing until it is deployed**, with the explanation added afterwards.
+    Cheapest, and the weakest, for the reason above. It also depends on somebody remembering to
+    come back, which is the failure mode this file exists to record.
+  - **Deploy from a local bundle** rather than from `origin`, pushing to GitHub after the health
+    checks pass. Closes the window for the code and the message together, needs no new
+    infrastructure and no new credentials. The cost is that `deploy.sh` would no longer be able to
+    say the deployed sha is `origin/main`, so production could drift ahead of the public repository;
+    that is worth accepting only if the deploy pushes on success and fails loudly if it cannot.
+  - **A private mirror** that the host pulls from, with GitHub pushed afterwards. Same guarantee as
+    the bundle, but it adds a second remote to keep in sync and a new way to deploy the wrong thing.
+
+  **Preference: the bundle, with a push to `origin` on success.** It fixes the property rather than
+  the prose, adds nothing to maintain, and the drift it introduces is the one risk in the list that
+  a script can check for itself at the end of a run.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
