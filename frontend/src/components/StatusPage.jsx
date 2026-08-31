@@ -111,6 +111,10 @@ export default function StatusPage({ onSignIn }) {
     { nameKey: 'status.noaaXray',      key: 'noaa_xray',       status: error ? 'unknown': (c.noaa_xray?.status       ?? 'unknown'), lastUpdate: c.noaa_xray?.last_update       },
     { nameKey: 'status.noaaImf',       key: 'noaa_imf',        status: error ? 'unknown': (c.noaa_imf?.status        ?? 'unknown'), lastUpdate: c.noaa_imf?.last_update        },
     { nameKey: 'status.noaaDst',       key: 'noaa_dst',        status: error ? 'unknown': (c.noaa_dst?.status        ?? 'unknown'), lastUpdate: c.noaa_dst?.last_update        },
+    // Alerts are episodic, so this row reports whether the poll is
+    // returning a live feed rather than how old the newest alert is. A
+    // quiet sun and a dead feed look identical by row age.
+    { nameKey: 'status.noaaAlerts',    key: 'noaa_alerts',     status: error ? 'unknown': (c.noaa_alerts?.status     ?? 'unknown'), lastUpdate: c.noaa_alerts?.last_update     },
     { nameKey: 'status.iss',           key: 'iss',             status: error ? 'unknown': (c.iss?.status             ?? 'unknown'), lastUpdate: c.iss?.last_update            },
     // Likewise for NASA. A single row here averaged apod, neo and epic, so the
     // daily APOD kept it green with the other two dead.

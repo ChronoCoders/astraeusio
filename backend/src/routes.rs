@@ -182,10 +182,15 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     };
 
     // ── DB freshness ─────────────────────────────────────────────────────────
-    let (series, celestrak_ts) = {
+    let (series, liveness, celestrak_ts) = {
         let guard = lock_db(&s.db).await;
         let celestrak = guard.external_freshness();
-        (guard.series_health(), celestrak)
+        // Two kinds of component, and the difference is which question can be
+        // asked. A series is judged on the age of its newest row. A feed that
+        // publishes only when something happens is judged on the verdict its
+        // poller recorded, because for that one no row age separates quiet from
+        // dead.
+        (guard.series_health(), guard.poll_liveness(), celestrak)
     };
 
     fn component_status(
@@ -216,6 +221,7 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         .iter()
         .all(|&s| s == "operational")
         && series.iter().all(|(_, status, _)| *status == "operational")
+        && liveness.iter().all(|(_, status, _)| *status == "operational")
     {
         "operational"
     } else {
@@ -236,6 +242,15 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         serde_json::json!({ "status": db_status, "last_write": db_last }),
     );
     for (component, status, last) in &series {
+        components.insert(
+            (*component).into(),
+            serde_json::json!({ "status": status, "last_update": last }),
+        );
+    }
+    // `last_update` is the time of the verdict, not of the newest alert. That
+    // is the honest label for it: the field says when we last checked, which is
+    // what a reader of this component needs to know.
+    for (component, status, last) in &liveness {
         components.insert(
             (*component).into(),
             serde_json::json!({ "status": status, "last_update": last }),

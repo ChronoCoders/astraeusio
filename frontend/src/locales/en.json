@@ -450,6 +450,7 @@
     "noaaXray": "X-ray flux",
     "noaaImf": "Magnetic field",
     "noaaDst": "Dst index",
+    "noaaAlerts": "Space weather alerts",
     "iss": "ISS position",
     "nasaApod": "NASA APOD",
     "nasaApodDesc": "Astronomy Picture of the Day · 60-min poll",
