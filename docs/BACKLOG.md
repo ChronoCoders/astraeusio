@@ -93,9 +93,6 @@ repeated here.
 - **AUD-004** Webhook delivery is unchanged and is still an SSRF primitive: prefix-only URL
   validation, reqwest's default redirect policy, no address check, and the status code and error
   string still returned to the account owner. The highest severity item still open.
-- **AUD-008** `get_events_page`, behind `GET /api/events`, was never scoped to the caller, so every
-  account's custom rule anomalies, names and thresholds included, still reach every authenticated
-  caller. `/api/anomalies` and the MCP tool were fixed in `475ffc1`; this route was missed.
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
