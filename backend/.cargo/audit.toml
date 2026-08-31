@@ -3,5 +3,42 @@ ignore = [
     # rsa 0.9.10 - Marvin Attack timing side-channel (RUSTSEC-2023-0071)
     # Pulled in by jsonwebtoken 10.x. We use HS256 (HMAC) exclusively - RSA
     # code paths are never exercised. No fixed version of the rsa crate exists.
+    #
+    # Re-verified 2026-08-31 against the current lockfile. Worth restating
+    # precisely, because this argument is about behaviour and not about the
+    # dependency graph: rsa 0.9.10 IS compiled into the binary, under
+    # jsonwebtoken 10.3.0, and `cargo tree -i rsa` shows the path. What holds is
+    # that every mint site passes `Header::default()` and every verify site
+    # builds on `Validation::default()`, both HS256 only in jsonwebtoken 10, so
+    # a token signed with an RSA algorithm is rejected on algorithm before any
+    # rsa code runs. `jsonwebtoken::Algorithm` is not referenced anywhere in
+    # src/. Still no fixed rsa release as of this date.
+    #
+    # The entry stops applying the moment an asymmetric algorithm is introduced,
+    # which would most likely arrive with OIDC id_token verification. Whoever
+    # does that deletes this line first.
     "RUSTSEC-2023-0071",
 ]
+
+# Not ignored, and `cargo audit` exits non-zero on both today. Recorded here
+# rather than acted on, because whether to ignore them is a decision and this
+# file is where the evidence for it belongs.
+#
+#   RUSTSEC-2026-0185  quinn-proto 0.11.14, CVSS 7.5, fixed in 0.11.15
+#   RUSTSEC-2026-0235  rkyv 0.7.46, fixed in 0.8.17
+#
+# Checked 2026-08-31: neither is compiled. `cargo tree -i quinn-proto` and
+# `cargo tree -i rkyv` both report nothing, with `--target all`, so both are
+# lockfile entries for optional dependencies that no enabled feature turns on.
+# The two are not equally safe, though, and the difference is the part worth
+# writing down:
+#
+#   quinn-proto has no path into the build at all. Its parent `quinn` is absent
+#   too, because reqwest's `http3` feature is off in both reqwest versions in
+#   the tree. Nothing beneath it is built.
+#
+#   rkyv is weaker. Its parent `rust_decimal 1.41.0` IS compiled, under duckdb,
+#   and only rust_decimal's own `rkyv` feature is off. A duckdb or rust_decimal
+#   feature change, ours or theirs on a version bump, is enough to make it live
+#   without anything in this repository looking different. It is the one to
+#   re-check after a dependency update rather than the CVSS 7.5.
