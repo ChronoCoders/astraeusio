@@ -605,6 +605,8 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
     "events": ["kp_storm", "xray_flare"]
   }'`}</Code>
 
+          <P>{t('docs.webhookUrlRules')}</P>
+
           <P>{t('docs.webhookSecretNote')}</P>
           <Code lang="json">{`{
   "id":     "a3f2c8e1d4b79012",

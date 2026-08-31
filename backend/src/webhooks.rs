@@ -7,7 +7,7 @@ use axum::{
 use serde::Deserialize;
 use tracing::warn;
 
-use crate::{auth::AuthClaims, plan, routes::AppState};
+use crate::{auth::AuthClaims, plan, routes::AppState, webhook_guard};
 
 fn random_hex(n: usize) -> String {
     let bytes: Vec<u8> = (0..n).map(|_| rand::random::<u8>()).collect();
@@ -46,14 +46,20 @@ pub async fn create_webhook(
             .into_response();
     }
 
-    let url = body.url.trim().to_owned();
-    if url.is_empty() || (!url.starts_with("https://") && !url.starts_with("http://")) {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "url must be a valid http or https URL" })),
-        )
-            .into_response();
-    }
+    // AUD-004. The old check was a `starts_with` on the scheme, which admits
+    // `http://169.254.169.254/` and every other internal address. Resolution
+    // happens here as well as at delivery so that a target which can never be
+    // delivered to is refused while the user is still looking at the form.
+    let url = match webhook_guard::check_target(&body.url).await {
+        Ok(u) => u.to_string(),
+        Err(rejection) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({ "error": rejection.message() })),
+            )
+                .into_response();
+        }
+    };
 
     let events: Vec<String> = body
         .events
