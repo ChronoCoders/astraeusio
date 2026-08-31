@@ -1,6 +1,10 @@
 # Backlog
 
-Work that was found, understood, and deliberately not done. One line per item.
+Work that was found, understood, and not done. One line per item.
+
+Most of it was deferred on purpose and says why. The section on open audit findings is different:
+those are simply still open, carried here so the tracked record does not depend on an untracked
+report.
 
 This exists because the deferrals were living in `docs/AUDIT-2026-08.md`, which is untracked and
 therefore local to one machine. The audit report stays untracked until its findings are closed; this
@@ -78,18 +82,92 @@ or in the commit that created the deferral.
   shape of that distribution rather than on a total. That is a backend change and a new metric
   surface, not another rule in a shell script, which is why it is here rather than done.
 
-## Process
+## Open audit findings
 
-- No ID. Nothing records which of the 29 audit findings are closed. `docs/AUDIT-2026-08.md` carries
-  a `**Resolved**` marker on exactly one, AUD-013, and `docs/AUDIT-INDEX.md` has severity and a file
-  location but no status column, so the true state can only be reconstructed by reading git history
-  against each finding one at a time. Deferred because it is a day of careful archaeology rather
-  than a change, and listed here because that is exactly the kind of work that otherwise never gets
-  written down and never gets done.
+Reconstructed 2026-08-30 by reading `git log` since the audit's base tree against the code as it
+stands. Every finding in `docs/AUDIT-2026-08.md` now carries a resolution line and
+`docs/AUDIT-INDEX.md` carries a status column, so this section is the tracked half: what is still
+open, one line each. A finding whose remainder is already stated elsewhere in this file is not
+repeated here.
+
+- **AUD-004** Webhook delivery is unchanged and is still an SSRF primitive: prefix-only URL
+  validation, reqwest's default redirect policy, no address check, and the status code and error
+  string still returned to the account owner. The highest severity item still open.
+- **AUD-008** `get_events_page`, behind `GET /api/events`, was never scoped to the caller, so every
+  account's custom rule anomalies, names and thresholds included, still reach every authenticated
+  caller. `/api/anomalies` and the MCP tool were fixed in `475ffc1`; this route was missed.
+- **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
+  `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
+  meets nothing at the edge.
+- **AUD-011** Three backend advisories are open and `cargo audit` exits non-zero: quinn-proto
+  `RUSTSEC-2026-0185` at CVSS 7.5, rkyv `RUSTSEC-2026-0235` which is blocked on duckdb, and h2
+  `RUSTSEC-2026-0258`, published 2026-08-17 and therefore newer than the audit, in the live request
+  path through reqwest, hyper and axum.
+- **AUD-014** The forecast band is still uncalibrated epistemic spread with no observation noise
+  term and no coverage measurement anywhere, while six files still label it a 95 percent confidence
+  interval. Coverage is computable today from stored rows and has never been computed.
+- **AUD-015** Residual only: with Kp padding gone, `lag_1` through `lag_7` and the two rolling
+  features still fall back to `0.0` at the oldest end of every window, 30 cells of 304. Closing it
+  means requesting `seq_len + 7` readings, not another default.
+- **AUD-016** `register` still validates neither password length nor email shape, while
+  `change_password` and `reset_password` both enforce a minimum, so an account can be created with
+  a password it cannot later be changed to.
+- **AUD-018** Two halves remain after `6b3d885`: enabling or disabling TOTP does not bump
+  `token_version`, so a session an attacker holds survives the countermeasure taken against them;
+  and `PurposeClaims` carries no version, so a used reset link stays replayable for its full TTL.
+- **AUD-019** Email is still stored and compared verbatim everywhere except the OAuth path, which
+  lowercases, so the duplicate-account trap is intact and a reset issued for one casing does not
+  reach the other row.
+- **AUD-020** The OAuth `nonce` is still generated and never compared, with no cookie and no PKCE,
+  so the state token proves the server issued some state and not that the callback belongs to the
+  browser that began the flow.
+- **AUD-021** `uptime_pct` still cannot represent an outage: `backend_api` is a literal written by
+  the process being measured, the denominator is rows present rather than samples expected, and the
+  bucket is a rolling offset from request time rather than a calendar day. `2623cf6` answered the
+  gap half the other way on purpose, so this needs a policy decision before code.
+- **AUD-022** `kp_forecast` is still keyed on target time alone with no horizon and no issue time,
+  and the poller still stores the 3 h mirror and discards the other three horizons, so the stored
+  history and the accuracy metrics cover one horizon while the page shows four.
+- **AUD-023** No retention pass exists. Eleven tables still grow without bound and no `CHECKPOINT`
+  reclaims the WAL.
+- **AUD-024** `neo_close_approaches_raw` still filters on `fetched_at`. Unlike the xray half this
+  is not a one-line substitution: `neo` has no observation instant, only a forward-dated
+  `close_approach_date`, so it needs a decision about what the window means.
+- **AUD-025** The `developer` gate on CSV export is still a formatting gate, because
+  `/api/reports/kp` and `/api/reports/solar-wind` return the same rows ungated, and
+  `asteroid_approaches` still counts a forward window inside a card describing the past one.
+- **AUD-026** Beyond Stage 3 above: there is no `cap_drop: [ALL]` and no `read_only` on any
+  service, and `depends_on` is still the short form, so `condition: service_healthy` is absent and
+  the backend can still start before ml has loaded its checkpoint despite ml having a healthcheck
+  to wait on.
+- **AUD-027** `Referrer-Policy` was named in the fix and never added. Confirmed absent from the
+  live response 2026-08-30, where the other four headers and the report-only CSP are present.
+- **AUD-028** Email alerts still fire from the newest stored reading with no age bound, and still
+  mark the cooldown before dispatch against a send whose outcome is discarded, so a stalled feed
+  re-alerts hourly and a failed send is recorded as delivered.
+- **AUD-029** `/api/usage` still reports `"scope": "api_key"` as a literal on the line above the
+  correctly computed `caller`.
+
+## Enumeration coverage
+
+Found 2026-08-30 while checking whether the shape that let `poller/anomaly` sit unmapped appears
+elsewhere. A list built from what has spoken cannot contain what has never spoken.
+
+- No ID. The NOAA space weather alerts feed has no freshness entry. `SERIES_FRESHNESS` declares 11
+  components, `starlink` and `forecast` are covered separately as `celestrak` and `ml_forecast`,
+  and `space_weather_alert` is covered by nothing, so `/api/alerts` going dead is invisible to the
+  status page, to `component-check.sh`, which enumerates from that payload, and to the throughput
+  rule in `poller-check.sh`, where `[poller/alerts]=""` disables it. Nothing would report it.
+- No ID. The interval table that `poller-check.sh` enumerates from is parsed out of the backend's
+  `poller: intervals loaded` boot line, which is a hand-written `info!` listing 15 fields against
+  16 spawned pollers. `poll_health_snapshots` is absent from it, from `PollConfig`, and therefore
+  from the env override convention `CLAUDE.md` documents. No test asserts the boot line covers
+  every poller, which is the same gap one level below the mapping test that now exists.
 
 ## What could not be accounted for
 
-This file is seeded only from deferrals that were stated explicitly at the time the decision was
-made. It is not a complete list of open audit findings and should not be read as one, because
-nothing currently records which findings are closed. That gap is itself an item, under Process
-above.
+The audit report names its base tree as commit `6f3a9d5`, which is not in the current history. The
+repository was rewritten at some point after the audit and that sha now exists only as a loose
+object. Its tree is byte-identical to `03df0f6`, which is the parent of the first audit fix, so the
+reconstruction was driven from `03df0f6..HEAD` with no ambiguity, but the sha printed in the report
+header cannot be checked out from a fresh clone.
