@@ -31,6 +31,12 @@ pub struct PollerConfig {
     pub starlink_interval: u64,
     pub anomaly_interval: u64,
     pub forecast_interval: u64,
+    /// The health snapshot loop. It writes no upstream data, which is why it
+    /// was hardcoded at its call site and absent from this struct, and
+    /// therefore absent from the boot line that every external check
+    /// enumerates pollers from. `intervals` is now the one list and this is in
+    /// it.
+    pub health_interval: u64,
     /// Total attempts per poll, including the first. Clamped to 1..=5, where 1
     /// means no retry. Parsed and then ignored until 2026-08-11, while both
     /// CLAUDE.md and README.md promised three attempts with backoff.
@@ -63,6 +69,7 @@ impl PollerConfig {
             starlink_interval: secs("STARLINK_INTERVAL", 3600),
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
             forecast_interval: secs("FORECAST_INTERVAL", 1800),
+            health_interval: secs("HEALTH_INTERVAL", 300),
             // 0 means off, so it clamps to a single attempt rather than
             // silently falling back to three. An unparseable value keeps the
             // default, because that is a typo and not an intent.
@@ -80,6 +87,60 @@ impl PollerConfig {
 }
 
 impl PollerConfig {
+    /// Every poller `spawn` starts, and the interval it runs on.
+    ///
+    /// One list, for two readers that used to disagree. The boot line below is
+    /// generated from this, and `poller-check.sh` on the host parses that line
+    /// to know what rate each source should be delivering at, because a second
+    /// copy of the table in bash would drift the first time anything here
+    /// changed.
+    ///
+    /// The line it replaced was fifteen fields written out by hand against
+    /// sixteen `tokio::spawn` calls: `health` was missing, so the one external
+    /// check that enumerates pollers from something other than what has already
+    /// spoken could not see it. `every_spawned_poller_is_in_the_interval_table`
+    /// is what makes that unrepeatable, by reading the spawns out of this file
+    /// rather than out of a log.
+    ///
+    /// Each name is the suffix of its `poll_` function, which is the invariant
+    /// that test checks, and it is also the name the source logs under, which
+    /// is what lets the host script line the two up.
+    fn intervals(&self) -> [(&'static str, u64); 16] {
+        [
+            ("iss", self.iss_interval),
+            ("kp", self.kp_interval),
+            ("kp_3h", self.kp_3h_interval),
+            ("solar_wind", self.solar_wind_interval),
+            ("xray", self.xray_interval),
+            ("alerts", self.alerts_interval),
+            ("neo", self.neo_interval),
+            ("epic", self.epic_interval),
+            ("apod", self.apod_interval),
+            ("exoplanets", self.exoplanet_interval),
+            ("imf", self.imf_interval),
+            ("dst", self.dst_interval),
+            ("starlink", self.starlink_interval),
+            ("anomaly", self.anomaly_interval),
+            ("forecast", self.forecast_interval),
+            ("health", self.health_interval),
+        ]
+    }
+
+    /// The interval table as the boot line prints it: `name=seconds`, space
+    /// separated.
+    ///
+    /// A rendered interface, not a debug aid. `poller-check.sh` greps this line
+    /// for `[a-z0-9_]+=[0-9]+` and treats every token but `retry_count` as a
+    /// poller and its rate, so a change to this format is a change to something
+    /// off this machine.
+    fn intervals_line(&self) -> String {
+        self.intervals()
+            .iter()
+            .map(|(name, secs)| format!("{name}={secs}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     /// One source's retry policy. The budget is that source's own interval, so
     /// a retry can never outlast the poll it belongs to.
     fn policy(&self, source: &'static str, interval: u64) -> retry::Policy {
@@ -100,24 +161,14 @@ pub fn spawn(
     ml_url: String,
 ) {
     let cfg = PollerConfig::from_env();
+    // Emitted as `name=seconds` pairs in the message rather than as static
+    // fields, because a static field list is exactly what went stale. The
+    // shape is unchanged for anything parsing it: `retry_count` stays a field
+    // and every other token is still `[a-z0-9_]+=[0-9]+`.
     info!(
         retry_count = cfg.retry_count,
-        iss = cfg.iss_interval,
-        kp = cfg.kp_interval,
-        kp_3h = cfg.kp_3h_interval,
-        solar_wind = cfg.solar_wind_interval,
-        xray = cfg.xray_interval,
-        alerts = cfg.alerts_interval,
-        neo = cfg.neo_interval,
-        epic = cfg.epic_interval,
-        apod = cfg.apod_interval,
-        exoplanets = cfg.exoplanet_interval,
-        imf = cfg.imf_interval,
-        dst = cfg.dst_interval,
-        starlink = cfg.starlink_interval,
-        anomaly = cfg.anomaly_interval,
-        forecast = cfg.forecast_interval,
-        "poller: intervals loaded"
+        "poller: intervals loaded {}",
+        cfg.intervals_line()
     );
 
 
@@ -256,13 +307,13 @@ pub fn spawn(
     ));
     // Health snapshots - record per-component status every 5 minutes for the
     // status page's 90-day uptime strip.
-    tokio::spawn(poll_health_snapshots(
+    tokio::spawn(poll_health(
         client.clone(),
         db.clone(),
         writer.clone(),
         ml_url,
         60,
-        300,
+        cfg.health_interval,
     ));
 }
 
@@ -711,7 +762,7 @@ async fn dispatch_email_alerts(
 
 // ── Health snapshot poller ────────────────────────────────────────────────────
 
-async fn poll_health_snapshots(
+async fn poll_health(
     client: reqwest::Client,
     db: Arc<Mutex<Store>>,
     writer: DbWriterHandle,
@@ -791,5 +842,97 @@ async fn poll_health_snapshots(
         );
 
         tokio::time::sleep(Duration::from_secs(interval)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    /// The interval table must name every poller that exists, not every poller
+    /// that has spoken.
+    ///
+    /// This is the same hole as `poller/anomaly`, one level down. That one sat
+    /// unmapped because `poller-check.sh` built its list from the log and the
+    /// anomaly detector writes to the log only when it finds something. The fix
+    /// was to enumerate from the backend's interval line instead, which named
+    /// fifteen pollers against sixteen `tokio::spawn` calls, so `health` was
+    /// invisible to the check that exists to catch invisible pollers. A list
+    /// written out by hand cannot be trusted to describe the code beside it.
+    ///
+    /// So this reads the spawns out of the source rather than out of a log or a
+    /// running process, and fails when a poller is added without an entry, or
+    /// an entry is left behind after a poller is removed.
+    #[test]
+    fn every_spawned_poller_is_in_the_interval_table() {
+        // Assembled rather than written out, so this test's own source does not
+        // match the pattern it scans for.
+        let needle = format!("tokio::spawn(poll{}", '_');
+        let src = include_str!("poller.rs");
+
+        let spawned: BTreeSet<&str> = src
+            .match_indices(needle.as_str())
+            .filter_map(|(at, matched)| src[at + matched.len()..].split('(').next())
+            .filter(|name| {
+                !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            })
+            .collect();
+
+        assert!(
+            spawned.len() > 10,
+            "the scan found {} spawned pollers, so it has stopped matching the              source rather than found a real change: {spawned:?}",
+            spawned.len()
+        );
+
+        let declared: BTreeSet<&str> = PollerConfig::from_env()
+            .intervals()
+            .iter()
+            .map(|(name, _)| *name)
+            .collect();
+
+        let missing: Vec<&&str> = spawned.difference(&declared).collect();
+        let extra: Vec<&&str> = declared.difference(&spawned).collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "the interval table and the spawns disagree.              spawned with no entry: {missing:?}.              entry with no spawn: {extra:?}.              Every poller belongs in PollerConfig::intervals, including one that              fetches nothing, because that table is what every external check              enumerates pollers from."
+        );
+    }
+
+    /// The boot line is parsed off this machine, so its shape is part of the
+    /// contract rather than a formatting choice. `poller-check.sh` takes every
+    /// `[a-z0-9_]+=[0-9]+` token on the line, drops `retry_count`, and reads
+    /// the rest as poller and rate.
+    #[test]
+    fn the_interval_line_stays_parseable_by_the_host_check() {
+        let cfg = PollerConfig::from_env();
+        let line = cfg.intervals_line();
+        let tokens: Vec<&str> = line.split(' ').collect();
+
+        assert_eq!(
+            tokens.len(),
+            cfg.intervals().len(),
+            "one token per poller: {line}"
+        );
+
+        for token in tokens {
+            let (name, secs) = token
+                .split_once('=')
+                .unwrap_or_else(|| panic!("token {token} is not name=value in: {line}"));
+            assert!(
+                !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
+                "{name} does not match the [a-z0-9_]+ the host check greps for"
+            );
+            assert!(
+                !secs.is_empty() && secs.chars().all(|c| c.is_ascii_digit()),
+                "{secs} is not the bare integer the host check parses as an interval"
+            );
+        }
     }
 }

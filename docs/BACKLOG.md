@@ -149,16 +149,47 @@ repeated here.
 Found 2026-08-30 while checking whether the shape that let `poller/anomaly` sit unmapped appears
 elsewhere. A list built from what has spoken cannot contain what has never spoken.
 
-- No ID. The NOAA space weather alerts feed has no freshness entry. `SERIES_FRESHNESS` declares 11
-  components, `starlink` and `forecast` are covered separately as `celestrak` and `ml_forecast`,
-  and `space_weather_alert` is covered by nothing, so `/api/alerts` going dead is invisible to the
-  status page, to `component-check.sh`, which enumerates from that payload, and to the throughput
-  rule in `poller-check.sh`, where `[poller/alerts]=""` disables it. Nothing would report it.
-- No ID. The interval table that `poller-check.sh` enumerates from is parsed out of the backend's
-  `poller: intervals loaded` boot line, which is a hand-written `info!` listing 15 fields against
-  16 spawned pollers. `poll_health_snapshots` is absent from it, from `PollConfig`, and therefore
-  from the env override convention `CLAUDE.md` documents. No test asserts the boot line covers
-  every poller, which is the same gap one level below the mapping test that now exists.
+The second item found here is closed. The `poller: intervals loaded` boot line was a hand-written
+`info!` naming fifteen pollers against sixteen `tokio::spawn` calls, with `health` missing, so the
+one external check that enumerates pollers from something other than the log could not see it. The
+line is now generated from `PollerConfig::intervals`, `health` has an entry and an `HEALTH_INTERVAL`
+override like every other poller, and `every_spawned_poller_is_in_the_interval_table` reads the
+spawns out of the source file and fails when a poller exists with no entry, or an entry with no
+poller. A second test holds the rendered line to the `name=integer` shape `poller-check.sh` parses,
+since that line is an interface and not a debug aid.
+
+- No ID. **The NOAA space weather alerts feed has no watcher for silent failure.** Corrected
+  2026-08-31, because the original entry here overstated it: a hard failure *is* caught. An
+  exhausted fetch logs `error!(source = "poller/alerts")` and `poller-check.sh` alerts on it
+  directly, since `[poller/alerts]=""` means it has nothing to defer to. What nothing watches is the
+  feed failing quietly: a 200 that parses to zero records, or an upstream that keeps serving a list
+  it has stopped updating. `space_weather_alert` has no `SERIES_FRESHNESS` entry, so it is absent
+  from `/api/health`, from the status page, and from `component-check.sh`, which enumerates from
+  that payload. The throughput rule cannot cover it either: `tracks_a_series` is 0 for an empty
+  component, and at a 300 s interval its 12 polls an hour are below `THROUGHPUT_MIN_EXPECTED` of 30
+  even if it were mapped.
+
+  **Why it cannot have a freshness threshold.** Alerts are episodic. NOAA issues a product when
+  conditions warrant one, so days of silence are correct behaviour and no age of the newest row
+  separates quiet from dead. A threshold small enough to notice a dead feed would cry wolf through
+  every quiet stretch, which is the failure `noaa_kp_3h` already had at six hours.
+
+  **What watching it would take**, in the order the parts are worth doing:
+
+  1. A liveness component rather than a freshness one. `poll_alerts` writes a
+     `HealthSnapshot { component: "noaa_alerts" }` on every cycle: operational when the fetch
+     succeeded and the payload was non-empty, degraded when it failed or came back empty. That is a
+     statement about our poll, not about space weather, so it is true regardless of how quiet the
+     sun is, and it catches the empty-payload case the ERROR rules cannot see.
+  2. Publishing it. `/api/health` builds `components` from `SERIES_FRESHNESS` plus three literals,
+     so a component that is not a series has nowhere to appear today. The smallest honest change is
+     for the handler to read the newest `health_snapshots` row for such components, which keeps one
+     source of truth and puts `noaa_alerts` on the status page and into `component-check.sh` at the
+     same time. `[poller/alerts]=""` then becomes `noaa_alerts` and the deference rule works.
+  3. Only then, a staleness horizon for the case where the upstream serves a frozen list. That
+     needs the longest quiet gap NOAA actually leaves, which is computable from the
+     `issue_datetime` history already stored and has never been computed. Choosing it by intuition
+     is exactly how `noaa_kp_3h` got a threshold that flapped, so it should be measured first.
 
 ## Process
 
