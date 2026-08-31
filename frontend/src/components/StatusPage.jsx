@@ -71,6 +71,64 @@ function UptimeStrip({ days, label, noDataLabel }) {
   )
 }
 
+// Display order for the components we already know about.
+//
+// A hint laid over the payload, not the source of what gets rendered.
+// /api/health decides which components exist; this decides where the familiar
+// ones sit. Anything the backend publishes and this array does not name is
+// appended rather than dropped.
+//
+// It used to be the source: a literal list of rows, so a component the backend
+// published and the list omitted was invisible on the page whose whole job is
+// to make things visible. That is the third time this shape has cost something,
+// after the poller/anomaly mapping and the interval boot line, and it is the
+// only one of the three a user could see.
+const ORDER = [
+  'backend_api',
+  'ml_forecast',
+  'database',
+  // Each space weather series reports on its own. One of them stopped for
+  // forty days while a shared NOAA row stayed green.
+  'noaa_kp',
+  'noaa_kp_3h',
+  'noaa_solar_wind',
+  'noaa_xray',
+  'noaa_imf',
+  'noaa_dst',
+  // Episodic, so this one reports whether the poll is returning a live feed
+  // rather than how old the newest alert is.
+  'noaa_alerts',
+  'iss',
+  // Likewise for NASA. A single row here averaged apod, neo and epic, so the
+  // daily APOD kept it green with the other two dead.
+  'nasa_apod',
+  'nasa_neo',
+  'nasa_epic',
+  'nasa_exoplanets',
+  'celestrak',
+]
+
+// Words the humanised fallback should shout rather than sentence-case.
+const ACRONYMS = new Set(['noaa', 'nasa', 'iss', 'ml', 'api', 'imf', 'dst', 'neo', 'epic', 'apod', 'kp', 'tle', 'db'])
+
+// The label for a component with no translation, which is the case a hardcoded
+// array exists to avoid. It is never blank and never a dropped row: the key
+// renders as itself, tidied, so a component published before its locale strings
+// land reads as "NOAA Alerts" rather than vanishing.
+function humanise(key) {
+  return key
+    .split('_')
+    .map(w => (ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+}
+
+// `noaa_kp_3h` is spelled `status.noaaKp3h` in the locale files. Derived rather
+// than mapped, so a new component needs a locale key in en.json and tr.json and
+// no wiring here at all.
+function labelKey(key) {
+  return 'status.' + key.replace(/_(.)/g, (_, ch) => ch.toUpperCase())
+}
+
 export default function StatusPage({ onSignIn }) {
   const { t } = useTranslation()
   const [data,      setData]      = useState(null)
@@ -99,31 +157,24 @@ export default function StatusPage({ onSignIn }) {
   const u    = uptime?.components ?? {}
   const banner = overallBanner(error ? 'outage' : data?.status)
 
-  const COMPONENTS = [
-    { nameKey: 'status.backendApi',  key: 'backend_api', status: error ? 'outage' : (c.backend_api?.status  ?? 'unknown'), lastUpdate: c.backend_api?.last_checked  },
-    { nameKey: 'status.mlForecast',  key: 'ml_forecast', status: error ? 'unknown': (c.ml_forecast?.status  ?? 'unknown'), lastUpdate: c.ml_forecast?.last_checked  },
-    { nameKey: 'status.database',    key: 'database',    status: error ? 'unknown': (c.database?.status     ?? 'unknown'), lastUpdate: c.database?.last_write       },
-    // Each space weather series reports on its own. One of them stopped for
-    // forty days while a shared NOAA row stayed green.
-    { nameKey: 'status.noaaKp',        key: 'noaa_kp',         status: error ? 'unknown': (c.noaa_kp?.status         ?? 'unknown'), lastUpdate: c.noaa_kp?.last_update         },
-    { nameKey: 'status.noaaKp3h',      key: 'noaa_kp_3h',      status: error ? 'unknown': (c.noaa_kp_3h?.status      ?? 'unknown'), lastUpdate: c.noaa_kp_3h?.last_update      },
-    { nameKey: 'status.noaaSolarWind', key: 'noaa_solar_wind', status: error ? 'unknown': (c.noaa_solar_wind?.status ?? 'unknown'), lastUpdate: c.noaa_solar_wind?.last_update },
-    { nameKey: 'status.noaaXray',      key: 'noaa_xray',       status: error ? 'unknown': (c.noaa_xray?.status       ?? 'unknown'), lastUpdate: c.noaa_xray?.last_update       },
-    { nameKey: 'status.noaaImf',       key: 'noaa_imf',        status: error ? 'unknown': (c.noaa_imf?.status        ?? 'unknown'), lastUpdate: c.noaa_imf?.last_update        },
-    { nameKey: 'status.noaaDst',       key: 'noaa_dst',        status: error ? 'unknown': (c.noaa_dst?.status        ?? 'unknown'), lastUpdate: c.noaa_dst?.last_update        },
-    // Alerts are episodic, so this row reports whether the poll is
-    // returning a live feed rather than how old the newest alert is. A
-    // quiet sun and a dead feed look identical by row age.
-    { nameKey: 'status.noaaAlerts',    key: 'noaa_alerts',     status: error ? 'unknown': (c.noaa_alerts?.status     ?? 'unknown'), lastUpdate: c.noaa_alerts?.last_update     },
-    { nameKey: 'status.iss',           key: 'iss',             status: error ? 'unknown': (c.iss?.status             ?? 'unknown'), lastUpdate: c.iss?.last_update            },
-    // Likewise for NASA. A single row here averaged apod, neo and epic, so the
-    // daily APOD kept it green with the other two dead.
-    { nameKey: 'status.nasaApod',       key: 'nasa_apod',        status: error ? 'unknown': (c.nasa_apod?.status        ?? 'unknown'), lastUpdate: c.nasa_apod?.last_update        },
-    { nameKey: 'status.nasaNeo',        key: 'nasa_neo',         status: error ? 'unknown': (c.nasa_neo?.status         ?? 'unknown'), lastUpdate: c.nasa_neo?.last_update         },
-    { nameKey: 'status.nasaEpic',       key: 'nasa_epic',        status: error ? 'unknown': (c.nasa_epic?.status        ?? 'unknown'), lastUpdate: c.nasa_epic?.last_update        },
-    { nameKey: 'status.nasaExoplanets', key: 'nasa_exoplanets',  status: error ? 'unknown': (c.nasa_exoplanets?.status  ?? 'unknown'), lastUpdate: c.nasa_exoplanets?.last_update  },
-    { nameKey: 'status.celestrak',   key: 'celestrak',   status: error ? 'unknown': (c.celestrak?.status    ?? 'unknown'), lastUpdate: c.celestrak?.last_update     },
-  ]
+  // Rendered from what /api/health actually published. When the endpoint is
+  // unreachable there is no payload to enumerate, so ORDER stands in as the
+  // skeleton, because a blank page is the worst answer at exactly the moment
+  // somebody is looking at this one.
+  const keys = Object.keys(c).length > 0
+    ? [...ORDER.filter(k => k in c), ...Object.keys(c).filter(k => !ORDER.includes(k)).sort()]
+    : ORDER
+
+  const COMPONENTS = keys.map(key => ({
+    key,
+    name: t(labelKey(key), { defaultValue: humanise(key) }),
+    status: error
+      ? (key === 'backend_api' ? 'outage' : 'unknown')
+      : (c[key]?.status ?? 'unknown'),
+    // Which timestamp a component carries depends on what it measures, so take
+    // whichever it published rather than knowing per component.
+    lastUpdate: c[key]?.last_update ?? c[key]?.last_checked ?? c[key]?.last_write,
+  }))
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -168,11 +219,11 @@ export default function StatusPage({ onSignIn }) {
               const meta = statusMeta(comp.status)
               const up = u[comp.key]
               return (
-                <div key={comp.nameKey} className="px-5 py-4 flex flex-col gap-2">
+                <div key={comp.key} className="px-5 py-4 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
-                      <p className="text-sm text-zinc-200">{t(comp.nameKey)}</p>
+                      <p className="text-sm text-zinc-200">{comp.name}</p>
                     </div>
                     <div className="flex items-center shrink-0 ml-4 gap-4 sm:gap-6">
                       <span className="text-zinc-400 text-xs font-mono w-16 text-right tabular-nums">
@@ -194,7 +245,7 @@ export default function StatusPage({ onSignIn }) {
                   </div>
                   <UptimeStrip
                     days={up?.days}
-                    label={`${t(comp.nameKey)} ${t('status.uptimeWindow')}`}
+                    label={`${comp.name} ${t('status.uptimeWindow')}`}
                     noDataLabel={t('common.noData')}
                   />
                 </div>

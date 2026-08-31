@@ -176,11 +176,16 @@ next to the next instance of it.
   solar cycle, and quiet periods lengthen towards solar minimum, so it should be re-derived from a
   year of data.
 
-- No ID. **The status page enumerates its components by hand.** `StatusPage.jsx` holds a literal
-  `COMPONENTS` array of fifteen rows and renders only those, so a component `/api/health` publishes
-  and this list omits is simply not displayed, silently and with no error anywhere. It is the same
-  shape as the two items above, one layer out, and it was found by adding `noaa_alerts` and having
-  to remember to add the row. Nothing asserts the two agree.
+- Closed. **The status page enumerated its components by hand.** `StatusPage.jsx` held a literal
+  `COMPONENTS` array and rendered only those rows, so a component `/api/health` published and the
+  array omitted was silently not displayed, on the page whose whole job is to make things visible.
+  The third instance of this shape, after the `poller/anomaly` mapping and the interval boot line,
+  and the only one a user could see. It now renders what the payload contains: `ORDER` survives as a
+  display hint applied over the payload rather than as the source of what exists, an unrecognised
+  component is appended instead of dropped, and its label is derived from its key with a humanised
+  fallback, so a component published before its locale strings land reads as `NOAA Alerts` rather
+  than vanishing or rendering a raw i18n key. `ORDER` is still the skeleton when `/api/health` is
+  unreachable, because a blank page is the worst answer at the moment somebody is looking at it.
 
 ## History
 
