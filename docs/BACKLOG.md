@@ -96,10 +96,12 @@ repeated here.
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
-- **AUD-011** Three backend advisories are open and `cargo audit` exits non-zero: quinn-proto
-  `RUSTSEC-2026-0185` at CVSS 7.5, rkyv `RUSTSEC-2026-0235` which is blocked on duckdb, and h2
-  `RUSTSEC-2026-0258`, published 2026-08-17 and therefore newer than the audit, in the live request
-  path through reqwest, hyper and axum.
+- **AUD-011** Two backend advisories keep `cargo audit` exiting non-zero after h2 was fixed in
+  `164db2b`: quinn-proto `RUSTSEC-2026-0185` at CVSS 7.5 and rkyv `RUSTSEC-2026-0235`. Neither is
+  compiled, and `.cargo/audit.toml` records why they are not equally safe: quinn-proto has no path
+  into the build, while rkyv's parent rust_decimal is compiled and only its `rkyv` feature is off,
+  so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
+  which of those two arguments, is an open decision.
 - **AUD-014** The forecast band is still uncalibrated epistemic spread with no observation noise
   term and no coverage measurement anywhere, while six files still label it a 95 percent confidence
   interval. Coverage is computable today from stored rows and has never been computed.
