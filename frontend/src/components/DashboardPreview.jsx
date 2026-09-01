@@ -71,7 +71,7 @@ function DashboardCanvas({ kpData, wind, forecastData }) {
           <div className="col-span-2">
             <KpChart records={records} />
           </div>
-          <ForecastPanel data={fc} loading={false} onNavigate={() => {}} />
+          <ForecastPanel data={fc} loading={false} onNavigate={() => {}} showSpread={false} />
         </div>
       </div>
     </div>

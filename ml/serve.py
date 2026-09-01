@@ -5,10 +5,18 @@ POST /predict
   Body: { "readings": [float, ...] }            - seq_len to 48 Kp values, oldest first
          optional "f107": [float, ...]          - F10.7 adjusted flux (sfu), same length
          optional "sunspot": [float, ...]        - daily sunspot number, same length
-  Returns predicted Kp at 3h/6h/12h/24h, each with a 95% confidence interval
-  derived from Monte Carlo Dropout (50 stochastic forward passes). The top-level
-  fields (predicted_kp / ci_lower / ci_upper / uncertainty) mirror the 3-hour
-  horizon for backward compatibility.
+  Returns predicted Kp at 3h/6h/12h/24h, each with the spread of 50 Monte Carlo
+  Dropout passes: ci_lower and ci_upper are mean -/+ 1.96 sigma across those
+  passes. That is the model's disagreement with itself and NOT a calibrated
+  predictive interval. Measured on 2026-08-31 against 1229 forecasts paired with
+  the observed three-hour Kp, 13.1 percent of outcomes fell inside it, against
+  the 95 percent this used to claim; the mean width was 0.405 Kp against a mean
+  absolute error of 0.727. The field names are kept because callers depend on
+  them. AUD-014 tracks the fix, which needs an observation noise term and
+  recalibration.
+
+  The top-level fields (predicted_kp / ci_lower / ci_upper / uncertainty) mirror
+  the 3-hour horizon for backward compatibility.
 
 Run: uvicorn ml.serve:app --port 8000
 """
@@ -296,8 +304,8 @@ class PredictRequest(BaseModel):
 class HorizonForecast(BaseModel):
     horizon_hours: int = Field(description="Forecast lead time in hours")
     predicted_kp: float = Field(description="Predicted Kp for this horizon")
-    ci_lower: float = Field(description="95% confidence interval lower bound")
-    ci_upper: float = Field(description="95% confidence interval upper bound")
+    ci_lower: float = Field(description="Lower edge of the model spread, mean - 1.96 sigma across MC Dropout passes. Not a calibrated interval; see the module docstring.")
+    ci_upper: float = Field(description="Upper edge of the model spread, mean + 1.96 sigma across MC Dropout passes. Not a calibrated interval; see the module docstring.")
     uncertainty: float = Field(description="1-sigma standard deviation in Kp units")
 
 
@@ -307,8 +315,8 @@ class PredictResponse(BaseModel):
     trained_through: str
     # Flat 3-hour fields mirrored for backward compatibility with existing callers.
     predicted_kp: float = Field(description="Predicted Kp for the next 3-hour period")
-    ci_lower: float = Field(description="95% CI lower bound (3h horizon)")
-    ci_upper: float = Field(description="95% CI upper bound (3h horizon)")
+    ci_lower: float = Field(description="Lower edge of the model spread, 3h horizon")
+    ci_upper: float = Field(description="Upper edge of the model spread, 3h horizon")
     uncertainty: float = Field(description="1-sigma std dev in Kp units (3h horizon)")
     horizon_hours: int = Field(default=3)
 

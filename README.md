@@ -13,7 +13,7 @@ Key capabilities:
 - Live Kp index (1-minute and official 3-hour), solar wind speed and density, GOES X-ray flux, IMF Bz, Dst index, and space weather alerts from NOAA SWPC and Kyoto WDC
 - Near-Earth asteroid feed (7-day lookahead), ISS position with altitude and velocity, and the Starlink constellation from Celestrak TLEs
 - NASA APOD, EPIC Earth imagery, and Exoplanet Archive catalog
-- Multi-horizon Kp forecast (3h / 6h / 12h / 24h), each with a 95% confidence interval derived from Monte Carlo Dropout
+- Multi-horizon Kp forecast (3h / 6h / 12h / 24h), each with the model spread across 50 Monte Carlo Dropout passes
 - Anomaly detection across five event types with warning/critical severity tiers, plus user-defined custom rules
 - Events history, summary reports with CSV export, API keys, outbound webhooks, and email alerts
 - Authentication: JWT + bcrypt, optional TOTP 2FA, email verification, and optional GitHub / Google OAuth
@@ -133,7 +133,9 @@ Walk-forward validation retrains the model from scratch on all data preceding ea
 
 ### Uncertainty Estimation
 
-Uncertainty is derived from Monte Carlo Dropout. At inference time the model is kept in `train()` mode for 50 stochastic forward passes per horizon. Each horizon's 95% confidence interval is computed as mean ± 1.96 × standard deviation across passes, clipped to [0, 9].
+Uncertainty is derived from Monte Carlo Dropout. At inference time the model is kept in `train()` mode for 50 stochastic forward passes per horizon. `ci_lower` and `ci_upper` are mean ± 1.96 × standard deviation across those passes, clipped to [0, 9].
+
+That is the model's disagreement with itself, not a calibrated predictive interval, and the field names are historical. Measured on 2026-08-31 against 1229 forecasts paired with the observed three-hour Kp, **13.1%** of outcomes fell inside it, with a mean width of 0.405 Kp against a mean absolute error of 0.727. It does rank uncertainty: the widest quarter of forecasts has a mean error of 0.90 Kp against 0.59 for the narrowest. Reaching 95% coverage would need a multiplier near 8.7 rather than 1.96, or an observation noise term the model does not have. Tracked as AUD-014.
 
 ### Inference API
 

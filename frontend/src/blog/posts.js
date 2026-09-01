@@ -34,14 +34,14 @@ The output is a single predicted Kp value for the next three hours.
 
 A point prediction without an uncertainty estimate is not very useful in an operational context. If the model says Kp 6.2, you need to know whether that means "somewhere between 5.8 and 6.6" or "somewhere between 4.0 and 8.5". Those are very different operational situations.
 
-We use Monte Carlo Dropout to produce calibrated confidence intervals. During inference, instead of disabling dropout layers (as you normally would after training), we keep them active and run the same input through the model 50 times. Each run samples a slightly different subset of the network, producing a slightly different prediction. The spread across those 50 predictions gives us an empirical distribution.
+We use Monte Carlo Dropout to measure how much the model disagrees with itself. During inference, instead of disabling dropout layers (as you normally would after training), we keep them active and run the same input through the model 50 times. Each run samples a slightly different subset of the network, producing a slightly different prediction. The spread across those 50 predictions gives us an empirical distribution.
 
 From that distribution we report:
 - **predicted_kp**: the mean across all 50 passes
-- **ci_lower / ci_upper**: the 2.5th and 97.5th percentiles (a 95% confidence interval)
+- **ci_lower / ci_upper**: the mean minus and plus 1.96 standard deviations across the passes. Note what this is not: it is the spread of the model's own opinions, not a calibrated forecast interval. Measured against observed Kp over 1229 forecasts, 13% of outcomes fell inside it, not 95%. Closing that gap needs an observation noise term the model does not currently have.
 - **uncertainty**: the standard deviation
 
-A narrow interval means the model is confident - recent Kp history points clearly in one direction. A wide interval means the situation is ambiguous, and you should weight the forecast accordingly.
+A narrow spread means the model's 50 passes agree - recent Kp history points clearly in one direction. A wide spread means they do not. That ranking is real: sorted by width, the widest quarter of forecasts has a mean error of 0.90 Kp against 0.59 for the narrowest. Read it as relative confidence, never as a probability that the outcome lands inside.
 
 ## What the Model Doesn't Know
 
@@ -80,14 +80,14 @@ Modelin girdisi, en son Kp okumalarından oluşan bir penceredir (mevcudiyete ba
 
 Belirsizlik tahmini olmayan bir nokta tahmini, operasyonel bağlamda pek kullanışlı değildir. Model Kp 6.2 diyorsa, bunun "5.8 ile 6.6 arasında" mı yoksa "4.0 ile 8.5 arasında" mı olduğunu bilmeniz gerekir. Bunlar çok farklı operasyonel durumlardır.
 
-Kalibreli güven aralıkları üretmek için Monte Carlo Dropout kullanıyoruz. Çıkarım sırasında dropout katmanlarını devre dışı bırakmak yerine aktif tutuyoruz ve aynı girişi model üzerinden 50 kez çalıştırıyoruz. Her çalışma ağın biraz farklı bir alt kümesini örnekler ve biraz farklı bir tahmin üretir. Bu 50 tahmin genelindeki yayılım bize deneysel bir dağılım verir.
+Modelin kendisiyle ne kadar anlaşmazlığa düştüğünü ölçmek için Monte Carlo Dropout kullanıyoruz. Çıkarım sırasında dropout katmanlarını devre dışı bırakmak yerine aktif tutuyoruz ve aynı girişi model üzerinden 50 kez çalıştırıyoruz. Her çalışma ağın biraz farklı bir alt kümesini örnekler ve biraz farklı bir tahmin üretir. Bu 50 tahmin genelindeki yayılım bize deneysel bir dağılım verir.
 
 Bu dağılımdan şunları bildiriyoruz:
 - **predicted_kp**: 50 geçiş genelinde ortalama
-- **ci_lower / ci_upper**: 2,5. ve 97,5. yüzdelikler (%95 güven aralığı)
+- **ci_lower / ci_upper**: geçişler genelindeki ortalama eksi ve artı 1,96 standart sapma. Bunun ne olmadığına dikkat edin: modelin kendi görüşlerinin yayılımıdır, kalibre edilmiş bir tahmin aralığı değildir. 1229 tahmin üzerinden gözlenen Kp'ye karşı ölçüldüğünde sonuçların %95'i değil %13'ü aralığın içine düştü.
 - **uncertainty**: standart sapma
 
-Dar bir aralık modelin güvenli olduğu anlamına gelir. Geniş bir aralık durumun belirsiz olduğunu ve tahmini buna göre ağırlıklandırmanız gerektiğini gösterir.
+Dar bir yayılım 50 geçişin birbiriyle uyuştuğu anlamına gelir; geniş bir yayılım uyuşmadığını. Bu sıralama gerçektir: genişliğe göre sıralandığında en geniş çeyreğin ortalama hatası 0,90 Kp, en darlarınki 0,59 Kp. Bunu göreli güven olarak okuyun, sonucun aralığın içine düşme olasılığı olarak değil.
 
 ## Modelin Bilmediği
 
