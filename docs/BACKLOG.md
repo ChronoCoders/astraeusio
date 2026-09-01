@@ -90,29 +90,19 @@ stands. Every finding in `docs/AUDIT-2026-08.md` now carries a resolution line a
 open, one line each. A finding whose remainder is already stated elsewhere in this file is not
 repeated here.
 
-- **AUD-030** **The forecast has never been measured against persistence, and loses to it at three
-  hours.** Added 2026-09-01, after the audit, so the counts against the original 29 still hold.
-  Measured twice. A replay of the deployed checkpoint over out-of-sample data, 2026-05-03 to
-  2026-08-30, held-out portion, 375 windows, deployed configuration: model MAE 0.60 / 0.69 / 0.80 /
-  0.86 against persistence 0.58 / 0.69 / 0.86 / 1.01 at 3h / 6h / 12h / 24h. One quiet 47-day
-  window. Then the checkpoint's own walk-forward folds, which are out of sample by construction and
-  span two years, 2024-04-21 to 2026-04-20, 5840 slots including 299 at Kp >= 5 and 118 at Kp >= 6:
-  model 0.805 / 0.880 / 0.967 / 1.044 against persistence 0.684 / 0.883 / 1.064 / 1.231. At three
-  hours the model is 17.7 percent worse than repeating the last observation; at six it ties; it
-  earns its place only at twelve and twenty four hours, by 9 and 18 percent.
+- **AUD-030** **Superseded 2026-09-01 by AUD-032.** This finding said the forecast loses to
+  persistence at three hours. The comparison evaluated each head at its labelled lead while every
+  head is trained one period further out, so the model was answering a harder question than the
+  baseline. At the lead it was actually trained for, the same checkpoint scores 0.805 against
+  persistence 0.882 and a two-parameter fit 0.826, which is a win rather than a loss. **Do not quote
+  the numbers from this entry, and the bar it recorded is withdrawn**, since it was computed against
+  a mislabelled model.
 
-  The 3h figure is what `/api/public/forecast`, the MCP tool `get_kp_forecast` and the landing page
-  all serve. Nothing published says the forecast beats persistence, so nothing is false, but
-  shipping an LSTM, an inference service and a 1.77 GB image implies it.
-
-  **The bar any retrain has to clear**, fixed 2026-09-01 before the retrain so it cannot be moved
-  afterwards. Out-of-sample MAE, 2026-05-03 to 2026-08-30, held-out portion, by horizon
-  3h / 6h / 12h / 24h. Today's model: **0.599 / 0.692 / 0.797 / 0.862**. Persistence:
-  **0.581 / 0.696 / 0.857 / 1.009**. A two-parameter least squares fit on the last observation
-  alone, fitted on the first 60 percent and measured on the rest: **0.568 / 0.670 / 0.797 / 0.923**.
-  The linear fit is the real bar at 3h and 6h, because it beats both the model and persistence
-  there. A retrained model that does not beat 0.568 and 0.670 has not fixed anything, whatever its
-  MAE looks like beside today's.
+  What survives is narrower and is about labelling rather than skill: at the horizons the product
+  advertises, a two-parameter fit on the last observation beats the model on the storm-rich
+  walk-forward window, 0.669 against 0.680 at 3h and 0.826 against 0.854 at 6h, measured with the
+  same expanding-window fold structure. That claim is carried forward under AUD-032 and re-measured
+  after the index fix.
 
 - **AUD-031** **The model loses to persistence at both ends of the Kp range, and storms are 1.9
   percent of the training set.** Added 2026-09-01. Model MAE minus persistence MAE by observed Kp,
