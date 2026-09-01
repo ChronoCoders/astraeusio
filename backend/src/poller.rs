@@ -1055,22 +1055,37 @@ mod tests {
             .unwrap_or_default()
     }
 
-    /// The boot line is parsed off this machine, so its shape is part of the
-    /// contract rather than a formatting choice. `poller-check.sh` takes every
-    /// `[a-z0-9_]+=[0-9]+` token on the line, drops `retry_count`, and reads
-    /// the rest as poller and rate.
+    /// The boot line is parsed off this machine, so both its content and its
+    /// shape are part of the contract rather than a formatting choice.
+    /// `poller-check.sh` takes every `[a-z0-9_]+=[0-9]+` token on the line,
+    /// drops `retry_count`, and reads the rest as poller and rate.
+    ///
+    /// The content half was missing until 2026-08-31: this asserted sixteen
+    /// tokens of the right shape and nothing about what was in them, and
+    /// replacing `intervals_line` with a fixed string of sixteen invented
+    /// tokens passed the whole suite. A line naming the wrong pollers, or the
+    /// right ones at the wrong rates, would have been caught by nothing, and
+    /// the host would have gone on computing expected poll counts from it.
     #[test]
     fn the_interval_line_stays_parseable_by_the_host_check() {
         let cfg = PollerConfig::from_env();
         let line = cfg.intervals_line();
         let tokens: Vec<&str> = line.split(' ').collect();
 
+        // Content: every poller in the table, at its own interval, in order,
+        // and nothing else on the line.
+        let expected: Vec<String> = cfg
+            .intervals()
+            .iter()
+            .map(|(name, secs)| format!("{name}={secs}"))
+            .collect();
+        let expected: Vec<&str> = expected.iter().map(String::as_str).collect();
         assert_eq!(
-            tokens.len(),
-            cfg.intervals().len(),
-            "one token per poller: {line}"
+            tokens, expected,
+            "the rendered line must be the interval table and nothing else"
         );
 
+        // Shape: what the host script's regex can actually read.
         for token in tokens {
             let (name, secs) = token
                 .split_once('=')
