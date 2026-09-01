@@ -122,7 +122,7 @@ The Kp-scaled and time features are derived from the Kp history; the physics dri
 
 The model is trained on approximately 20 years of 3-hourly Kp data from GFZ Potsdam / NOAA, augmented with F10.7 and sunspot series, preprocessed to Parquet by `ml/preprocess.py`.
 
-- **Loss function:** weighted HuberLoss across the four horizons (weights 1.0 / 0.8 / 0.6 / 0.4 - nearer horizons dominate)
+- **Loss function:** weighted across the four horizons (weights 1.0 / 0.8 / 0.6 / 0.4 - nearer horizons dominate). `F.huber_loss` is called, but with its default delta of 1.0 against targets scaled to [0, 1] every residual lands in the quadratic branch, so it is MSE in practice and always has been. Left that way on purpose: the large errors here are storms, and Huber's linear branch would downweight them.
 - **Optimizer:** Adam, initial LR 1e-3
 - **LR schedule:** ReduceLROnPlateau, factor 0.5, patience 3 epochs
 - **Gradient clipping:** max norm 1.0

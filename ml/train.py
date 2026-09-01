@@ -69,6 +69,9 @@ ROBUST_QUANTILE = 0.995
 HORIZON_HOURS = [3, 6, 12, 24]
 HORIZON_PERIODS = [1, 2, 4, 8]            # periods ahead (1 period = 3 h)
 HORIZON_WEIGHTS = [1.0, 0.8, 0.6, 0.4]    # closer horizons dominate training
+# What each head predicts: the change from the newest reading, or the level.
+# See the comment beside the target construction for the measurement behind it.
+HORIZON_TARGETS = ["residual", "residual", "level", "level"]
 MAX_HORIZON = max(HORIZON_PERIODS)
 N_HORIZONS = len(HORIZON_HOURS)
 
@@ -165,7 +168,22 @@ def loader(X: torch.Tensor, y: torch.Tensor, shuffle: bool) -> DataLoader:
 
 
 def weighted_huber(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Mean HuberLoss across horizons, weighted so nearer horizons dominate."""
+    """Mean loss across horizons, weighted so nearer horizons dominate.
+
+    In effect this is MSE, not Huber, and it always has been. `F.huber_loss`
+    defaults to delta=1.0 while targets are Kp/9 in [0, 1], so every residual
+    falls in the quadratic branch: measured 2026-09-01 over the walk-forward
+    window, mean |residual| 0.096 in scaled units, p99 0.409, max 0.832, and
+    0.0000 percent above delta.
+
+    Deliberately left as it is. Lowering delta so the robust branch engages would
+    downweight large errors, and in this data the large errors are the storms:
+    at delta 0.15, 84.5 percent of Kp >= 5 residuals fall in the linear branch
+    against 19 percent of all residuals. Robustness here means caring less about
+    the tail the model already under-fits (AUD-031). The name is kept because it
+    is what the checkpoint and the papers call it; the docstring is the honest
+    part.
+    """
     per_h = F.huber_loss(pred, target, reduction="none").mean(dim=0)  # (N_HORIZONS,)
     return (per_h * _WEIGHTS_T).sum() / _WEIGHTS_T.sum()
 
@@ -259,8 +277,39 @@ def main() -> None:
     values = normalize_features(df, minmax)               # (T, N_FEATURES)
     kp_norm = df["kp"].to_numpy(dtype=np.float32) / KP_MAX
 
-    # Multi-horizon targets: Kp at +1, +2, +4, +8 periods (3h/6h/12h/24h ahead).
-    targets = np.stack([np.roll(kp_norm, -p) for p in HORIZON_PERIODS], axis=1)  # (T, 4)
+    # Multi-horizon targets: the CHANGE in Kp at +1, +2, +4, +8 periods, not the
+    # level. Measured 2026-09-01: with a level target the model loses to
+    # persistence at 3h and ties at 6h, and its predictions are systematically
+    # flatter than reality, sd(pred)/sd(obs) running 0.72 at 3h down to 0.33 at
+    # 24h. A squared-error loss on the level fits the conditional mean, so with a
+    # weak signal it shrinks toward the unconditional one, and at short leads
+    # persistence is close to optimal so any shrinkage costs.
+    #
+    # Predicting the change makes persistence the zero of the target: the model
+    # can only improve on it rather than having to rediscover it. The error is
+    # unchanged by the reparameterisation, because the same constant is added to
+    # prediction and target, so `evaluate` below and the stored validation
+    # metrics stay directly comparable to the level-target runs.
+    # Per horizon, because the right parameterisation is not the same at both
+    # ends and the crossover was measured rather than guessed. sd of the change
+    # target against sd of the level target, in sample: 0.91 vs 1.41 at 3h, 1.16
+    # vs 1.41 at 6h, 1.42 vs 1.41 at 12h, 1.63 vs 1.41 at 24h. The change is the
+    # easier target at short leads and the harder one at long leads, and it
+    # crosses over at 12h.
+    #
+    # Confirmed by training residual-for-all on 2026-09-01: 3h improved 15.5
+    # percent and 6h 3.1 percent on the walk-forward window, while 12h regressed
+    # 4.8 percent and 24h 8.5 percent. Predicting the change makes persistence
+    # the zero of the target, which is what a short lead wants; at 24h
+    # persistence is a poor forecast and the mean is a good one, so a change
+    # target makes the model work for something the level target gave it free.
+    targets = np.stack(
+        [
+            np.roll(kp_norm, -p) - kp_norm if mode == "residual" else np.roll(kp_norm, -p)
+            for p, mode in zip(HORIZON_PERIODS, HORIZON_TARGETS)
+        ],
+        axis=1,
+    )  # (T, 4), in units of Kp/KP_MAX
     # Drop the trailing rows whose furthest horizon would wrap around.
     values = values[:-MAX_HORIZON]
     targets = targets[:-MAX_HORIZON]
@@ -351,6 +400,11 @@ def main() -> None:
                 "horizons": HORIZON_HOURS,
                 "horizon_periods": HORIZON_PERIODS,
                 "kp_scaled_features": KP_SCALED_FEATURES,
+                # What the head emits. "residual" means the output is the change
+                # from the newest reading and the caller adds it back; "level"
+                # was the parameterisation before 2026-09-01. serve.py reads this
+                # and defaults to "level", so an older checkpoint still loads.
+                "target": HORIZON_TARGETS,
                 "minmax": {k: list(v) for k, v in minmax.items()},
                 "feature_defaults": {
                     "f107_adj": float(df["f107_adj"].mean()),
