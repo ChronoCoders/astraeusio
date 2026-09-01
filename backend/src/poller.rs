@@ -37,6 +37,9 @@ pub struct PollerConfig {
     /// enumerates pollers from. `intervals` is now the one list and this is in
     /// it.
     pub health_interval: u64,
+    /// The retention purge. Daily, because bounding growth is not urgent work
+    /// and it competes with the pollers for DuckDB's single writer.
+    pub retention_interval: u64,
     /// Total attempts per poll, including the first. Clamped to 1..=5, where 1
     /// means no retry. Parsed and then ignored until 2026-08-11, while both
     /// CLAUDE.md and README.md promised three attempts with backoff.
@@ -70,6 +73,7 @@ impl PollerConfig {
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
             forecast_interval: secs("FORECAST_INTERVAL", 1800),
             health_interval: secs("HEALTH_INTERVAL", 300),
+            retention_interval: secs("RETENTION_INTERVAL", 86_400),
             // 0 means off, so it clamps to a single attempt rather than
             // silently falling back to three. An unparseable value keeps the
             // default, because that is a typo and not an intent.
@@ -105,7 +109,7 @@ impl PollerConfig {
     /// Each name is the suffix of its `poll_` function, which is the invariant
     /// that test checks, and it is also the name the source logs under, which
     /// is what lets the host script line the two up.
-    fn intervals(&self) -> [(&'static str, u64); 16] {
+    fn intervals(&self) -> [(&'static str, u64); 17] {
         [
             ("iss", self.iss_interval),
             ("kp", self.kp_interval),
@@ -123,6 +127,7 @@ impl PollerConfig {
             ("anomaly", self.anomaly_interval),
             ("forecast", self.forecast_interval),
             ("health", self.health_interval),
+            ("retention", self.retention_interval),
         ]
     }
 
@@ -307,6 +312,12 @@ pub fn spawn(
     ));
     // Health snapshots - record per-component status every 5 minutes for the
     // status page's 90-day uptime strip.
+    // Runs five minutes in, so a restart loop cannot spend its time purging.
+    tokio::spawn(poll_retention(
+        db.clone(),
+        300,
+        cfg.retention_interval,
+    ));
     tokio::spawn(poll_health(
         client.clone(),
         db.clone(),
@@ -860,6 +871,37 @@ fn alert_lines(
     }
 
     lines
+}
+
+// ── Retention ─────────────────────────────────────────────────────────────────
+
+/// Deletes rows past their table's window, once a day.
+///
+/// Daily rather than hourly because nothing here is urgent: the point is to
+/// bound growth, not to keep the file at a particular size, and a purge that
+/// runs while the pollers are writing competes for the one writer DuckDB
+/// allows. The first run after a long gap can delete a lot, which is why the
+/// log line names the tables and the counts.
+async fn poll_retention(db: Arc<Mutex<Store>>, init_delay_secs: u64, interval: u64) {
+    tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
+    loop {
+        let purged = { db.lock().await.purge_expired() };
+        match purged {
+            Ok(rows) if rows.is_empty() => {
+                info!("poller/retention: nothing past its window");
+            }
+            Ok(rows) => {
+                let summary = rows
+                    .iter()
+                    .map(|(table, n)| format!("{table}={n}"))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                info!("poller/retention: removed {summary}");
+            }
+            Err(e) => error!(source = "poller/retention", "purge: {e}"),
+        }
+        tokio::time::sleep(Duration::from_secs(interval)).await;
+    }
 }
 
 // ── Health snapshot poller ────────────────────────────────────────────────────

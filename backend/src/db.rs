@@ -344,6 +344,50 @@ pub fn is_auxiliary(component: &str) -> bool {
     AUXILIARY.contains(&component)
 }
 
+/// How long each table keeps rows, and the column that decides.
+///
+/// Per table rather than one number, because a five second poller and a five
+/// minute one are not the same problem and neither is a table nothing reads
+/// twice. The window is set by what actually queries the table, not by a
+/// feeling about how much history is nice to have:
+///
+/// - `iss_position` is written every five seconds, 16,600 rows a day, and the
+///   only read is `ORDER BY ts DESC LIMIT 1`. Thirty days rather than the seven
+///   that reading alone justifies, because a position history is the obvious
+///   thing a satellite tracking product grows into and thirty days of it is
+///   cheap. If that turns out to be wrong it is one number.
+/// - The NOAA series back charts and the thirty day report, so ninety days
+///   covers the longest query with room.
+/// - `health_snapshots` backs the ninety day uptime strip, so it keeps a
+///   hundred: the strip must not thin out at its own left edge.
+/// - `kp_forecast` and `alerts_anomaly` are user facing history and small.
+/// - `kp_3h` is the model's input and eight rows a day. Two years costs
+///   nothing and a retrain may want it.
+///
+/// `starlink` is deliberately absent. It holds a snapshot rather than history
+/// and its problem was never retention; it is written in place now.
+/// `neo`, `epic`, `apod` and `exoplanet` are absent too: hundreds of rows each,
+/// nothing to reclaim, and `neo` is keyed on a forward date where "old" is not
+/// a property of the row.
+pub struct Retention {
+    pub table: &'static str,
+    pub time_column: &'static str,
+    pub keep_days: i64,
+}
+
+pub const RETENTION: [Retention; 10] = [
+    Retention { table: "iss_position", time_column: "ts", keep_days: 30 },
+    Retention { table: "kp", time_column: "observed_at", keep_days: 90 },
+    Retention { table: "solar_wind", time_column: "observed_at", keep_days: 90 },
+    Retention { table: "imf", time_column: "observed_at", keep_days: 90 },
+    Retention { table: "xray", time_column: "observed_at", keep_days: 90 },
+    Retention { table: "health_snapshots", time_column: "ts", keep_days: 100 },
+    Retention { table: "dst", time_column: "observed_at", keep_days: 365 },
+    Retention { table: "kp_forecast", time_column: "ts", keep_days: 365 },
+    Retention { table: "alerts_anomaly", time_column: "detected_at", keep_days: 365 },
+    Retention { table: "kp_3h", time_column: "observed_at", keep_days: 730 },
+];
+
 /// Whether a reading is recent enough to describe conditions now.
 ///
 /// The limit is the series' own `SERIES_FRESHNESS` entry rather than a second
@@ -3301,6 +3345,35 @@ impl Store {
         Ok(())
     }
 
+    /// Deletes rows past their table's retention window.
+    ///
+    /// Reports what it removed rather than returning nothing, so the log line
+    /// says which table and how many and a window set too tight is visible the
+    /// first time it runs rather than after somebody notices a chart is short.
+    ///
+    /// Deleting does not shrink the file. DuckDB frees the space for reuse
+    /// inside the database, so this bounds growth; `rebuild-db.sh` is what
+    /// returns space to the disk, and it is deliberately a separate manual step
+    /// because it has to stop the backend.
+    pub fn purge_expired(&self) -> Result<Vec<(&'static str, usize)>, DbError> {
+        let now = now();
+        let mut purged = Vec::new();
+        for rule in RETENTION.iter() {
+            let cutoff = now - rule.keep_days * 86_400;
+            // `table` and `time_column` come from RETENTION, never from a
+            // request, which is why they can be formatted into the statement.
+            let sql = format!(
+                "DELETE FROM {} WHERE {} < ?",
+                rule.table, rule.time_column
+            );
+            let removed = self.conn.execute(&sql, params![cutoff])?;
+            if removed > 0 {
+                purged.push((rule.table, removed));
+            }
+        }
+        Ok(purged)
+    }
+
     /// Every stored webhook target, across all accounts, as `(id, url)`.
     ///
     /// For the startup scan only: it reports which stored rows the current
@@ -4732,6 +4805,65 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// Retention removes what is past its window and nothing else, and every
+    /// rule names a table and column that exist.
+    ///
+    /// The second half matters more than it looks: a renamed column would make
+    /// the purge fail at runtime on a table nobody is watching, and the growth
+    /// it was meant to bound would return silently (AUD-023).
+    #[test]
+    fn retention_removes_only_what_is_past_its_window() {
+        let store = mem_store();
+        let now = now();
+
+        for rule in RETENTION.iter() {
+            let sql = format!(
+                "SELECT {} FROM {} LIMIT 0",
+                rule.time_column, rule.table
+            );
+            assert!(
+                store.conn.prepare(&sql).is_ok(),
+                "{} has no column {}",
+                rule.table,
+                rule.time_column
+            );
+        }
+
+        // iss_position keeps 30 days. One row inside the window, one outside.
+        let insert = |ts: i64, id: i64| {
+            store
+                .conn
+                .execute(
+                    "INSERT INTO iss_position (ts, lat_e6, lon_e6, altitude_m, velocity_m_h)                      VALUES (?, ?, 0, 0, 0)",
+                    params![ts, id],
+                )
+                .expect("insert");
+        };
+        insert(now - 29 * 86_400, 1);
+        insert(now - 31 * 86_400, 2);
+        // health_snapshots keeps 100, so a 31 day old row must survive there.
+        store
+            .insert_health_snapshot("backend_api", now - 31 * 86_400, "operational")
+            .expect("snapshot");
+
+        let purged = store.purge_expired().expect("purge");
+        let removed: std::collections::HashMap<_, _> = purged.into_iter().collect();
+        assert_eq!(removed.get("iss_position"), Some(&1), "one row was past 30 days");
+        assert!(
+            !removed.contains_key("health_snapshots"),
+            "31 days is inside the 100 day window"
+        );
+
+        let left: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM iss_position", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(left, 1, "the row inside the window must stay");
+
+        // Running again removes nothing: the purge is idempotent.
+        assert!(store.purge_expired().expect("purge").is_empty());
     }
 
     /// A satellite that stays in the constellation keeps its row and gets its
