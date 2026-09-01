@@ -234,12 +234,26 @@ pub async fn send_password_reset_email(config: &MailerConfig, to: &str, reset_ur
     }
 }
 
-pub async fn send_alert_email(config: &MailerConfig, to: &str, subject: &str, body: &str) {
+/// Returns whether the alert actually left. The caller records the cooldown on
+/// the strength of it, so a discarded result meant a failed send suppressed the
+/// next hour of alerts as effectively as a delivered one (AUD-028).
+pub async fn send_alert_email(
+    config: &MailerConfig,
+    to: &str,
+    subject: &str,
+    body: &str,
+) -> bool {
     let client = Resend::new(&config.api_key);
     let email = CreateEmailBaseOptions::new(&config.from, [to], subject).with_text(body);
 
     match client.emails.send(email).await {
-        Ok(_) => info!("mailer: alert sent to {to}"),
-        Err(e) => warn!("mailer: send failed to {to}: {e}"),
+        Ok(_) => {
+            info!("mailer: alert sent to {to}");
+            true
+        }
+        Err(e) => {
+            warn!("mailer: send failed to {to}: {e}");
+            false
+        }
     }
 }

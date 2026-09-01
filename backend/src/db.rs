@@ -344,6 +344,19 @@ pub fn is_auxiliary(component: &str) -> bool {
     AUXILIARY.contains(&component)
 }
 
+/// Whether a reading is recent enough to describe conditions now.
+///
+/// The limit is the series' own `SERIES_FRESHNESS` entry rather than a second
+/// number, so raising the tolerance for a feed raises it everywhere at once.
+/// An unknown component is not fresh: a caller asking about something this
+/// table has never heard of gets the safe answer.
+pub fn reading_is_current(component: &str, observed_at: i64, now: i64) -> bool {
+    SERIES_FRESHNESS
+        .iter()
+        .find(|s| s.component == component)
+        .is_some_and(|s| now - observed_at <= s.max_age_secs)
+}
+
 /// Whether every component that decides the product's status is operational.
 ///
 /// Pulled out of the health handler so the exclusion is testable on its own.
@@ -2517,26 +2530,33 @@ impl Store {
 
     // ── Raw queries for anomaly detection ─────────────────────────────────────
 
-    pub fn latest_kp_raw(&self) -> Result<Option<(String, i64)>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT time_tag, estimated_kp_e2 FROM kp ORDER BY time_tag DESC LIMIT 1")?;
+    /// Newest Kp reading as `(time_tag, observed_at, value)`.
+    ///
+    /// The observation time comes back with it because a caller deciding
+    /// whether to act on this needs to know how old it is. The email alert
+    /// dispatcher had the tuple and discarded the age, so it alerted from a
+    /// reading of any age (AUD-028).
+    pub fn latest_kp_raw(&self) -> Result<Option<(String, i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, observed_at, estimated_kp_e2 FROM kp ORDER BY observed_at DESC LIMIT 1",
+        )?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
-            Ok(Some((row.get(0)?, row.get(1)?)))
+            Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?)))
         } else {
             Ok(None)
         }
     }
 
-    pub fn latest_solar_wind_speed_raw(&self) -> Result<Option<(String, i64)>, DbError> {
+    /// Newest solar wind speed as `(time_tag, observed_at, value)`, for the same
+    /// reason as [`Store::latest_kp_raw`].
+    pub fn latest_solar_wind_speed_raw(&self) -> Result<Option<(String, i64, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT time_tag, speed_e1 FROM solar_wind \
-             WHERE speed_e1 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
+            "SELECT time_tag, observed_at, speed_e1 FROM solar_wind WHERE speed_e1 IS NOT NULL ORDER BY observed_at DESC LIMIT 1",
         )?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
-            Ok(Some((row.get(0)?, row.get(1)?)))
+            Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?)))
         } else {
             Ok(None)
         }
@@ -4654,6 +4674,37 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// An alert claims conditions have exceeded a threshold, present tense, so a
+    /// reading old enough to be wrong about now must not produce one (AUD-028).
+    /// The limit is the series' own, not a second number kept beside it.
+    #[test]
+    fn a_reading_is_current_only_within_its_own_series_limit() {
+        let now = 1_800_000_000;
+
+        // noaa_kp allows 1800s. The boundary is inclusive on the fresh side.
+        assert!(reading_is_current("noaa_kp", now - 1_799, now));
+        assert!(reading_is_current("noaa_kp", now - 1_800, now));
+        assert!(!reading_is_current("noaa_kp", now - 1_801, now));
+
+        // noaa_kp_3h allows nine hours, because NOAA publishes it late. Reading
+        // the limit from the table rather than hardcoding one is what keeps the
+        // two from disagreeing.
+        assert!(reading_is_current("noaa_kp_3h", now - 32_400, now));
+        assert!(!reading_is_current("noaa_kp_3h", now - 32_401, now));
+
+        // Something the table has never heard of gets the safe answer.
+        assert!(!reading_is_current("not_a_component", now, now));
+
+        // And every series the alerts read from is actually in the table, so a
+        // rename cannot silently turn the check into "always stale".
+        for component in ["noaa_kp", "noaa_solar_wind"] {
+            assert!(
+                SERIES_FRESHNESS.iter().any(|s| s.component == component),
+                "{component} must have a freshness entry for the alert bound to mean anything"
+            );
+        }
     }
 
     /// Every write that changes how an account authenticates must invalidate
