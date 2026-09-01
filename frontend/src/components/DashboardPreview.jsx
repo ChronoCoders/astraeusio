@@ -11,19 +11,14 @@ import ForecastPanel from './ForecastPanel'
 // (× scale) so nothing is clipped.
 const DESIGN_W = 1180
 
-// Representative quiet-conditions fallback so the preview is always populated
-// (live public data replaces these whenever it's available).
-const SAMPLE_KP = (() => {
-  const base = Date.now() / 1000 - 24 * 3600
-  const vals = [1.0, 1.3, 2.0, 2.3, 1.7, 2.0, 2.7, 3.0, 2.3, 2.0, 1.7, 2.3, 2.7, 3.3, 2.7, 2.0]
-  return vals.map((v, i) => ({
-    time_tag: new Date((base + i * 5400) * 1000).toISOString().slice(0, 19),
-    kp_index: Math.round(v),
-    estimated_kp: v,
-  }))
-})()
-const SAMPLE_WIND = { speed: 412, density: 4.8 }
-const SAMPLE_FORECAST = { predicted_kp: 2.4, ci_lower: 2.1, ci_upper: 2.7, uncertainty: 0.18 }
+// There is no sample data here any more, deliberately.
+//
+// A stale series makes the backend return an empty array on purpose: that is
+// the guard that stopped dead feeds being drawn as current. This component used
+// to replace that empty array with an invented sixteen-point series, an invented
+// wind reading and an invented forecast, all under the same live labels the real
+// values use, so the staler the site became the more confident this panel
+// looked. Empty stays empty, the way the hero above it already does.
 
 const NAV = ['dashboard', 'forecast', 'charts', 'map', 'alerts', 'events', 'reports', 'api', 'billing', 'settings']
 
@@ -52,29 +47,29 @@ function MiniSidebar({ t }) {
 
 function DashboardCanvas({ kpData, wind, forecastData }) {
   const { t } = useTranslation()
-  // Metrics + forecast use live public data (with sample fallback); the chart
-  // always uses the representative 24h series - the public Kp endpoint only
-  // serves ~1 h, which looks too sparse for a marketing preview.
-  const liveKp = kpData && kpData.length ? kpData : SAMPLE_KP
-  const w = wind && wind.speed != null ? wind : SAMPLE_WIND
-  const fc = forecastData && forecastData.predicted_kp != null ? forecastData : SAMPLE_FORECAST
-  const latestKp = liveKp.filter(r => r.estimated_kp > 0).at(-1)?.estimated_kp ?? 0
-  const storm = stormInfo(latestKp)
+  const records = kpData ?? []
+  const latestKp = records.filter(r => r.estimated_kp > 0).at(-1)?.estimated_kp ?? null
+  // Null rather than a quiet-conditions default, so an absent reading cannot be
+  // rendered as "quiet" in either the label or the colour.
+  const storm = latestKp != null ? stormInfo(latestKp) : null
+  const fc = forecastData?.predicted_kp != null ? forecastData : null
 
   return (
     <div className="flex bg-zinc-950 text-left">
       <MiniSidebar t={t} />
       <div className="flex-1 p-4 flex flex-col gap-3 min-w-0">
         <div className="grid grid-cols-5 gap-3">
-          <MetricCard label={t('metrics.kpIndex')} value={fmtNum(latestKp, 2)} sub={t(storm.key)} valueCls={storm.cls} />
-          <MetricCard label={t('metrics.solarWindSpeed')} value={fmtNum(w.speed, 0)} unit="km/s" />
-          <MetricCard label={t('metrics.protonDensity')} value={fmtNum(w.density, 1)} unit="p/cm³" />
-          <MetricCard label={t('metrics.xrayClass')} value="B2.4" sub="2.4e-7 W/m²" />
-          <MetricCard label={t('metrics.stormLevel')} value={t(storm.key)} sub={`Kp ${fmtNum(latestKp, 1)}`} valueCls={storm.cls} />
+          <MetricCard label={t('metrics.kpIndex')} value={fmtNum(latestKp, 2)} sub={storm ? t(storm.key) : ''} valueCls={storm?.cls} />
+          <MetricCard label={t('metrics.solarWindSpeed')} value={fmtNum(wind?.speed, 0)} unit="km/s" />
+          <MetricCard label={t('metrics.protonDensity')} value={fmtNum(wind?.density, 1)} unit="p/cm³" />
+          {/* No public X-ray endpoint exists, so this card has never had a
+              source. It shows a dash rather than a plausible reading. */}
+          <MetricCard label={t('metrics.xrayClass')} value="-" />
+          <MetricCard label={t('metrics.stormLevel')} value={storm ? t(storm.key) : '-'} sub={`Kp ${fmtNum(latestKp, 1)}`} valueCls={storm?.cls} />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
-            <KpChart records={SAMPLE_KP} />
+            <KpChart records={records} />
           </div>
           <ForecastPanel data={fc} loading={false} onNavigate={() => {}} />
         </div>
