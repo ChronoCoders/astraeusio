@@ -21,6 +21,7 @@ POST /predict
 Run: uvicorn ml.serve:app --port 8000
 """
 
+import hashlib
 import math
 import os
 from contextlib import asynccontextmanager
@@ -181,6 +182,7 @@ def build_sequence(
 # ── App state ─────────────────────────────────────────────────────────────────
 
 class _State:
+    model_sha256: str = ""
     model: KpLSTM
     hp: dict[str, Any]
     meta: dict[str, Any]
@@ -208,10 +210,19 @@ async def lifespan(app: FastAPI):
     # The cost of the stricter loader is that anything non-primitive added to
     # the metadata later will fail here rather than at training time. Keep
     # train.py's saved metadata to builtins.
+    # Which file is actually serving. The checkpoint is not in version control
+    # and the image bundles whatever was on the machine that built it, so until
+    # this existed there was no way to tell from outside which run produced the
+    # model answering requests. The hash is of the file on disk, so it works for
+    # checkpoints trained before provenance was recorded inside them.
+    state.model_sha256 = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+
     ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
     hp = ckpt["hyperparams"]
     state.hp = hp
     state.meta = {
+        "provenance": ckpt.get("provenance", {}),
+        "target": hp.get("target", "level"),
         "seq_len": hp["seq_len"],
         "horizons": hp["horizons"],
         "trained_through": ckpt["trained_through"],
@@ -386,6 +397,11 @@ async def health() -> dict[str, Any]:
     }
     return {
         "status": "ok",
+        # `deploy-model.sh` polls this to confirm the file it placed is the file
+        # that loaded, and rolls back when it is not.
+        "model_sha256": state.model_sha256,
+        "provenance": state.meta["provenance"],
+        "target": state.meta["target"],
         "trained_through": state.meta["trained_through"],
         "seq_len": state.meta["seq_len"],
         "horizons": state.meta["horizons"],

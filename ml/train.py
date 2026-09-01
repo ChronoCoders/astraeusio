@@ -13,6 +13,7 @@ Output: ml/models/kp_lstm.pt
 import io
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -148,6 +149,19 @@ def normalize_features(df: pd.DataFrame, minmax: dict[str, tuple[float, float]])
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
+
+def _git_sha() -> str:
+    """Repo revision at training time, or "unknown" outside a checkout."""
+    try:
+        import subprocess
+
+        return subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=Path(__file__).parent, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        return "unknown"
+
 
 def make_sequences(
     values: np.ndarray,      # (T, N_FEATURES), already normalised
@@ -439,6 +453,16 @@ def main() -> None:
                     "sn": float(df["sn"].mean()),
                     "f107_1d_delta": 0.0,
                 },
+            },
+            # Who made this file. The checkpoint is gitignored and the image
+            # bundles whatever was on the build machine, so without this the
+            # only identity a deployed model has is its hash.
+            "provenance": {
+                "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "git_sha": _git_sha(),
+                "rows": int(T),
+                "target": list(HORIZON_TARGETS),
+                "horizons": list(HORIZON_HOURS),
             },
             "validation": {
                 "n_folds": N_FOLDS,
