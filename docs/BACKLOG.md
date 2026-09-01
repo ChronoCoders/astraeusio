@@ -103,9 +103,33 @@ repeated here.
 
   The 3h figure is what `/api/public/forecast`, the MCP tool `get_kp_forecast` and the landing page
   all serve. Nothing published says the forecast beats persistence, so nothing is false, but
-  shipping an LSTM, an inference service and a 1.77 GB image implies it. Not fixed and deliberately
-  not designed: the options are not comparable until the result is confirmed on a longer
-  out-of-sample window, and the decision is the user's.
+  shipping an LSTM, an inference service and a 1.77 GB image implies it.
+
+  **The bar any retrain has to clear**, fixed 2026-09-01 before the retrain so it cannot be moved
+  afterwards. Out-of-sample MAE, 2026-05-03 to 2026-08-30, held-out portion, by horizon
+  3h / 6h / 12h / 24h. Today's model: **0.599 / 0.692 / 0.797 / 0.862**. Persistence:
+  **0.581 / 0.696 / 0.857 / 1.009**. A two-parameter least squares fit on the last observation
+  alone, fitted on the first 60 percent and measured on the rest: **0.568 / 0.670 / 0.797 / 0.923**.
+  The linear fit is the real bar at 3h and 6h, because it beats both the model and persistence
+  there. A retrained model that does not beat 0.568 and 0.670 has not fixed anything, whatever its
+  MAE looks like beside today's.
+
+- **AUD-031** **The model loses to persistence at both ends of the Kp range, and storms are 1.9
+  percent of the training set.** Added 2026-09-01. Model MAE minus persistence MAE by observed Kp,
+  in sample at 3h: -0.067 in the 0 to 2 band, +0.188 at 2 to 3, +0.085 at 3 to 4, -0.124 at 4 to 5,
+  **-0.656 at Kp >= 5**. At 24h the storm gap is -0.811. It wins only in the middle band, and this
+  is on data it trained on, so it is a fitting failure rather than a generalisation failure.
+
+  The cause is the training distribution meeting a squared-error loss on the Kp level: 1119 of 59296
+  slots are at Kp >= 5, 1.9 percent, and 317 at Kp >= 6, 0.5 percent, so the gradient from the quiet
+  bulk decides the fit. Measured prediction ranges, out of sample: 0.80 to 5.35 at 3h and 1.18 to
+  3.44 at 24h, against observations reaching 7.33. Beyond twelve hours the model cannot emit a
+  storm-level number at all.
+
+  Deliberately out of scope for the 2026-09-01 retrain, which changes the target parameterisation
+  only, because mixing the two would make neither attributable. Candidates: activity-weighted
+  sampling, an asymmetric penalty on under-forecasting, or a separate storm-regime model. Each needs
+  measuring against persistence conditional on Kp >= 5 rather than marginally.
 
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
