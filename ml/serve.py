@@ -337,6 +337,19 @@ async def predict(req: PredictRequest) -> PredictResponse:
     state.model.eval()
 
     samples_kp = samples.squeeze(1).numpy() * kp_max   # (MC, H) de-normalised → Kp units
+
+    # A "residual" checkpoint emits the change from the newest reading rather
+    # than the level, so the reading is added back here. Older checkpoints have
+    # no `target` key and are levels, which is why the default is "level" rather
+    # than the current value: a rollback to a previous model must still serve
+    # correct numbers rather than tiny ones.
+    target = state.hp.get("target", "level")
+    if isinstance(target, str):
+        target = [target] * samples_kp.shape[1]
+    for k, mode in enumerate(target):
+        if mode == "residual":
+            samples_kp[:, k] += req.readings[-1]
+
     mean_kp = np.mean(samples_kp, axis=0)
     std_kp = np.std(samples_kp, axis=0)
 
