@@ -191,8 +191,11 @@ fn check_xray(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 }
 
 fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
-    let since = now() - 7 * 24 * 3600;
-    for (id, date, dist_scaled) in db.neo_close_approaches_raw(ONE_LD_SCALED, since)? {
+    // Seven days forward, which is exactly the window the poller requests from
+    // NeoWs, so the detector's horizon and the data's horizon are one number
+    // rather than two that can drift apart.
+    const HORIZON_DAYS: i64 = 7;
+    for (id, date, dist_scaled) in db.neo_close_approaches_raw(ONE_LD_SCALED, HORIZON_DAYS)? {
         let severity = neo_severity(dist_scaled);
         let dist_km = dist_scaled as f64 / 1_000.0;
         let dist_ld = dist_km / 384_400.0;
