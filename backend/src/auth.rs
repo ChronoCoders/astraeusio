@@ -47,6 +47,71 @@ impl TokenPurpose {
     }
 }
 
+/// Addresses are stored and compared in lower case, everywhere.
+///
+/// They were not, except on the OAuth path, which lowercased. So `Alice@x.com`
+/// registering after `alice@x.com` created a second account, and a reset issued
+/// for one casing never reached the other row (AUD-019). Mail domains are case
+/// insensitive and no real provider treats the local part otherwise.
+pub(crate) fn normalise_email(raw: &str) -> String {
+    raw.trim().to_lowercase()
+}
+
+/// The password rule, applied identically wherever a password is set.
+///
+/// Length only, no composition rules. A rule demanding a symbol and a digit
+/// buys predictable substitutions rather than entropy, which is why NIST
+/// stopped recommending them; length is the property that reliably helps.
+///
+/// Twelve rather than eight. Eight was the floor at `change_password` and
+/// `reset_password` while `register` enforced nothing at all, so an account
+/// could be created with a password it could never later be changed to
+/// (AUD-016). Raising the floor while fixing the split costs nothing: existing
+/// passwords keep working and only a new one has to clear it.
+///
+/// The upper bound is not arbitrary either. bcrypt hashes at most 72 bytes and
+/// silently ignores the rest, so a 100 character passphrase has 28 characters
+/// that do nothing, and two passphrases sharing a 72 byte prefix both open the
+/// account. Refusing is honest; truncating quietly is not.
+pub(crate) const MIN_PASSWORD_BYTES: usize = 12;
+pub(crate) const MAX_PASSWORD_BYTES: usize = 72;
+
+pub(crate) fn validate_password(password: &str) -> Result<(), &'static str> {
+    if password.len() < MIN_PASSWORD_BYTES {
+        return Err("password must be at least 12 characters");
+    }
+    if password.len() > MAX_PASSWORD_BYTES {
+        return Err("password must be at most 72 bytes, which is what bcrypt hashes");
+    }
+    Ok(())
+}
+
+/// A structural check, not an RFC 5322 parser and not a deliverability check.
+///
+/// It rejects what cannot be an address rather than trying to decide what is
+/// one: the only proof an address works is mail arriving at it, which the
+/// verification flow already does. `register` previously accepted anything,
+/// including the empty string.
+pub(crate) fn validate_email(email: &str) -> Result<(), &'static str> {
+    const MAX_EMAIL_BYTES: usize = 254; // RFC 5321 path limit
+    if email.is_empty() || email.len() > MAX_EMAIL_BYTES {
+        return Err("email address is not a valid length");
+    }
+    if email.chars().any(char::is_whitespace) {
+        return Err("email address must not contain spaces");
+    }
+    let Some((local, domain)) = email.split_once('@') else {
+        return Err("email address must contain @");
+    };
+    if local.is_empty() || domain.is_empty() || domain.contains('@') {
+        return Err("email address is not valid");
+    }
+    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
+        return Err("email domain is not valid");
+    }
+    Ok(())
+}
+
 /// Validation that accepts exactly one audience and refuses a token that omits
 /// `aud`, `exp` or `sub`. `Validation::default` checks the signature and `exp`
 /// and nothing else, which is why any token signed with the shared secret used
@@ -77,6 +142,17 @@ struct PurposeClaims {
     sub: String,
     exp: u64,
     aud: String,
+    /// `users.token_version` when the link was minted. A password reset bumps
+    /// it, so following the same link twice fails the second time instead of
+    /// staying live for the rest of its hour (AUD-018).
+    ///
+    /// Note what this removes. Before it existed, a purpose token could not
+    /// deserialize into `AuthClaims` because that struct has `ver` and this one
+    /// did not, which accidentally blocked replaying a reset link as a session.
+    /// That barrier is gone now, and the deliberate one, the audience check, is
+    /// what remains. `a_token_that_differs_only_in_audience_is_rejected` exists
+    /// precisely because the accident was doing the work.
+    ver: i64,
 }
 
 #[derive(Deserialize)]
@@ -131,6 +207,7 @@ pub(crate) fn purpose_token(
     purpose: TokenPurpose,
     ttl: i64,
     secret: &str,
+    ver: i64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let exp = (chrono::Utc::now().timestamp() + ttl) as u64;
     encode(
@@ -139,16 +216,47 @@ pub(crate) fn purpose_token(
             sub: sub.to_string(),
             exp,
             aud: purpose.aud().to_string(),
+            ver,
         },
         &EncodingKey::from_secret(secret.as_bytes()),
     )
+}
+
+/// The account's current token version, or 0 when it cannot be read.
+///
+/// Zero is the value a fresh account carries, so a link minted against a
+/// failed read is refused rather than accepted: the check below compares
+/// against the stored value, which is 1 or more for any account whose password
+/// has ever changed.
+pub(crate) async fn current_token_version(s: &AppState, email: &str) -> i64 {
+    s.db.lock()
+        .await
+        .get_token_version(email)
+        .unwrap_or_default()
+}
+
+/// Decodes a purpose token and refuses one minted before the account's
+/// authentication last changed.
+///
+/// One function rather than a check at each call site, because a rule written
+/// into one of three call sites is how the anomaly feed leaked for three weeks.
+async fn decode_purpose_checked(
+    s: &AppState,
+    token: &str,
+    purpose: TokenPurpose,
+) -> Result<String, &'static str> {
+    let (email, ver) = decode_purpose(token, purpose, &s.jwt_secret)?;
+    if ver != current_token_version(s, &email).await {
+        return Err("link has already been used or is no longer valid");
+    }
+    Ok(email)
 }
 
 fn decode_purpose(
     token: &str,
     purpose: TokenPurpose,
     secret: &str,
-) -> Result<String, &'static str> {
+) -> Result<(String, i64), &'static str> {
     let claims = decode::<PurposeClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
@@ -156,7 +264,7 @@ fn decode_purpose(
     )
     .map_err(|_| "invalid or expired token")?
     .claims;
-    Ok(claims.sub)
+    Ok((claims.sub, claims.ver))
 }
 
 // ── TOTP helpers ──────────────────────────────────────────────────────────────
@@ -185,7 +293,25 @@ fn check_totp(secret_b32: &str, account: &str, code: &str) -> Result<bool, &'sta
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterRequest>) -> Response {
-    let email = body.email.clone();
+    // The same two rules `change_password` and `reset_password` apply. They ran
+    // there and not here, so an account could be created with a password it
+    // could never be changed to (AUD-016), and with an address that was not an
+    // address at all.
+    let email = normalise_email(&body.email);
+    if let Err(reason) = validate_email(&email) {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": reason })),
+        )
+            .into_response();
+    }
+    if let Err(reason) = validate_password(&body.password) {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({ "error": reason })),
+        )
+            .into_response();
+    }
     let password = body.password;
     let hash =
         match tokio::task::spawn_blocking(move || bcrypt::hash(password, bcrypt::DEFAULT_COST))
@@ -214,7 +340,8 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
         Ok(()) => {
             // Fire verification email if mailer is configured.
             if let Some(ref mc) = s.mailer
-                && let Ok(token) = purpose_token(&email, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret)
+                && let Ok(token) =
+                    purpose_token(&email, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret, 0)
             {
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
@@ -244,15 +371,18 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     // Before the database read and before bcrypt. Verifying a hash at the
     // default cost is deliberately slow, so an unthrottled login endpoint is
     // both a guessing oracle and a way to saturate the blocking pool.
-    if let Some(wait) = rate_limit::attempt_blocked_for(&s.login_failures, &body.email) {
-        warn!(source = "auth/login", subject = %body.email, wait, "attempt refused, backing off");
+    // Normalised here as well as at registration, so the backoff counter and the
+    // lookup cannot be split across two spellings of one account.
+    let email = normalise_email(&body.email);
+    if let Some(wait) = rate_limit::attempt_blocked_for(&s.login_failures, &email) {
+        warn!(source = "auth/login", subject = %email, wait, "attempt refused, backing off");
         return rate_limit::too_many_attempts_response(wait);
     }
 
-    let user = match s.db.lock().await.find_user_by_email(&body.email) {
+    let user = match s.db.lock().await.find_user_by_email(&email) {
         Ok(Some(u)) => u,
         Ok(None) => {
-            rate_limit::record_failure(&s.login_failures, &body.email);
+            rate_limit::record_failure(&s.login_failures, &email);
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({ "error": "invalid credentials" })),
@@ -292,7 +422,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     };
 
     if !valid {
-        rate_limit::record_failure(&s.login_failures, &body.email);
+        rate_limit::record_failure(&s.login_failures, &email);
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({ "error": "invalid credentials" })),
@@ -303,12 +433,13 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     // The password was correct. A 2FA account is not signed in yet, so its
     // record is cleared when the code is accepted rather than here.
     if !user.totp_enabled {
-        rate_limit::clear_failures(&s.login_failures, &body.email);
+        rate_limit::clear_failures(&s.login_failures, &email);
     }
 
     // If 2FA is active, issue a short-lived partial token instead of a full JWT.
     if user.totp_enabled {
-        match purpose_token(&user.email, TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret) {
+        let ver = current_token_version(&s, &user.email).await;
+        match purpose_token(&user.email, TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret, ver) {
             Ok(partial) => {
                 return Json(serde_json::json!({ "requires_2fa": true, "partial_token": partial }))
                     .into_response();
@@ -328,7 +459,7 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
 }
 
 pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequest>) -> Response {
-    let email = match decode_purpose(&body.partial_token, TokenPurpose::TwoFactorPartial, &s.jwt_secret) {
+    let email = match decode_purpose_checked(&s, &body.partial_token, TokenPurpose::TwoFactorPartial).await {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -410,7 +541,7 @@ pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequ
 // ── Email verification ─────────────────────────────────────────────────────────
 
 pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) -> Response {
-    let email = match decode_purpose(&token, TokenPurpose::VerifyEmail, &s.jwt_secret) {
+    let email = match decode_purpose_checked(&s, &token, TokenPurpose::VerifyEmail).await {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -471,7 +602,9 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
             .into_response();
     }
 
-    let token = match purpose_token(&claims.sub, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret) {
+    let ver = current_token_version(&s, &claims.sub).await;
+    let token = match purpose_token(&claims.sub, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret, ver)
+    {
         Ok(t) => t,
         Err(e) => {
             warn!("token gen error: {e}");
@@ -494,6 +627,30 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
 }
 
 // ── 2FA setup / verify / disable ─────────────────────────────────────────────
+
+/// Turns the second factor on or off and drops the cached token version in the
+/// same call.
+///
+/// One function rather than two statements at each of two call sites. The
+/// extractor caches `token_version` in the usage counter entry beside the plan,
+/// so a bump that nobody tells the cache about does nothing until the entry
+/// expires: `a_stale_cache_entry_would_defeat_the_invalidation` is the test that
+/// pins exactly that. A plan change already clears the entry and a password
+/// change was made to, which made 2FA the third writer to the same entry, and a
+/// third call site remembering a second statement is where this goes wrong.
+/// Pairing the write with the clear here means the pairing cannot be forgotten
+/// by whatever writes the fourth.
+async fn set_second_factor(s: &AppState, email: String, enabled: bool) -> Result<(), DbError> {
+    let result = if enabled {
+        s.writer.enable_totp(email.clone()).await
+    } else {
+        s.writer.disable_totp(email.clone()).await
+    };
+    if result.is_ok() {
+        rate_limit::clear_user_cache(&s.usage_counter, &email);
+    }
+    result
+}
 
 pub async fn setup_2fa(State(s): State<AppState>, claims: AuthClaims) -> Response {
     let user = match s.db.lock().await.find_user_by_email(&claims.sub) {
@@ -671,7 +828,7 @@ pub async fn verify_2fa(
         }
     }
 
-    match s.writer.enable_totp(claims.sub).await {
+    match set_second_factor(&s, claims.sub, true).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             warn!("enable_totp: {e}");
@@ -746,7 +903,7 @@ pub async fn disable_2fa(
         }
     }
 
-    match s.writer.disable_totp(claims.sub).await {
+    match set_second_factor(&s, claims.sub, false).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             warn!("disable_totp: {e}");
@@ -766,10 +923,10 @@ pub async fn change_password(
     claims: AuthClaims,
     Json(body): Json<ChangePasswordRequest>,
 ) -> Response {
-    if body.new_password.len() < 8 {
+    if let Err(reason) = validate_password(&body.new_password) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "new password must be at least 8 characters" })),
+            Json(serde_json::json!({ "error": reason })),
         )
             .into_response();
     }
@@ -874,13 +1031,16 @@ pub async fn forgot_password(
     Json(body): Json<ForgotPasswordRequest>,
 ) -> Response {
     // Always 204 - never reveal whether the email exists.
+    let requested = normalise_email(&body.email);
+    let ver = current_token_version(&s, &requested).await;
     if let Some(ref mc) = s.mailer
-        && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&body.email)
-        && let Ok(token) = purpose_token(&body.email, TokenPurpose::ResetPassword, 3_600, &s.jwt_secret)
+        && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&requested)
+        && let Ok(token) =
+            purpose_token(&requested, TokenPurpose::ResetPassword, 3_600, &s.jwt_secret, ver)
     {
         let url = format!("{}/reset-password?token={}", s.app_url, token);
         let mc = mc.clone();
-        let email = body.email.clone();
+        let email = requested.clone();
         tokio::spawn(async move {
             mailer::send_password_reset_email(&mc, &email, &url).await;
         });
@@ -892,15 +1052,15 @@ pub async fn reset_password(
     State(s): State<AppState>,
     Json(body): Json<ResetPasswordRequest>,
 ) -> Response {
-    if body.new_password.len() < 8 {
+    if let Err(reason) = validate_password(&body.new_password) {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "password must be at least 8 characters" })),
+            Json(serde_json::json!({ "error": reason })),
         )
             .into_response();
     }
 
-    let email = match decode_purpose(&body.token, TokenPurpose::ResetPassword, &s.jwt_secret) {
+    let email = match decode_purpose_checked(&s, &body.token, TokenPurpose::ResetPassword).await {
         Ok(e) => e,
         Err(e) => {
             return (
@@ -1172,7 +1332,7 @@ mod tests {
         let state = test_state();
         for purpose in EVERY_PURPOSE {
             let token =
-                purpose_token("user@example.com", purpose, 300, SECRET).expect("mint");
+                purpose_token("user@example.com", purpose, 300, SECRET, 0).expect("mint");
             let got = extract(&state, &token).await;
             assert_eq!(
                 got.err(),
@@ -1244,6 +1404,122 @@ mod tests {
         assert_eq!(claims.aud, AUD_SESSION);
     }
 
+    /// A reset link used once must not work twice.
+    ///
+    /// It stayed live for its full hour: the link carried no version, so
+    /// nothing about following it made it stale. Anyone who saw the URL after
+    /// the fact, in a shared inbox, a browser history, a proxy log, could set
+    /// the password again (AUD-018).
+    #[tokio::test]
+    async fn a_used_reset_link_is_refused_the_second_time() {
+        let state = test_state();
+        let email = "reset@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create user");
+        }
+
+        let ver = current_token_version(&state, email).await;
+        let link = purpose_token(email, TokenPurpose::ResetPassword, 3_600, SECRET, ver)
+            .expect("mint");
+
+        assert_eq!(
+            decode_purpose_checked(&state, &link, TokenPurpose::ResetPassword).await,
+            Ok(email.to_string()),
+            "the link must work the first time"
+        );
+
+        // Following it sets a password, which bumps the version.
+        {
+            let db = state.db.lock().await;
+            db.update_password_hash(email, "new-hash").expect("set password");
+        }
+
+        assert!(
+            decode_purpose_checked(&state, &link, TokenPurpose::ResetPassword)
+                .await
+                .is_err(),
+            "the same link must not work again"
+        );
+    }
+
+    /// Turning the second factor on must invalidate tokens minted before it.
+    ///
+    /// Somebody enables 2FA because they think a session is stolen. Before this,
+    /// the thief kept a working token for up to twenty four hours: the
+    /// countermeasure did not touch the thing it was taken against.
+    #[tokio::test]
+    async fn enabling_the_second_factor_invalidates_existing_sessions() {
+        let state = test_state();
+        let email = "totp@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create user");
+        }
+
+        let old_token = session_jwt(email, SECRET, 0).expect("mint");
+        extract(&state, &old_token).await.expect("valid before the change");
+
+        {
+            let db = state.db.lock().await;
+            db.enable_totp(email).expect("enable");
+            assert_eq!(
+                db.get_token_version(email).expect("version"),
+                1,
+                "the flag and the version must move together"
+            );
+        }
+        // set_second_factor pairs this with the write; do the same here.
+        rate_limit::clear_user_cache(&state.usage_counter, email);
+
+        assert_eq!(
+            extract(&state, &old_token).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "a token minted before 2FA was enabled must be refused"
+        );
+    }
+
+    /// One rule, wherever a password is set. `register` enforced nothing while
+    /// the other two enforced eight characters, so an account could be created
+    /// with a password it could never be changed to (AUD-016).
+    #[test]
+    fn the_password_rule_is_the_same_wherever_a_password_is_set() {
+        assert!(validate_password("").is_err());
+        assert!(validate_password("short").is_err());
+        assert!(validate_password(&"a".repeat(MIN_PASSWORD_BYTES - 1)).is_err());
+        assert!(validate_password(&"a".repeat(MIN_PASSWORD_BYTES)).is_ok());
+        // bcrypt hashes 72 bytes and silently ignores the rest, so a longer one
+        // would have characters that do nothing.
+        assert!(validate_password(&"a".repeat(MAX_PASSWORD_BYTES)).is_ok());
+        assert!(validate_password(&"a".repeat(MAX_PASSWORD_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn an_address_that_cannot_be_one_is_refused() {
+        for good in ["a@b.co", "first.last@sub.example.com", "x+tag@example.co.uk"] {
+            assert!(validate_email(good).is_ok(), "{good} should be accepted");
+        }
+        for bad in ["", "no-at-sign", "@example.com", "user@", "user@nodot",
+                    "user@.example.com", "user@example.", "two@at@example.com",
+                    "has space@example.com"] {
+            assert!(validate_email(bad).is_err(), "{bad} should be refused");
+        }
+    }
+
+    /// Addresses are folded before anything looks them up, so one account
+    /// cannot become two by capitalisation, and a reset issued for one spelling
+    /// reaches the row that exists (AUD-019).
+    #[test]
+    fn addresses_are_normalised_before_anything_looks_them_up() {
+        for (raw, expected) in [
+            ("Alice@Example.COM", "alice@example.com"),
+            ("  alice@example.com  ", "alice@example.com"),
+            ("ALICE@EXAMPLE.COM", "alice@example.com"),
+        ] {
+            assert_eq!(normalise_email(raw), expected);
+        }
+    }
+
     /// The other direction: a full session must not stand in for the short
     /// lived token a flow demands, so a stolen session cannot complete someone
     /// else's 2FA login or password reset.
@@ -1263,9 +1539,9 @@ mod tests {
     #[test]
     fn a_purpose_token_is_accepted_only_for_its_own_purpose() {
         for minted in EVERY_PURPOSE {
-            let token = purpose_token("user@example.com", minted, 300, SECRET).expect("mint");
+            let token = purpose_token("user@example.com", minted, 300, SECRET, 0).expect("mint");
             assert_eq!(
-                decode_purpose(&token, minted, SECRET).ok().as_deref(),
+                decode_purpose(&token, minted, SECRET).ok().map(|(sub, _)| sub).as_deref(),
                 Some("user@example.com"),
                 "{} must satisfy its own purpose",
                 minted.aud()

@@ -246,7 +246,7 @@ pub async fn callback(
         _ => Err("provider_unavailable"),
     };
     let email = match email {
-        Ok(e) => e.to_lowercase(),
+        Ok(e) => auth::normalise_email(&e),
         Err(code) => {
             warn!("oauth {provider} exchange failed: {code}");
             return error_redirect(&app_url, code);
@@ -285,7 +285,9 @@ pub async fn callback(
 
     // 2FA is enforced even for social login: hand back a partial token instead.
     if totp_enabled {
-        match auth::purpose_token(&email, auth::TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret) {
+        let ver = auth::current_token_version(&s, &email).await;
+        match auth::purpose_token(&email, auth::TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret, ver)
+        {
             Ok(t) => frontend_redirect(&app_url, &format!("partial_token={t}")),
             Err(e) => {
                 warn!("oauth 2fa partial token error: {e}");

@@ -1616,10 +1616,10 @@ mod mcp_tests {
     async fn mcp_rejects_tokens_that_are_not_sessions() {
         let state = test_state();
         let oauth_state = crate::oauth::sign_state("github", SECRET).expect("mint state");
-        let verify = purpose_token("user@example.com", TokenPurpose::VerifyEmail, 300, SECRET)
+        let verify = purpose_token("user@example.com", TokenPurpose::VerifyEmail, 300, SECRET, 0)
             .expect("mint verify");
         let partial =
-            purpose_token("user@example.com", TokenPurpose::TwoFactorPartial, 300, SECRET)
+            purpose_token("user@example.com", TokenPurpose::TwoFactorPartial, 300, SECRET, 0)
                 .expect("mint partial");
 
         for (label, token) in [
