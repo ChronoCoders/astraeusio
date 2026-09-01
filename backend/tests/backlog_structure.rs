@@ -116,3 +116,63 @@ fn no_declared_section_is_empty() {
          contents to an edit that reached further than it meant to."
     );
 }
+
+/// Every finding the backlog carries a bullet for.
+///
+/// The section list above catches a whole section vanishing. It does not catch
+/// one bullet vanishing out of a section that still has others, and that is the
+/// failure that actually happened twice in two days: an edit that replaced the
+/// span between two anchors deleted an entry that had been written into that
+/// span moments earlier. Both times in this file, both times invisible to the
+/// checks that existed, both times found by counting things by hand for an
+/// unrelated reason.
+///
+/// The findings already have stable identifiers, so declaring them costs one
+/// line each and makes a disappearance a compile-level fact rather than
+/// something noticed later. Removing a finding stays possible and becomes
+/// deliberate: delete the bullet and delete it here, in one commit, with both
+/// halves in the diff.
+///
+/// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
+/// they have nothing stable to key on, which is a real gap and is why new
+/// findings worth tracking should get an identifier rather than a description.
+const FINDINGS: [&str; 24] = [
+    "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
+    "AUD-016", "AUD-017", "AUD-018", "AUD-019", "AUD-020", "AUD-021",
+    "AUD-022", "AUD-023", "AUD-024", "AUD-025", "AUD-026", "AUD-027",
+    "AUD-028", "AUD-029", "AUD-030", "AUD-031", "AUD-032", "AUD-033",
+];
+
+/// Identifiers of every finding bullet in the file, in order, duplicates kept.
+///
+/// A finding can legitimately appear twice: `AUD-013` has its deferred pieces in
+/// its own section and its remainder under the open findings, and `AUD-026` and
+/// `AUD-027` do the same. So this compares sets, not counts.
+fn findings_in_file() -> Vec<&'static str> {
+    BACKLOG
+        .lines()
+        .filter_map(|l| l.strip_prefix("- **"))
+        .filter_map(|l| l.split("**").next())
+        .filter(|id| id.starts_with("AUD-") && id.len() == 7)
+        .collect()
+}
+
+#[test]
+fn every_declared_finding_still_has_a_bullet() {
+    let found = findings_in_file();
+
+    let missing: Vec<&&str> = FINDINGS.iter().filter(|id| !found.contains(&**id)).collect();
+    let extra: Vec<&&str> = found
+        .iter()
+        .filter(|id| !FINDINGS.contains(&**id))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "docs/BACKLOG.md no longer has a bullet for {missing:?}.          If the finding was closed, remove it from FINDINGS in the same commit          so the diff shows both halves. If it was not, an edit ate it, which is          what this test is for: it has happened twice."
+    );
+    assert!(
+        extra.is_empty(),
+        "docs/BACKLOG.md has findings that are not declared: {extra:?}.          Add them to FINDINGS so the next accidental deletion fails here."
+    );
+}
