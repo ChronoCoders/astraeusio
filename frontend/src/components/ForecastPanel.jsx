@@ -23,7 +23,11 @@ function Row({ label, children }) {
   )
 }
 
-export default function ForecastPanel({ data, loading, error, onNavigate }) {
+// `showSpread` is off on the landing page preview. The band is model
+// disagreement rather than a forecast interval, and a marketing surface has no
+// room to say so, so it shows the point forecast alone. The dashboard and the
+// Forecast page keep it, with the coverage stated beside it there.
+export default function ForecastPanel({ data, loading, error, onNavigate, showSpread = true }) {
   const { t } = useTranslation()
 
   if (loading) return <Panel><p className="text-zinc-600 text-sm">{t('forecast.loading')}</p></Panel>
@@ -42,14 +46,16 @@ export default function ForecastPanel({ data, loading, error, onNavigate }) {
         <span className={`font-mono text-3xl font-semibold ${storm.cls}`}>{fmtNum(kp, 2)}</span>
       </Row>
 
-      <Row label={t('forecast.ci')}>
-        <div className="flex items-center gap-1 font-mono text-sm">
-          <span className="text-zinc-300">{fmtNum(data.ci_lower, 2)}</span>
-          <span className="text-zinc-600 px-1">-</span>
-          <span className="text-zinc-300">{fmtNum(data.ci_upper, 2)}</span>
-          <span className="text-zinc-500 text-xs ml-1">Kp</span>
-        </div>
-      </Row>
+      {showSpread && (
+        <Row label={t('forecast.ci')}>
+          <div className="flex items-center gap-1 font-mono text-sm">
+            <span className="text-zinc-300">{fmtNum(data.ci_lower, 2)}</span>
+            <span className="text-zinc-600 px-1">-</span>
+            <span className="text-zinc-300">{fmtNum(data.ci_upper, 2)}</span>
+            <span className="text-zinc-500 text-xs ml-1">Kp</span>
+          </div>
+        </Row>
+      )}
 
       <Row label={t('forecast.stormProb')}>
         <Bar value={prob} cls={prob > 0.5 ? 'bg-orange-400' : prob > 0.2 ? 'bg-yellow-400' : 'bg-zinc-400'} />

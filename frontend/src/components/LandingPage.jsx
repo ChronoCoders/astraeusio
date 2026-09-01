@@ -631,7 +631,9 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           F10.7 adjusted radio flux, sunspot number, and the 24-hour F10.7 delta. A multi-horizon
           head emits four predictions in a single pass - 3, 6, 12, and 24 hours ahead - and Monte
           Carlo Dropout sampling runs 50 forward passes per request to produce per-horizon outputs:
-          predicted Kp, a 95% confidence interval, and an uncertainty estimate. The model was
+          predicted Kp and the spread across those passes. That spread is the model
+          disagreeing with itself, not a calibrated forecast interval: measured against observed
+          Kp, about 13% of outcomes fall inside it. The model was
           trained with walk-forward validation and a weighted Huber loss across horizons. Forecasts
           are cached for 3 minutes and refreshed on demand via the API.
         </p>
@@ -719,8 +721,8 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         <p>
           Public API endpoints available without authentication: GET /api/public/kp returns the
           latest Kp reading; GET /api/public/solar-wind returns the latest solar wind speed and
-          proton density; GET /api/public/forecast returns the latest ML Kp forecast with
-          confidence interval. Authenticated endpoints require a Bearer token: GET /api/kp returns
+          proton density; GET /api/public/forecast returns the latest ML Kp forecast with its
+          model spread. Authenticated endpoints require a Bearer token: GET /api/kp returns
           the full 1-minute Kp time series; GET /api/kp-3h returns the official 3-hour Kp index;
           GET /api/kp-forecast returns the cached ML forecast; GET /api/solar-wind returns the
           full solar wind history; GET /api/xray returns X-ray flux readings; GET /api/imf returns

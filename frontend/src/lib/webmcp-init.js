@@ -32,7 +32,7 @@ const TOOLS = [
   {
     name: 'get_kp_forecast',
     title: 'Kp Forecast',
-    description: 'Get the 3-hour ML Kp forecast with 95% confidence interval from an LSTM model trained on 20+ years of NOAA data.',
+    description: 'Get the 3-hour ML Kp forecast with the model spread across 50 inference passes, from an LSTM trained on 20+ years of NOAA data.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/forecast').then(r => r.json()),

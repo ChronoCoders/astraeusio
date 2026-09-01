@@ -102,6 +102,10 @@ function CurrentForecastHero({ data }) {
         {horizons.map(h => <HorizonCard key={h.horizon_hours} h={h} />)}
       </div>
 
+      {/* The band is kept here, where there is room to say what it is, and
+          taken off the marketing surfaces, where there is not. */}
+      <p className="text-zinc-500 text-xs leading-relaxed">{t('forecast.spreadNote')}</p>
+
       <div className="flex items-center gap-2 text-xs border-t border-zinc-800 pt-3">
         <span className="text-zinc-600 uppercase tracking-widest">{t('forecast.aurora')}</span>
         <span className="text-zinc-300">

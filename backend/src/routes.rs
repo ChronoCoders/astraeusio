@@ -1411,7 +1411,7 @@ fn mcp_text(data: serde_json::Value) -> serde_json::Value {
 const MCP_TOOLS: &str = r#"{"tools":[
   {"name":"get_current_kp","description":"Get the current Kp index and recent readings from NOAA (no auth required).","inputSchema":{"type":"object","properties":{}}},
   {"name":"get_solar_wind","description":"Get the latest solar wind speed and density from NOAA DSCOVR (no auth required).","inputSchema":{"type":"object","properties":{}}},
-  {"name":"get_kp_forecast","description":"Get the ML 3-hour Kp forecast with 95% confidence interval (no auth required).","inputSchema":{"type":"object","properties":{}}},
+  {"name":"get_kp_forecast","description":"Get the ML 3-hour Kp forecast with the model spread across 50 inference passes (no auth required).","inputSchema":{"type":"object","properties":{}}},
   {"name":"get_health","description":"Get service health status for all data sources (no auth required).","inputSchema":{"type":"object","properties":{}}},
   {"name":"get_anomalies","description":"Get detected space weather anomalies: storms, flares, solar wind spikes, asteroid close approaches. Requires Bearer token.","inputSchema":{"type":"object","properties":{}}},
   {"name":"get_neo","description":"Get NASA near-Earth object close approaches for the next 7 days with hazard flags. Requires Bearer token.","inputSchema":{"type":"object","properties":{}}},
