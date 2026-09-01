@@ -104,6 +104,25 @@ repeated here.
   same expanding-window fold structure. That claim is carried forward under AUD-032 and re-measured
   after the index fix.
 
+- No ID. **The bar for the 2026-09-01 retrain**, re-derived after AUD-032 and recorded before the
+  run so it cannot move afterwards. Everything below is measured **at matched leads**: model,
+  persistence and the linear fit all answering the same horizon. The previous bar is withdrawn,
+  because its model column was measured against a mislabelled head.
+
+  The baselines never involved the model, so they carry over unchanged, and they are the bar.
+
+  Storm-rich walk-forward window, expanding-window fit, fold evaluation, 4 folds, 5840 slots with
+  299 at Kp >= 5. Persistence **0.684 / 0.882 / 1.061 / 1.228** and the two-parameter fit
+  **0.669 / 0.826 / 0.958 / 1.054** at 3h / 6h / 12h / 24h. This is the window that decides, because
+  it contains the storms.
+
+  Out-of-sample window, 375 held-out windows, 2026-07-14 to 2026-08-29, quiet. Persistence
+  **0.581 / 0.696 / 0.857 / 1.009** and the two-parameter fit **0.568 / 0.670 / 0.797 / 0.923**.
+
+  A retrained model has to beat the two-parameter fit on the storm-rich window at the horizon it is
+  published as. Beating it only on the quiet window is what happened last time and it did not
+  survive contact with the larger sample.
+
 - **AUD-031** **The model loses to persistence at both ends of the Kp range, and storms are 1.9
   percent of the training set.** Added 2026-09-01. Model MAE minus persistence MAE by observed Kp,
   in sample at 3h: -0.067 in the 0 to 2 band, +0.188 at 2 to 3, +0.085 at 3 to 4, -0.124 at 4 to 5,

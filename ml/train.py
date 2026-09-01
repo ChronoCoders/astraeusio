@@ -303,13 +303,41 @@ def main() -> None:
     # the zero of the target, which is what a short lead wants; at 24h
     # persistence is a poor forecast and the mean is a good one, so a change
     # target makes the model work for something the level target gave it free.
+    # `make_sequences` pairs X[i] = values[i : i+SEQ_LEN] with y[i] =
+    # targets[i+SEQ_LEN], so the newest observation in the window is slot
+    # i+SEQ_LEN-1 and the target row is i+SEQ_LEN. A lead of p periods from the
+    # newest observation is therefore kp[t-1+p] at target row t, which is a roll
+    # of -(p-1), not -p.
+    #
+    # It was -p until 2026-09-01, which put every head one period beyond its
+    # label: the head sold as 3h was trained on 6h, and the one sold as 24h on
+    # 27h (AUD-032). Every skill number measured before that date, including the
+    # validation metrics inside the shipped checkpoint, describes a horizon the
+    # service does not publish.
+    base = np.roll(kp_norm, 1)          # kp at the newest observation, kp[t-1]
     targets = np.stack(
         [
-            np.roll(kp_norm, -p) - kp_norm if mode == "residual" else np.roll(kp_norm, -p)
+            np.roll(kp_norm, -(p - 1)) - base
+            if mode == "residual"
+            else np.roll(kp_norm, -(p - 1))
             for p, mode in zip(HORIZON_PERIODS, HORIZON_TARGETS)
         ],
         axis=1,
     )  # (T, 4), in units of Kp/KP_MAX
+
+    # Arithmetic, so it is checkable without a model. For a window whose newest
+    # observation is row L, head k must be trained on kp[L + HORIZON_PERIODS[k]].
+    # `np.roll` wraps, and row 0 of `base` holds the last element of the series,
+    # but y indices start at SEQ_LEN so row 0 is never a target.
+    _probe = 100
+    _last = _probe + SEQ_LEN - 1
+    for _k, (_p, _mode) in enumerate(zip(HORIZON_PERIODS, HORIZON_TARGETS)):
+        _want = kp_norm[_last + _p] - (kp_norm[_last] if _mode == "residual" else 0.0)
+        _got = targets[_probe + SEQ_LEN, _k]
+        assert abs(_want - _got) < 1e-6, (
+            f"head {_k} ({HORIZON_HOURS[_k]}h) is trained on the wrong lead: "
+            f"expected kp[{_last + _p}], target does not match"
+        )
     # Drop the trailing rows whose furthest horizon would wrap around.
     values = values[:-MAX_HORIZON]
     targets = targets[:-MAX_HORIZON]
