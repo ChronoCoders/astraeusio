@@ -100,8 +100,12 @@ repeated here.
   so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
   which of those two arguments, is an open decision.
 - **AUD-014** The forecast band is still uncalibrated epistemic spread with no observation noise
-  term and no coverage measurement anywhere, while six files still label it a 95 percent confidence
-  interval. Coverage is computable today from stored rows and has never been computed.
+  term, while six files label it a 95 percent confidence interval. Coverage was computed for the
+  first time on 2026-08-31: **13.1 percent** over 1229 forecasts paired with the observed
+  three-hour Kp, mean width 0.405 Kp against a mean absolute error of 0.727 Kp, so the typical
+  error is nearly twice the width of the band. Closing it means an observation noise term and
+  recalibration, then the label. `ml/test_serve.py` pins the construction and deliberately does not
+  assert coverage, since no unit test can turn 13.1 into 95.
 - **AUD-015** Residual only: with Kp padding gone, `lag_1` through `lag_7` and the two rolling
   features still fall back to `0.0` at the oldest end of every window, 30 cells of 304. Closing it
   means requesting `seq_len + 7` readings, not another default.
