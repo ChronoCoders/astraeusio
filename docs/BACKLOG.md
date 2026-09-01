@@ -46,6 +46,25 @@ or in the commit that created the deferral.
 
 ## Deferred from the alerting work
 
+- No ID. **The email alert cooldown is correct and untested.** `dispatch_email_alerts` marks
+  `last_notified_at` inside the spawned task, only when `send_alert_email` reports the mail left, so
+  a failed send no longer buys an hour of silence (AUD-028, `a133524`). Nothing guards that
+  ordering: mutation testing on 2026-09-01 moved the touch back before the send and no test failed.
+  Recorded rather than left to memory, because a correct-and-unguarded property is one refactor away
+  from being an incorrect one.
+
+  Guarding it needs two seams that do not exist. The mailer calls Resend directly, so a test cannot
+  make a send fail without sending; and `DbWriterHandle::fire` is fire and forget onto a batched
+  channel, so a test cannot observe whether the touch landed without sleeping. A source-text
+  assertion that the touch never precedes the send would catch the exact reintroduction and would
+  fail later for unrelated reasons, which is why it was not written.
+
+- No ID. **A `Sender` trait on the mailer.** Wanted for more than the cooldown: verification mail,
+  password reset mail and the alert path all call Resend directly, so none of them are testable and
+  none have ever been tested. A trait with the real Resend implementation and a recording fake in
+  tests makes all three assertable and closes the item above as a side effect. Not part of the
+  alerting fixes of 2026-09-01, deliberately, since it is a seam rather than a defect.
+
 - No ID. **`component-check.sh` has no duration term, so a feed dead for twelve hours and one dead
   for twelve days look identical after the first mail.** It mails once per distinct set of bad
   components and then stays silent while that set is unchanged: no re-mail after a threshold, no
