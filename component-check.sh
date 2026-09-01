@@ -110,19 +110,23 @@ done < <(printf '%s\n' "$parsed" | tail -n +2)
 # ── Compare with what was already known ───────────────────────────────────────
 
 mkdir -p "$(dirname "$STATE")"
-prev=""
-[ -f "$STATE" ] && prev=$(cat "$STATE")
 # Component names only. The ages change every run, so keying the "already
 # alerted" comparison on the full message would re-mail every time.
 current=$(printf '%s\n' "${bad[@]:-}" | awk 'NF {print $1}' | sort | tr '\n' ' ' | sed 's/ *$//')
 
+# Whether this is new, an escalation on age, or something already said. Shared
+# with poller-check.sh and backup-check.sh, so the rule lives in one file with a
+# self test rather than in three copies that drift.
+# shellcheck source=alert-state.sh
+. "$(dirname "$0")/alert-state.sh"
+alert_decide "$STATE" "$current"
+
 if [ "${#bad[@]}" -eq 0 ]; then
-  if [ -n "$prev" ]; then
-    line="Astraeusio components recovered at $(date -u). All components operational again. Previously: $prev"
-    echo "$(date -u): recovered, all components operational (was: $prev)"
+  if [ "$ALERT_ACTION" = "recovered" ]; then
+    line="Astraeusio components recovered at $(date -u), after $ALERT_AGE_H. All components operational again. Previously: $ALERT_PREV"
+    echo "$(date -u): recovered after $ALERT_AGE_H, all components operational (was: $ALERT_PREV)"
     echo "$line" | logger -t astraeusio-components -p daemon.notice
-    send_mail "[RECOVERED] Astraeusio components healthy" "$line"
-    rm -f "$STATE"
+    send_mail "[RECOVERED after $ALERT_AGE_H] Astraeusio components healthy" "$line"
   else
     echo "$(date -u): component check ok (overall=$overall)"
   fi
@@ -145,13 +149,22 @@ echo "$(date -u): component check FAILED (overall=$overall)"
 printf '  %s\n' "${bad[@]}"
 echo "$report" | logger -t astraeusio-components -p daemon.err
 
-# Mail once per distinct set of bad components, so a component that stays
-# degraded does not mail every run, but a new one does.
-if [ "$current" != "$prev" ]; then
-  send_mail "[ALERT] Astraeusio components degraded: $current" "$report"
-else
-  echo "  (already alerted for: $current)"
-fi
-echo "$current" > "$STATE"
+# Once per distinct set of bad components, so one that stays degraded does not
+# mail every run, and again on age at six hours, at a day, and daily after that.
+# The seventeen hour outage on 2026-08-31 sent exactly one mail before this.
+case "$ALERT_ACTION" in
+  new)
+    send_mail "[ALERT] Astraeusio components degraded: $current" "$report"
+    ;;
+  escalate)
+    send_mail "[STILL DEGRADED $ALERT_AGE_H] Astraeusio components: $current" \
+      "$report
+
+Degraded for $ALERT_AGE_H and still failing."
+    ;;
+  *)
+    echo "  (already alerted for: $current, degraded for $ALERT_AGE_H)"
+    ;;
+esac
 
 exit "$EXIT_ALERT_SENT"
