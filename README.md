@@ -214,6 +214,16 @@ All routes are served on the backend at `BIND_ADDR` (default `0.0.0.0:3000`). Au
 |---|---|---|
 | `GET` | `/api/public/kp` · `/solar-wind` · `/forecast` | Landing-page live widgets |
 | `GET` | `/health` · `/api/health` | Health checks |
+| `GET` | `/api/health/uptime` | Per-component uptime over the last 90 days |
+
+`/api/health` publishes every monitored component under `components`, and each one carries its own
+status. The top-level `status` field answers a narrower question, whether the product works, and
+since 2026-09-01 it is computed from the platform, the space weather feeds and satellite tracking
+only. The four NASA auxiliary feeds, `nasa_apod`, `nasa_epic`, `nasa_neo` and `nasa_exoplanets`, are
+still published, still monitored and still alerted on, and no longer move `status`. An astronomy
+picture failing to fetch was turning the public status page amber, which readers took as a statement
+about space weather data. Components are excluded by name in `db::AUXILIARY`, so anything added
+later counts toward `status` by default.
 
 ### Account & integrations (JWT)
 
