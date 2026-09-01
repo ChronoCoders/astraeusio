@@ -24,14 +24,6 @@ function overallBanner(status) {
   }
 }
 
-function fmtAgo(ts) {
-  if (!ts) return '-'
-  const secs = Math.floor(Date.now() / 1000) - ts
-  if (secs < 60)   return 'just now'
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  return `${Math.floor(secs / 3600)}h ago`
-}
-
 // Days of history behind the percentage, or null when it covers the whole
 // window and needs no qualifier.
 function partialWindow(up) {
@@ -39,6 +31,38 @@ function partialWindow(up) {
   if (recorded == null || recorded <= 0) return null
   if (recorded >= UPTIME_WINDOW_DAYS) return null
   return recorded
+}
+
+// A group's history, folded from its members' strips.
+//
+// A day is only as good as its worst member that reported, and a day nobody
+// reported is absent rather than an outage. Recorded days counts the days with
+// any data at all, so a group is never scored against a window it was not
+// observed in, and the percentage is the mean of those days.
+function groupUptime(members, u) {
+  const strips = members.map(m => u[m]?.days).filter(Boolean)
+  if (!strips.length) return null
+
+  const length = Math.max(...strips.map(d => d.length))
+  const days = Array.from({ length }, (_, i) => {
+    const reported = strips
+      .map(d => d[i])
+      .filter(d => d && d.status !== 'no_data')
+    if (!reported.length) return { status: 'no_data', uptime_pct: null }
+    return {
+      status: worst(reported.map(d => d.status)),
+      uptime_pct: Math.min(...reported.map(d => d.uptime_pct ?? 100)),
+    }
+  })
+
+  const recorded = days.filter(d => d.status !== 'no_data')
+  if (!recorded.length) return { days, uptime_pct: null, recorded_days: 0, incidentDays: 0 }
+  return {
+    days,
+    uptime_pct: recorded.reduce((a, d) => a + d.uptime_pct, 0) / recorded.length,
+    recorded_days: recorded.length,
+    incidentDays: recorded.filter(d => d.status !== 'operational').length,
+  }
 }
 
 function dayColor(s) {
@@ -71,42 +95,56 @@ function UptimeStrip({ days, label, noDataLabel }) {
   )
 }
 
-// Display order for the components we already know about.
+// What a visitor is actually asking: does the product work.
 //
-// A hint laid over the payload, not the source of what gets rendered.
-// /api/health decides which components exist; this decides where the familiar
-// ones sit. Anything the backend publishes and this array does not name is
-// appended rather than dropped.
+// Sixteen rows could not answer that. Most of them named a data feed nobody
+// outside the team has heard of, and one of them going quiet put "Partial
+// Outage" at the top of the page, which a satellite operator reads as our space
+// weather data being broken. Three rows answer the question; the sixteen
+// components are still published by /api/health and still watched by the cron
+// checks, which is where per-feed detail belongs.
 //
-// It used to be the source: a literal list of rows, so a component the backend
-// published and the list omitted was invisible on the page whose whole job is
-// to make things visible. That is the third time this shape has cost something,
-// after the poller/anomaly mapping and the interval boot line, and it is the
-// only one of the three a user could see.
-const ORDER = [
-  'backend_api',
-  'ml_forecast',
-  'database',
-  // Each space weather series reports on its own. One of them stopped for
-  // forty days while a shared NOAA row stayed green.
-  'noaa_kp',
-  'noaa_kp_3h',
-  'noaa_solar_wind',
-  'noaa_xray',
-  'noaa_imf',
-  'noaa_dst',
-  // Episodic, so this one reports whether the poll is returning a live feed
-  // rather than how old the newest alert is.
-  'noaa_alerts',
-  'iss',
-  // Likewise for NASA. A single row here averaged apod, neo and epic, so the
-  // daily APOD kept it green with the other two dead.
-  'nasa_apod',
-  'nasa_neo',
-  'nasa_epic',
-  'nasa_exoplanets',
-  'celestrak',
+// Membership is declared, and that is the only hardcoded part. Anything
+// /api/health publishes that no group claims and HIDDEN does not name lands in
+// a group of its own rather than disappearing, so the default for something new
+// is still that it shows up. That property was bought once already, when this
+// page rendered from a literal list and a component the backend published was
+// invisible.
+const GROUPS = [
+  { key: 'platform', members: ['backend_api', 'database', 'ml_forecast'] },
+  {
+    key: 'spaceWeather',
+    members: [
+      'noaa_kp',
+      'noaa_kp_3h',
+      'noaa_solar_wind',
+      'noaa_xray',
+      'noaa_imf',
+      'noaa_dst',
+      // Episodic rather than a time series, so it reports whether the poll is
+      // returning a live feed rather than how old the newest alert is.
+      'noaa_alerts',
+    ],
+  },
+  { key: 'satellites', members: ['iss', 'celestrak'] },
 ]
+
+// Monitored, mailed about, and off this page. An astronomy picture failing to
+// fetch is not a statement about the product. /api/health still publishes them
+// and component-check.sh still alerts on them; the backend excludes the same
+// four from its overall status, so the page and the API agree.
+const HIDDEN = ['nasa_apod', 'nasa_epic', 'nasa_neo', 'nasa_exoplanets']
+
+// Worst member decides. A group with one dead feed is partly broken and should
+// say so: averaging would let a dead feed hide behind five live ones, which is
+// how the magnetometer sat dead for forty days.
+const RANK = { outage: 3, degraded: 2, unknown: 1, operational: 0 }
+function worst(statuses) {
+  return statuses.reduce(
+    (acc, s) => ((RANK[s] ?? 1) > (RANK[acc] ?? 1) ? s : acc),
+    'operational',
+  )
+}
 
 // Words the humanised fallback should shout rather than sentence-case.
 const ACRONYMS = new Set(['noaa', 'nasa', 'iss', 'ml', 'api', 'imf', 'dst', 'neo', 'epic', 'apod', 'kp', 'tle', 'db'])
@@ -155,26 +193,40 @@ export default function StatusPage({ onSignIn }) {
 
   const c    = data?.components ?? {}
   const u    = uptime?.components ?? {}
-  const banner = overallBanner(error ? 'outage' : data?.status)
 
-  // Rendered from what /api/health actually published. When the endpoint is
-  // unreachable there is no payload to enumerate, so ORDER stands in as the
-  // skeleton, because a blank page is the worst answer at exactly the moment
-  // somebody is looking at this one.
-  const keys = Object.keys(c).length > 0
-    ? [...ORDER.filter(k => k in c), ...Object.keys(c).filter(k => !ORDER.includes(k)).sort()]
-    : ORDER
+  // Anything published that no group claims and HIDDEN does not name gets a
+  // group of its own, so a new component still appears rather than being
+  // dropped by a map that has not heard of it.
+  const claimed = new Set([...GROUPS.flatMap(g => g.members), ...HIDDEN])
+  const unclaimed = Object.keys(c).filter(k => !claimed.has(k)).sort()
+  const groupList = unclaimed.length
+    ? [...GROUPS, { key: 'other', members: unclaimed }]
+    : GROUPS
 
-  const COMPONENTS = keys.map(key => ({
-    key,
-    name: t(labelKey(key), { defaultValue: humanise(key) }),
-    status: error
-      ? (key === 'backend_api' ? 'outage' : 'unknown')
-      : (c[key]?.status ?? 'unknown'),
-    // Which timestamp a component carries depends on what it measures, so take
-    // whichever it published rather than knowing per component.
-    lastUpdate: c[key]?.last_update ?? c[key]?.last_checked ?? c[key]?.last_write,
-  }))
+  const componentName = key => t(labelKey(key), { defaultValue: humanise(key) })
+
+  const ROWS = groupList.map(group => {
+    // On an unreachable endpoint there is nothing to enumerate, so the declared
+    // membership stands in: a blank page is the worst answer at exactly the
+    // moment somebody loads this one.
+    const members = group.members.map(key => ({
+      key,
+      name: componentName(key),
+      status: error
+        ? (key === 'backend_api' ? 'outage' : 'unknown')
+        : (c[key]?.status ?? 'unknown'),
+    }))
+    const status = worst(members.map(m => m.status))
+    // Read from the payload, never a fixed sentence per group, so a member that
+    // goes quiet tomorrow is named without anyone editing this file.
+    const affected = members.filter(m => m.status !== 'operational')
+    const up = groupUptime(group.members, u)
+    return { key: group.key, name: t(`status.group.${group.key}`), status, affected, up }
+  })
+
+  const overall = error ? 'outage' : worst(ROWS.map(r => r.status))
+  const banner = overallBanner(overall)
+  const incidentDays = ROWS.reduce((n, r) => Math.max(n, r.up?.incidentDays ?? 0), 0)
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -215,37 +267,42 @@ export default function StatusPage({ onSignIn }) {
             </p>
           </div>
           <div className="divide-y divide-zinc-800/60">
-            {COMPONENTS.map(comp => {
-              const meta = statusMeta(comp.status)
-              const up = u[comp.key]
+            {ROWS.map(row => {
+              const meta = statusMeta(row.status)
               return (
-                <div key={comp.key} className="px-5 py-4 flex flex-col gap-2">
+                <div key={row.key} className="px-5 py-4 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
-                      <p className="text-sm text-zinc-200">{comp.name}</p>
+                      <p className="text-sm text-zinc-200 truncate">{row.name}</p>
                     </div>
                     <div className="flex items-center shrink-0 ml-4 gap-4 sm:gap-6">
                       <span className="text-zinc-400 text-xs font-mono w-16 text-right tabular-nums">
-                        {up?.uptime_pct != null ? `${up.uptime_pct.toFixed(2)}%` : ''}
+                        {row.up?.uptime_pct != null ? `${row.up.uptime_pct.toFixed(2)}%` : ''}
                       </span>
-                      {/* The percentage covers only the days actually recorded.
-                          Saying so means a component added last week is not read
-                          against a 90 day window it was never in. */}
+                      {/* The percentage covers only the days actually recorded,
+                          so a group whose newest member joined last week is not
+                          read against a 90 day window it was never in. */}
                       <span className="text-zinc-600 text-xs font-mono w-20 text-right hidden sm:block">
-                        {partialWindow(up) != null
-                          ? t('status.recordedDays', { count: partialWindow(up) })
+                        {partialWindow(row.up) != null
+                          ? t('status.recordedDays', { count: partialWindow(row.up) })
                           : ''}
-                      </span>
-                      <span className="text-zinc-600 text-xs font-mono w-16 text-right tabular-nums hidden sm:block">
-                        {comp.lastUpdate != null ? fmtAgo(comp.lastUpdate) : ''}
                       </span>
                       <span className={`text-xs font-mono w-24 text-right ${meta.text}`}>{t(meta.label)}</span>
                     </div>
                   </div>
+                  {/* Which members are affected, from the payload. Empty stays
+                      empty: nothing is said when everything is fine. */}
+                  {row.affected.length > 0 && (
+                    <p className="text-zinc-500 text-xs pl-6">
+                      {t(`status.affected.${row.status}`, {
+                        names: row.affected.map(m => m.name).join(', '),
+                      })}
+                    </p>
+                  )}
                   <UptimeStrip
-                    days={up?.days}
-                    label={`${comp.name} ${t('status.uptimeWindow')}`}
+                    days={row.up?.days}
+                    label={`${row.name} ${t('status.uptimeWindow')}`}
                     noDataLabel={t('common.noData')}
                   />
                 </div>
@@ -282,10 +339,17 @@ export default function StatusPage({ onSignIn }) {
               <p className="text-xs font-mono text-zinc-600">{t('status.incidentsWindow')}</p>
             </div>
           </div>
+          {/* Counted from the same 90 day history the strips above draw, so
+              this section is a record rather than a claim. It used to say every
+              system had been running normally, in fixed text, while a component
+              was degraded on the same page. */}
           <div className="px-5 py-10 flex flex-col items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            <p className="text-sm text-zinc-300">{t('status.noIncidents')}</p>
-            <p className="text-xs text-zinc-600">{t('status.noIncidentsSub')}</p>
+            <span className={`w-2 h-2 rounded-full ${incidentDays > 0 ? 'bg-yellow-500' : 'bg-green-500'}`} />
+            <p className="text-sm text-zinc-300">
+              {incidentDays > 0
+                ? t('status.incidentDays', { count: incidentDays })
+                : t('status.noIncidents')}
+            </p>
           </div>
         </div>
       </section>

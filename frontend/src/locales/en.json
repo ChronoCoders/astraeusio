@@ -436,7 +436,19 @@
     "incidents": "Incident history",
     "incidentsWindow": "Last 90 days",
     "noIncidents": "No incidents reported.",
-    "noIncidentsSub": "All systems have been running normally for the last 90 days.",
+    "group": {
+      "platform": "Platform",
+      "spaceWeather": "Space weather data",
+      "satellites": "Satellite tracking",
+      "other": "Other"
+    },
+    "affected": {
+      "degraded": "{{names}} delayed",
+      "outage": "{{names}} down",
+      "unknown": "{{names}} not reporting"
+    },
+    "incidentDays_one": "1 day with delays in the last 90 days.",
+    "incidentDays_other": "{{count}} days with delays in the last 90 days.",
     "subscribe": "RSS",
     "subscribeTitle": "Subscribe to incident updates via RSS",
     "backendApi": "Backend API",

@@ -387,7 +387,19 @@
     "incidents": "Olay geçmişi",
     "incidentsWindow": "Son 90 gün",
     "noIncidents": "Bildirilen olay yok.",
-    "noIncidentsSub": "Tüm sistemler son 90 gündür normal şekilde çalışıyor.",
+    "group": {
+      "platform": "Platform",
+      "spaceWeather": "Uzay hava verileri",
+      "satellites": "Uydu takibi",
+      "other": "Diğer"
+    },
+    "affected": {
+      "degraded": "{{names}} gecikmeli",
+      "outage": "{{names}} çalışmıyor",
+      "unknown": "{{names}} veri göndermiyor"
+    },
+    "incidentDays_one": "Son 90 günde 1 gün gecikme yaşandı.",
+    "incidentDays_other": "Son 90 günde {{count}} gün gecikme yaşandı.",
     "subscribe": "RSS",
     "subscribeTitle": "Olay güncellemelerine RSS ile abone olun",
     "backendApi": "Backend API",
