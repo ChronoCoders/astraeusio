@@ -181,6 +181,14 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   check "  naming the set that cleared" "x y" "$ALERT_PREV"
   check "  and saying the age is unknown rather than inventing one"         "an unknown time" "$ALERT_AGE_H"
 
+  # backup-check.sh used to write "ok <epoch>" into its state file and never
+  # read it back. Pointed at that file, this reads the line as a problem key and
+  # mails a recovery for an outage that never happened, which it did once on
+  # 2026-09-01. A caller changing its state format changes its filename; the
+  # helper cannot tell one caller's history from a key and should not try.
+  echo "ok 1788302718" > "$s"; alert_decide "$s" ""
+  check "a foreign state format is read as a key, so callers must not share one"         "recovered" "$ALERT_ACTION"
+
   check "durations read as time" "2d 3h" "$(alert_age_human 183600)"
   check "  and minutes under the hour" "45m" "$(alert_age_human 2700)"
 

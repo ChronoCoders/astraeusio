@@ -19,7 +19,13 @@ EXIT_ALERT_SENT=10
 
 
 BACKUP_DIR=/opt/astraeusio/backups
-STATE=/var/lib/astraeusio-backup-state
+# A new path, not the old one. The file this check used to write held
+# "ok <epoch>" or "fail <epoch>" and was never read; alert-state.sh cannot tell
+# that apart from a problem key, so on the first healthy run after the upgrade it
+# read "ok 1788302718" as a problem that had just cleared and mailed a recovery
+# for an outage that never happened. Changing the format changes the filename,
+# which is cheaper than teaching one shared helper about one caller's history.
+STATE=/var/lib/astraeusio-backup-alert
 # The backup runs at 03:00 and this check at 04:00 and 16:00, so the oldest a
 # healthy backup is ever seen is 13 hours, at the afternoon check. A missed
 # nightly run shows as 25 hours at the next 04:00 check. 20 hours sits between
