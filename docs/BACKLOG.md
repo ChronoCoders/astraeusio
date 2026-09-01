@@ -205,15 +205,6 @@ repeated here.
 - **AUD-015** Residual only: with Kp padding gone, `lag_1` through `lag_7` and the two rolling
   features still fall back to `0.0` at the oldest end of every window, 30 cells of 304. Closing it
   means requesting `seq_len + 7` readings, not another default.
-- **AUD-016** `register` still validates neither password length nor email shape, while
-  `change_password` and `reset_password` both enforce a minimum, so an account can be created with
-  a password it cannot later be changed to.
-- **AUD-018** Two halves remain after `6b3d885`: enabling or disabling TOTP does not bump
-  `token_version`, so a session an attacker holds survives the countermeasure taken against them;
-  and `PurposeClaims` carries no version, so a used reset link stays replayable for its full TTL.
-- **AUD-019** Email is still stored and compared verbatim everywhere except the OAuth path, which
-  lowercases, so the duplicate-account trap is intact and a reset issued for one casing does not
-  reach the other row.
 - **AUD-020** The OAuth `nonce` is still generated and never compared, with no cookie and no PKCE,
   so the state token proves the server issued some state and not that the callback belongs to the
   browser that began the flow.
