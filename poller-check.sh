@@ -656,9 +656,29 @@ for line in "${unmapped[@]:-}"; do
     | logger -t astraeusio-poller -p daemon.warning
 done
 
+# Whether this is new, an escalation on age, or something already said. Shared
+# with component-check.sh and backup-check.sh so the rule has one home and one
+# self test. It runs before the healthy path below, which exits early and needs
+# the recovery verdict.
+#
+# The key is the sorted source names and nothing else. Counts and streak lengths
+# change every window by construction, which is why including them once mailed
+# "3 consecutive windows" and "4 consecutive windows" for one APOD outage.
+current=$(printf '%s\n' ${alerting_names[@]+"${alerting_names[@]}"} | sort -u | tr '\n' ' ' | sed 's/ *$//')
+mkdir -p "$(dirname "$ALERT_STATE")"
+# shellcheck source=alert-state.sh
+. "$(dirname "$0")/alert-state.sh"
+alert_decide "$ALERT_STATE" "$current"
+
 if [ "${#problems[@]}" -eq 0 ]; then
-  rm -f "$ALERT_STATE"
-  echo "$(date -u): poller check ok"
+  if [ "$ALERT_ACTION" = "recovered" ]; then
+    line="Astraeusio poller recovered at $(date -u), after $ALERT_AGE_H. Previously: $ALERT_PREV"
+    echo "$(date -u): recovered after $ALERT_AGE_H (was: $ALERT_PREV)"
+    echo "$line" | logger -t astraeusio-poller -p daemon.notice
+    send_mail "[RECOVERED after $ALERT_AGE_H] Astraeusio poller healthy" "$line" || true
+  else
+    echo "$(date -u): poller check ok"
+  fi
   exit 0
 fi
 
@@ -685,8 +705,7 @@ echo "$body" | logger -t astraeusio-poller -p daemon.err
 # A new source joining changes the key and does mail, which is the case worth
 # being told about. The counts stay in the body and in journald, where they are
 # what you read once you are already looking.
-current=$(printf '%s\n' "${alerting_names[@]}" | sort -u | tr '\n' ' ' | sed 's/ *$//')
-prev=$(cat "$ALERT_STATE" 2>/dev/null || true)
+
 
 # The subject names the sources. Every alert used to read "Astraeusio poller
 # check FAILED", so a mail client threaded them together and thirty-five sends
@@ -696,11 +715,19 @@ prev=$(cat "$ALERT_STATE" 2>/dev/null || true)
 short=$(printf '%s\n' "${alerting_names[@]}" | sed 's|^poller/||' | sort -u | paste -sd, - | sed 's/,/, /g')
 
 mkdir -p "$(dirname "$ALERT_STATE")"
-if [ "$current" != "$prev" ]; then
-  send_mail "[ALERT] Astraeusio poller: $short" "$body" || true
-else
-  echo "  (already alerted for: $current, not mailing again)"
-fi
-printf '%s' "$current" > "$ALERT_STATE"
+case "$ALERT_ACTION" in
+  new)
+    send_mail "[ALERT] Astraeusio poller: $short" "$body" || true
+    ;;
+  escalate)
+    send_mail "[STILL FAILING $ALERT_AGE_H] Astraeusio poller: $short" \
+      "$body
+
+Failing for $ALERT_AGE_H." || true
+    ;;
+  *)
+    echo "  (already alerted for: $current, failing for $ALERT_AGE_H, not mailing again)"
+    ;;
+esac
 
 exit "$EXIT_ALERT_SENT"
