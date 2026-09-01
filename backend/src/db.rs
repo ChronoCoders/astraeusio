@@ -2594,18 +2594,37 @@ impl Store {
 
     /// Returns (id, close_approach_date, miss_distance_m) for NEO approaches under `max_dist_scaled`
     /// fetched within the last `since` seconds window.
+    /// Close approaches inside a forward window, by the date of the approach.
+    ///
+    /// The window is the approach, not the ingest. This filtered on `fetched_at`
+    /// against a backward window, which is the wrong idea twice over for
+    /// forward dated data: the poller refetches every thirty minutes so every
+    /// stored row is always recent and the filter excluded nothing, and an
+    /// asteroid that passed last week is not a warning however recently we
+    /// heard about it (AUD-024).
+    ///
+    /// `close_approach_date` is a `YYYY-MM-DD` string, so it compares
+    /// lexicographically and the bounds are dates rather than instants. The
+    /// lower bound is today rather than now, because an approach later today
+    /// still counts.
     pub fn neo_close_approaches_raw(
         &self,
         max_dist_scaled: i64,
-        since: i64,
+        horizon_days: i64,
     ) -> Result<Vec<(String, String, i64)>, DbError> {
+        let today = chrono::DateTime::from_timestamp(now(), 0)
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .unwrap_or_default();
+        let horizon = chrono::DateTime::from_timestamp(now() + horizon_days * 86_400, 0)
+            .map(|d| d.format("%Y-%m-%d").to_string())
+            .unwrap_or_default();
         let mut stmt = self.conn.prepare(
             "SELECT id, close_approach_date, miss_distance_m FROM neo \
-             WHERE miss_distance_m < ? AND fetched_at > ? \
+             WHERE miss_distance_m < ? AND close_approach_date >= ? AND close_approach_date <= ? \
              ORDER BY miss_distance_m ASC",
         )?;
         let rows = stmt
-            .query_map([max_dist_scaled, since], |row| {
+            .query_map(params![max_dist_scaled, today, horizon], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -3657,6 +3676,9 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
+    /// Mirrors ONE_LD_SCALED in anomaly.rs. One lunar distance, in the units
+    /// miss_distance_m actually holds.
+    const ONE_LD_SCALED_FOR_TEST: i64 = 384_400_000;
     use super::*;
     use crate::noaa::{ImfRecord, Kp3hRecord, KpRecord, XRayRecord};
     use chrono::DateTime;
@@ -4674,6 +4696,75 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// The asteroid warning is about approaches that are coming, not rows that
+    /// arrived recently.
+    ///
+    /// It filtered on `fetched_at` inside a backward window, which excluded
+    /// nothing in practice because the poller refetches every thirty minutes,
+    /// and would have reported last week's approach as a current warning
+    /// (AUD-024).
+    #[test]
+    fn the_asteroid_window_is_the_approach_not_the_ingest() {
+        let store = mem_store();
+        let day = |offset: i64| {
+            chrono::DateTime::from_timestamp(now() + offset * 86_400, 0)
+                .expect("timestamp")
+                .format("%Y-%m-%d")
+                .to_string()
+        };
+        let close = 100_000_000i64; // well inside one lunar distance
+
+        for (id, offset) in [
+            ("passed-last-week", -7i64),
+            ("passed-yesterday", -1),
+            ("today", 0),
+            ("in-three-days", 3),
+            ("in-seven-days", 7),
+            ("in-ten-days", 10),
+        ] {
+            store
+                .conn
+                .execute(
+                    "INSERT INTO neo (id, close_approach_date, name, is_hazardous, \
+                     diameter_min_m, diameter_max_m, velocity_m_per_h, miss_distance_m, fetched_at) \
+                     VALUES (?, ?, 'test', false, 1, 2, 3, ?, ?)",
+                    params![id, day(offset), close, now()],
+                )
+                .expect("insert");
+        }
+        // Far away and imminent: distance still decides, independently of date.
+        store
+            .conn
+            .execute(
+                "INSERT INTO neo (id, close_approach_date, name, is_hazardous, \
+                 diameter_min_m, diameter_max_m, velocity_m_per_h, miss_distance_m, fetched_at) \
+                 VALUES ('far-but-soon', ?, 'test', false, 1, 2, 3, ?, ?)",
+                params![day(1), 900_000_000_000i64, now()],
+            )
+            .expect("insert");
+
+        let found: Vec<String> = store
+            .neo_close_approaches_raw(ONE_LD_SCALED_FOR_TEST, 7)
+            .expect("query")
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+
+        assert!(found.contains(&"today".to_string()), "an approach today counts");
+        assert!(found.contains(&"in-three-days".to_string()));
+        assert!(found.contains(&"in-seven-days".to_string()), "the horizon is inclusive");
+        assert!(
+            !found.contains(&"passed-yesterday".to_string()),
+            "an approach that already happened is not a warning"
+        );
+        assert!(!found.contains(&"passed-last-week".to_string()));
+        assert!(
+            !found.contains(&"in-ten-days".to_string()),
+            "beyond the poller's own seven day window there is no data to trust"
+        );
+        assert!(!found.contains(&"far-but-soon".to_string()), "distance still decides");
     }
 
     /// An alert claims conditions have exceeded a threshold, present tense, so a

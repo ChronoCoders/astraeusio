@@ -788,28 +788,6 @@ async fn dispatch_email_alerts(
         .as_secs() as i64;
     const COOLDOWN_SECS: i64 = 3600;
 
-    // A reading older than its own freshness limit cannot support the sentence
-    // this email opens with, which is that conditions have exceeded a threshold,
-    // present tense. A feed that goes quiet mid-storm would otherwise re-send
-    // the last reading it managed every hour for as long as it stayed dead,
-    // each one describing conditions that may have ended (AUD-028). A silent
-    // feed already shows as degraded on the status page and mails through
-    // component-check.sh, which is the right channel for "we cannot see".
-    let kp_stale = kp_opt
-        .as_ref()
-        .is_some_and(|(_, at, _)| !crate::db::reading_is_current("noaa_kp", *at, now_ts));
-    let wind_stale = wind_opt
-        .as_ref()
-        .is_some_and(|(_, at, _)| !crate::db::reading_is_current("noaa_solar_wind", *at, now_ts));
-    if kp_stale {
-        warn!(source = "poller/email-alerts", "kp is stale, not alerting from it");
-    }
-    if wind_stale {
-        warn!(source = "poller/email-alerts", "solar wind is stale, not alerting from it");
-    }
-    let kp_now = if kp_stale { None } else { kp_opt };
-    let wind_now = if wind_stale { None } else { wind_opt };
-
     for sub in subs {
         if let Some(last) = sub.last_notified_at
             && now_ts - last < COOLDOWN_SECS
@@ -817,26 +795,7 @@ async fn dispatch_email_alerts(
             continue;
         }
 
-        let mut lines: Vec<String> = Vec::new();
-
-        if let Some((_, _, kp_e2)) = kp_now
-            && kp_e2 >= sub.kp_threshold_e2
-        {
-            let kp = kp_e2 as f64 / 100.0;
-            let thr = sub.kp_threshold_e2 as f64 / 100.0;
-            lines.push(format!("• Kp index {kp:.1} (your threshold: {thr:.1})"));
-        }
-
-        if let Some((_, _, speed_e1)) = wind_now
-            && speed_e1 >= sub.wind_threshold_e1
-        {
-            let speed = speed_e1 as f64 / 10.0;
-            let thr = sub.wind_threshold_e1 as f64 / 10.0;
-            lines.push(format!(
-                "• Solar wind {speed:.0} km/s (your threshold: {thr:.0} km/s)"
-            ));
-        }
-
+        let lines = alert_lines(&kp_opt, &wind_opt, &sub, now_ts);
         if lines.is_empty() {
             continue;
         }
@@ -852,13 +811,55 @@ async fn dispatch_email_alerts(
             // The cooldown records that an alert was delivered, so it is marked
             // on the strength of the send rather than before it. Marking first
             // meant a failed send bought an hour of silence exactly as a
-            // successful one did, and the user heard nothing about either.
+            // successful one did, and the user heard about neither.
             if mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await
             {
                 writer.fire(WriteCmd::TouchEmailAlertNotified(email));
             }
         });
     }
+}
+
+/// Which of a subscription's thresholds the current readings have crossed.
+///
+/// Pulled out of the dispatcher so the rule can be asserted. Left inline, the
+/// freshness bound was testable as a function and unguarded as a decision:
+/// mutation testing on 2026-09-01 removed its use from the dispatcher and no
+/// test noticed, which is the same shape as the auxiliary filter in the health
+/// handler earlier the same day.
+///
+/// A reading older than its own `SERIES_FRESHNESS` limit produces no line. The
+/// email says conditions have exceeded your thresholds, present tense, and a
+/// reading from eleven hours ago cannot support that sentence (AUD-028).
+fn alert_lines(
+    kp: &Option<(String, i64, i64)>,
+    wind: &Option<(String, i64, i64)>,
+    sub: &crate::db::EmailAlertRow,
+    now_ts: i64,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    if let Some((_, observed_at, kp_e2)) = kp
+        && crate::db::reading_is_current("noaa_kp", *observed_at, now_ts)
+        && *kp_e2 >= sub.kp_threshold_e2
+    {
+        let kp = *kp_e2 as f64 / 100.0;
+        let thr = sub.kp_threshold_e2 as f64 / 100.0;
+        lines.push(format!("• Kp index {kp:.1} (your threshold: {thr:.1})"));
+    }
+
+    if let Some((_, observed_at, speed_e1)) = wind
+        && crate::db::reading_is_current("noaa_solar_wind", *observed_at, now_ts)
+        && *speed_e1 >= sub.wind_threshold_e1
+    {
+        let speed = *speed_e1 as f64 / 10.0;
+        let thr = sub.wind_threshold_e1 as f64 / 10.0;
+        lines.push(format!(
+            "• Solar wind {speed:.0} km/s (your threshold: {thr:.0} km/s)"
+        ));
+    }
+
+    lines
 }
 
 // ── Health snapshot poller ────────────────────────────────────────────────────
@@ -1001,6 +1002,46 @@ mod tests {
             missing.is_empty() && extra.is_empty(),
             "the interval table and the spawns disagree.              spawned with no entry: {missing:?}.              entry with no spawn: {extra:?}.              Every poller belongs in PollerConfig::intervals, including one that              fetches nothing, because that table is what every external check              enumerates pollers from."
         );
+    }
+
+    fn subscription() -> crate::db::EmailAlertRow {
+        crate::db::EmailAlertRow {
+            user_email: "watcher@example.com".to_owned(),
+            enabled: true,
+            kp_threshold_e2: 500,       // Kp 5.0
+            wind_threshold_e1: 6000,    // 600 km/s
+            last_notified_at: None,
+        }
+    }
+
+    /// The email says conditions have exceeded your thresholds, present tense.
+    /// A reading old enough to be wrong about now must not produce one, or a
+    /// feed that goes quiet mid-storm re-sends its last value every hour for as
+    /// long as it stays dead (AUD-028).
+    #[test]
+    fn a_stale_reading_produces_no_alert_however_high_it_is() {
+        let now = 1_800_000_000;
+        let sub = subscription();
+        let storm = |age: i64| Some(("t".to_owned(), now - age, 900i64));   // Kp 9.0
+        let gale = |age: i64| Some(("t".to_owned(), now - age, 9_000i64));  // 900 km/s
+
+        // Fresh and over threshold: both lines.
+        let lines = alert_lines(&storm(60), &gale(60), &sub, now);
+        assert_eq!(lines.len(), 2, "fresh readings over threshold must alert: {lines:?}");
+
+        // The same readings, eleven hours old, which is what a dead feed looks
+        // like. Kp allows 1800s and so does solar wind.
+        let lines = alert_lines(&storm(40_000), &gale(40_000), &sub, now);
+        assert!(lines.is_empty(), "a stale reading must not alert: {lines:?}");
+
+        // One fresh and one stale: only the fresh one speaks.
+        let lines = alert_lines(&storm(60), &gale(40_000), &sub, now);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("Kp"), "{lines:?}");
+
+        // Fresh but under threshold stays silent, which is the ordinary case.
+        let quiet = Some(("t".to_owned(), now - 60, 100i64));
+        assert!(alert_lines(&quiet, &None, &sub, now).is_empty());
     }
 
     fn alert(issue: &str) -> noaa::SpaceWeatherAlert {
