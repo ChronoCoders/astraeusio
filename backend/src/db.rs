@@ -3416,13 +3416,28 @@ impl Store {
             return Ok(());
         }
         self.begin()?;
+        let batch_at = now();
         let result = (|| {
-            // Full replace: TLEs are always a fresh snapshot, so DELETE + INSERT
-            // is faster than per-row upsert conflict checking on 10k+ rows.
-            self.conn.execute_batch("DELETE FROM starlink")?;
+            // Upsert rather than DELETE + INSERT, which is what this was until
+            // 2026-09-01 and what made this table 83 percent of the database:
+            // 3688 of the 4450 blocks in the file, holding 10725 rows worth
+            // about 1.7 MB. A full replace appends new row groups every cycle
+            // and leaves the old ones behind, and nothing reclaims them.
+            //
+            // Measured from a compacted copy, twelve cycles each. DELETE +
+            // INSERT grew the file 1.10 MB per cycle and took the table from 6
+            // blocks to 55; this upsert grew it by nothing and left 4 blocks. At
+            // roughly twelve write cycles a day that is 13 MB a day, against the
+            // 9.6 MB a day the database was actually growing, so this one write
+            // was essentially all of it.
             let mut stmt = self.conn.prepare(
                 "INSERT INTO starlink (norad_id, name, tle_line1, tle_line2, fetched_at)
-                 VALUES (?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (norad_id) DO UPDATE SET
+                     name = excluded.name,
+                     tle_line1 = excluded.tle_line1,
+                     tle_line2 = excluded.tle_line2,
+                     fetched_at = excluded.fetched_at",
             )?;
             for sat in sats {
                 stmt.execute(params![
@@ -3430,9 +3445,30 @@ impl Store {
                     sat.name,
                     sat.tle_line1,
                     sat.tle_line2,
-                    now()
+                    batch_at
                 ])?;
             }
+            // Satellites that left the constellation.
+            //
+            // Membership, not timestamps. Marking rows with `batch_at` and
+            // deleting anything older reads well and is wrong: `fetched_at` is
+            // whole seconds, so two batches inside one second carry the same
+            // mark and the departures survive. The test caught it immediately.
+            // A temp table is exact whatever the clock resolution, and being
+            // temporary it costs the main file nothing.
+            self.conn
+                .execute_batch("CREATE OR REPLACE TEMP TABLE starlink_seen (norad_id INTEGER)")?;
+            {
+                let mut seen = self
+                    .conn
+                    .prepare("INSERT INTO starlink_seen (norad_id) VALUES (?)")?;
+                for sat in sats {
+                    seen.execute(params![sat.norad_id])?;
+                }
+            }
+            self.conn.execute_batch(
+                "DELETE FROM starlink                  WHERE norad_id NOT IN (SELECT norad_id FROM starlink_seen)",
+            )?;
             Ok(())
         })();
         match result {
@@ -4696,6 +4732,40 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// A satellite that stays in the constellation keeps its row and gets its
+    /// TLE updated in place, rather than being deleted and reinserted.
+    ///
+    /// The distinction is invisible in the results and is the whole point:
+    /// DELETE plus INSERT appended new row groups every cycle and left the old
+    /// ones, which grew this table to 83 percent of the database while holding
+    /// 1.7 MB of live data (AUD-023).
+    #[test]
+    fn a_returning_satellite_is_updated_rather_than_replaced() {
+        let store = mem_store();
+        store.insert_starlink_batch(&[sat(1), sat(2)]).unwrap();
+
+        // Same satellite, new elements, plus one that has joined.
+        let moved = StarlinkSat {
+            norad_id: 1,
+            name: "STARLINK-1".to_owned(),
+            tle_line1: "1 00001U MOVED".to_owned(),
+            tle_line2: "2 00001 MOVED".to_owned(),
+        };
+        store.insert_starlink_batch(&[moved, sat(3)]).unwrap();
+
+        let rows = store.get_starlink_all().unwrap();
+        let rows = rows.as_array().unwrap();
+        let ids: Vec<i64> = rows.iter().map(|r| r["norad_id"].as_i64().unwrap()).collect();
+
+        assert_eq!(ids, vec![1, 3], "2 left the constellation and must go");
+        let first = rows.iter().find(|r| r["norad_id"] == 1).expect("1 is still here");
+        assert_eq!(
+            first["tle_line1"].as_str().unwrap(),
+            "1 00001U MOVED",
+            "a returning satellite must carry its new elements"
+        );
     }
 
     /// The asteroid warning is about approaches that are coming, not rows that
