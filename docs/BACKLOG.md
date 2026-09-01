@@ -234,11 +234,6 @@ repeated here.
 - **AUD-022** `kp_forecast` is still keyed on target time alone with no horizon and no issue time,
   and the poller still stores the 3 h mirror and discards the other three horizons, so the stored
   history and the accuracy metrics cover one horizon while the page shows four.
-- **AUD-023** No retention pass exists. Eleven tables still grow without bound and no `CHECKPOINT`
-  reclaims the WAL.
-- **AUD-024** `neo_close_approaches_raw` still filters on `fetched_at`. Unlike the xray half this
-  is not a one-line substitution: `neo` has no observation instant, only a forward-dated
-  `close_approach_date`, so it needs a decision about what the window means.
 - **AUD-025** The `developer` gate on CSV export is still a formatting gate, because
   `/api/reports/kp` and `/api/reports/solar-wind` return the same rows ungated, and
   `asteroid_approaches` still counts a forward window inside a card describing the past one.
@@ -248,9 +243,6 @@ repeated here.
   to wait on.
 - **AUD-027** `Referrer-Policy` was named in the fix and never added. Confirmed absent from the
   live response 2026-08-30, where the other four headers and the report-only CSP are present.
-- **AUD-028** Email alerts still fire from the newest stored reading with no age bound, and still
-  mark the cooldown before dispatch against a send whose outcome is discarded, so a stalled feed
-  re-alerts hourly and a failed send is recorded as delivered.
 - **AUD-029** `/api/usage` still reports `"scope": "api_key"` as a literal on the line above the
   correctly computed `caller`.
 
