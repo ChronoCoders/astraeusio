@@ -393,6 +393,14 @@
       "satellites": "Uydu takibi",
       "other": "Diğer"
     },
+    "duration": {
+      "minutes_one": "1 dakika",
+      "minutes_other": "{{count}} dakika",
+      "hours_one": "1 saat",
+      "hours_other": "{{count}} saat",
+      "days_one": "1 gün",
+      "days_other": "{{count}} gün"
+    },
     "affected": {
       "degraded": "{{names}} gecikmeli",
       "outage": "{{names}} çalışmıyor",
