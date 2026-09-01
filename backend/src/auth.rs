@@ -1183,6 +1183,58 @@ mod tests {
         }
     }
 
+    /// The test above asserts the property. This one asserts the mechanism.
+    ///
+    /// Mutation testing on 2026-08-31 found that removing the audience check
+    /// from the session extractor broke nothing: a purpose token is also
+    /// rejected because `PurposeClaims` has no `ver` field, which `AuthClaims`
+    /// gained months later for a different finding, so it fails to deserialize
+    /// whatever the audience says. The property was held by an accident of
+    /// claim shape rather than by the check written to hold it, and a refactor
+    /// that aligned the two structs would have removed the real defence with
+    /// the suite still green.
+    ///
+    /// So this token is a session token byte for byte except for one field. It
+    /// deserializes into `AuthClaims` cleanly, carries a token version the
+    /// extractor can resolve, and is signed with the right secret. The audience
+    /// is the only thing left that can reject it, which makes this test fail if
+    /// and only if the audience check is gone.
+    #[tokio::test]
+    async fn a_token_that_differs_only_in_audience_is_rejected() {
+        let state = test_state();
+        let exp = (chrono::Utc::now().timestamp() + 300) as u64;
+
+        for aud in [
+            TokenPurpose::TwoFactorPartial.aud(),
+            TokenPurpose::VerifyEmail.aud(),
+            TokenPurpose::ResetPassword.aud(),
+            // oauth.rs keeps this one private, so it is spelled out here. The
+            // start endpoint is unauthenticated and hands it to any caller.
+            "astraeus:oauth_state",
+            "astraeus:something_invented_later",
+            "",
+        ] {
+            let token = encode(
+                &Header::default(),
+                &AuthClaims {
+                    sub: "user@example.com".to_string(),
+                    exp,
+                    aud: aud.to_string(),
+                    ver: 0,
+                    auth_type: AuthType::Jwt,
+                },
+                &EncodingKey::from_secret(SECRET.as_bytes()),
+            )
+            .expect("mint");
+
+            assert_eq!(
+                extract(&state, &token).await.err(),
+                Some(StatusCode::UNAUTHORIZED),
+                "a session-shaped token with audience {aud:?} must not be accepted"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn a_session_token_is_accepted_by_the_session_extractor() {
         let state = test_state();
