@@ -90,6 +90,23 @@ stands. Every finding in `docs/AUDIT-2026-08.md` now carries a resolution line a
 open, one line each. A finding whose remainder is already stated elsewhere in this file is not
 repeated here.
 
+- **AUD-030** **The forecast has never been measured against persistence, and loses to it at three
+  hours.** Added 2026-09-01, after the audit, so the counts against the original 29 still hold.
+  Measured twice. A replay of the deployed checkpoint over out-of-sample data, 2026-05-03 to
+  2026-08-30, held-out portion, 375 windows, deployed configuration: model MAE 0.60 / 0.69 / 0.80 /
+  0.86 against persistence 0.58 / 0.69 / 0.86 / 1.01 at 3h / 6h / 12h / 24h. One quiet 47-day
+  window. Then the checkpoint's own walk-forward folds, which are out of sample by construction and
+  span two years, 2024-04-21 to 2026-04-20, 5840 slots including 299 at Kp >= 5 and 118 at Kp >= 6:
+  model 0.805 / 0.880 / 0.967 / 1.044 against persistence 0.684 / 0.883 / 1.064 / 1.231. At three
+  hours the model is 17.7 percent worse than repeating the last observation; at six it ties; it
+  earns its place only at twelve and twenty four hours, by 9 and 18 percent.
+
+  The 3h figure is what `/api/public/forecast`, the MCP tool `get_kp_forecast` and the landing page
+  all serve. Nothing published says the forecast beats persistence, so nothing is false, but
+  shipping an LSTM, an inference service and a 1.77 GB image implies it. Not fixed and deliberately
+  not designed: the options are not comparable until the result is confirmed on a longer
+  out-of-sample window, and the decision is the user's.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
@@ -106,6 +123,23 @@ repeated here.
   error is nearly twice the width of the band. Closing it means an observation noise term and
   recalibration, then the label. `ml/test_serve.py` pins the construction and deliberately does not
   assert coverage, since no unit test can turn 13.1 into 95.
+
+  **The label half is closed** in `1915ea3`: eleven files across two languages stopped calling it a
+  95 percent confidence interval, the band came off every marketing surface, and it survives on the
+  Forecast page and in the API as model spread with the measured coverage stated beside it.
+  `ci_lower` and `ci_upper` keep their names because callers depend on them.
+
+  **The calibration half was sized on 2026-09-01 and deliberately not shipped.** Conformal
+  calibration by replay, calibrating on 2026-05-04 to 2026-07-14 and measuring on the disjoint
+  2026-07-14 to 2026-08-29, reaches 94.7 / 94.7 / 96.5 / 98.4 percent marginal coverage across the
+  four horizons, at a median half width of **±1.29 / ±1.54 / ±2.17 / ±2.54 Kp** against ±0.17 today.
+  It fails where it matters: conditional on observed Kp >= 5 its coverage is 62 / 38 / 50 / 50
+  percent, against 0 percent for the band shipping now. A band that is 95 percent overall and half
+  that during storms is confident exactly when it is wrong, so no calibrated band is published. Only
+  8 storm slots and 22 active slots fall in the held-out window, so those figures are directional;
+  the direction is consistent across all four horizons and both conformal variants. Closing this
+  properly needs conditional calibration with a storm sample that does not exist yet, or a variance
+  head validated on active conditions specifically.
 - **AUD-015** Residual only: with Kp padding gone, `lag_1` through `lag_7` and the two rolling
   features still fall back to `0.0` at the oldest end of every window, 30 cells of 304. Closing it
   means requesting `seq_len + 7` readings, not another default.
