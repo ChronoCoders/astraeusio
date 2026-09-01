@@ -472,6 +472,7 @@ const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-index
 
 /// Adds `users.token_version`, the counter that lets a password change or reset
 /// invalidate sessions that were issued before it.
+const EMAIL_LOWERCASE_MIGRATION: &str = "2026-09-01-email-lowercase";
 const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
 
 /// Adds `api_keys.expires_at` and `api_keys.revoked_at`. Both nullable, so an
@@ -709,6 +710,36 @@ impl Store {
                 params![TOKEN_VERSION_MIGRATION, now()],
             )?;
             info!("added users.token_version");
+        }
+
+        // Addresses are stored and compared in lower case from 2026-09-01. Six
+        // production rows were already lower case when this was written, so
+        // this is defensive rather than corrective, and it is written to fail
+        // loudly rather than silently merge if two rows ever differ only in
+        // case: `email` is the primary key, so a collision aborts the update
+        // and the operator has to decide which account survives.
+        let email_case_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![EMAIL_LOWERCASE_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if email_case_applied == 0 {
+            let mixed: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM users WHERE email <> lower(email)",
+                [],
+                |row| row.get(0),
+            )?;
+            if mixed > 0 {
+                conn.execute(
+                    "UPDATE users SET email = lower(email) WHERE email <> lower(email)",
+                    [],
+                )?;
+                info!("folded {mixed} account addresses to lower case");
+            }
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![EMAIL_LOWERCASE_MIGRATION, now()],
+            )?;
         }
 
         let api_key_lifecycle_applied: i64 = conn.query_row(
@@ -3085,17 +3116,28 @@ impl Store {
         Ok(())
     }
 
+    /// Turning the second factor on or off is a change to how the account
+    /// authenticates, so it invalidates tokens minted before it, the same way a
+    /// password change does.
+    ///
+    /// Without the bump, somebody who turns 2FA on because they believe their
+    /// session is stolen leaves the thief holding a working token for up to
+    /// twenty four hours: the countermeasure does not touch the thing it was
+    /// taken against. `every_factor_change_invalidates_sessions` holds all three
+    /// writers to this.
     pub fn enable_totp(&self, email: &str) -> Result<(), DbError> {
         self.conn.execute(
-            "UPDATE users SET totp_enabled = TRUE WHERE email = ?",
+            "UPDATE users SET totp_enabled = TRUE, token_version = COALESCE(token_version, 0) + 1 WHERE email = ?",
             params![email],
         )?;
         Ok(())
     }
 
+    /// Disabling matters as much as enabling: a thief who turns 2FA off has
+    /// weakened the account, and the owner turning it off wants a clean slate.
     pub fn disable_totp(&self, email: &str) -> Result<(), DbError> {
         self.conn.execute(
-            "UPDATE users SET totp_secret_enc = NULL, totp_enabled = FALSE WHERE email = ?",
+            "UPDATE users SET totp_secret_enc = NULL, totp_enabled = FALSE, token_version = COALESCE(token_version, 0) + 1 WHERE email = ?",
             params![email],
         )?;
         Ok(())
@@ -4612,6 +4654,44 @@ mod tests {
             .query_row("SELECT count(*) FROM apod", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 1, "the upsert must not duplicate the row");
+    }
+
+    /// Every write that changes how an account authenticates must invalidate
+    /// tokens minted before it.
+    ///
+    /// Declared as a list rather than asserted one function at a time, because
+    /// the failure here is a fourth writer arriving without the bump. A
+    /// password change had it, the two second factor writes did not, so
+    /// enabling 2FA against a stolen session left the thief holding a working
+    /// token for up to twenty four hours (AUD-018).
+    ///
+    /// `set_totp_secret` is deliberately absent: it stores a secret during
+    /// setup while `totp_enabled` is still false, so nothing about how the
+    /// account authenticates has changed yet. `verify_2fa` is what flips it,
+    /// and that goes through `enable_totp`.
+    #[test]
+    fn every_factor_change_invalidates_sessions() {
+        type Op = fn(&Store, &str) -> Result<(), DbError>;
+        let operations: [(&str, Op); 3] = [
+            ("a password change", |s, e| s.update_password_hash(e, "new-hash")),
+            ("enabling the second factor", |s, e| s.enable_totp(e)),
+            ("disabling the second factor", |s, e| s.disable_totp(e)),
+        ];
+
+        for (name, operation) in operations {
+            let store = mem_store();
+            let email = "factor@example.com";
+            store.create_user(email, "hash").unwrap();
+            let before = store.get_token_version(email).unwrap();
+
+            operation(&store, email).unwrap();
+
+            assert_eq!(
+                store.get_token_version(email).unwrap(),
+                before + 1,
+                "{name} must invalidate sessions minted before it"
+            );
+        }
     }
 
     /// The alerts feed reports on the poll that fetched it, not on the age of
