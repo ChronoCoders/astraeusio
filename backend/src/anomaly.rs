@@ -126,7 +126,7 @@ pub fn detect_and_store(db: &Store, writer: &DbWriterHandle) -> Result<(), DbErr
 }
 
 fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
-    if let Some((time_tag, kp_e2)) = db.latest_kp_raw()?
+    if let Some((time_tag, _, kp_e2)) = db.latest_kp_raw()?
         && let Some(severity) = kp_severity(kp_e2)
     {
         let kp = kp_e2 as f64 / 100.0;
@@ -144,7 +144,7 @@ fn check_kp(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 }
 
 fn check_solar_wind(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
-    if let Some((time_tag, speed_e1)) = db.latest_solar_wind_speed_raw()?
+    if let Some((time_tag, _, speed_e1)) = db.latest_solar_wind_speed_raw()?
         && let Some(severity) = wind_severity(speed_e1)
     {
         let speed = speed_e1 as f64 / 10.0;
@@ -322,8 +322,8 @@ fn check_custom_rules(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError
         // Both sides stay in the metric's stored units, so a reading exactly
         // on the threshold compares exactly.
         let raw = match rule.metric.as_str() {
-            "kp" => db.latest_kp_raw()?.map(|(_, v)| v),
-            "solar_wind_speed" => db.latest_solar_wind_speed_raw()?.map(|(_, v)| v),
+            "kp" => db.latest_kp_raw()?.map(|(_, _, v)| v),
+            "solar_wind_speed" => db.latest_solar_wind_speed_raw()?.map(|(_, _, v)| v),
             "xray_flux" => db.latest_xray_flux_raw()?.map(|(_, v)| v),
             "dst" => db.latest_dst_raw()?.map(|(_, v)| v),
             "imf_bz" => db.latest_imf_bz_raw()?.map(|(_, v)| v),

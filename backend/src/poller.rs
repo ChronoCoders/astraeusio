@@ -788,6 +788,28 @@ async fn dispatch_email_alerts(
         .as_secs() as i64;
     const COOLDOWN_SECS: i64 = 3600;
 
+    // A reading older than its own freshness limit cannot support the sentence
+    // this email opens with, which is that conditions have exceeded a threshold,
+    // present tense. A feed that goes quiet mid-storm would otherwise re-send
+    // the last reading it managed every hour for as long as it stayed dead,
+    // each one describing conditions that may have ended (AUD-028). A silent
+    // feed already shows as degraded on the status page and mails through
+    // component-check.sh, which is the right channel for "we cannot see".
+    let kp_stale = kp_opt
+        .as_ref()
+        .is_some_and(|(_, at, _)| !crate::db::reading_is_current("noaa_kp", *at, now_ts));
+    let wind_stale = wind_opt
+        .as_ref()
+        .is_some_and(|(_, at, _)| !crate::db::reading_is_current("noaa_solar_wind", *at, now_ts));
+    if kp_stale {
+        warn!(source = "poller/email-alerts", "kp is stale, not alerting from it");
+    }
+    if wind_stale {
+        warn!(source = "poller/email-alerts", "solar wind is stale, not alerting from it");
+    }
+    let kp_now = if kp_stale { None } else { kp_opt };
+    let wind_now = if wind_stale { None } else { wind_opt };
+
     for sub in subs {
         if let Some(last) = sub.last_notified_at
             && now_ts - last < COOLDOWN_SECS
@@ -797,7 +819,7 @@ async fn dispatch_email_alerts(
 
         let mut lines: Vec<String> = Vec::new();
 
-        if let Some((_, kp_e2)) = kp_opt
+        if let Some((_, _, kp_e2)) = kp_now
             && kp_e2 >= sub.kp_threshold_e2
         {
             let kp = kp_e2 as f64 / 100.0;
@@ -805,7 +827,7 @@ async fn dispatch_email_alerts(
             lines.push(format!("• Kp index {kp:.1} (your threshold: {thr:.1})"));
         }
 
-        if let Some((_, speed_e1)) = wind_opt
+        if let Some((_, _, speed_e1)) = wind_now
             && speed_e1 >= sub.wind_threshold_e1
         {
             let speed = speed_e1 as f64 / 10.0;
@@ -819,16 +841,22 @@ async fn dispatch_email_alerts(
             continue;
         }
 
-        writer.fire(WriteCmd::TouchEmailAlertNotified(sub.user_email.clone()));
-
         let email = sub.user_email.clone();
         let cfg = cfg.clone();
+        let writer = writer.clone();
         let body = format!(
             "Space Weather Alert\n\nThe following conditions have exceeded your thresholds:\n\n{}\n\nView your dashboard: https://astraeusio.com\n\nTo update alert settings, visit the API Keys page in your dashboard.",
             lines.join("\n")
         );
         tokio::spawn(async move {
-            mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await;
+            // The cooldown records that an alert was delivered, so it is marked
+            // on the strength of the send rather than before it. Marking first
+            // meant a failed send bought an hour of silence exactly as a
+            // successful one did, and the user heard nothing about either.
+            if mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await
+            {
+                writer.fire(WriteCmd::TouchEmailAlertNotified(email));
+            }
         });
     }
 }
