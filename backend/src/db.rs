@@ -324,6 +324,26 @@ pub const POLL_LIVENESS: [PollLiveness; 1] = [PollLiveness {
     max_verdict_age_secs: 1_800,
 }];
 
+/// Components that are monitored but do not decide whether the product works.
+///
+/// The NASA feeds are interesting rather than load bearing: an astronomy
+/// picture failing to fetch says nothing about space weather. They kept their
+/// freshness entries, their health snapshots, their uptime history and their
+/// cron mail; what they lost is the ability to put "degraded" at the top of the
+/// public status page, where a satellite operator reads it as our space weather
+/// data being broken.
+///
+/// Declared as an exclusion rather than an inclusion on purpose. A component
+/// added later counts toward `status` unless somebody names it here, so the
+/// default is that new things matter and hiding one is a deliberate act with a
+/// name attached.
+pub const AUXILIARY: [&str; 4] = ["nasa_apod", "nasa_epic", "nasa_neo", "nasa_exoplanets"];
+
+/// Whether a component is excluded from the overall status.
+pub fn is_auxiliary(component: &str) -> bool {
+    AUXILIARY.contains(&component)
+}
+
 /// The freshness limit for every series, used by both the read path and the
 /// status page so the two cannot disagree about what current means.
 ///

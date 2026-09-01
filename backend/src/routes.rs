@@ -217,10 +217,21 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     };
 
     // ── Overall ───────────────────────────────────────────────────────────────
+    //
+    // Every component is still published below. What `status` answers is
+    // narrower: does the product work. The NASA auxiliary feeds are excluded
+    // (`db::AUXILIARY`), because an astronomy picture failing to fetch was
+    // putting "degraded" on a public page that people read as a statement about
+    // space weather data. Contract change, 2026-09-01, and the reason it is
+    // here rather than in the page is that a cron mail contradicting the public
+    // status page is worse than a changed field.
     let overall = if [ml_status, db_status, celestrak_status]
         .iter()
         .all(|&s| s == "operational")
-        && series.iter().all(|(_, status, _)| *status == "operational")
+        && series
+            .iter()
+            .filter(|(component, _, _)| !crate::db::is_auxiliary(component))
+            .all(|(_, status, _)| *status == "operational")
         && liveness.iter().all(|(_, status, _)| *status == "operational")
     {
         "operational"
@@ -278,9 +289,14 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
         // feed, which now come from SERIES_FRESHNESS below. Its historical rows
         // stay in health_snapshots and simply stop being rendered.
         let fixed = ["backend_api", "ml_forecast", "database", "celestrak"];
+        // `POLL_LIVENESS` joins `SERIES_FRESHNESS` here because a component
+        // whose status is published and whose history is not is half published.
+        // `noaa_alerts` showed on the status page with an empty strip from the
+        // day it was added until 2026-09-01.
         let components = fixed
             .into_iter()
-            .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component));
+            .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component))
+            .chain(crate::db::POLL_LIVENESS.iter().map(|l| l.component));
         let mut out = serde_json::Map::new();
         for comp in components {
             // 90 entries, oldest first (index 0 = 89 days ago, last = today)
@@ -1726,6 +1742,83 @@ mod mcp_tests {
 
     /// A component with no recorded history must not read as downtime. It used
     /// to report 0 percent, which on a page of components at 100 percent looks
+    /// The status page exists to say whether the product works. An astronomy
+    /// picture failing to fetch is not that, and it used to put "Partial
+    /// Outage" at the top of a page a satellite operator reads as a statement
+    /// about space weather data.
+    ///
+    /// Both directions are asserted together on purpose. Excluding the wrong
+    /// set would be silent otherwise: a green page during a real NOAA outage is
+    /// the worse failure of the two, and it is the one nobody would report.
+    #[tokio::test]
+    async fn auxiliary_feeds_cannot_move_the_overall_status() {
+        for (component, is_aux) in [
+            ("nasa_apod", true),
+            ("nasa_epic", true),
+            ("nasa_neo", true),
+            ("nasa_exoplanets", true),
+            ("noaa_kp", false),
+            ("noaa_imf", false),
+            ("noaa_alerts", false),
+            ("iss", false),
+            ("celestrak", false),
+        ] {
+            assert_eq!(
+                crate::db::is_auxiliary(component),
+                is_aux,
+                "{component} is on the wrong side of the auxiliary line"
+            );
+        }
+
+        // Everything is still published, whichever side of the line it is on.
+        let state = test_state();
+        let resp = health(State(state.clone())).await;
+        let bytes = axum::body::to_bytes(resp.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        let comps = v["components"].as_object().expect("components");
+        for component in crate::db::AUXILIARY {
+            assert!(
+                comps.contains_key(component),
+                "{component} stopped deciding the status and must still be published"
+            );
+        }
+    }
+
+    /// A component whose status is published and whose history is not is half
+    /// published. `noaa_alerts` was in `/api/health` and absent from
+    /// `/api/health/uptime` from the day it was added until 2026-09-01, so the
+    /// status page showed it with an empty strip.
+    #[tokio::test]
+    async fn every_published_component_has_an_uptime_entry() {
+        let state = test_state();
+        let h = health(State(state.clone())).await;
+        let hb = axum::body::to_bytes(h.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let hv: serde_json::Value = serde_json::from_slice(&hb).expect("json");
+
+        let Ok(u) = uptime(State(state.clone())).await else {
+            panic!("uptime handler failed");
+        };
+        let ub = axum::body::to_bytes(u.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let uv: serde_json::Value = serde_json::from_slice(&ub).expect("json");
+
+        let published = hv["components"].as_object().expect("components");
+        let with_history = uv["components"].as_object().expect("components");
+        let missing: Vec<&String> = published
+            .keys()
+            .filter(|k| !with_history.contains_key(*k))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "published with no uptime history: {missing:?}"
+        );
+    }
+
     /// like three months of outage rather than an absence of records.
     #[tokio::test]
     async fn a_component_with_no_history_reports_null_not_zero() {
