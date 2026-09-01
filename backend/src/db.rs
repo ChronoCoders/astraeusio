@@ -344,6 +344,22 @@ pub fn is_auxiliary(component: &str) -> bool {
     AUXILIARY.contains(&component)
 }
 
+/// Whether every component that decides the product's status is operational.
+///
+/// Pulled out of the health handler so the exclusion is testable on its own.
+/// Left inline it was unguarded: a test can assert `is_auxiliary` and assert
+/// that the feeds are still published without ever asserting that the filter
+/// runs, which is what mutation testing found on 2026-09-01 within a minute of
+/// the harness existing.
+pub fn all_product_components_operational(
+    components: &[(&'static str, &'static str, Option<i64>)],
+) -> bool {
+    components
+        .iter()
+        .filter(|(component, _, _)| !is_auxiliary(component))
+        .all(|(_, status, _)| *status == "operational")
+}
+
 /// The freshness limit for every series, used by both the read path and the
 /// status page so the two cannot disagree about what current means.
 ///

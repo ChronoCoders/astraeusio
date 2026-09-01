@@ -228,11 +228,8 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     let overall = if [ml_status, db_status, celestrak_status]
         .iter()
         .all(|&s| s == "operational")
-        && series
-            .iter()
-            .filter(|(component, _, _)| !crate::db::is_auxiliary(component))
-            .all(|(_, status, _)| *status == "operational")
-        && liveness.iter().all(|(_, status, _)| *status == "operational")
+        && crate::db::all_product_components_operational(&series)
+        && crate::db::all_product_components_operational(&liveness)
     {
         "operational"
     } else {
@@ -1769,6 +1766,26 @@ mod mcp_tests {
                 "{component} is on the wrong side of the auxiliary line"
             );
         }
+
+        // The exclusion itself, which the two assertions above do not reach: a
+        // degraded auxiliary feed must leave the status alone and a degraded
+        // product feed must not.
+        let quiet_apod = [
+            ("noaa_kp", "operational", Some(0)),
+            ("nasa_apod", "degraded", Some(0)),
+        ];
+        let quiet_kp = [
+            ("noaa_kp", "degraded", Some(0)),
+            ("nasa_apod", "operational", Some(0)),
+        ];
+        assert!(
+            crate::db::all_product_components_operational(&quiet_apod),
+            "an astronomy picture must not decide whether the product works"
+        );
+        assert!(
+            !crate::db::all_product_components_operational(&quiet_kp),
+            "a green page during a NOAA outage is the worse failure of the two"
+        );
 
         // Everything is still published, whichever side of the line it is on.
         let state = test_state();

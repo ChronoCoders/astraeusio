@@ -33,6 +33,19 @@ function partialWindow(up) {
   return recorded
 }
 
+// How long the worst affected member has been quiet, as a number and a unit.
+//
+// Names alone do not answer the question somebody came to the page with. The
+// difference between twelve minutes and twelve hours is the whole question.
+// Rounded down to the largest unit that fits, so it reads as one figure rather
+// than a duration string.
+function fmtDelay(secs, t) {
+  if (secs == null || secs < 60) return null
+  if (secs < 3600) return t('status.duration.minutes', { count: Math.floor(secs / 60) })
+  if (secs < 86400) return t('status.duration.hours', { count: Math.floor(secs / 3600) })
+  return t('status.duration.days', { count: Math.floor(secs / 86400) })
+}
+
 // A group's history, folded from its members' strips.
 //
 // A day is only as good as its worst member that reported, and a day nobody
@@ -215,13 +228,29 @@ export default function StatusPage({ onSignIn }) {
       status: error
         ? (key === 'backend_api' ? 'outage' : 'unknown')
         : (c[key]?.status ?? 'unknown'),
+      // Which timestamp a component carries depends on what it measures, so
+      // take whichever it published rather than knowing per component.
+      lastUpdate: c[key]?.last_update ?? c[key]?.last_checked ?? c[key]?.last_write,
     }))
     const status = worst(members.map(m => m.status))
     // Read from the payload, never a fixed sentence per group, so a member that
     // goes quiet tomorrow is named without anyone editing this file.
     const affected = members.filter(m => m.status !== 'operational')
+    // The longest silence among the affected members, which is the one worth
+    // reporting: a group is as late as its latest feed.
+    const oldest = affected
+      .map(m => m.lastUpdate)
+      .filter(ts => ts != null)
+      .reduce((a, ts) => (a == null || ts < a ? ts : a), null)
+    // Measured against the moment the payload was fetched rather than the
+    // clock, so the figure belongs to the data on screen and the render stays
+    // pure.
+    const delay =
+      oldest == null || refreshed == null
+        ? null
+        : fmtDelay(Math.floor(refreshed.getTime() / 1000) - oldest, t)
     const up = groupUptime(group.members, u)
-    return { key: group.key, name: t(`status.group.${group.key}`), status, affected, up }
+    return { key: group.key, name: t(`status.group.${group.key}`), status, affected, delay, up }
   })
 
   const overall = error ? 'outage' : worst(ROWS.map(r => r.status))
@@ -298,6 +327,7 @@ export default function StatusPage({ onSignIn }) {
                       {t(`status.affected.${row.status}`, {
                         names: row.affected.map(m => m.name).join(', '),
                       })}
+                      {row.delay ? ` ${row.delay}` : ''}
                     </p>
                   )}
                   <UptimeStrip

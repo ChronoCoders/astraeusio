@@ -442,6 +442,14 @@
       "satellites": "Satellite tracking",
       "other": "Other"
     },
+    "duration": {
+      "minutes_one": "1 minute",
+      "minutes_other": "{{count}} minutes",
+      "hours_one": "1 hour",
+      "hours_other": "{{count}} hours",
+      "days_one": "1 day",
+      "days_other": "{{count}} days"
+    },
     "affected": {
       "degraded": "{{names}} delayed",
       "outage": "{{names}} down",
