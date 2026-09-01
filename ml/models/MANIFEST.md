@@ -19,6 +19,14 @@ before 2026-09-01 was not, because of AUD-032, and is not comparable.
 - **trained** 2026-08-31, repo at `b02d4bc`
 - **trained through** 2026-04-20
 - **target** residual at 3h and 6h, level at 12h and 24h
+- **deployed** 2026-09-01 04:16 UTC by `./deploy-model.sh`, replacing `aa99058e8bdd`,
+  which is preserved on the volume
+- **verified live**: production `/predict` returned 1.414 / 1.445 / 1.874 / 1.925 for a
+  16 reading window whose newest value was 1.00, against 1.410 / 1.446 / 1.872 / 1.922 from
+  the same checkpoint replayed locally. Differences of 0.001 to 0.004 Kp, inside the MC
+  Dropout spread of about 0.02 between repeated local runs. The raw 3h output for that
+  window is a change of +0.42, so a served value of 1.414 also demonstrates the residual
+  inverse is applied rather than assumed.
 - **first with correct horizon labels.** Every earlier model was trained one
   period beyond its label (AUD-032), so its stored metrics describe 6h/9h/15h/27h.
 
