@@ -46,6 +46,19 @@ or in the commit that created the deferral.
 
 ## Deferred from the alerting work
 
+- No ID. **`component-check.sh` has no duration term, so a feed dead for twelve hours and one dead
+  for twelve days look identical after the first mail.** It mails once per distinct set of bad
+  components and then stays silent while that set is unchanged: no re-mail after a threshold, no
+  severity step, no separate treatment for a component that has been degraded for a week. Observed
+  2026-09-01, when `noaa_imf` and `noaa_solar_wind` had been alerting continuously since 31 Aug
+  21:07 UTC, about 17 hours, on one mail sent at the transition.
+  The silence is deliberate and right for the first hour, since re-mailing every fifteen minutes is
+  how an alert gets filtered to a folder. What is missing is the other end: something that says a
+  known problem has now lasted long enough to be a different problem. Candidates are a second mail
+  at a duration threshold, a daily digest naming what is still bad and for how long, or including
+  the age in the recovered mail so the record shows the length. Wanted, not tonight, and not mixed
+  into the status page work.
+
 - No ID. `healthcheck.sh` reports `status=000000` when the site is unreachable, because
   `curl -w "%{http_code}"` prints `000` and then exits non-zero so the `|| echo "000"` appends a
   second copy; harmless, since every spelling satisfies the `!= "200"` test, and deliberately not
