@@ -103,23 +103,6 @@ stands. Every finding in `docs/AUDIT-2026-08.md` now carries a resolution line a
 open, one line each. A finding whose remainder is already stated elsewhere in this file is not
 repeated here.
 
-- **AUD-032** **Every forecast head is trained one period beyond the horizon it is published as.**
-  Added 2026-09-01, fixed the same day in `001cda9`. `make_sequences` paired `X[i] = values[i : i+16]`
-  with `y[i] = targets[i+16]` while `targets[t] = kp[t+p]`, so the newest input was slot `i+15` and
-  the target slot `i+16+p`: a lead of `p+1` periods. The head labelled 3h was trained on 6h, 6h on
-  9h, 12h on 15h, 24h on 27h. Verified arithmetically against the parquet, not inferred.
-
-  The service published a six hour forecast as a three hour one on `/api/public/forecast`,
-  `/api/kp-forecast`, the MCP tool, the Forecast page and the landing page. It invalidated every
-  skill number measured before the fix, **including the checkpoint's own stored
-  `validation.per_fold` and `validation.per_horizon`**, which were keyed 3h/6h/12h/24h and measured
-  6h/9h/15h/27h. AUD-030 is superseded by it.
-
-  The fix was one index: the target for a window ending at slot `L` with lead `p` is `kp[L+p]`, so
-  the roll is `-(p-1)` and the residual base is the newest observation rather than the slot after it.
-  `train.py` now asserts the alignment against the raw series on every run and fails rather than
-  mislabels. The retrain that followed is measured under the bar below.
-
 - **AUD-033** **The four horizon heads are one function with four amounts of shrinkage.** Added
   2026-09-01, measured on the checkpoint trained after the AUD-032 fix, so it is not an artefact of
   the wrong leads. Every head's correlation with the outcome peaks at a lead of three hours,
