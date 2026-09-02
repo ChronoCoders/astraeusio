@@ -5,8 +5,8 @@
 # Cloudflare allow list for 80 and 443, and it does nothing for this site.
 # Docker publishes those ports by DNAT in PREROUTING, so the traffic traverses
 # FORWARD and never reaches ufw's INPUT chain. On 2026-08-12 the origin answered
-# a request from 66.135.2.77, an address in no Cloudflare range, with the full
-# application HTML. DOCKER-USER is the first chain in FORWARD and is the only
+# a request from an address in no Cloudflare range with the full application
+# HTML. DOCKER-USER is the first chain in FORWARD and is the only
 # place a rule can apply to a published container port.
 #
 # Ranges change, so they are fetched, never hardcoded. Refreshed by:
