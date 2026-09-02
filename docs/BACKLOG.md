@@ -242,10 +242,6 @@ repeated here.
 - **AUD-020** The OAuth `nonce` is still generated and never compared, with no cookie and no PKCE,
   so the state token proves the server issued some state and not that the callback belongs to the
   browser that began the flow.
-- **AUD-021** `uptime_pct` still cannot represent an outage: `backend_api` is a literal written by
-  the process being measured, the denominator is rows present rather than samples expected, and the
-  bucket is a rolling offset from request time rather than a calendar day. `2623cf6` answered the
-  gap half the other way on purpose, so this needs a policy decision before code.
 - **AUD-022** `kp_forecast` is still keyed on target time alone with no horizon and no issue time,
   and the poller still stores the 3 h mirror and discards the other three horizons, so the stored
   history and the accuracy metrics cover one horizon while the page shows four.
@@ -258,8 +254,6 @@ repeated here.
   to wait on.
 - **AUD-027** `Referrer-Policy` was named in the fix and never added. Confirmed absent from the
   live response 2026-08-30, where the other four headers and the report-only CSP are present.
-- **AUD-029** `/api/usage` still reports `"scope": "api_key"` as a literal on the line above the
-  correctly computed `caller`.
 
 ## Enumeration coverage
 
