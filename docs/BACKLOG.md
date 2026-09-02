@@ -100,6 +100,21 @@ or in the commit that created the deferral.
   new key would not disable the old one and the exposure would be unchanged. The redaction shipped
   in `df07971`. It stays open because the old key is still live and only NASA can retire it.
 
+- No ID. **Tracking the ops scripts relaxed them from 700 to 755 on the host, and git cannot put
+  that back.** The thirteen scripts lived on the host at mode 700 before they were tracked in
+  `1bbf5c5` and `c4182bd`. Git records one bit, executable or not, so a tracked file arrives at 755
+  under the default umask and every pull restores 755. Nothing in them is secret: the per-file audit
+  on 2026-09-01 found no embedded credential, every one reads from `.cloudflare-key`, `.r2-s3-key`
+  or `backend/.env`, all of which stay untracked at 600. So this is not an exposure, it is a
+  property that changed quietly as a side effect of a change made for a different reason, and it is
+  recorded because nobody chose it.
+  If 700 is the mode these should have, the tracked copy cannot enforce it and something else has
+  to: a `chmod` in whatever runs the pull, or an assertion in `component-check.sh` that fails when a
+  mode drifts, which has the advantage of noticing rather than silently correcting. The third option
+  is to decide 755 is correct for a directory holding no secrets and write that down, which is
+  cheapest and is the current state by accident rather than by decision. Unresolved because the
+  answer is a preference about the host, not a defect.
+
 ## Measurement
 
 - No ID. Early degradation below the alerting floor is not detectable by rate alone. The throughput
