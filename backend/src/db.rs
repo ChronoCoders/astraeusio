@@ -21,6 +21,15 @@ pub enum DbError {
     EmailTaken,
     #[error("api key not found")]
     KeyNotFound,
+    /// A schema rewrite that did not verify. Startup fails rather than
+    /// continuing on a half migrated table.
+    #[error("migration failed: {0}")]
+    Migration(String),
+    /// An issue that did not carry every horizon. Nothing is written: a
+    /// forecast history with some cycles missing a head is harder to notice
+    /// than one missing it always.
+    #[error("forecast horizons {got} are not the published set {want}, nothing was stored")]
+    PartialForecast { got: String, want: String },
     #[error("{0}")]
     EncryptionKey(#[from] crate::secretbox::KeyError),
     #[error(
@@ -145,9 +154,25 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS kp_forecast (
-    ts         BIGINT NOT NULL PRIMARY KEY,
-    kp_e2      BIGINT NOT NULL,
-    fetched_at BIGINT NOT NULL
+    -- When the prediction was made, and how far ahead it reached. Keyed on both
+    -- because a target time alone cannot tell two predictions apart: the 24 h
+    -- head issued at 01:00 and the 12 h head issued at 13:00 name the same
+    -- instant, and under the old key the second silently overwrote the first.
+    issued_at      BIGINT NOT NULL,
+    horizon_hours  BIGINT NOT NULL,
+    -- issued_at + horizon_hours * 3600, stored rather than derived so a query
+    -- can pair against it without recomputing the arithmetic in four places.
+    ts             BIGINT NOT NULL,
+    kp_e2          BIGINT NOT NULL,
+    ci_lower_e2    BIGINT,
+    ci_upper_e2    BIGINT,
+    uncertainty_e4 BIGINT,
+    -- Which checkpoint produced it, from the ml service's own /health. NULL for
+    -- rows predating the fix that made the heads match their published lead, so
+    -- a metric can ask about one model instead of averaging two.
+    model_sha      TEXT,
+    fetched_at     BIGINT NOT NULL,
+    PRIMARY KEY (issued_at, horizon_hours)
 );
 
 CREATE TABLE IF NOT EXISTS alerts_anomaly (
@@ -320,6 +345,26 @@ pub struct PollLiveness {
 /// Declared, like `SERIES_FRESHNESS`, so that the status page, `/api/health` and
 /// `component-check.sh` enumerate the same set. A list built from what has
 /// already spoken is how a dead feed stays invisible.
+/// The lead times the ml service publishes, in hours, in the order it returns
+/// them. One list, because three separate places used to assume the shape of
+/// `forecast[]` and only the first element was ever stored.
+pub const FORECAST_HORIZONS: [i64; 4] = [3, 6, 12, 24];
+
+/// Pairs required before a forecast accuracy figure is published for a horizon.
+///
+/// Below this the number moves more under its own sampling noise than under any
+/// change in the model, and a figure that swings on resampling is worse than an
+/// empty cell: it invites a conclusion. At the measured residual spread of about
+/// 0.7 Kp, the standard error of the mean absolute error is 0.7 / sqrt(n), which
+/// is 0.31 at n = 5, 0.22 at n = 10 and 0.13 at n = 30. Thirty is where it drops
+/// below the size of the differences anyone would act on, which for these
+/// horizons is around 0.15 Kp.
+///
+/// At a 30 minute issue cadence that is about 15 hours of pairs for the 3 h head
+/// and about 36 hours for the 24 h head, since a pair needs the target time to
+/// have passed before it exists at all.
+pub const MIN_PAIRS_FOR_METRICS: i64 = 30;
+
 /// Components whose only honest claim is that the process was running.
 ///
 /// `backend_api` used to record the literal `"operational"` written by the
@@ -548,6 +593,24 @@ const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-index
 /// Adds `users.token_version`, the counter that lets a password change or reset
 /// invalidate sessions that were issued before it.
 const EMAIL_LOWERCASE_MIGRATION: &str = "2026-09-01-email-lowercase";
+
+/// Rekeys `kp_forecast` on `(issued_at, horizon_hours)` and relabels the rows
+/// that predate `001cda9`.
+const FORECAST_HORIZON_KEY_MIGRATION: &str = "2026-09-02-kp-forecast-horizon-key";
+
+/// Whether a rebuilt `kp_forecast` may replace the original.
+///
+/// Named and separate because with today's copy statement it cannot fail:
+/// `INSERT ... SELECT` copies every row or none, and `ts` is computed from
+/// `issued_at` in the same expression that sets it, so the two cannot disagree.
+/// That is the point. The gate is not defending against DuckDB, it is defending
+/// against the next edit to that statement, where a `WHERE` or a join would
+/// drop rows silently and the only forecast history that exists would be gone
+/// with the table it came from. `rebuild-db.sh` checks the same two things for
+/// the same reason and it has never failed either.
+fn rekey_is_verified(before: i64, copied: i64, inconsistent: i64) -> bool {
+    copied == before && inconsistent == 0
+}
 const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
 
 /// Adds `api_keys.expires_at` and `api_keys.revoked_at`. Both nullable, so an
@@ -816,6 +879,104 @@ impl Store {
                 "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
                 params![EMAIL_LOWERCASE_MIGRATION, now()],
             )?;
+        }
+
+        // Rekey kp_forecast and relabel the rows that predate the horizon fix.
+        //
+        // Detected from the schema rather than from schema_migrations, because a
+        // fresh database already has the new shape and must not run the copy.
+        let needs_forecast_rekey: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM duckdb_columns()
+                 WHERE table_name = 'kp_forecast' AND column_name = 'horizon_hours'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(1);
+        if needs_forecast_rekey == 0 {
+            let before: i64 =
+                conn.query_row("SELECT COUNT(*) FROM kp_forecast", [], |row| row.get(0))?;
+            let started = std::time::Instant::now();
+
+            // Every existing row is a 3 h forecast by its label and a 6 h
+            // forecast in fact. Before 001cda9 the training loop paired a window
+            // ending at index i with the target at i + seq_len + p, one period
+            // beyond the lead each head was published as, so the head sold as
+            // 3 h was predicting 6 h. The value is real and the label was wrong,
+            // so the label moves and `ts` moves with it. `model_sha` stays NULL,
+            // which is what keeps these out of any figure describing the model
+            // running now.
+            // The copy is fallible for a reason that exists in the data: the
+            // old key was the target time, so two rows could share a
+            // `fetched_at` and collide on the new one. Production has none, and
+            // a table left half built would fail every restart afterwards on
+            // CREATE TABLE, so the temporary table goes whatever happens.
+            let copy = conn.execute_batch(
+                "CREATE TABLE kp_forecast_new (
+                     issued_at      BIGINT NOT NULL,
+                     horizon_hours  BIGINT NOT NULL,
+                     ts             BIGINT NOT NULL,
+                     kp_e2          BIGINT NOT NULL,
+                     ci_lower_e2    BIGINT,
+                     ci_upper_e2    BIGINT,
+                     uncertainty_e4 BIGINT,
+                     model_sha      TEXT,
+                     fetched_at     BIGINT NOT NULL,
+                     PRIMARY KEY (issued_at, horizon_hours)
+                 );
+                 INSERT INTO kp_forecast_new
+                     SELECT fetched_at, 6, fetched_at + 6 * 3600, kp_e2,
+                            ci_lower_e2, ci_upper_e2, uncertainty_e4, NULL, fetched_at
+                     FROM kp_forecast;",
+            );
+            if let Err(e) = copy {
+                let _ = conn.execute_batch("DROP TABLE IF EXISTS kp_forecast_new");
+                error!(before, "kp_forecast rekey could not copy: {e}");
+                return Err(DbError::Migration(format!(
+                    "kp_forecast rekey could not copy {before} rows ({e}); the original                      table is untouched"
+                )));
+            }
+
+            // Verify before anything is dropped, the way rebuild-db.sh does.
+            // The old table is still the only copy of this history at this
+            // point, and a rewrite that lost half of it would be unrecoverable
+            // and silent. Two checks: every row arrived, and every row that
+            // arrived is internally consistent.
+            let copied: i64 =
+                conn.query_row("SELECT COUNT(*) FROM kp_forecast_new", [], |row| row.get(0))?;
+            let inconsistent: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM kp_forecast_new
+                 WHERE ts != issued_at + horizon_hours * 3600",
+                [],
+                |row| row.get(0),
+            )?;
+            if !rekey_is_verified(before, copied, inconsistent) {
+                // Nothing has moved. Drop the copy, leave the original alone,
+                // and refuse to start rather than serve queries written for a
+                // schema this database does not have.
+                let _ = conn.execute_batch("DROP TABLE IF EXISTS kp_forecast_new");
+                error!(
+                    before,
+                    copied, inconsistent, "kp_forecast rekey did not verify, nothing was moved"
+                );
+                return Err(DbError::Migration(format!(
+                    "kp_forecast rekey copied {copied} of {before} rows with {inconsistent}                      inconsistent; the original table is untouched"
+                )));
+            }
+
+            conn.execute_batch(
+                "DROP TABLE kp_forecast;
+                 ALTER TABLE kp_forecast_new RENAME TO kp_forecast;",
+            )?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![FORECAST_HORIZON_KEY_MIGRATION, now()],
+            )?;
+            info!(
+                rows = copied,
+                ms = started.elapsed().as_millis() as u64,
+                "rekeyed kp_forecast on (issued_at, horizon_hours) and relabelled the pre-001cda9 rows as 6 h"
+            );
         }
 
         let api_key_lifecycle_applied: i64 = conn.query_row(
@@ -2309,34 +2470,149 @@ impl Store {
 
 // ── Kp forecast ───────────────────────────────────────────────────────────────
 
+/// One horizon of one forecast, as the ml service returned it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ForecastPoint {
+    pub horizon_hours: i64,
+    pub kp_e2: i64,
+    pub ci_lower_e2: Option<i64>,
+    pub ci_upper_e2: Option<i64>,
+    pub uncertainty_e4: Option<i64>,
+}
+
+impl ForecastPoint {
+    /// Reads the ml service's `/predict` body into one point per horizon.
+    ///
+    /// Both write sites go through here, so the shape of `forecast[]` is
+    /// understood in one place rather than in two that can drift. It returns
+    /// nothing at all unless every published horizon is present with a usable
+    /// prediction: a caller cannot store three of four by accident, because
+    /// there is no value it can hold that represents three of four.
+    pub fn from_predict_payload(
+        payload: &serde_json::Value,
+    ) -> Result<(Vec<ForecastPoint>, Option<String>), DbError> {
+        let e2 = |v: Option<f64>| v.map(|x| (x * 100.0).round() as i64);
+        let entries = payload.get("forecast").and_then(|v| v.as_array());
+        let mut points = Vec::with_capacity(FORECAST_HORIZONS.len());
+        for want in FORECAST_HORIZONS {
+            let found = entries.and_then(|list| {
+                list.iter().find(|e| {
+                    e.get("horizon_hours").and_then(|v| v.as_i64()) == Some(want)
+                })
+            });
+            let kp = found
+                .and_then(|e| e.get("predicted_kp"))
+                .and_then(|v| v.as_f64());
+            let Some(kp) = kp else { continue };
+            points.push(ForecastPoint {
+                horizon_hours: want,
+                kp_e2: (kp * 100.0).round() as i64,
+                ci_lower_e2: e2(found.and_then(|e| e.get("ci_lower")).and_then(|v| v.as_f64())),
+                ci_upper_e2: e2(found.and_then(|e| e.get("ci_upper")).and_then(|v| v.as_f64())),
+                uncertainty_e4: found
+                    .and_then(|e| e.get("uncertainty"))
+                    .and_then(|v| v.as_f64())
+                    .map(|x| (x * 10_000.0).round() as i64),
+            });
+        }
+        if points.len() != FORECAST_HORIZONS.len() {
+            let got: Vec<i64> = points.iter().map(|p| p.horizon_hours).collect();
+            return Err(DbError::PartialForecast {
+                got: format!("{got:?}"),
+                want: format!("{:?}", FORECAST_HORIZONS),
+            });
+        }
+        let sha = payload
+            .get("model_sha256")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+        Ok((points, sha))
+    }
+}
+
 impl Store {
+    /// Stores one issue: every horizon, or none of them.
+    ///
+    /// Four rows per cycle where there was one is four chances for a partial
+    /// write, and a forecast history missing its 12 h rows on some cycles and
+    /// not others is worse than one missing them always, because the gap is
+    /// invisible in the aggregate. So the horizons arrive together in one call,
+    /// go in under one transaction, and a set that is not exactly
+    /// `FORECAST_HORIZONS` is refused before any of it is written.
     pub fn insert_kp_forecast(
         &self,
-        ts: i64,
-        kp_e2: i64,
-        ci_lower_e2: Option<i64>,
-        ci_upper_e2: Option<i64>,
-        uncertainty_e4: Option<i64>,
+        issued_at: i64,
+        model_sha: Option<&str>,
+        points: &[ForecastPoint],
     ) -> Result<(), DbError> {
-        self.conn.execute(
-            "INSERT INTO kp_forecast (ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4, fetched_at) \
-             VALUES (?, ?, ?, ?, ?, ?) \
-             ON CONFLICT (ts) DO UPDATE SET \
-                 kp_e2          = excluded.kp_e2, \
-                 ci_lower_e2    = excluded.ci_lower_e2, \
-                 ci_upper_e2    = excluded.ci_upper_e2, \
-                 uncertainty_e4 = excluded.uncertainty_e4, \
-                 fetched_at     = excluded.fetched_at",
-            params![ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4, now()],
-        )?;
-        Ok(())
+        let mut seen: Vec<i64> = points.iter().map(|p| p.horizon_hours).collect();
+        seen.sort_unstable();
+        let mut want = FORECAST_HORIZONS.to_vec();
+        want.sort_unstable();
+        if seen != want {
+            return Err(DbError::PartialForecast {
+                got: format!("{seen:?}"),
+                want: format!("{want:?}"),
+            });
+        }
+
+        // One transaction, the same shape as insert_kp_batch. Either the whole
+        // issue is in the table or none of it is, so no reader can see two of
+        // four horizons mid write.
+        self.begin()?;
+        let result = (|| {
+            let mut stmt = self.conn.prepare(
+                "INSERT INTO kp_forecast \
+                     (issued_at, horizon_hours, ts, kp_e2, ci_lower_e2, ci_upper_e2, \
+                      uncertainty_e4, model_sha, fetched_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+                 ON CONFLICT (issued_at, horizon_hours) DO UPDATE SET \
+                     ts             = excluded.ts, \
+                     kp_e2          = excluded.kp_e2, \
+                     ci_lower_e2    = excluded.ci_lower_e2, \
+                     ci_upper_e2    = excluded.ci_upper_e2, \
+                     uncertainty_e4 = excluded.uncertainty_e4, \
+                     model_sha      = excluded.model_sha, \
+                     fetched_at     = excluded.fetched_at",
+            )?;
+            let written = now();
+            for p in points {
+                stmt.execute(params![
+                    issued_at,
+                    p.horizon_hours,
+                    issued_at + p.horizon_hours * 3600,
+                    p.kp_e2,
+                    p.ci_lower_e2,
+                    p.ci_upper_e2,
+                    p.uncertainty_e4,
+                    model_sha,
+                    written,
+                ])?;
+            }
+            Ok::<(), DbError>(())
+        })();
+        match result {
+            Ok(()) => {
+                self.commit()?;
+                Ok(())
+            }
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
     }
 
-    /// Returns paired predicted/actual Kp rows for the forecast history page.
+    /// Returns paired predicted/actual Kp rows for one horizon.
     /// Pairs each forecast `ts` with the closest `kp_3h` actual within ±90 minutes.
-    pub fn get_forecast_history(&self, since: i64) -> Result<serde_json::Value, DbError> {
+    pub fn get_forecast_history(
+        &self,
+        since: i64,
+        horizon_hours: i64,
+    ) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT f.ts, f.kp_e2, f.ci_lower_e2, f.ci_upper_e2, \
+            "SELECT f.ts, f.issued_at, f.kp_e2, f.ci_lower_e2, f.ci_upper_e2, \
                     ( \
                       SELECT k.kp_e2 FROM kp_3h k \
                       WHERE abs(epoch(k.time_tag::TIMESTAMP) - f.ts) < 5400 \
@@ -2344,33 +2620,47 @@ impl Store {
                       LIMIT 1 \
                     ) AS actual_e2 \
              FROM kp_forecast f \
-             WHERE f.ts > ? \
+             WHERE f.ts > ? AND f.horizon_hours = ? \
              ORDER BY f.ts ASC",
         )?;
         let rows = stmt
-            .query_map([since], |row| {
+            .query_map(params![since, horizon_hours], |row| {
                 let ts: i64 = row.get(0)?;
-                let kp_e2: i64 = row.get(1)?;
-                let ci_l: Option<i64> = row.get(2)?;
-                let ci_u: Option<i64> = row.get(3)?;
-                let actual: Option<i64> = row.get(4)?;
+                let issued_at: i64 = row.get(1)?;
+                let kp_e2: i64 = row.get(2)?;
+                let ci_l: Option<i64> = row.get(3)?;
+                let ci_u: Option<i64> = row.get(4)?;
+                let actual: Option<i64> = row.get(5)?;
                 Ok(serde_json::json!({
-                    "ts":           ts,
-                    "predicted_kp": kp_e2 as f64 / 100.0,
-                    "ci_lower":     ci_l.map(|v| v as f64 / 100.0),
-                    "ci_upper":     ci_u.map(|v| v as f64 / 100.0),
-                    "actual_kp":    actual.map(|v| v as f64 / 100.0),
+                    "ts":            ts,
+                    "issued_at":     issued_at,
+                    "horizon_hours": horizon_hours,
+                    "predicted_kp":  kp_e2 as f64 / 100.0,
+                    "ci_lower":      ci_l.map(|v| v as f64 / 100.0),
+                    "ci_upper":      ci_u.map(|v| v as f64 / 100.0),
+                    "actual_kp":     actual.map(|v| v as f64 / 100.0),
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(serde_json::Value::Array(rows))
     }
 
-    /// Computes forecast-vs-actual aggregate metrics over the last `since` seconds.
+    /// Forecast-vs-actual metrics per horizon over the last `since` seconds.
+    ///
+    /// Rows with no `model_sha` are excluded. Those are the pre-`001cda9`
+    /// predictions, kept because they are real 6 h forecasts honestly relabelled
+    /// and discarded by nobody, but produced by a checkpoint that is not the one
+    /// serving. Averaging two models into one accuracy figure would answer a
+    /// question nobody asked.
+    ///
+    /// A horizon with fewer than `MIN_PAIRS_FOR_METRICS` pairs reports its count
+    /// and nothing else, so the page can leave the row empty rather than print a
+    /// figure that moves under its own noise.
     pub fn get_forecast_metrics(&self, since: i64) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
             "WITH paired AS ( \
-               SELECT f.kp_e2 AS pred, \
+               SELECT f.horizon_hours AS h, \
+                      f.kp_e2 AS pred, \
                       ( \
                         SELECT k.kp_e2 FROM kp_3h k \
                         WHERE abs(epoch(k.time_tag::TIMESTAMP) - f.ts) < 5400 \
@@ -2379,9 +2669,9 @@ impl Store {
                       ) AS actual, \
                       f.uncertainty_e4 AS unc \
                FROM kp_forecast f \
-               WHERE f.ts > ? \
+               WHERE f.ts > ? AND f.model_sha IS NOT NULL \
              ) \
-             SELECT \
+             SELECT h, \
                COUNT(*) FILTER (WHERE actual IS NOT NULL) AS n, \
                AVG(ABS(pred - actual)) FILTER (WHERE actual IS NOT NULL) AS mae_e2, \
                SQRT(AVG((pred - actual) * (pred - actual)) FILTER (WHERE actual IS NOT NULL)) AS rmse_e2, \
@@ -2389,37 +2679,68 @@ impl Store {
                COUNT(*) FILTER (WHERE actual >= 500 AND pred >= 500)                AS n_storms_caught, \
                COUNT(*) FILTER (WHERE pred >= 500 AND (actual IS NOT NULL AND actual < 500)) AS n_false_pos, \
                AVG(unc) FILTER (WHERE unc IS NOT NULL) AS mean_unc_e4 \
-             FROM paired",
+             FROM paired GROUP BY h",
         )?;
-        let mut rows = stmt.query([since])?;
-        if let Some(row) = rows.next()? {
-            let n: i64 = row.get::<_, Option<i64>>(0)?.unwrap_or(0);
-            let mae_e2: Option<f64> = row.get(1)?;
-            let rmse_e2: Option<f64> = row.get(2)?;
-            let n_storms: i64 = row.get::<_, Option<i64>>(3)?.unwrap_or(0);
-            let n_caught: i64 = row.get::<_, Option<i64>>(4)?.unwrap_or(0);
-            let n_false: i64 = row.get::<_, Option<i64>>(5)?.unwrap_or(0);
-            let mean_unc_e4: Option<f64> = row.get(6)?;
-            Ok(serde_json::json!({
-                "n_samples":   n,
-                "mae":         mae_e2.map(|v| v / 100.0),
-                "rmse":        rmse_e2.map(|v| v / 100.0),
-                "n_storms":    n_storms,
-                "n_caught":    n_caught,
-                "n_false_pos": n_false,
-                "hit_rate":    if n_storms > 0 { Some(n_caught as f64 / n_storms as f64) } else { None },
-                "mean_unc":    mean_unc_e4.map(|v| v / 10_000.0),
-            }))
-        } else {
-            Ok(serde_json::json!({ "n_samples": 0 }))
-        }
+        let measured = stmt
+            .query_map([since], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                    row.get::<_, Option<f64>>(2)?,
+                    row.get::<_, Option<f64>>(3)?,
+                    row.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(5)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(6)?.unwrap_or(0),
+                    row.get::<_, Option<f64>>(7)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Enumerated from FORECAST_HORIZONS, not from what the query returned.
+        // A horizon that has never been stored has to appear as an empty row,
+        // otherwise a head that stopped being written would vanish from the page
+        // instead of showing that it has no pairs.
+        let horizons: Vec<serde_json::Value> = FORECAST_HORIZONS
+            .iter()
+            .map(|h| {
+                let found = measured.iter().find(|m| m.0 == *h).copied();
+                let n = found.map(|m| m.1).unwrap_or(0);
+                if n < MIN_PAIRS_FOR_METRICS {
+                    return serde_json::json!({
+                        "horizon_hours": h,
+                        "n_samples":     n,
+                        "min_samples":   MIN_PAIRS_FOR_METRICS,
+                        "sufficient":    false,
+                    });
+                }
+                let (_, _, mae, rmse, n_storms, n_caught, n_false, unc) =
+                    found.unwrap_or((*h, 0, None, None, 0, 0, 0, None));
+                serde_json::json!({
+                    "horizon_hours": h,
+                    "n_samples":     n,
+                    "min_samples":   MIN_PAIRS_FOR_METRICS,
+                    "sufficient":    true,
+                    "mae":           mae.map(|v| v / 100.0),
+                    "rmse":          rmse.map(|v| v / 100.0),
+                    "n_storms":      n_storms,
+                    "n_caught":      n_caught,
+                    "n_false_pos":   n_false,
+                    "hit_rate":      if n_storms > 0 { Some(n_caught as f64 / n_storms as f64) } else { None },
+                    "mean_unc":      unc.map(|v| v / 10_000.0),
+                })
+            })
+            .collect();
+
+        Ok(serde_json::json!({ "horizons": horizons }))
     }
 
-    pub fn get_kp_forecast_latest(&self) -> Result<Option<(i64, i64)>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT ts, kp_e2 FROM kp_forecast ORDER BY fetched_at DESC LIMIT 1")?;
-        let mut rows = stmt.query([])?;
+    /// The most recent prediction at one horizon, as `(target_ts, kp_e2)`.
+    pub fn get_kp_forecast_latest(&self, horizon_hours: i64) -> Result<Option<(i64, i64)>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ts, kp_e2 FROM kp_forecast WHERE horizon_hours = ? \
+             ORDER BY issued_at DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query([horizon_hours])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
         } else {
@@ -2427,12 +2748,19 @@ impl Store {
         }
     }
 
-    /// Returns the (ts, kp_e2) with the highest predicted Kp among forecasts stored since `since`.
-    pub fn get_kp_forecast_max_recent(&self, since: i64) -> Result<Option<(i64, i64)>, DbError> {
+    /// The highest predicted Kp at one horizon among forecasts issued since
+    /// `since`, as `(target_ts, kp_e2)`.
+    pub fn get_kp_forecast_max_recent(
+        &self,
+        since: i64,
+        horizon_hours: i64,
+    ) -> Result<Option<(i64, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT ts, kp_e2 FROM kp_forecast WHERE fetched_at > ? ORDER BY kp_e2 DESC LIMIT 1",
+            "SELECT ts, kp_e2 FROM kp_forecast \
+             WHERE issued_at > ? AND horizon_hours = ? \
+             ORDER BY kp_e2 DESC LIMIT 1",
         )?;
-        let mut rows = stmt.query([since])?;
+        let mut rows = stmt.query(params![since, horizon_hours])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
         } else {
@@ -5195,19 +5523,321 @@ mod tests {
         assert_eq!(store.get_dst_recent().unwrap().as_array().unwrap().len(), 1);
     }
 
+    /// The gate `rebuild-db.sh` and the rekey both apply: every row arrived,
+    /// and every row that arrived is internally consistent. Tested as a rule
+    /// rather than through the migration, because the current copy statement
+    /// cannot produce either failure. See `rekey_is_verified`.
     #[test]
-    fn kp_forecast_insert_and_upsert() {
+    fn a_rebuilt_table_replaces_the_original_only_when_it_verifies() {
+        assert!(rekey_is_verified(1336, 1336, 0), "a complete, consistent copy swaps");
+        assert!(rekey_is_verified(0, 0, 0), "an empty table is a complete copy of nothing");
+        assert!(!rekey_is_verified(1336, 1335, 0), "one row short does not swap");
+        assert!(!rekey_is_verified(1336, 1337, 0), "one row extra does not swap either");
+        assert!(!rekey_is_verified(1336, 1336, 1), "one inconsistent row does not swap");
+    }
+
+    /// Builds a database file carrying the pre-rekey `kp_forecast` and returns
+    /// its path. `rows` are `(ts, kp_e2, fetched_at)` in the old shape.
+    fn old_shape_forecast_db(name: &str, rows: &[(i64, i64, i64)]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("astraeus-{name}-{}.duckdb", now()));
+        let _ = std::fs::remove_file(&path);
+        let conn = duckdb::Connection::open(&path).expect("open");
+        conn.execute_batch(
+            "CREATE TABLE kp_forecast (
+                 ts             BIGINT NOT NULL PRIMARY KEY,
+                 kp_e2          BIGINT NOT NULL,
+                 ci_lower_e2    BIGINT,
+                 ci_upper_e2    BIGINT,
+                 uncertainty_e4 BIGINT,
+                 fetched_at     BIGINT NOT NULL
+             );",
+        )
+        .expect("old schema");
+        // A database that has already been through the earlier migrations,
+        // which is what production is. Without this the 2026-08 purge runs and
+        // empties the table before the rekey ever sees it, and the test would
+        // be describing a fresh file rather than the one being migrated.
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (
+                 id         TEXT   NOT NULL PRIMARY KEY,
+                 applied_at BIGINT NOT NULL
+             );",
+        )
+        .expect("migrations table");
+        conn.execute(
+            "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+            params![PURGE_FORECASTS_MIGRATION, now()],
+        )
+        .expect("record the purge");
+        for (ts, kp, fetched) in rows {
+            conn.execute(
+                "INSERT INTO kp_forecast (ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4, fetched_at)
+                 VALUES (?, ?, 100, 400, 1000, ?)",
+                params![ts, kp, fetched],
+            )
+            .expect("seed row");
+        }
+        drop(conn);
+        path
+    }
+
+    /// The 1336 rows this migration moves are the only forecast history that
+    /// exists. Each is a 6 h prediction filed as 3 h: before 001cda9 the
+    /// training loop paired a window with the target one period beyond the lead
+    /// its head was published as. The value is real and the label was wrong, so
+    /// the label moves, `ts` moves with it, and `model_sha` stays NULL so no
+    /// figure describing the current model can pick them up.
+    #[test]
+    fn the_rekey_relabels_the_old_rows_as_six_hour_forecasts() {
+        let issued = 1_700_000_000;
+        let rows: Vec<(i64, i64, i64)> = (0..5)
+            .map(|i| {
+                let f = issued + i * 1800;
+                (f + 3 * 3600, 300 + i, f)
+            })
+            .collect();
+        let path = old_shape_forecast_db("rekey-ok", &rows);
+
+        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+
+        let (n, sixes, with_sha): (i64, i64, i64) = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*), \
+                        COUNT(*) FILTER (WHERE horizon_hours = 6), \
+                        COUNT(*) FILTER (WHERE model_sha IS NOT NULL) \
+                 FROM kp_forecast",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("counts");
+        assert_eq!(n, rows.len() as i64, "every row survived");
+        assert_eq!(sixes, n, "every migrated row is labelled 6h");
+        assert_eq!(with_sha, 0, "and none of them claims a model");
+
+        // Issue time is the old write time, and the target moved with the label.
+        let inconsistent: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM kp_forecast WHERE ts != issued_at + horizon_hours * 3600",
+                [],
+                |r| r.get(0),
+            )
+            .expect("consistency");
+        assert_eq!(inconsistent, 0, "ts is issue plus lead for every row");
+
+        let (first_issue, first_ts): (i64, i64) = store
+            .conn
+            .query_row(
+                "SELECT issued_at, ts FROM kp_forecast ORDER BY issued_at LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("first row");
+        assert_eq!(first_issue, issued, "issue time is the old fetched_at");
+        assert_eq!(first_ts, issued + 6 * 3600, "target is six hours after it");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A rewrite that cannot complete leaves the original alone and refuses to
+    /// start, rather than serving queries against a table that lost half its
+    /// rows. The old key was the target time, so two rows could share a write
+    /// second and collide on the new one: production has no such pair, and this
+    /// is what happens to a database that does.
+    #[test]
+    fn a_rekey_that_cannot_complete_changes_nothing() {
+        let issued = 1_700_000_000;
+        // Two different targets written in the same second. Legal under the old
+        // key, a collision under (issued_at, horizon_hours).
+        let rows = [
+            (issued + 3 * 3600, 300, issued),
+            (issued + 3 * 3600 + 1, 310, issued),
+            (issued + 3 * 3600 + 2, 320, issued + 1800),
+        ];
+        let path = old_shape_forecast_db("rekey-collide", &rows);
+
+        let Err(err) = Store::open(path.to_str().unwrap()) else {
+            panic!("a rekey that cannot complete must refuse to start");
+        };
+        assert!(
+            matches!(err, DbError::Migration(_)),
+            "a failed rekey is a migration failure, got {err}"
+        );
+
+        // The original table is still there, still in its old shape, still whole.
+        let conn = duckdb::Connection::open(&path).expect("reopen");
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM kp_forecast", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(n, rows.len() as i64, "nothing was lost");
+        let has_horizon: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM duckdb_columns() \
+                 WHERE table_name = 'kp_forecast' AND column_name = 'horizon_hours'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("columns");
+        assert_eq!(has_horizon, 0, "the original shape is untouched");
+        let leftover: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM duckdb_tables() WHERE table_name = 'kp_forecast_new'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("tables");
+        assert_eq!(leftover, 0, "the half built copy is not left behind to block a retry");
+
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Every horizon of one issue, or none. The old table held a single row per
+    /// forecast keyed on the target time, so three of the four horizons the ml
+    /// service returns were discarded on every call.
+    #[test]
+    fn kp_forecast_stores_every_horizon_of_an_issue() {
         let store = mem_store();
-        let ts = 1_700_000_000;
+        let issued = 1_700_000_000;
 
+        let points: Vec<ForecastPoint> = FORECAST_HORIZONS
+            .iter()
+            .map(|h| ForecastPoint {
+                horizon_hours: *h,
+                kp_e2: 200 + h * 10,
+                ci_lower_e2: Some(180),
+                ci_upper_e2: Some(320),
+                uncertainty_e4: Some(1057),
+            })
+            .collect();
         store
-            .insert_kp_forecast(ts, 250, Some(180), Some(320), Some(1057))
+            .insert_kp_forecast(issued, Some("abc123"), &points)
             .unwrap();
-        assert_eq!(store.get_kp_forecast_latest().unwrap(), Some((ts, 250)));
 
-        // Same ts → ON CONFLICT DO UPDATE replaces the value.
-        store.insert_kp_forecast(ts, 333, None, None, None).unwrap();
-        assert_eq!(store.get_kp_forecast_latest().unwrap(), Some((ts, 333)));
+        for h in FORECAST_HORIZONS {
+            let (ts, kp) = store.get_kp_forecast_latest(h).unwrap().expect("a row");
+            assert_eq!(ts, issued + h * 3600, "{h}h target time is issue plus lead");
+            assert_eq!(kp, 200 + h * 10, "{h}h keeps its own value");
+        }
+
+        // Re-issuing at the same second updates in place rather than colliding.
+        let revised: Vec<ForecastPoint> = points
+            .iter()
+            .map(|p| ForecastPoint { kp_e2: 999, ..*p })
+            .collect();
+        store
+            .insert_kp_forecast(issued, Some("abc123"), &revised)
+            .unwrap();
+        assert_eq!(store.get_kp_forecast_latest(3).unwrap(), Some((issued + 10800, 999)));
+    }
+
+    /// Two predictions can name the same instant. The 24 h head issued at 01:00
+    /// and the 12 h head issued at 13:00 both target 01:00 the next day, and
+    /// under a key of target time alone the second silently replaced the first.
+    #[test]
+    fn two_horizons_naming_the_same_instant_both_survive() {
+        let store = mem_store();
+        let early = 1_700_000_000;
+        let late = early + 12 * 3600;
+
+        let at = |kp: i64| -> Vec<ForecastPoint> {
+            FORECAST_HORIZONS
+                .iter()
+                .map(|h| ForecastPoint {
+                    horizon_hours: *h,
+                    kp_e2: kp,
+                    ci_lower_e2: None,
+                    ci_upper_e2: None,
+                    uncertainty_e4: None,
+                })
+                .collect()
+        };
+        store.insert_kp_forecast(early, Some("m"), &at(111)).unwrap();
+        store.insert_kp_forecast(late, Some("m"), &at(222)).unwrap();
+
+        let target = early + 24 * 3600;
+        let rows: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM kp_forecast WHERE ts = ?",
+                params![target],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 2, "the 24h call and the 12h call are different predictions");
+    }
+
+    /// A set that is not the published one is refused before anything is
+    /// written. Four writes per cycle where there was one is four chances for a
+    /// partial issue, and a history missing its 12 h rows on some cycles and not
+    /// others hides in every aggregate that reads it.
+    #[test]
+    fn an_issue_missing_a_horizon_stores_nothing() {
+        let store = mem_store();
+        let issued = 1_700_000_000;
+
+        let short: Vec<ForecastPoint> = [3, 6, 24]
+            .iter()
+            .map(|h| ForecastPoint {
+                horizon_hours: *h,
+                kp_e2: 300,
+                ci_lower_e2: None,
+                ci_upper_e2: None,
+                uncertainty_e4: None,
+            })
+            .collect();
+        let err = store.insert_kp_forecast(issued, None, &short).unwrap_err();
+        assert!(
+            matches!(err, DbError::PartialForecast { .. }),
+            "a missing horizon must be refused, got {err}"
+        );
+
+        let rows: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM kp_forecast", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0, "nothing at all is written, not the three that arrived");
+    }
+
+    /// The parser is the other half of that guarantee, and it is shared by both
+    /// write sites. A payload missing a horizon yields no value the caller could
+    /// store, rather than a shorter list it might not check.
+    #[test]
+    fn a_predict_payload_missing_a_horizon_yields_nothing() {
+        let full = serde_json::json!({
+            "model_sha256": "deadbeef",
+            "forecast": FORECAST_HORIZONS.iter().map(|h| serde_json::json!({
+                "horizon_hours": h,
+                "predicted_kp": 3.25,
+                "ci_lower": 2.0,
+                "ci_upper": 4.5,
+                "uncertainty": 0.5,
+            })).collect::<Vec<_>>(),
+        });
+        let (points, sha) = ForecastPoint::from_predict_payload(&full).unwrap();
+        assert_eq!(points.len(), FORECAST_HORIZONS.len());
+        assert_eq!(sha.as_deref(), Some("deadbeef"));
+        assert_eq!(points[0].kp_e2, 325);
+        assert_eq!(points[0].uncertainty_e4, Some(5000));
+
+        for drop in FORECAST_HORIZONS {
+            let partial = serde_json::json!({
+                "forecast": FORECAST_HORIZONS.iter().filter(|h| **h != drop)
+                    .map(|h| serde_json::json!({
+                        "horizon_hours": h, "predicted_kp": 3.0,
+                    })).collect::<Vec<_>>(),
+            });
+            assert!(
+                ForecastPoint::from_predict_payload(&partial).is_err(),
+                "a payload without the {drop}h horizon must not parse"
+            );
+        }
+
+        // The old shape, flat 3h fields and no forecast array, is not enough.
+        let flat = serde_json::json!({ "predicted_kp": 3.0, "ci_lower": 2.0 });
+        assert!(ForecastPoint::from_predict_payload(&flat).is_err());
     }
 
     #[test]
@@ -5225,36 +5855,151 @@ mod tests {
             (200, 5.0),         // actual storm (500), pred quiet    → missed
         ];
 
-        for (i, (pred_e2, actual_kp)) in cases.iter().enumerate() {
-            let ts = t + step * i as i64;
+        // Repeated to clear MIN_PAIRS_FOR_METRICS. The pattern is what the
+        // assertions describe, so the averages are the same at 32 pairs as at 4.
+        let repeats = 8;
+        for i in 0..(cases.len() * repeats) {
+            let (pred_e2, actual_kp) = cases[i % cases.len()];
+            let issued = t + step * i as i64;
+            let points: Vec<ForecastPoint> = FORECAST_HORIZONS
+                .iter()
+                .map(|h| ForecastPoint {
+                    horizon_hours: *h,
+                    kp_e2: pred_e2,
+                    ci_lower_e2: None,
+                    ci_upper_e2: None,
+                    uncertainty_e4: Some(1000),
+                })
+                .collect();
+            store.insert_kp_forecast(issued, Some("model-a"), &points).unwrap();
             store
-                .insert_kp_forecast(ts, *pred_e2, None, None, Some(1000))
-                .unwrap();
-            store
-                .insert_kp_3h_batch(&[Kp3hRecord { time_tag: iso(ts), kp: *actual_kp }])
+                .insert_kp_3h_batch(&[Kp3hRecord {
+                    time_tag: iso(issued + 3 * 3600),
+                    kp: actual_kp,
+                }])
                 .unwrap();
         }
 
         let m = store.get_forecast_metrics(t - 1).unwrap();
-        assert_eq!(m["n_samples"].as_i64().unwrap(), 4);
-        assert_eq!(m["n_storms"].as_i64().unwrap(), 2);
-        assert_eq!(m["n_caught"].as_i64().unwrap(), 1);
-        assert_eq!(m["n_false_pos"].as_i64().unwrap(), 1);
-        assert!((m["hit_rate"].as_f64().unwrap() - 0.5).abs() < 1e-9);
+        let three = m["horizons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["horizon_hours"] == 3)
+            .expect("the 3h horizon is always reported");
 
+        assert_eq!(three["sufficient"], true);
+        assert_eq!(three["n_samples"].as_i64().unwrap(), (cases.len() * repeats) as i64);
+        assert_eq!(three["n_storms"].as_i64().unwrap(), (2 * repeats) as i64);
+        assert_eq!(three["n_caught"].as_i64().unwrap(), repeats as i64);
+        assert_eq!(three["n_false_pos"].as_i64().unwrap(), repeats as i64);
+        assert!((three["hit_rate"].as_f64().unwrap() - 0.5).abs() < 1e-9);
         // MAE = mean(|pred-actual|) in Kp: (0.5+1.0+3.2+3.0)/4 = 1.925
-        assert!((m["mae"].as_f64().unwrap() - 1.925).abs() < 1e-6);
+        assert!((three["mae"].as_f64().unwrap() - 1.925).abs() < 1e-6);
         // RMSE = sqrt(mean(diff²)) in Kp ≈ 2.2633
-        assert!((m["rmse"].as_f64().unwrap() - 2.263293).abs() < 1e-4);
+        assert!((three["rmse"].as_f64().unwrap() - 2.263293).abs() < 1e-4);
         // mean σ = 1000/1e4 = 0.1
-        assert!((m["mean_unc"].as_f64().unwrap() - 0.1).abs() < 1e-9);
+        assert!((three["mean_unc"].as_f64().unwrap() - 0.1).abs() < 1e-9);
+    }
+
+    /// Rows with no model_sha are the pre-001cda9 history: real 6 h forecasts,
+    /// honestly relabelled, produced by a checkpoint that is not the one
+    /// serving. They stay in the table and stay out of the accuracy figures,
+    /// because a number averaging two models answers a question nobody asked.
+    #[test]
+    fn metrics_ignore_forecasts_from_an_unidentified_model() {
+        let store = mem_store();
+        let t = 1_700_000_000;
+
+        for i in 0..40i64 {
+            let issued = t + i * 3600;
+            let points: Vec<ForecastPoint> = FORECAST_HORIZONS
+                .iter()
+                .map(|h| ForecastPoint {
+                    horizon_hours: *h,
+                    kp_e2: 900,
+                    ci_lower_e2: None,
+                    ci_upper_e2: None,
+                    uncertainty_e4: None,
+                })
+                .collect();
+            // No model_sha, exactly as the migration leaves the old rows.
+            store.insert_kp_forecast(issued, None, &points).unwrap();
+            store
+                .insert_kp_3h_batch(&[Kp3hRecord {
+                    time_tag: iso(issued + 3 * 3600),
+                    kp: 1.0,
+                }])
+                .unwrap();
+        }
+
+        let m = store.get_forecast_metrics(t - 1).unwrap();
+        for h in m["horizons"].as_array().unwrap() {
+            assert_eq!(
+                h["n_samples"].as_i64().unwrap(),
+                0,
+                "an unidentified model contributes no pairs at {}h",
+                h["horizon_hours"]
+            );
+            assert_eq!(h["sufficient"], false);
+        }
+    }
+
+    /// Below the floor a horizon reports its count and nothing else. The figure
+    /// moves more under its own sampling noise than under the model at that
+    /// size, and an empty cell invites no conclusion where a number would.
+    #[test]
+    fn a_horizon_under_the_floor_publishes_no_figure() {
+        let store = mem_store();
+        let t = 1_700_000_000;
+        let short = MIN_PAIRS_FOR_METRICS - 1;
+
+        for i in 0..short {
+            let issued = t + i * 3600;
+            let points: Vec<ForecastPoint> = FORECAST_HORIZONS
+                .iter()
+                .map(|h| ForecastPoint {
+                    horizon_hours: *h,
+                    kp_e2: 300,
+                    ci_lower_e2: None,
+                    ci_upper_e2: None,
+                    uncertainty_e4: None,
+                })
+                .collect();
+            store.insert_kp_forecast(issued, Some("model-a"), &points).unwrap();
+            store
+                .insert_kp_3h_batch(&[Kp3hRecord {
+                    time_tag: iso(issued + 3 * 3600),
+                    kp: 3.0,
+                }])
+                .unwrap();
+        }
+
+        let m = store.get_forecast_metrics(t - 1).unwrap();
+        let three = m["horizons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|h| h["horizon_hours"] == 3)
+            .unwrap();
+        assert_eq!(three["n_samples"].as_i64().unwrap(), short);
+        assert_eq!(three["sufficient"], false);
+        assert!(three["mae"].is_null(), "no figure below the floor");
+        assert_eq!(three["min_samples"].as_i64().unwrap(), MIN_PAIRS_FOR_METRICS);
     }
 
     #[test]
     fn forecast_metrics_empty_window() {
         let store = mem_store();
         let m = store.get_forecast_metrics(0).unwrap();
-        assert_eq!(m["n_samples"].as_i64().unwrap(), 0);
+        let horizons = m["horizons"].as_array().unwrap();
+        // Every published horizon appears even with nothing stored, so a head
+        // that stopped being written shows an empty row instead of vanishing.
+        assert_eq!(horizons.len(), FORECAST_HORIZONS.len());
+        for h in horizons {
+            assert_eq!(h["n_samples"].as_i64().unwrap(), 0);
+            assert_eq!(h["sufficient"], false);
+        }
     }
 
     /// The six feeds arrive in three different upstream formats. All must land

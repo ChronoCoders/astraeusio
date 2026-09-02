@@ -209,6 +209,7 @@
     "accuracy": "Accuracy",
     "rmse": "RMSE",
     "mae": "MAE",
+    "needPairs": "Needs {{count}} matched forecasts before an accuracy figure means anything.",
     "samples": "Samples",
     "stormCatch": "Storm catch rate",
     "hitRate": "Hit rate",

@@ -258,26 +258,39 @@ function ChartShell({ children }) {
 function MetricsGrid({ metrics, loading }) {
   const { t } = useTranslation()
   if (loading && !metrics) return null
-  const n = metrics?.n_samples ?? 0
+
+  // The payload became one entry per horizon. This panel still shows the 3 h
+  // figures, which is what it showed when 3 h was the only horizon stored. The
+  // four column version is its own piece of work.
+  const three = (metrics?.horizons ?? []).find(h => h.horizon_hours === 3)
+  const n = three?.n_samples ?? 0
+  // Below the floor the backend sends the count and no figures, so there is
+  // nothing to render and the cells stay empty rather than showing a number
+  // that moves under its own noise.
+  const ready = three?.sufficient === true
+  const need = three?.min_samples
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <MetricCard label={t('forecastPage.accuracy')}>
-        <Row label={t('forecastPage.rmse')} value={metrics?.rmse != null ? fmtNum(metrics.rmse, 2) : '-'} />
-        <Row label={t('forecastPage.mae')}  value={metrics?.mae  != null ? fmtNum(metrics.mae,  2) : '-'} />
+        <Row label={t('forecastPage.rmse')} value={ready && three.rmse != null ? fmtNum(three.rmse, 2) : '-'} />
+        <Row label={t('forecastPage.mae')}  value={ready && three.mae  != null ? fmtNum(three.mae,  2) : '-'} />
         <Row label={t('forecastPage.samples')} value={n} mono />
+        {!ready && need != null && (
+          <p className="text-zinc-600 text-xs">{t('forecastPage.needPairs', { count: need })}</p>
+        )}
       </MetricCard>
 
       <MetricCard label={t('forecastPage.stormCatch')}>
         <Row label={t('forecastPage.hitRate')}
-             value={metrics?.hit_rate != null ? `${Math.round(metrics.hit_rate * 100)}%` : '-'} />
-        <Row label={t('forecastPage.falsePos')} value={metrics?.n_false_pos ?? 0} mono />
-        <Row label={t('forecastPage.nStorms')}  value={metrics?.n_storms ?? 0}    mono />
+             value={ready && three.hit_rate != null ? `${Math.round(three.hit_rate * 100)}%` : '-'} />
+        <Row label={t('forecastPage.falsePos')} value={ready ? three.n_false_pos : '-'} mono />
+        <Row label={t('forecastPage.nStorms')}  value={ready ? three.n_storms    : '-'} mono />
       </MetricCard>
 
       <MetricCard label={t('forecastPage.uncertaintyCard')}>
         <Row label={t('forecastPage.meanSigma')}
-             value={metrics?.mean_unc != null ? `${fmtNum(metrics.mean_unc, 2)} Kp` : '-'} />
+             value={ready && three.mean_unc != null ? `${fmtNum(three.mean_unc, 2)} Kp` : '-'} />
         <Row label={t('forecastPage.window')} value="3 h" mono />
         <Row label={t('forecastPage.passes')} value="50"  mono />
       </MetricCard>

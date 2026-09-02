@@ -209,6 +209,7 @@
     "accuracy": "Doğruluk",
     "rmse": "RMSE",
     "mae": "MAE",
+    "needPairs": "Bir doğruluk değerinin anlam taşıması için {{count}} eşleşmiş tahmin gerekir.",
     "samples": "Örnek",
     "stormCatch": "Fırtına yakalama",
     "hitRate": "İsabet oranı",

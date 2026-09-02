@@ -719,38 +719,32 @@ async fn poll_forecast(
                         .json::<serde_json::Value>()
                         .await
                     {
-                        Ok(payload) => {
-                            if let Some(kp) =
-                                payload.get("predicted_kp").and_then(|v| v.as_f64())
-                            {
-                                let forecast_ts = std::time::SystemTime::now()
+                        Ok(payload) => match crate::db::ForecastPoint::from_predict_payload(&payload) {
+                            Ok((points, model_sha)) => {
+                                let issued_at = std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap_or_default()
-                                    .as_secs()
-                                    as i64
-                                    + 3 * 3600;
-                                let ci_l = payload
-                                    .get("ci_lower")
-                                    .and_then(|v| v.as_f64())
-                                    .map(|v| (v * 100.0).round() as i64);
-                                let ci_u = payload
-                                    .get("ci_upper")
-                                    .and_then(|v| v.as_f64())
-                                    .map(|v| (v * 100.0).round() as i64);
-                                let unc = payload
-                                    .get("uncertainty")
-                                    .and_then(|v| v.as_f64())
-                                    .map(|v| (v * 10_000.0).round() as i64);
+                                    .as_secs() as i64;
+                                let near = points
+                                    .iter()
+                                    .find(|p| p.horizon_hours == 3)
+                                    .map(|p| p.kp_e2 as f64 / 100.0)
+                                    .unwrap_or_default();
                                 writer.fire(WriteCmd::KpForecast {
-                                    ts: forecast_ts,
-                                    kp_e2: (kp * 100.0).round() as i64,
-                                    ci_lower_e2: ci_l,
-                                    ci_upper_e2: ci_u,
-                                    uncertainty_e4: unc,
+                                    issued_at,
+                                    model_sha,
+                                    points,
                                 });
-                                info!("poller/forecast: predicted Kp {kp:.2} @ +3h");
+                                info!(
+                                    horizons = ?crate::db::FORECAST_HORIZONS,
+                                    "poller/forecast: predicted Kp {near:.2} @ +3h"
+                                );
                             }
-                        }
+                            // Nothing stored. A cycle that answered with three
+                            // of four horizons leaves a hole in one series and
+                            // not the others, which no aggregate would show.
+                            Err(e) => error!(source = "poller/forecast", "{e}"),
+                        },
                         Err(e) => error!(source = "poller/forecast", "parse: {}", crate::redact::secrets(&e.to_string())),
                     },
                     // A status that survived every attempt, so it is not
