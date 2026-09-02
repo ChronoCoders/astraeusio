@@ -598,6 +598,64 @@ const EMAIL_LOWERCASE_MIGRATION: &str = "2026-09-01-email-lowercase";
 /// that predate `001cda9`.
 const FORECAST_HORIZON_KEY_MIGRATION: &str = "2026-09-02-kp-forecast-horizon-key";
 
+/// The moment `061a5d30fac5` began serving, as a fallback when the deployed
+/// model file cannot be read.
+///
+/// Sourced, because a constant nobody can trace is how this needed correcting
+/// in the first place. Three independent readings, all agreeing:
+///
+///   1. `ls --time-style=+%Y-%m-%dT%H:%M:%S /data/models/kp_lstm.pt` on the
+///      volume: 2026-09-01T04:16:17. `deploy-model.sh` places the active model
+///      with `cp`, which sets mtime to the moment of the deploy.
+///   2. The first forecast issued afterwards, from `kp_forecast`:
+///      2026-09-01 04:16:22, five seconds later, when the poller ran against
+///      the restarted sidecar.
+///   3. The last forecast issued before it: 2026-09-01 04:15. No row falls in
+///      the gap, so any instant inside it classifies every row identically.
+///
+/// 1788236177 is reading 1 as a Unix second. Pinned by
+/// `the_model_deploy_boundary_is_the_instant_it_is_documented_as`.
+const MODEL_061A_DEPLOYED_AT: i64 = 1_788_236_177;
+
+/// sha256 of `kp_lstm.pt` as served, from the ml `/health` field
+/// `model_sha256` and from `sha256sum` of the file on the volume, which agree.
+const MODEL_061A_SHA: &str = "061a5d30fac50c5f7e941730a37726c2bf02c008f72f484e8c01f143274760d1";
+
+/// Relabels the rows that the horizon rekey filed as 6 h and that were in fact
+/// 3 h forecasts from the model now serving.
+const FORECAST_ERA_MIGRATION: &str = "2026-09-02-kp-forecast-model-era";
+
+/// When the active model was placed on the volume, read from the file itself.
+///
+/// The model lives beside the database on the shared volume, so the backend can
+/// see it even though `MODEL_PATH` belongs to the ml service. Reading it beats
+/// a pasted timestamp: the fact lives where the deploy put it, and a migration
+/// that derives its boundary cannot disagree with the deploy that set it.
+///
+/// `None` when the file is absent, which is every in memory database and any
+/// deployment whose volume has no model yet. The caller falls back to
+/// `MODEL_061A_DEPLOYED_AT` and says which source it used.
+fn model_deploy_time(db_path: &str) -> Option<i64> {
+    let dir = std::path::Path::new(db_path).parent()?;
+    let meta = std::fs::metadata(dir.join("models").join("kp_lstm.pt")).ok()?;
+    let secs = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    i64::try_from(secs).ok()
+}
+
+/// Whether the corrected rows may be committed: every row that should have
+/// moved moved, and every row that moved is internally consistent and carries
+/// the model that produced it. Same shape as `rekey_is_verified` and the same
+/// reason.
+fn era_fix_is_verified(expected: i64, updated: i64, consistent: i64) -> bool {
+    updated == expected && consistent == updated
+}
+
+
 /// Whether a rebuilt `kp_forecast` may replace the original.
 ///
 /// Named and separate because with today's copy statement it cannot fail:
@@ -977,6 +1035,79 @@ impl Store {
                 ms = started.elapsed().as_millis() as u64,
                 "rekeyed kp_forecast on (issued_at, horizon_hours) and relabelled the pre-001cda9 rows as 6 h"
             );
+        }
+
+        // The horizon rekey relabelled every pre-existing row as a 6 h forecast
+        // from an unidentified model. That is right for 1305 of them and wrong
+        // for 51: those were issued after `061a5d30fac5` was deployed, by the
+        // checkpoint that fixed the off by one, so they are true 3 h forecasts
+        // from the model serving now. Left alone they are mislabelled in the
+        // opposite direction and excluded from the only metrics they could
+        // populate.
+        let era_fix_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![FORECAST_ERA_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if era_fix_applied == 0 {
+            let (boundary, source) = match model_deploy_time(path) {
+                Some(t) => (t, "the deployed model file"),
+                None => (MODEL_061A_DEPLOYED_AT, "the recorded deploy time"),
+            };
+
+            // Counted before the update so the gate has something independent
+            // to check the result against.
+            let expected: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM kp_forecast WHERE issued_at >= ? AND model_sha IS NULL",
+                    params![boundary],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            if expected > 0 {
+                let updated = conn.execute(
+                    "UPDATE kp_forecast \
+                        SET horizon_hours = 3, \
+                            ts            = issued_at + 3 * 3600, \
+                            model_sha     = ? \
+                      WHERE issued_at >= ? AND model_sha IS NULL",
+                    params![MODEL_061A_SHA, boundary],
+                )? as i64;
+
+                let consistent: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM kp_forecast \
+                      WHERE issued_at >= ? AND model_sha = ? \
+                        AND horizon_hours = 3 AND ts = issued_at + 3 * 3600",
+                    params![boundary, MODEL_061A_SHA],
+                    |row| row.get(0),
+                )?;
+
+                if !era_fix_is_verified(expected, updated, consistent) {
+                    // DuckDB has the update inside an implicit transaction, so
+                    // rolling back leaves the table exactly as it was found.
+                    let _ = conn.execute_batch("ROLLBACK");
+                    error!(
+                        expected,
+                        updated, consistent, boundary, "kp_forecast era fix did not verify"
+                    );
+                    return Err(DbError::Migration(format!(
+                        "kp_forecast era fix updated {updated} of {expected} rows with \
+                         {consistent} consistent; the table is unchanged"
+                    )));
+                }
+                info!(
+                    rows = updated,
+                    boundary,
+                    source,
+                    "relabelled the forecasts issued by the current model as 3 h"
+                );
+            }
+
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![FORECAST_ERA_MIGRATION, now()],
+            )?;
         }
 
         let api_key_lifecycle_applied: i64 = conn.query_row(
@@ -5521,6 +5652,233 @@ mod tests {
         assert_eq!(status("noaa_dst"), "operational");
         assert_eq!(status("noaa_imf"), "degraded");
         assert_eq!(store.get_dst_recent().unwrap().as_array().unwrap().len(), 1);
+    }
+
+    /// A five second window in a WHERE clause is exactly the kind of constant
+    /// that becomes wrong silently, so it is pinned to the instant it is
+    /// documented as. If someone edits the number, this says so, and if the
+    /// boundary genuinely moves the comment above it has to move with it.
+    #[test]
+    fn the_model_deploy_boundary_is_the_instant_it_is_documented_as() {
+        let t = chrono::DateTime::from_timestamp(MODEL_061A_DEPLOYED_AT, 0).expect("a real time");
+        assert_eq!(
+            t.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            "2026-09-01T04:16:17Z",
+            "the fallback boundary must be the deploy time the comment cites"
+        );
+        assert_eq!(MODEL_061A_SHA.len(), 64, "a sha256 is 64 hex characters");
+        assert!(
+            MODEL_061A_SHA.chars().all(|c| c.is_ascii_hexdigit()),
+            "and nothing else"
+        );
+    }
+
+    /// The boundary comes from the deploy that set it, not from a number typed
+    /// beside it. `deploy-model.sh` places the active checkpoint with `cp`, so
+    /// the file's mtime is the moment it began serving, and the backend can see
+    /// it because the model sits beside the database on the shared volume.
+    #[test]
+    fn the_boundary_is_read_from_the_deployed_model_file() {
+        let dir = std::env::temp_dir().join(format!("astraeus-boundary-{}", now()));
+        std::fs::create_dir_all(dir.join("models")).expect("models dir");
+        let db = dir.join("astraeus.duckdb");
+        let model = dir.join("models").join("kp_lstm.pt");
+        std::fs::write(&model, b"checkpoint").expect("write");
+
+        let want = 1_788_236_177;
+        filetime_set(&model, want);
+        assert_eq!(
+            model_deploy_time(db.to_str().unwrap()),
+            Some(want),
+            "the deploy time is the model file's own mtime"
+        );
+
+        // No model on the volume, which is every in memory database and any
+        // deployment that has not had one placed yet.
+        std::fs::remove_file(&model).expect("remove");
+        assert_eq!(
+            model_deploy_time(db.to_str().unwrap()),
+            None,
+            "an absent model yields nothing, and the caller falls back"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Sets a file's mtime to a Unix second, so a test can describe a deploy
+    /// that happened at a known instant.
+    fn filetime_set(path: &std::path::Path, secs: i64) {
+        let f = std::fs::OpenOptions::new().write(true).open(path).expect("open");
+        let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64);
+        f.set_modified(t).expect("set mtime");
+    }
+
+    /// The correction, on the shape the rekey actually left behind: rows from
+    /// the old checkpoint keep their 6 h label and their absent model, rows
+    /// issued after the deploy become the 3 h forecasts they always were.
+    ///
+    /// The gate is the same one the rekey uses. A run that moved the wrong
+    /// number of rows, or left one whose `ts` disagrees with its lead, fails
+    /// startup instead of serving a half corrected table.
+    #[test]
+    fn only_the_forecasts_issued_after_the_deploy_are_relabelled() {
+        let boundary = MODEL_061A_DEPLOYED_AT;
+        // Six before the deploy and four after, in the post rekey shape.
+        let before: Vec<i64> = (1..=6).map(|i| boundary - i * 1800).collect();
+        let after: Vec<i64> = (0..4).map(|i| boundary + 5 + i * 1800).collect();
+
+        let path = std::env::temp_dir().join(format!("astraeus-era-{}.duckdb", now()));
+        let _ = std::fs::remove_file(&path);
+        {
+            let conn = duckdb::Connection::open(&path).expect("open");
+            conn.execute_batch(SCHEMA).expect("schema");
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                     id TEXT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL);",
+            )
+            .expect("migrations table");
+            for id in [PURGE_FORECASTS_MIGRATION, FORECAST_HORIZON_KEY_MIGRATION] {
+                conn.execute(
+                    "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                    params![id, now()],
+                )
+                .expect("record");
+            }
+            // Exactly what the rekey leaves: everything 6 h, no model named.
+            for issued in before.iter().chain(after.iter()) {
+                conn.execute(
+                    "INSERT INTO kp_forecast
+                       (issued_at, horizon_hours, ts, kp_e2, model_sha, fetched_at)
+                     VALUES (?, 6, ? + 6 * 3600, 300, NULL, ?)",
+                    params![issued, issued, issued],
+                )
+                .expect("seed");
+            }
+        }
+
+        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+
+        let (threes, sixes, named, inconsistent): (i64, i64, i64, i64) = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FILTER (WHERE horizon_hours = 3), \
+                        COUNT(*) FILTER (WHERE horizon_hours = 6), \
+                        COUNT(*) FILTER (WHERE model_sha IS NOT NULL), \
+                        COUNT(*) FILTER (WHERE ts != issued_at + horizon_hours * 3600) \
+                 FROM kp_forecast",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("counts");
+
+        assert_eq!(threes, after.len() as i64, "only the post deploy rows moved");
+        assert_eq!(sixes, before.len() as i64, "the old checkpoint's rows are untouched");
+        assert_eq!(named, after.len() as i64, "and only the moved rows name a model");
+        assert_eq!(inconsistent, 0, "every row's target matches its own lead");
+
+        let sha: String = store
+            .conn
+            .query_row(
+                "SELECT model_sha FROM kp_forecast WHERE horizon_hours = 3 LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .expect("sha");
+        assert_eq!(sha, MODEL_061A_SHA, "the rows carry the checkpoint that made them");
+
+        // Recorded, so a restart does not sweep a later era's rows into this one.
+        let recorded: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+                params![FORECAST_ERA_MIGRATION],
+                |r| r.get(0),
+            )
+            .expect("recorded");
+        assert_eq!(recorded, 1);
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The migration reads the deploy time from the model file, not from the
+    /// constant sitting next to it. Proved by making the two disagree: the file
+    /// says two hours after the pinned value, and a row issued between them must
+    /// stay untouched. If the migration fell back to the constant it would
+    /// relabel that row, which is the silent version of getting the boundary
+    /// wrong and is what needed correcting the first time.
+    #[test]
+    fn the_migration_takes_its_boundary_from_the_model_file() {
+        let literal = MODEL_061A_DEPLOYED_AT;
+        let from_file = literal + 7200;
+
+        let dir = std::env::temp_dir().join(format!("astraeus-wire-{}", now()));
+        std::fs::create_dir_all(dir.join("models")).expect("models dir");
+        let model = dir.join("models").join("kp_lstm.pt");
+        std::fs::write(&model, b"checkpoint").expect("write");
+        filetime_set(&model, from_file);
+
+        let path = dir.join("astraeus.duckdb");
+        // Before the constant, between the two, and after the file's time.
+        let rows = [literal - 1800, literal + 60, from_file + 60];
+        {
+            let conn = duckdb::Connection::open(&path).expect("open");
+            conn.execute_batch(SCHEMA).expect("schema");
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                     id TEXT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL);",
+            )
+            .expect("migrations table");
+            for id in [PURGE_FORECASTS_MIGRATION, FORECAST_HORIZON_KEY_MIGRATION] {
+                conn.execute(
+                    "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                    params![id, now()],
+                )
+                .expect("record");
+            }
+            for issued in rows {
+                conn.execute(
+                    "INSERT INTO kp_forecast
+                       (issued_at, horizon_hours, ts, kp_e2, model_sha, fetched_at)
+                     VALUES (?, 6, ? + 6 * 3600, 300, NULL, ?)",
+                    params![issued, issued, issued],
+                )
+                .expect("seed");
+            }
+        }
+
+        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+        let corrected: Vec<i64> = {
+            let mut stmt = store
+                .conn
+                .prepare("SELECT issued_at FROM kp_forecast WHERE horizon_hours = 3 ORDER BY issued_at")
+                .expect("prepare");
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .expect("query")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("rows")
+        };
+
+        assert_eq!(
+            corrected,
+            vec![from_file + 60],
+            "only the row issued after the model file's own mtime is relabelled; \
+             the row an hour past the pinned constant proves the constant was not used"
+        );
+
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The same rule the rekey applies, stated once and tested as a rule. With
+    /// today's single UPDATE it cannot fail, which is the point: it is there for
+    /// the next edit to that statement, not for DuckDB.
+    #[test]
+    fn a_corrected_table_commits_only_when_it_verifies() {
+        assert!(era_fix_is_verified(51, 51, 51), "all moved, all consistent");
+        assert!(!era_fix_is_verified(51, 50, 50), "one row short does not commit");
+        assert!(!era_fix_is_verified(51, 51, 50), "one inconsistent row does not commit");
+        assert!(!era_fix_is_verified(51, 52, 52), "more than expected does not commit either");
     }
 
     /// The gate `rebuild-db.sh` and the rekey both apply: every row arrived,
