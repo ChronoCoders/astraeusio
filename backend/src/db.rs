@@ -3493,7 +3493,11 @@ impl Store {
             "xray_max_class":      xray_max.map(flux_to_xray_class)
                                            .unwrap_or_else(|| "-".to_owned()),
             "anomaly_count":       anomaly_count,
-            "asteroid_approaches": asteroid_count,
+            // Named for the window it counts. This is today forward by the
+            // range, while every other figure here describes the range just
+            // past, and calling it "asteroid_approaches" inside a summary of
+            // the last 30 days invited exactly one reading, the wrong one.
+            "upcoming_approaches": asteroid_count,
         }))
     }
 

@@ -982,14 +982,26 @@ async fn get_report_summary(
     Ok(Json(val))
 }
 
+/// The same rows the report endpoints return, as CSV.
+///
+/// Deliberately ungated. It required `developer` while `/api/reports/kp` and
+/// `/api/reports/solar-wind` returned the same rows over the same window to
+/// anyone signed in, so the gate cost a caller one extra request and bought
+/// nothing. It was selling a format.
+///
+/// Dropping it rather than gating the other two, because the pricing page
+/// already promises Kp and solar wind data on the free tier and lists CSV
+/// export on no tier at all. Gating all four would take something away that the
+/// site currently offers, which is a pricing decision and not a fix.
+///
+/// The real free-versus-paid line the pricing page claims is `delay60`, a sixty
+/// second delay on free-tier data, and nothing in this service implements it.
+/// That is recorded in the backlog rather than invented here.
 async fn get_report_export(
     State(s): State<AppState>,
-    claims: AuthClaims,
+    _claims: AuthClaims,
     Query(q): Query<ReportQuery>,
 ) -> Result<Response, AppError> {
-    if let Some(r) = plan_gate(&s, &claims.sub, "developer").await {
-        return Ok(r);
-    }
     let secs = range_to_secs(q.range.as_deref().unwrap_or("24h"));
     let csv = lock_db(&s.db).await.get_report_csv(secs)?;
     info!("api/reports/export: range={}s, {} bytes", secs, csv.len());
@@ -1931,6 +1943,69 @@ mod mcp_tests {
                 "{handler} must refuse an unverified account"
             );
         }
+    }
+
+    /// The four report routes are gated the same way, which is to say not at all.
+    ///
+    /// The export required `developer` while `/api/reports/kp` and
+    /// `/api/reports/solar-wind` returned the same rows over the same window to
+    /// anyone signed in, so the gate cost a caller one extra request and bought
+    /// nothing. It was selling a format, and the pricing page sells Kp and solar
+    /// wind on the free tier and lists CSV export on no tier at all.
+    ///
+    /// Asserted as one rule over all four rather than as the absence of one
+    /// line, because the failure this had was three routes agreeing and a fourth
+    /// not, which nothing noticed for as long as it existed.
+    #[test]
+    fn the_report_routes_are_gated_alike() {
+        let src = include_str!("routes.rs");
+        for handler in [
+            "async fn get_report_summary",
+            "async fn get_report_export",
+            "async fn get_report_kp",
+            "async fn get_report_solar_wind",
+        ] {
+            let start = src.find(handler).unwrap_or_else(|| panic!("{handler} is gone"));
+            // The handler's own body, to the start of the next item.
+            let rest = &src[start..];
+            let end = rest[1..].find("\nasync fn ").map_or(rest.len(), |i| i + 1);
+            let body = &rest[..end];
+            assert!(
+                !body.contains("plan_gate("),
+                "{handler} is plan gated while the others are not; the four read the \
+                 same rows over the same window, so a gate on one of them is a gate on \
+                 the format rather than on the data"
+            );
+        }
+    }
+
+    /// The figure that looks forward is named for looking forward.
+    ///
+    /// `asteroid_approaches` counted today through today plus the range, inside
+    /// a payload whose other four figures describe the range just past, under a
+    /// card the page labels as a summary of the selected period.
+    #[test]
+    fn the_forward_looking_count_is_named_for_its_own_window() {
+        let src = include_str!("db.rs");
+        assert!(
+            src.contains("\"upcoming_approaches\": asteroid_count"),
+            "the field has to say which way it looks"
+        );
+        assert!(
+            !src.contains("\"asteroid_approaches\":"),
+            "the old name must be gone, not shadowed"
+        );
+
+        // And the page reads the name the backend sends.
+        let page = include_str!("../../frontend/src/components/ReportsPage.jsx");
+        assert!(
+            page.contains("summary.upcoming_approaches"),
+            "the page must read the field the API returns"
+        );
+        assert!(
+            !page.contains("summary.asteroid_approaches"),
+            "a rename the page did not follow renders an empty card"
+        );
     }
 
     /// Self serve tier changes are refused unless the environment opts in, and
