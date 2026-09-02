@@ -291,17 +291,22 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         "degraded"
     };
 
+    // Every key here comes from a declaration in db.rs. It used to type
+    // "backend_api", "ml_forecast", "database" and "celestrak" at this site,
+    // which made this the third hand-kept list beside the uptime handler's and
+    // the writers', and this is the one that decides what the public page shows
+    // at all: a component missing here is invisible whatever history exists.
     let mut components = serde_json::Map::new();
     components.insert(
-        "backend_api".into(),
+        crate::db::BACKEND_COMPONENT.into(),
         serde_json::json!({ "status": "operational", "last_checked": now }),
     );
     components.insert(
-        "ml_forecast".into(),
+        crate::db::ML_COMPONENT.into(),
         serde_json::json!({ "status": ml_status, "last_checked": now }),
     );
     components.insert(
-        "database".into(),
+        crate::db::DATABASE_COMPONENT.into(),
         serde_json::json!({ "status": db_status, "last_write": db_last }),
     );
     for (component, status, last) in &series {
@@ -320,7 +325,7 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
         );
     }
     components.insert(
-        "celestrak".into(),
+        crate::db::CELESTRAK_COMPONENT.into(),
         serde_json::json!({ "status": celestrak_status, "last_update": celestrak_last }),
     );
 
@@ -353,18 +358,17 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
             (db.uptime_by_day(DAYS)?, db.health_first_sample()?)
         };
         // rows: (component, utc_day, samples_present, operational_samples)
+        //
+        // One list, composed from the declarations the writers use, rather than
+        // the hand-kept `["backend_api", "ml_forecast", "database", "celestrak"]`
+        // that used to sit here beside two chained constants. That arrangement
+        // could disagree with the writer and nothing would say so.
+        //
         // "nasa" is deliberately absent: it was split into one component per
-        // feed, which now come from SERIES_FRESHNESS below. Its historical rows
-        // stay in health_snapshots and simply stop being rendered.
-        let fixed = ["backend_api", "ml_forecast", "database", "celestrak"];
-        // `POLL_LIVENESS` joins `SERIES_FRESHNESS` here because a component
-        // whose status is published and whose history is not is half published.
-        // `noaa_alerts` showed on the status page with an empty strip from the
-        // day it was added until 2026-09-01.
-        let components = fixed
-            .into_iter()
-            .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component))
-            .chain(crate::db::POLL_LIVENESS.iter().map(|l| l.component));
+        // feed. Its historical rows stay in health_snapshots and stop being
+        // rendered, which is what an identifier leaving `health_components`
+        // means.
+        let components = crate::db::health_components().into_iter();
 
         /// Samples due for one component on one UTC day: the part of that day
         /// that lies after its first sample and before now, divided by the
@@ -2372,6 +2376,86 @@ mod mcp_tests {
             assert_eq!(
                 v["components"][name]["measures"], "liveness",
                 "{name} is liveness only and must say so"
+            );
+        }
+    }
+
+    /// No health snapshot may be written for a name the readers do not know.
+    ///
+    /// This is the guard the old one only looked like. `every_published_
+    /// component_has_an_uptime_entry` compared `/api/health`'s output against
+    /// `/api/health/uptime`'s output, two runtime outputs, so a component added
+    /// to the writer and missed by both readers passed. The authoritative list
+    /// is the one in the source, so this reads the writer's source instead.
+    ///
+    /// Every `WriteCmd::HealthSnapshot` site must take its component from a
+    /// declaration, never from a literal typed at the site. A literal is
+    /// exactly the drift being refused: it names something `health_components`
+    /// cannot know about, so the strip for it would be empty forever.
+    #[test]
+    fn no_health_snapshot_is_written_for_an_undeclared_component() {
+        for (file, src) in [
+            ("poller.rs", include_str!("poller.rs")),
+            ("routes.rs", include_str!("routes.rs")),
+            ("db_writer.rs", include_str!("db_writer.rs")),
+        ] {
+            let mut sites = 0;
+            for (i, _) in src.match_indices("WriteCmd::HealthSnapshot") {
+                // The `component:` field of this construction, which is the
+                // next occurrence of that field name after the site.
+                let rest = &src[i..];
+                let Some(f) = rest.find("component:") else { continue };
+                let line_end = rest[f..].find('\n').map_or(rest.len(), |e| f + e);
+                let field = &rest[f..line_end];
+                sites += 1;
+                assert!(
+                    !field.contains('"'),
+                    "{file}: a health snapshot is written for a literal name: {field}. \
+                     Take it from a declaration in db.rs so health_components() covers it."
+                );
+            }
+            // A guard that finds no sites guards nothing, so the count is
+            // asserted for the file that has them. Two: the health cycle's
+            // single loop over `health_samples`, and the alerts poller writing
+            // its own liveness verdict. It was three until those three loops
+            // became one, which is why this is a floor with a reason rather
+            // than a number that drifts with refactoring.
+            if file == "poller.rs" {
+                assert!(
+                    sites >= 2,
+                    "expected the health cycle and the alerts poller to write snapshots, found {sites}"
+                );
+            }
+        }
+    }
+
+    /// Everything the writers can produce has somewhere to be read.
+    ///
+    /// Enumerated from `health_components`, which is composed from the same
+    /// declarations the writers use, rather than from a payload.
+    #[tokio::test]
+    async fn every_declared_component_has_an_uptime_entry() {
+        let state = test_state();
+        let v = call_uptime(&state).await;
+        let with_history = v["components"].as_object().expect("components");
+
+        let declared = crate::db::health_components();
+        assert!(
+            !declared.is_empty(),
+            "an empty declaration would make this pass vacuously"
+        );
+        let missing: Vec<&&str> = declared
+            .iter()
+            .filter(|c| !with_history.contains_key(**c))
+            .collect();
+        assert!(missing.is_empty(), "declared with no uptime entry: {missing:?}");
+
+        // And the four the old hand-kept list held are still among them, so
+        // composing the list did not quietly drop one.
+        for name in ["backend_api", "database", "ml_forecast", "celestrak"] {
+            assert!(
+                declared.contains(&name),
+                "{name} left the declared set when the lists were composed"
             );
         }
     }
