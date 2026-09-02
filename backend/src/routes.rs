@@ -276,12 +276,28 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
     }))
 }
 
+/// Ninety days of per-component uptime.
+///
+/// The percentage is operational samples over samples **due**, not over samples
+/// present. Under the old denominator an outage cancelled itself out: a backend
+/// that is down writes no health rows, so the missing samples left both halves
+/// of the fraction and the figure stayed at 100. Counting what should have been
+/// written makes absence the evidence it always was.
+///
+/// Expectation starts at a component's first ever sample, never before, which
+/// is what keeps `2623cf6` intact: a component added yesterday still reads as
+/// ninety days of no data rather than eighty-nine days of outage.
 async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "uptime_90d", Duration::from_secs(300), || async {
         const DAYS: i64 = 90;
-        let rows = lock_db(&s.db).await.uptime_by_day(DAYS)?;
-        // rows: (component, day_idx, samples, operational_samples)
-        // day_idx 0 = today, larger = further past
+        let interval = crate::poller::health_interval_secs().max(1) as i64;
+        let now = chrono::Utc::now().timestamp();
+        let today = now / 86_400;
+        let (rows, first_seen) = {
+            let db = lock_db(&s.db).await;
+            (db.uptime_by_day(DAYS)?, db.health_first_sample()?)
+        };
+        // rows: (component, utc_day, samples_present, operational_samples)
         // "nasa" is deliberately absent: it was split into one component per
         // feed, which now come from SERIES_FRESHNESS below. Its historical rows
         // stay in health_snapshots and simply stop being rendered.
@@ -294,25 +310,48 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
             .into_iter()
             .chain(crate::db::SERIES_FRESHNESS.iter().map(|s| s.component))
             .chain(crate::db::POLL_LIVENESS.iter().map(|l| l.component));
+
+        /// Samples due for one component on one UTC day: the part of that day
+        /// that lies after its first sample and before now, divided by the
+        /// interval. A day before the component existed expects nothing, and so
+        /// does a day that has not happened yet.
+        fn samples_due(day: i64, first: i64, now: i64, interval: i64) -> i64 {
+            let day_start = day * 86_400;
+            let from = day_start.max(first);
+            let to = (day_start + 86_400).min(now);
+            if to <= from { 0 } else { (to - from) / interval }
+        }
+
         let mut out = serde_json::Map::new();
         for comp in components {
+            let liveness = crate::db::LIVENESS_ONLY.contains(&comp);
+            let first = first_seen.iter().find(|(c, _)| c == comp).map(|(_, t)| *t);
             // 90 entries, oldest first (index 0 = 89 days ago, last = today)
             let mut days: Vec<serde_json::Value> = (0..DAYS)
                 .map(|_| serde_json::json!({"status": "no_data", "uptime_pct": null}))
                 .collect();
-            let mut total_samples = 0i64;
+            let mut total_due = 0i64;
             let mut total_ok = 0i64;
             let mut recorded_days = 0i64;
-            for (c, day_idx, samples, ok) in &rows {
-                if c != comp || *day_idx < 0 || *day_idx >= DAYS {
+
+            for idx in 0..DAYS {
+                let day = today - (DAYS - 1 - idx);
+                let Some(first) = first else { continue };
+                let due = samples_due(day, first, now, interval);
+                if due <= 0 {
                     continue;
                 }
-                // A day with no samples was not observed. It is not a day the
-                // component was down, so it stays no_data.
-                if *samples <= 0 {
-                    continue;
-                }
-                let pct = (*ok as f64 / *samples as f64) * 100.0;
+                let (present, operational) = rows
+                    .iter()
+                    .find(|(c, d, _, _)| c == comp && *d == day)
+                    .map(|(_, _, p, o)| (*p, *o))
+                    .unwrap_or((0, 0));
+                // A liveness component has no verdict, so the sample being
+                // there is the whole of what it can say.
+                let ok = if liveness { present } else { operational };
+                // Restarts and interval jitter can write more samples than the
+                // arithmetic expects. More than complete is still complete.
+                let pct = ((ok as f64 / due as f64) * 100.0).min(100.0);
                 let status = if pct >= 99.0 {
                     "operational"
                 } else if pct >= 90.0 {
@@ -320,23 +359,23 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
                 } else {
                     "outage"
                 };
-                let idx = (DAYS - 1 - *day_idx) as usize;
-                days[idx] = serde_json::json!({
+                days[idx as usize] = serde_json::json!({
                     "status": status,
                     "uptime_pct": (pct * 100.0).round() / 100.0,
                 });
-                total_samples += *samples;
-                total_ok += *ok;
+                total_due += due;
+                total_ok += ok.min(due);
                 recorded_days += 1;
             }
+
             // Null, not zero, when nothing was ever recorded. A component added
             // yesterday has no history, and reporting 0 percent would read as
             // three months of downtime. The percentage covers only the days
             // actually observed, and recorded_days says how many that is, so the
             // figure can be labelled with the window it really describes.
-            let overall = if total_samples > 0 {
+            let overall = if total_due > 0 {
                 serde_json::json!(
-                    ((total_ok as f64 / total_samples as f64) * 10_000.0).round() / 100.0
+                    ((total_ok as f64 / total_due as f64) * 10_000.0).round() / 100.0
                 )
             } else {
                 serde_json::Value::Null
@@ -346,6 +385,7 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
                 serde_json::json!({
                     "uptime_pct":    overall,
                     "recorded_days": recorded_days,
+                    "measures":      if liveness { "liveness" } else { "health" },
                     "days":          days,
                 }),
             );
@@ -357,6 +397,7 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     })
     .await
 }
+
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -1614,6 +1655,17 @@ mod mcp_tests {
         serde_json::from_slice(&bytes).expect("json")
     }
 
+    /// Calls the uptime handler and decodes it.
+    async fn call_uptime(state: &AppState) -> serde_json::Value {
+        let Ok(resp) = uptime(State(state.clone())).await else {
+            panic!("uptime handler failed");
+        };
+        let bytes = axum::body::to_bytes(resp.into_response().into_body(), 1 << 20)
+            .await
+            .expect("body");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
     fn is_auth_error(v: &serde_json::Value) -> bool {
         v.get("error").and_then(|e| e.get("code")).and_then(|c| c.as_i64()) == Some(-32001)
     }
@@ -1909,7 +1961,7 @@ mod mcp_tests {
                     db.insert_health_snapshot(
                         "backend_api",
                         now_ts - day * 86_400 - sample * 300,
-                        "operational",
+                        Some("operational"),
                     )
                     .expect("snapshot");
                 }
@@ -1949,34 +2001,134 @@ mod mcp_tests {
         );
     }
 
-    /// The percentage covers the days actually observed. An unrecorded day is
-    /// not counted against the component.
+    /// A gap in the record is downtime, not an absence of record.
+    ///
+    /// This is the whole of AUD-021. Dividing operational samples by samples
+    /// present meant an outage removed rows from both halves of the fraction
+    /// and cancelled itself out, so `uptime_pct` was structurally incapable of
+    /// falling below 100 however long the backend was down. Half a day of
+    /// samples followed by half a day of silence has to read as about half.
     #[tokio::test]
-    async fn uptime_is_measured_over_the_recorded_days_only() {
+    async fn silence_counts_against_a_component_that_had_started_recording() {
         let state = test_state();
         let now_ts = chrono::Utc::now().timestamp();
         {
             let db = state.db.lock().await;
-            // One day, half the samples degraded.
-            for sample in 0..4i64 {
-                let status = if sample < 2 { "operational" } else { "degraded" };
-                db.insert_health_snapshot("database", now_ts - sample * 300, status)
+            // Twelve hours of samples ending twelve hours ago, then nothing.
+            let mut ts = now_ts - 86_400;
+            while ts <= now_ts - 43_200 {
+                db.insert_health_snapshot("noaa_kp", ts, Some("operational"))
+                    .expect("snapshot");
+                ts += 300;
+            }
+        }
+
+        let v = call_uptime(&state).await;
+        let pct = v["components"]["noaa_kp"]["uptime_pct"]
+            .as_f64()
+            .expect("a percentage");
+        assert!(
+            (40.0..60.0).contains(&pct),
+            "half a day recorded and half a day silent must read as about half, got {pct}"
+        );
+    }
+
+    /// Nothing was expected before a component's first sample, so a component
+    /// added yesterday still reads as ninety days of no data. `2623cf6` decided
+    /// that on purpose after six NOAA components showed three months of
+    /// downtime on the day they were added, and an expected count denominator
+    /// only keeps that decision because expectation starts at the first sample.
+    #[tokio::test]
+    async fn history_before_the_first_sample_is_not_held_against_a_component() {
+        let state = test_state();
+        let now_ts = chrono::Utc::now().timestamp();
+        {
+            let db = state.db.lock().await;
+            for k in 0..8i64 {
+                db.insert_health_snapshot("noaa_dst", now_ts - k * 300, Some("operational"))
                     .expect("snapshot");
             }
         }
 
-        let Ok(resp) = uptime(State(state.clone())).await else {
-            panic!("uptime handler failed");
-        };
-        let bytes = axum::body::to_bytes(resp.into_response().into_body(), 1 << 20)
-            .await
-            .expect("body");
-        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
-        let db_comp = &v["components"]["database"];
+        let v = call_uptime(&state).await;
+        let comp = &v["components"]["noaa_dst"];
+        assert_eq!(comp["uptime_pct"], 100.0, "a clean short history is 100, not 2");
+        assert_eq!(comp["recorded_days"], 1, "and it claims one day, not ninety");
+        let days = comp["days"].as_array().expect("days");
+        assert!(
+            days[..88].iter().all(|d| d["status"] == "no_data"),
+            "the days before it existed stay no_data"
+        );
+    }
 
-        assert_eq!(db_comp["recorded_days"], 1, "one day of history");
-        // 2 of 4 samples operational over that one day, not 2 of 4 over ninety.
-        assert_eq!(db_comp["uptime_pct"], 50.0);
+    /// The strip is labelled in days, so the buckets have to be days. They were
+    /// `(now - ts) / 86400`, a rolling offset from request time, which put the
+    /// same historical sample in a different cell depending on the hour the
+    /// page was loaded. A full UTC day of samples has to fill exactly one cell.
+    #[tokio::test]
+    async fn a_day_of_samples_fills_exactly_one_calendar_cell() {
+        let state = test_state();
+        let now_ts = chrono::Utc::now().timestamp();
+        let yesterday = now_ts / 86_400 - 1;
+        {
+            let db = state.db.lock().await;
+            for k in 0..288i64 {
+                db.insert_health_snapshot("noaa_xray", yesterday * 86_400 + k * 300, Some("operational"))
+                    .expect("snapshot");
+            }
+            // Half the same day, so the cell has to read half. The cell's own
+            // denominator is what this pins: dividing by samples present would
+            // call a half covered day complete, which is the outage hiding in
+            // one cell rather than in the total.
+            for k in 0..144i64 {
+                db.insert_health_snapshot("noaa_imf", yesterday * 86_400 + k * 300, Some("operational"))
+                    .expect("snapshot");
+            }
+        }
+
+        let v = call_uptime(&state).await;
+        let days = v["components"]["noaa_xray"]["days"].as_array().expect("days");
+        // Index 89 is today, so 88 is yesterday.
+        assert_eq!(
+            days[88]["uptime_pct"], 100.0,
+            "a full UTC day of samples belongs to that day's cell, whole"
+        );
+
+        let half = v["components"]["noaa_imf"]["days"].as_array().expect("days");
+        assert_eq!(
+            half[88]["uptime_pct"], 50.0,
+            "half a day of samples is a half full cell, not a full one"
+        );
+    }
+
+    /// A liveness component records no verdict, so the row being there is the
+    /// entire observation and the percentage counts rows rather than statuses.
+    /// `backend_api` used to write the literal "operational" forever.
+    #[tokio::test]
+    async fn a_liveness_component_is_measured_by_presence() {
+        let state = test_state();
+        let now_ts = chrono::Utc::now().timestamp();
+        {
+            let db = state.db.lock().await;
+            for k in 0..8i64 {
+                db.insert_health_snapshot("backend_api", now_ts - k * 300, None)
+                    .expect("snapshot");
+            }
+        }
+
+        let v = call_uptime(&state).await;
+        let comp = &v["components"]["backend_api"];
+        assert_eq!(
+            comp["measures"], "liveness",
+            "the page has to be able to say what this number covers"
+        );
+        assert_eq!(comp["uptime_pct"], 100.0, "rows with no status still count");
+        for name in crate::db::LIVENESS_ONLY {
+            assert_eq!(
+                v["components"][name]["measures"], "liveness",
+                "{name} is liveness only and must say so"
+            );
+        }
     }
 
     /// The four unauthenticated tools stay unauthenticated.
