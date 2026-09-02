@@ -271,7 +271,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
           {page === 'events' && <EventsPage />}
 
           {/* ── Reports ────────────────────────────────────────────────── */}
-          {page === 'reports' && <ReportsPage plan={user?.plan ?? null} onNavigate={setPage} />}
+          {page === 'reports' && <ReportsPage onNavigate={setPage} />}
 
           {/* ── API Keys ───────────────────────────────────────────────── */}
           {page === 'api' && <ApiKeysPage plan={user?.plan ?? null} onNavigate={setPage} />}

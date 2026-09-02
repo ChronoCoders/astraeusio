@@ -115,6 +115,16 @@ or in the commit that created the deferral.
   cheapest and is the current state by accident rather than by decision. Unresolved because the
   answer is a preference about the host, not a defect.
 
+- No ID. **The free tier advertises a sixty second data delay and nothing implements it.**
+  `lib/plans.js` gives free the features `req100day`, `delay60` and `kpSolar`, and
+  `pricing.features.delay60` reads "60s+ data delay". No delay exists anywhere in the backend:
+  `grep` for one across `routes.rs` and `plan.rs` returns nothing, and every read handler serves
+  the newest row it has to every tier. So the pricing page claims a limit the product does not
+  apply, which is the same class of defect as AUD-025 and larger than it: the CSV gate was a proxy
+  for this distinction, and dropping the gate leaves the real one still missing.
+  This is a product decision before it is code. Implementing it means serving two versions of the
+  same series, which is why it is recorded rather than done.
+
 ## Measurement
 
 - No ID. Early degradation below the alerting floor is not detectable by rate alone. The throughput
@@ -247,9 +257,6 @@ repeated here.
   now returns one entry per horizon and the page still renders a single set of figures, taken from
   the 3 h entry. Four columns, four series on the chart, and the keys in both locales are their own
   piece of work. Until then the page shows less than it stores, which is the safe direction.
-- **AUD-025** The `developer` gate on CSV export is still a formatting gate, because
-  `/api/reports/kp` and `/api/reports/solar-wind` return the same rows ungated, and
-  `asteroid_approaches` still counts a forward window inside a card describing the past one.
 - **AUD-026** Beyond Stage 3 above: there is no `cap_drop: [ALL]` and no `read_only` on any
   service, and `depends_on` is still the short form, so `condition: service_healthy` is absent and
   the backend can still start before ml has loaded its checkpoint despite ml having a healthcheck
