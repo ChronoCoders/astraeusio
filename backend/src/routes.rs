@@ -76,7 +76,7 @@ pub struct AppState {
     /// Consecutive failed sign in attempts per account. In memory and per
     /// process, so it resets when the container restarts.
     pub login_failures: Arc<crate::rate_limit::LoginFailures>,
-    pub mailer: Option<mailer::MailerConfig>,
+    pub mailer: Option<Arc<dyn mailer::Sender>>,
     pub app_url: String,
     pub oauth: crate::oauth::OAuthConfig,
 }
@@ -89,7 +89,7 @@ impl AppState {
         writer: DbWriterHandle,
         ml_url: String,
         jwt_secret: String,
-        mailer: Option<mailer::MailerConfig>,
+        mailer: Option<Arc<dyn mailer::Sender>>,
         app_url: String,
         oauth: crate::oauth::OAuthConfig,
     ) -> Self {

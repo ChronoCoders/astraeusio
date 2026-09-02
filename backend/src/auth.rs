@@ -346,7 +346,7 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
                 tokio::spawn(async move {
-                    mailer::send_verification_email(&mc, &email, &url).await;
+                    mailer::send_verification_email(mc.as_ref(), &email, &url).await;
                 });
             }
             StatusCode::CREATED.into_response()
@@ -558,7 +558,7 @@ pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) 
                 let mc = mc.clone();
                 let app_url = s.app_url.clone();
                 tokio::spawn(async move {
-                    mailer::send_welcome_email(&mc, &email, &app_url).await;
+                    mailer::send_welcome_email(mc.as_ref(), &email, &app_url).await;
                 });
             }
             StatusCode::NO_CONTENT.into_response()
@@ -623,7 +623,7 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
     // survivable while verification gates nothing and is not once it gates
     // anything: this mail is the only way back for an account that is locked
     // out, and "we sent it" has to mean the provider took it.
-    if !mailer::send_verification_email(mc, &claims.sub, &url).await {
+    if !mailer::send_verification_email(mc.as_ref(), &claims.sub, &url).await {
         return (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({
@@ -1053,7 +1053,7 @@ pub async fn forgot_password(
         let mc = mc.clone();
         let email = requested.clone();
         tokio::spawn(async move {
-            mailer::send_password_reset_email(&mc, &email, &url).await;
+            mailer::send_password_reset_email(mc.as_ref(), &email, &url).await;
         });
     }
     StatusCode::NO_CONTENT.into_response()
@@ -1760,5 +1760,101 @@ mod tests {
         let token = session_jwt("user@example.com", "some-other-secret", 0).expect("mint");
         let state = test_state();
         assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
+    }
+}
+
+#[cfg(test)]
+mod resend_tests {
+    use super::*;
+    use crate::mailer::TestSender;
+    use std::sync::Arc;
+
+    const SECRET: &str = "test-secret-not-used-anywhere-real";
+
+    fn state_with(sender: Arc<dyn crate::mailer::Sender>) -> AppState {
+        let client = reqwest::Client::new();
+        AppState::new(
+            client.clone(),
+            crate::db::Store::open(":memory:").expect("store"),
+            crate::db_writer::spawn(
+                crate::db::Store::open(":memory:").expect("writer store"),
+                client,
+            ),
+            "http://ml".to_string(),
+            SECRET.to_string(),
+            Some(sender),
+            "https://app.example".to_string(),
+            crate::oauth::OAuthConfig {
+                github: None,
+                google: None,
+                redirect_base: "https://app.example".to_string(),
+            },
+        )
+    }
+
+    fn claims_for(email: &str) -> AuthClaims {
+        AuthClaims {
+            sub: email.to_string(),
+            exp: u64::MAX,
+            aud: AUD_SESSION.to_string(),
+            ver: 0,
+            auth_type: AuthType::Jwt,
+        }
+    }
+
+    async fn resend_status(sender: Arc<dyn crate::mailer::Sender>, email: &str) -> StatusCode {
+        let state = state_with(sender);
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create");
+        }
+        resend_verification(State(state), claims_for(email))
+            .await
+            .status()
+    }
+
+    /// The endpoint answered 204 the moment it had queued the send, so a user
+    /// whose mail never left was told it had. Once verification gates creating
+    /// credentials, this mail is the only route back for a locked out account,
+    /// and "we sent it" has to mean the provider took it.
+    #[tokio::test]
+    async fn resend_reports_a_send_that_failed() {
+        let sender = Arc::new(TestSender::refusing());
+        let status = resend_status(sender.clone(), "blocked@example.com").await;
+        assert_eq!(
+            status,
+            StatusCode::BAD_GATEWAY,
+            "a refused send must not read as success"
+        );
+        assert_eq!(sender.count(), 1, "and it must actually have been attempted");
+    }
+
+    /// The other half. A gate that refuses every send would pass the test above
+    /// while breaking every real sign up.
+    #[tokio::test]
+    async fn resend_reports_a_send_that_worked() {
+        let sender = Arc::new(TestSender::accepting());
+        let status = resend_status(sender.clone(), "fine@example.com").await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(sender.recipients(), vec!["fine@example.com".to_string()]);
+    }
+
+    /// An address that is already confirmed is refused before anything is sent,
+    /// so the endpoint cannot be used to mail an arbitrary confirmed account.
+    #[tokio::test]
+    async fn a_verified_account_is_refused_without_sending() {
+        let sender = Arc::new(TestSender::accepting());
+        let state = state_with(sender.clone());
+        let email = "already@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create");
+            db.set_email_verified(email).expect("verify");
+        }
+        let status = resend_verification(State(state), claims_for(email))
+            .await
+            .status();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(sender.count(), 0, "nothing is sent to an already verified address");
     }
 }
