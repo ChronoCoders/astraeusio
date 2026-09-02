@@ -1143,7 +1143,17 @@ async fn get_usage(
     Ok(Json(serde_json::json!({
         "email":        email,
         "plan":         plan,
-        "scope":        "api_key",
+        // `scope` describes the count, `caller` describes the reader, and they
+        // are allowed to disagree. `check_and_increment` runs on one branch of
+        // the extractor, the API key branch, so the counter only ever holds API
+        // key requests however the figure is fetched. AUD-029 read the two
+        // adjacent fields as a contradiction and prescribed deriving `scope`
+        // from `auth_type`, which would have a session caller told the count
+        // covers session requests. It does not, and that trades a redundant
+        // truth for a fresh falsehood. What was actually missing is the line
+        // below: nothing said the exclusion was deliberate rather than a gap.
+        "scope":                   "api_key",
+        "counts_session_requests": false,
         "caller":       if claims.auth_type == AuthType::ApiKey { "api_key" } else { "jwt" },
         "period_start": p_start,
         "period_end":   p_end,
@@ -1648,6 +1658,56 @@ mod mcp_tests {
         for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
             let v = call_tool(&state, tool, Some(&token)).await;
             assert!(!is_auth_error(&v), "{tool} must accept a session token, got {v}");
+        }
+    }
+
+    /// `scope` names what the count covers, `caller` names who asked, and the
+    /// two are allowed to disagree. AUD-029 read them as contradicting and
+    /// prescribed deriving `scope` from `auth_type`. That is asserted against
+    /// here: quota is charged on the API key branch of the extractor alone, so
+    /// a session caller told `"scope": "jwt"` would be told the count includes
+    /// its own requests, which is a claim nothing in the system makes true.
+    ///
+    /// The field that closes the finding is `counts_session_requests`, because
+    /// the real gap was that a zero looked like a missing figure rather than a
+    /// deliberate exclusion.
+    #[tokio::test]
+    async fn the_usage_scope_describes_the_count_not_the_caller() {
+        let state = test_state();
+        for auth_type in [AuthType::ApiKey, AuthType::Jwt] {
+            let claims = AuthClaims {
+                sub: "user@example.com".to_string(),
+                exp: u64::MAX,
+                aud: crate::auth::AUD_SESSION.to_string(),
+                ver: 0,
+                auth_type,
+            };
+            let resp = get_usage(
+                State(state.clone()),
+                claims,
+                Query(UsageQuery { period_start: None }),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("usage handler returned an error"))
+            .into_response();
+            let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+                .await
+                .expect("body");
+            let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+
+            assert_eq!(
+                v["scope"], "api_key",
+                "scope must describe the count, which is API key requests however it is read"
+            );
+            assert_eq!(
+                v["counts_session_requests"], false,
+                "the response must say the exclusion is deliberate"
+            );
+            assert_eq!(
+                v["caller"],
+                if auth_type == AuthType::ApiKey { "api_key" } else { "jwt" },
+                "caller must describe the reader"
+            );
         }
     }
 
