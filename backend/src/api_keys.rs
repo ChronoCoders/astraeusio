@@ -54,6 +54,9 @@ pub async fn create_api_key(
     claims: AuthClaims,
     Json(body): Json<CreateKeyRequest>,
 ) -> Response {
+    if let Some(r) = crate::routes::verified_gate(&s, &claims.sub).await {
+        return r;
+    }
     let user_plan = plan::resolve(&s.usage_counter, &s.db, &claims.sub).await;
     if !plan::satisfies(&user_plan, "developer") {
         return (

@@ -64,6 +64,9 @@ pub async fn upsert_email_alert(
     claims: AuthClaims,
     Json(body): Json<EmailAlertBody>,
 ) -> Response {
+    if let Some(r) = crate::routes::verified_gate(&s, &claims.sub).await {
+        return r;
+    }
     let user_plan = plan::resolve(&s.usage_counter, &s.db, &claims.sub).await;
     if !plan::satisfies(&user_plan, "developer") {
         return (

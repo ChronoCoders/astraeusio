@@ -625,6 +625,28 @@ const MODEL_061A_SHA: &str = "061a5d30fac50c5f7e941730a37726c2bf02c008f72f484e8c
 /// 3 h forecasts from the model now serving.
 const FORECAST_ERA_MIGRATION: &str = "2026-09-02-kp-forecast-model-era";
 
+/// Marks the deploy verification accounts as verified.
+const DEPLOY_ACCOUNTS_VERIFIED_MIGRATION: &str = "2026-09-02-verify-deploy-accounts";
+
+/// The accounts `deploy.sh` signs in as to check authenticated routes.
+///
+/// Ours, on a domain we run, created by hand on 2026-08-10 through the ordinary
+/// registration path, which is why they were never verified: nothing enforced
+/// it and no mail was read. Once verification gates creating an API key they
+/// would be locked out, and `deploy-verify-dev` holds the only live API key in
+/// the system.
+///
+/// Marked verified by migration rather than exempted in code. An exemption is a
+/// permanent branch that says "except these", which then has to be right
+/// forever and is a place for a name to be added quietly. Setting the flag once
+/// leaves them ordinary accounts afterwards, and the deploy checks keep working
+/// without the gate having to know they exist.
+const DEPLOY_ACCOUNTS: [&str; 2] = [
+    "deploy-verify@astraeusio.com",
+    "deploy-verify-dev@astraeusio.com",
+];
+
+
 /// When the active model was placed on the volume, read from the file itself.
 ///
 /// The model lives beside the database on the shared volume, so the backend can
@@ -1127,6 +1149,52 @@ impl Store {
                 "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
                 params![FORECAST_ERA_MIGRATION, now()],
             )?;
+        }
+
+        // The deploy accounts, marked verified once so the gate can stay
+        // ignorant of them. Guarded by the migration record, so an address
+        // deliberately un-verified later is not re-verified on the next restart.
+        let deploy_verified_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![DEPLOY_ACCOUNTS_VERIFIED_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if deploy_verified_applied == 0 {
+            let mut updated = 0i64;
+            for email in DEPLOY_ACCOUNTS {
+                updated += conn.execute(
+                    "UPDATE users SET email_verified = TRUE WHERE email = ?",
+                    params![email],
+                )? as i64;
+            }
+
+            // Every named account that exists is now verified. Counted rather
+            // than assumed: an address that is present and still unverified
+            // means the update did not do what it says, and the deploy checks
+            // would fail later for a reason nothing here recorded.
+            let present: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM users WHERE email IN (?, ?)",
+                params![DEPLOY_ACCOUNTS[0], DEPLOY_ACCOUNTS[1]],
+                |row| row.get(0),
+            )?;
+            let unverified: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM users WHERE email IN (?, ?) AND email_verified IS NOT TRUE",
+                params![DEPLOY_ACCOUNTS[0], DEPLOY_ACCOUNTS[1]],
+                |row| row.get(0),
+            )?;
+            if unverified != 0 {
+                return Err(DbError::Migration(format!(
+                    "{unverified} of {present} deploy accounts are still unverified after the \
+                     update; refusing to start rather than gate the deploy checks out"
+                )));
+            }
+
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![DEPLOY_ACCOUNTS_VERIFIED_MIGRATION, now()],
+            )?;
+            // Zero is the ordinary case on a fresh database, which has neither.
+            info!(updated, present, "marked the deploy accounts verified");
         }
 
         let api_key_lifecycle_applied: i64 = conn.query_row(
@@ -5994,6 +6062,93 @@ mod tests {
         assert!(!era_fix_is_verified(51, 50, 0), "one row short does not commit");
         assert!(!era_fix_is_verified(51, 51, 1), "one row disagreeing with its lead does not commit");
         assert!(!era_fix_is_verified(51, 52, 0), "more than expected does not commit either");
+    }
+
+    /// The deploy accounts are marked verified once, and nothing else is.
+    ///
+    /// `deploy-verify-dev` holds the only live API key, and creating a key is
+    /// one of the things verification now gates, so getting this wrong locks
+    /// the deploy checks out of the system they check. An ordinary account in
+    /// the same database must be untouched: this is a fix for two known rows,
+    /// not a general amnesty.
+    #[test]
+    fn the_deploy_accounts_are_verified_and_no_one_else_is() {
+        let path = std::env::temp_dir().join(format!("astraeus-depver-{}.duckdb", now()));
+        let _ = std::fs::remove_file(&path);
+        {
+            let conn = duckdb::Connection::open(&path).expect("open");
+            conn.execute_batch(SCHEMA).expect("schema");
+            // No email_verified column yet: it arrives as an ALTER during
+            // Store::open, defaulting to FALSE, which is the state these three
+            // rows were really in.
+            for email in DEPLOY_ACCOUNTS {
+                conn.execute(
+                    "INSERT INTO users (email, password_hash, created_at)
+                     VALUES (?, 'hash', 0)",
+                    params![email],
+                )
+                .expect("seed deploy account");
+            }
+            conn.execute(
+                "INSERT INTO users (email, password_hash, created_at)
+                 VALUES ('someone@example.com', 'hash', 0)",
+                [],
+            )
+            .expect("seed ordinary account");
+        }
+
+        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+
+        for email in DEPLOY_ACCOUNTS {
+            let verified: bool = store
+                .conn
+                .query_row(
+                    "SELECT email_verified FROM users WHERE email = ?",
+                    params![email],
+                    |r| r.get(0),
+                )
+                .expect("row");
+            assert!(verified, "{email} must be verified or the deploy checks break");
+        }
+
+        let other: bool = store
+            .conn
+            .query_row(
+                "SELECT email_verified FROM users WHERE email = 'someone@example.com'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("row");
+        assert!(!other, "an ordinary account must not be swept up");
+
+        let recorded: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+                params![DEPLOY_ACCOUNTS_VERIFIED_MIGRATION],
+                |r| r.get(0),
+            )
+            .expect("recorded");
+        assert_eq!(recorded, 1, "recorded, so a later un-verify is not undone on restart");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A database with neither account applies cleanly and records itself.
+    /// Every fresh deployment is that case.
+    #[test]
+    fn the_deploy_account_migration_is_fine_with_neither_present() {
+        let store = mem_store();
+        let recorded: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+                params![DEPLOY_ACCOUNTS_VERIFIED_MIGRATION],
+                |r| r.get(0),
+            )
+            .expect("recorded");
+        assert_eq!(recorded, 1);
     }
 
     /// The gate `rebuild-db.sh` and the rekey both apply: every row arrived,

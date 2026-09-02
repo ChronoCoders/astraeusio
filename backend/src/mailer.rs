@@ -19,11 +19,21 @@ impl MailerConfig {
     }
 }
 
-pub async fn send_verification_email(config: &MailerConfig, to: &str, verify_url: &str) {
+/// Returns whether the provider accepted the message.
+///
+/// The result used to be discarded. That is tolerable for a welcome mail and
+/// wrong for this one: once verification gates anything, this mail is the only
+/// route back for an account that cannot get in, and a caller that cannot tell
+/// a send from a silent failure cannot tell the user either.
+pub async fn send_verification_email(
+    config: &MailerConfig,
+    to: &str,
+    verify_url: &str,
+) -> bool {
     let body = format!(
         "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 24 hours.\n\nIf you did not create an account, you can safely ignore this email."
     );
-    send_alert_email(config, to, "Verify your Astraeusio email address", &body).await;
+    send_alert_email(config, to, "Verify your Astraeusio email address", &body).await
 }
 
 pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) {

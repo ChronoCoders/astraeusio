@@ -265,6 +265,11 @@
     "footer": "Konumlar TLE verisinden hesaplanır · 10 saniyede bir güncellenir",
     "noData": "TLE verisi mevcut değil - Celestrak senkronizasyonu bekleniyor"
   },
+  "errors": {
+    "emailVerificationRequired": "Önce e-posta adresinizi onaylayın. Ayarlar sayfasında bağlantıyı yeniden gönderme düğmesi var.",
+    "verificationEmailFailed": "E-posta gönderilemedi. Birkaç dakika sonra tekrar deneyin.",
+    "planRequired": "Bu, planınıza dahil değil."
+  },
   "settings": {
     "contactSales": "Satışla görüşün",
     "planChangeFailed": "Planınız değiştirilemedi.",

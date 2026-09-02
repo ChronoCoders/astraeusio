@@ -617,11 +617,22 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
     };
 
     let url = format!("{}/verify-email?token={}", s.app_url, token);
-    let mc = mc.clone();
-    let email = claims.sub.clone();
-    tokio::spawn(async move {
-        mailer::send_verification_email(&mc, &email, &url).await;
-    });
+
+    // Awaited, not spawned. This endpoint used to return 204 the instant it had
+    // queued the work, so a user whose mail never sent was told it had. That is
+    // survivable while verification gates nothing and is not once it gates
+    // anything: this mail is the only way back for an account that is locked
+    // out, and "we sent it" has to mean the provider took it.
+    if !mailer::send_verification_email(mc, &claims.sub, &url).await {
+        return (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({
+                "error": "verification_email_failed",
+                "detail": "the email provider did not accept the message, nothing was sent",
+            })),
+        )
+            .into_response();
+    }
 
     StatusCode::NO_CONTENT.into_response()
 }
