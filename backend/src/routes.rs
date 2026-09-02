@@ -165,6 +165,56 @@ async fn plan_gate(s: &AppState, email: &str, required: &'static str) -> Option<
     )
 }
 
+/// Refuses an action to an account whose address is unproven.
+///
+/// Verification gates writing and spending, not reading and not signing in. An
+/// unverified address is an unproven claim to an identity, so it should not
+/// accumulate credentials, and it should not cause us to send mail to it. It is
+/// not a reason to withhold data the account can already see, and refusing sign
+/// in turns a soft problem into one only support can undo.
+///
+/// So this sits on: creating an API key, creating a webhook, creating a custom
+/// rule, setting email alert thresholds, and changing plan. Deletion is
+/// deliberately not gated, because taking a credential away is the safe
+/// direction and an account should always be able to reduce its own exposure.
+///
+/// The response names the address and the way out, because a 403 whose remedy
+/// the reader has to guess is how an account becomes a support ticket.
+pub(crate) async fn verified_gate(s: &AppState, email: &str) -> Option<Response> {
+    let verified = match lock_db(&s.db).await.find_user_by_email(email) {
+        Ok(Some(u)) => u.email_verified,
+        // No row and a valid token should not co-occur. Refusing is the safe
+        // reading of a state that should not exist.
+        Ok(None) => false,
+        Err(e) => {
+            warn!("verified_gate lookup error: {e}");
+            return Some(
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "internal error" })),
+                )
+                    .into_response(),
+            );
+        }
+    };
+    if verified {
+        return None;
+    }
+    Some(
+        (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error":  "email_verification_required",
+                "email":  email,
+                "detail": "Confirm your email address to use this. \
+                           Settings has a button to send the link again.",
+                "resend": "/auth/resend-verification",
+            })),
+        )
+            .into_response(),
+    )
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 async fn health(State(s): State<AppState>) -> impl IntoResponse {
@@ -1070,6 +1120,9 @@ async fn update_user_plan(
     claims: AuthClaims,
     Json(body): Json<UpdatePlanBody>,
 ) -> Response {
+    if let Some(r) = verified_gate(&s, &claims.sub).await {
+        return r;
+    }
     if !VALID_PLANS.contains(&body.plan.as_str()) {
         return (
             StatusCode::BAD_REQUEST,
@@ -1256,6 +1309,9 @@ async fn create_custom_rule(
     claims: AuthClaims,
     Json(body): Json<CreateCustomRuleBody>,
 ) -> Response {
+    if let Some(r) = verified_gate(&s, &claims.sub).await {
+        return r;
+    }
     if let Some(r) = plan_gate(&s, &claims.sub, "enterprise").await {
         return r;
     }
@@ -1762,6 +1818,117 @@ mod mcp_tests {
                 v["caller"],
                 if auth_type == AuthType::ApiKey { "api_key" } else { "jwt" },
                 "caller must describe the reader"
+            );
+        }
+    }
+
+    /// What an account with an unproven address is told, and that it is told
+    /// something it can act on. A 403 whose remedy the reader has to guess is
+    /// how an account becomes a support ticket, which is the whole risk of
+    /// enforcing this at all.
+    #[tokio::test]
+    async fn the_gate_names_the_address_and_the_way_out() {
+        let state = test_state();
+        let email = "unverified@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create");
+        }
+
+        let resp = verified_gate(&state, email)
+            .await
+            .expect("an unverified account must be refused");
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(v["error"], "email_verification_required");
+        assert_eq!(v["email"], email, "it says which address is unproven");
+        assert_eq!(
+            v["resend"], "/auth/resend-verification",
+            "and where the way out is"
+        );
+        let detail = v["detail"].as_str().unwrap_or_default();
+        assert!(
+            detail.contains("Confirm your email") && detail.contains("Settings"),
+            "the message has to tell a person what to do: {detail}"
+        );
+    }
+
+    /// Verified accounts are not affected, which is the other half: a gate that
+    /// refuses everyone is not a gate.
+    #[tokio::test]
+    async fn a_verified_account_passes_the_gate() {
+        let state = test_state();
+        let email = "verified@example.com";
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create");
+            db.set_email_verified(email).expect("verify");
+        }
+        assert!(
+            verified_gate(&state, email).await.is_none(),
+            "a verified account must pass"
+        );
+    }
+
+    /// An account with no row at all is refused rather than let through. A
+    /// valid token for an account that does not exist should not happen, and
+    /// the safe reading of a state that should not happen is to refuse.
+    #[tokio::test]
+    async fn an_account_that_does_not_exist_is_refused() {
+        let state = test_state();
+        assert!(
+            verified_gate(&state, "ghost@example.com").await.is_some(),
+            "no row means no proof"
+        );
+    }
+
+    /// The gate goes on writing and spending, and nowhere else. Enumerated from
+    /// the router source rather than from a list kept by hand, because a list of
+    /// gated routes maintained beside the routes is a list that stops matching
+    /// them. Reading and deleting must stay open: withholding data an account
+    /// can already see helps nobody, and an account must always be able to take
+    /// its own credentials away.
+    #[test]
+    fn the_gate_is_on_the_write_paths_and_not_the_read_ones() {
+        let sources = [
+            include_str!("routes.rs"),
+            include_str!("api_keys.rs"),
+            include_str!("webhooks.rs"),
+            include_str!("email_alerts.rs"),
+        ];
+        // Matched on the call shape, not on the name. Matching the name alone
+        // counted this test's own source, since routes.rs includes itself.
+        let gated: Vec<&str> = sources
+            .iter()
+            .flat_map(|src| src.lines())
+            .map(str::trim)
+            .filter(|l| l.starts_with("if let Some(r) =") && l.contains("verified_gate"))
+            .collect();
+        assert_eq!(
+            gated.len(),
+            5,
+            "expected the five write paths to be gated, found {}",
+            gated.len()
+        );
+
+        // And the handlers that carry it, named so a removal is a deliberate
+        // edit to this list rather than a line quietly disappearing.
+        for (src, handler) in [
+            (include_str!("api_keys.rs"), "pub async fn create_api_key"),
+            (include_str!("webhooks.rs"), "pub async fn create_webhook"),
+            (include_str!("email_alerts.rs"), "pub async fn upsert_email_alert"),
+            (include_str!("routes.rs"), "async fn create_custom_rule"),
+            (include_str!("routes.rs"), "async fn update_user_plan"),
+        ] {
+            let start = src.find(handler).unwrap_or_else(|| panic!("{handler} is gone"));
+            let window = &src[start..(start + 700).min(src.len())];
+            assert!(
+                window.contains("verified_gate"),
+                "{handler} must refuse an unverified account"
             );
         }
     }

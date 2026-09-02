@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import UpgradePrompt from './UpgradePrompt'
 import { planSatisfies } from '../lib/utils'
+import { apiError } from '../lib/useApi'
 
 function authHeader() {
   return { Authorization: `Bearer ${localStorage.getItem('token')}` }
@@ -100,7 +101,7 @@ export default function ApiKeysPage({ plan, onNavigate }) {
       })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
-        setCreateError(d.error ?? t('apiKeys.createError'))
+        setCreateError(apiError(d, t, 'apiKeys.createError'))
       } else {
         const d = await r.json()
         setNewKey(d)
@@ -526,7 +527,7 @@ function WebhooksCrud({ t }) {
       })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
-        setCreateError(d.error ?? t('webhooks.createError'))
+        setCreateError(apiError(d, t, 'webhooks.createError'))
       } else {
         const d = await r.json()
         setNewSecret({ id: d.id, secret: d.secret })

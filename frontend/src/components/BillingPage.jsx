@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useApi, authedFetch } from '../lib/useApi'
+import { useApi, authedFetch, apiError } from '../lib/useApi'
 import { PLANS, PLAN_FEATURES, PLAN_COLOR, normalizePlan, planRank } from '../lib/plans'
 
 function fmtDate(unixSec) {
@@ -171,7 +171,7 @@ export default function BillingPage({ user, onUserChange }) {
         setDone(true)
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(apiError(d, t, 'auth.unknownError'))
       }
     } catch {
       setErr(t('auth.networkError'))

@@ -11,6 +11,25 @@ export function authedFetch(url, opts = {}) {
   })
 }
 
+// A sentence for a backend error code.
+//
+// Every page that creates something renders `d.error` straight from the JSON,
+// so a blocked user was shown `plan_required` or `email_verification_required`
+// verbatim. Those are wire codes, not messages. Mapped in one place because the
+// same codes come back from five different endpoints, and a mapping kept per
+// page is a mapping that goes stale on four of them.
+//
+// An unmapped code falls back to the caller's own message rather than being
+// shown raw: a code nobody has written words for is not words.
+export function apiError(payload, t, fallbackKey) {
+  const key = {
+    email_verification_required: 'errors.emailVerificationRequired',
+    verification_email_failed:   'errors.verificationEmailFailed',
+    plan_required:               'errors.planRequired',
+  }[payload?.error]
+  return key ? t(key) : t(fallbackKey)
+}
+
 export function useApi(url, intervalMs = 60000) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)

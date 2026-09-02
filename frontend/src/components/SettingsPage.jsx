@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PLANS, PLAN_FEATURES, PLAN_COLOR, normalizePlan, planRank } from '../lib/plans'
+import { apiError } from '../lib/useApi'
 
 const LANGS = ['en', 'tr']
 
@@ -38,7 +39,7 @@ function EmailVerificationSection({ user }) {
         setSent(true)
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(apiError(d, t, 'auth.unknownError'))
       }
     } catch {
       setErr(t('auth.networkError'))
@@ -102,7 +103,7 @@ function TwoFactorSection({ user, onUserChange }) {
         setStep('setup')
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(apiError(d, t, 'auth.unknownError'))
       }
     } catch {
       setErr(t('auth.networkError'))
@@ -128,7 +129,7 @@ function TwoFactorSection({ user, onUserChange }) {
         onUserChange?.({ ...user, totp_enabled: true })
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(apiError(d, t, 'auth.unknownError'))
       }
     } catch {
       setErr(t('auth.networkError'))
@@ -152,7 +153,7 @@ function TwoFactorSection({ user, onUserChange }) {
         onUserChange?.({ ...user, totp_enabled: false })
       } else {
         const d = await r.json().catch(() => ({}))
-        setErr(d.error ?? t('auth.unknownError'))
+        setErr(apiError(d, t, 'auth.unknownError'))
       }
     } catch {
       setErr(t('auth.networkError'))

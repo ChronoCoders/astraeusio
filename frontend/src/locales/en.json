@@ -265,6 +265,11 @@
     "footer": "Positions computed from TLE data · Updated every 10 s",
     "noData": "TLE data unavailable - awaiting Celestrak sync"
   },
+  "errors": {
+    "emailVerificationRequired": "Confirm your email address first. Settings has a button to send the link again.",
+    "verificationEmailFailed": "The email could not be sent. Try again in a few minutes.",
+    "planRequired": "Your plan does not include this."
+  },
   "settings": {
     "contactSales": "Contact sales",
     "planChangeFailed": "Your plan could not be changed.",
