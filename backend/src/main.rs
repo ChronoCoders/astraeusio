@@ -112,7 +112,11 @@ async fn main() -> Result<()> {
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
     let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    let mailer_config = mailer::MailerConfig::from_env();
+    // One `Sender` for the whole process, behind the trait so tests can put a
+    // different one in. `None` when no key is configured, exactly as before.
+    let mailer_config: Option<std::sync::Arc<dyn mailer::Sender>> =
+        mailer::MailerConfig::from_env()
+            .map(|c| std::sync::Arc::new(mailer::ResendSender::new(c)) as std::sync::Arc<dyn mailer::Sender>);
     let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let oauth_config = oauth::OAuthConfig::from_env(&app_url);
     info!("oauth providers enabled: {:?}", oauth_config.enabled());

@@ -176,7 +176,7 @@ pub fn spawn(
     client: reqwest::Client,
     db: Arc<Mutex<Store>>,
     writer: DbWriterHandle,
-    smtp: Option<mailer::MailerConfig>,
+    smtp: Option<Arc<dyn mailer::Sender>>,
     ml_url: String,
 ) {
     let cfg = PollerConfig::from_env();
@@ -768,7 +768,7 @@ async fn poll_forecast(
 async fn poll_anomaly(
     db: Arc<Mutex<Store>>,
     writer: DbWriterHandle,
-    smtp: Option<mailer::MailerConfig>,
+    smtp: Option<Arc<dyn mailer::Sender>>,
     init_delay_secs: u64,
     interval: u64,
 ) {
@@ -781,17 +781,24 @@ async fn poll_anomaly(
             }
         }
         if let Some(ref cfg) = smtp {
-            dispatch_email_alerts(&db, &writer, cfg).await;
+            let _ = dispatch_email_alerts(&db, &writer, cfg.as_ref()).await;
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
 }
 
+/// Returns how many cooldowns it recorded, which is how many alerts actually
+/// went out.
+///
+/// Returned rather than discarded so the decision is observable without reading
+/// it back out of the database. The write goes through `DbWriterHandle`, whose
+/// store is a different connection, so a test that asserted on the database
+/// would be asserting on a copy nothing wrote to.
 async fn dispatch_email_alerts(
     db: &Arc<Mutex<Store>>,
     writer: &DbWriterHandle,
-    cfg: &mailer::MailerConfig,
-) {
+    sender: &dyn mailer::Sender,
+) -> usize {
     // Gather data while holding lock, then release before any async work.
     let (kp_opt, wind_opt, subs) = {
         let guard = db.lock().await;
@@ -807,6 +814,7 @@ async fn dispatch_email_alerts(
         .as_secs() as i64;
     const COOLDOWN_SECS: i64 = 3600;
 
+    let mut notified = 0usize;
     for sub in subs {
         if let Some(last) = sub.last_notified_at
             && now_ts - last < COOLDOWN_SECS
@@ -820,23 +828,29 @@ async fn dispatch_email_alerts(
         }
 
         let email = sub.user_email.clone();
-        let cfg = cfg.clone();
         let writer = writer.clone();
         let body = format!(
             "Space Weather Alert\n\nThe following conditions have exceeded your thresholds:\n\n{}\n\nView your dashboard: https://astraeusio.com\n\nTo update alert settings, visit the API Keys page in your dashboard.",
             lines.join("\n")
         );
-        tokio::spawn(async move {
-            // The cooldown records that an alert was delivered, so it is marked
-            // on the strength of the send rather than before it. Marking first
-            // meant a failed send bought an hour of silence exactly as a
-            // successful one did, and the user heard about neither.
-            if mailer::send_alert_email(&cfg, &email, "Astraeusio Space Weather Alert", &body).await
-            {
-                writer.fire(WriteCmd::TouchEmailAlertNotified(email));
-            }
-        });
+        // Awaited rather than spawned, so the cooldown is written before the
+        // next subscription is considered and a test can observe the outcome.
+        // The loop is over a handful of subscriptions on a 60 s cycle, so the
+        // ordering costs nothing worth keeping the race for.
+        //
+        // The cooldown records that an alert was delivered, so it is marked on
+        // the strength of the send rather than before it. Marking first meant a
+        // failed send bought an hour of silence exactly as a successful one did,
+        // and the user heard about neither.
+        if sender
+            .send_text(&email, "Astraeusio Space Weather Alert", &body)
+            .await
+        {
+            writer.fire(WriteCmd::TouchEmailAlertNotified(email));
+            notified += 1;
+        }
     }
+    notified
 }
 
 /// Which of a subscription's thresholds the current readings have crossed.
@@ -1004,6 +1018,61 @@ async fn poll_health(
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+
+    /// The cooldown is an hour of silence, so it may only be spent on an alert
+    /// that actually went out.
+    ///
+    /// `a133524` fixed the ordering and left it untested, because the send was
+    /// constructed inside the function that sends and no test could make it
+    /// fail. That is what the `Sender` seam is for. Both directions are here:
+    /// a successful send records the cooldown, a failed one does not, and a
+    /// test asserting only the first would pass if the cooldown were written
+    /// unconditionally, which is the defect being guarded.
+    #[tokio::test]
+    async fn the_cooldown_is_spent_only_on_an_alert_that_was_sent() {
+        use crate::mailer::TestSender;
+
+        async fn run(sender: std::sync::Arc<TestSender>) -> (usize, usize) {
+            let store = Store::open(":memory:").expect("store");
+            let email = "alerts@example.com";
+            store.create_user(email, "hash").expect("user");
+            // Kp far above the threshold, observed now so the freshness rule
+            // does not suppress the line.
+            let now = chrono::Utc::now();
+            store
+                .insert_kp_batch(&[crate::noaa::KpRecord {
+                    time_tag: now.format("%Y-%m-%dT%H:%M:%S").to_string(),
+                    kp_index: 9,
+                    estimated_kp: 9.0,
+                }])
+                .expect("kp");
+            store
+                .upsert_email_alert("sub-1", email, true, 500, 100_000)
+                .expect("subscription");
+
+            let client = reqwest::Client::new();
+            let db = Arc::new(Mutex::new(store));
+            let writer = crate::db_writer::spawn(
+                Store::open(":memory:").expect("writer store"),
+                client,
+            );
+            let notified = dispatch_email_alerts(&db, &writer, sender.as_ref()).await;
+            (sender.count(), notified)
+        }
+
+        let refusing = std::sync::Arc::new(TestSender::refusing());
+        let (attempted, marked) = run(refusing).await;
+        assert_eq!(attempted, 1, "the alert must be attempted");
+        assert_eq!(marked, 0, "a failed send must not buy an hour of silence");
+
+        // The other direction, and it is not decoration: the assertion above
+        // also holds if the cooldown is never written at all, which would mean
+        // an alert every cycle forever.
+        let accepting = std::sync::Arc::new(TestSender::accepting());
+        let (attempted, marked) = run(accepting).await;
+        assert_eq!(attempted, 1, "the alert must be attempted");
+        assert_eq!(marked, 1, "a delivered alert must record its cooldown");
+    }
 
     /// The interval table must name every poller that exists, not every poller
     /// that has spoken.

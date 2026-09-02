@@ -19,24 +19,147 @@ impl MailerConfig {
     }
 }
 
+
+/// A future returned by a `Sender`, boxed so the trait is dyn compatible.
+///
+/// Hand written rather than pulling in `async-trait` for one trait with two
+/// methods.
+pub type SendFuture<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + 'a>>;
+
+/// Where mail goes. `true` means the provider accepted it.
+///
+/// This exists so two behaviours can be tested that could not be before, both
+/// of which turn on a send having failed:
+///
+///   - `resend_verification` must report the failure rather than answer 204,
+///     because that mail is the only way back for an account the verification
+///     gate has locked out
+///   - the email alert cooldown must be recorded only after a send succeeds,
+///     since marking it first buys an hour of silence for an alert nobody got
+///
+/// Both were unreachable in a test while `Resend::new` was constructed inside
+/// the function that sends: the only way to reach the failure branch was a real
+/// network call with a bad key. Mutation testing on 2026-09-02 confirmed the
+/// first was unguarded, with the failure branch removed and all 189 tests still
+/// passing.
+///
+/// Scoped to the mailer's own sends and no wider. It covers text and HTML
+/// because `AppState` holds one mailer: seaming only the text path would mean
+/// carrying a `MailerConfig` beside the `Sender` for the two HTML callers, and
+/// two sources for one thing is the shape that goes wrong later.
+pub trait Sender: Send + Sync {
+    fn send_text<'a>(&'a self, to: &'a str, subject: &'a str, body: &'a str) -> SendFuture<'a>;
+    fn send_html<'a>(&'a self, to: &'a str, subject: &'a str, html: &'a str) -> SendFuture<'a>;
+}
+
+/// The real one.
+pub struct ResendSender {
+    config: MailerConfig,
+}
+
+impl ResendSender {
+    pub fn new(config: MailerConfig) -> Self {
+        Self { config }
+    }
+
+    async fn deliver(&self, to: &str, subject: &str, opts: CreateEmailBaseOptions) -> bool {
+        let client = Resend::new(&self.config.api_key);
+        match client.emails.send(opts).await {
+            Ok(_) => {
+                info!("mailer: {subject:?} sent to {to}");
+                true
+            }
+            Err(e) => {
+                warn!("mailer: send failed to {to}: {e}");
+                false
+            }
+        }
+    }
+}
+
+impl Sender for ResendSender {
+    fn send_text<'a>(&'a self, to: &'a str, subject: &'a str, body: &'a str) -> SendFuture<'a> {
+        Box::pin(async move {
+            let opts =
+                CreateEmailBaseOptions::new(&self.config.from, [to], subject).with_text(body);
+            self.deliver(to, subject, opts).await
+        })
+    }
+
+    fn send_html<'a>(&'a self, to: &'a str, subject: &'a str, html: &'a str) -> SendFuture<'a> {
+        Box::pin(async move {
+            let opts =
+                CreateEmailBaseOptions::new(&self.config.from, [to], subject).with_html(html);
+            self.deliver(to, subject, opts).await
+        })
+    }
+}
+
+/// A sender that answers however a test needs and reaches no network.
+///
+/// `#[cfg(test)]` so it cannot reach a release build at all, rather than being
+/// a variant that merely should not be constructed there.
+#[cfg(test)]
+#[derive(Default)]
+pub struct TestSender {
+    pub result: bool,
+    pub sent: std::sync::Mutex<Vec<(String, String, String)>>,
+}
+
+#[cfg(test)]
+impl TestSender {
+    pub fn accepting() -> Self {
+        Self { result: true, sent: std::sync::Mutex::new(Vec::new()) }
+    }
+
+    pub fn refusing() -> Self {
+        Self { result: false, sent: std::sync::Mutex::new(Vec::new()) }
+    }
+
+    pub fn count(&self) -> usize {
+        self.sent.lock().map(|s| s.len()).unwrap_or(0)
+    }
+
+    pub fn recipients(&self) -> Vec<String> {
+        self.sent
+            .lock()
+            .map(|s| s.iter().map(|(to, _, _)| to.clone()).collect())
+            .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+impl Sender for TestSender {
+    fn send_text<'a>(&'a self, to: &'a str, subject: &'a str, body: &'a str) -> SendFuture<'a> {
+        Box::pin(async move {
+            if let Ok(mut s) = self.sent.lock() {
+                s.push((to.to_string(), subject.to_string(), body.to_string()));
+            }
+            self.result
+        })
+    }
+
+    fn send_html<'a>(&'a self, to: &'a str, subject: &'a str, html: &'a str) -> SendFuture<'a> {
+        self.send_text(to, subject, html)
+    }
+}
+
 /// Returns whether the provider accepted the message.
 ///
 /// The result used to be discarded. That is tolerable for a welcome mail and
 /// wrong for this one: once verification gates anything, this mail is the only
 /// route back for an account that cannot get in, and a caller that cannot tell
 /// a send from a silent failure cannot tell the user either.
-pub async fn send_verification_email(
-    config: &MailerConfig,
-    to: &str,
-    verify_url: &str,
-) -> bool {
+pub async fn send_verification_email(sender: &dyn Sender, to: &str, verify_url: &str) -> bool {
     let body = format!(
         "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 24 hours.\n\nIf you did not create an account, you can safely ignore this email."
     );
-    send_alert_email(config, to, "Verify your Astraeusio email address", &body).await
+    sender
+        .send_text(to, "Verify your Astraeusio email address", &body)
+        .await
 }
 
-pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) {
+pub async fn send_welcome_email(sender: &dyn Sender, to: &str, app_url: &str) {
     let dashboard_url = app_url.to_string();
     let api_keys_url = format!("{app_url}/api-keys");
     let docs_url = format!("{app_url}/docs");
@@ -157,17 +280,12 @@ pub async fn send_welcome_email(config: &MailerConfig, to: &str, app_url: &str) 
 </html>"#
     );
 
-    let client = Resend::new(&config.api_key);
-    let email =
-        CreateEmailBaseOptions::new(&config.from, [to], "Welcome to Astraeusio").with_html(&html);
-
-    match client.emails.send(email).await {
-        Ok(_) => info!("mailer: welcome email sent to {to}"),
-        Err(e) => warn!("mailer: welcome send failed to {to}: {e}"),
-    }
+    // Result deliberately discarded: a welcome mail that does not arrive costs
+    // nothing recoverable, unlike the verification mail below it.
+    let _ = sender.send_html(to, "Welcome to Astraeusio", &html).await;
 }
 
-pub async fn send_password_reset_email(config: &MailerConfig, to: &str, reset_url: &str) {
+pub async fn send_password_reset_email(sender: &dyn Sender, to: &str, reset_url: &str) {
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -234,36 +352,8 @@ pub async fn send_password_reset_email(config: &MailerConfig, to: &str, reset_ur
 </html>"#
     );
 
-    let client = Resend::new(&config.api_key);
-    let email = CreateEmailBaseOptions::new(&config.from, [to], "Reset your Astraeusio password")
-        .with_html(&html);
-
-    match client.emails.send(email).await {
-        Ok(_) => info!("mailer: password reset email sent to {to}"),
-        Err(e) => warn!("mailer: password reset send failed to {to}: {e}"),
-    }
+    let _ = sender
+        .send_html(to, "Reset your Astraeusio password", &html)
+        .await;
 }
 
-/// Returns whether the alert actually left. The caller records the cooldown on
-/// the strength of it, so a discarded result meant a failed send suppressed the
-/// next hour of alerts as effectively as a delivered one (AUD-028).
-pub async fn send_alert_email(
-    config: &MailerConfig,
-    to: &str,
-    subject: &str,
-    body: &str,
-) -> bool {
-    let client = Resend::new(&config.api_key);
-    let email = CreateEmailBaseOptions::new(&config.from, [to], subject).with_text(body);
-
-    match client.emails.send(email).await {
-        Ok(_) => {
-            info!("mailer: alert sent to {to}");
-            true
-        }
-        Err(e) => {
-            warn!("mailer: send failed to {to}: {e}");
-            false
-        }
-    }
-}
