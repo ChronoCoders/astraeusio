@@ -23,6 +23,13 @@ impossible here rather than unlikely:
     fails loudly if they differ
   - git is never invoked, so there is nothing that can reach past the snapshot
 
+Two later corrections, both in the direction that made the harness lie rather
+than complain. Anchors are written with plain newlines and this repository's
+Rust is CRLF, so any anchor spanning a line break was declined as "anchor not
+found", which reads as the caller's mistake. And a check that failed without
+printing a recognised marker was reported clean, so a live defect came back as
+"NOTHING FAILED". Both are cases in --self-test now.
+
 Usage:
 
     python mutation-check.py mutations.json
@@ -49,6 +56,9 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+CRLF = chr(13) + chr(10)
+LF = chr(10)
 
 FAIL_MARKERS = ("FAILED", "FAIL:", "ERROR:", "error[", "error:", "✖")
 
@@ -77,7 +87,15 @@ def run_one(spec, root):
     backup.write_bytes(original)
 
     try:
+        # Anchors are written with plain newlines, and most of this repository's
+        # Rust is CRLF. Matching raw bytes meant every anchor spanning a line
+        # break reported "anchor not found", which reads as a bad spec rather
+        # than as the tool declining to look. So match on a normalised view and
+        # put the file's own ending back before writing, leaving endings alone.
         text = original.decode("utf-8")
+        crlf = CRLF in text
+        if crlf:
+            text = text.replace(CRLF, LF)
         for old, new in spec["edits"]:
             if old not in text:
                 return {
@@ -85,17 +103,29 @@ def run_one(spec, root):
                     "error": f"anchor not found in {spec['file']}: {old[:120]!r}",
                 }
             text = text.replace(old, new, 1)
+        if crlf:
+            text = text.replace(LF, CRLF)
         path.write_bytes(text.encode("utf-8"))
 
         proc = subprocess.run(
             spec["check"], cwd=root, shell=True, capture_output=True, text=True
         )
         output = proc.stdout + proc.stderr
+        # The exit code counts as much as the text. A check that fails quietly,
+        # which is what this file's own self test does when it reports NO and
+        # returns 1, matched none of the markers and was reported as
+        # "NOTHING FAILED": the harness claimed a real defect was unguarded.
+        # That is the false negative direction, and it is the one that makes a
+        # mutation check worthless rather than merely noisy.
+        failed = failing_lines(output)
+        marked = any(m in output for m in FAIL_MARKERS)
+        if proc.returncode != 0 and not failed:
+            failed = [f"the check exited {proc.returncode} without naming a test"]
         return {
             "name": spec["name"],
             "file": spec["file"],
-            "failed": failing_lines(output),
-            "clean": not any(m in output for m in FAIL_MARKERS),
+            "failed": failed,
+            "clean": proc.returncode == 0 and not marked,
         }
     finally:
         # Unconditional, and from the snapshot rather than from git, so an
@@ -135,7 +165,70 @@ def self_test(root):
         print(f"  file was never committed:       yes")
         print(f"  backup cleaned up:              "
               f"{'yes' if not (root / '.mutation-selftest.tmp.mutation-backup').exists() else 'NO'}")
-        return 0 if ok else 1
+        crlf_ok = _crlf_case(root)
+        print(f"  CRLF anchor spanning a newline: {'yes' if crlf_ok else 'NO'}")
+        quiet_ok = _quiet_failure_case(root)
+        print(f"  a check that fails silently:    {'yes' if quiet_ok else 'NO'}")
+        return 0 if (ok and crlf_ok and quiet_ok) else 1
+    finally:
+        probe.unlink(missing_ok=True)
+
+
+def _crlf_case(root):
+    """Anchors are written with plain newlines. Every Rust file in this
+    repository is CRLF, so matching raw bytes declined every anchor that
+    spanned a line break and said "anchor not found", which looks like a bad
+    spec. Kept as a case because the failure was silent in the direction that
+    reads as the caller's fault."""
+    probe = root / ".mutation-crlf.tmp"
+    snap = root / ".mutation-crlf.snap"
+    before = CRLF.join(["one", "two", "three"]).encode("utf-8")
+    probe.write_bytes(before)
+    # The check copies the file while it is mutated, because the restore has
+    # already run by the time run_one returns. Paths go through argv rather
+    # than into the -c source, so nothing here depends on shell quoting.
+    copy = 'python -c "import shutil,sys;shutil.copyfile(sys.argv[1],sys.argv[2])"'
+    try:
+        result = run_one(
+            {
+                "name": "crlf",
+                "file": probe.name,
+                "edits": [[LF.join(["one", "two"]), LF.join(["one", "CHANGED"])]],
+                "check": f'{copy} "{probe}" "{snap}"',
+            },
+            root,
+        )
+        if "error" in result or not snap.exists():
+            return False
+        during = snap.read_bytes()
+        # The edit landed, the endings were put back, and the file came home.
+        return (
+            during.count(b"CHANGED") == 1
+            and during.count(CRLF.encode()) == 2
+            and probe.read_bytes() == before
+        )
+    finally:
+        probe.unlink(missing_ok=True)
+        snap.unlink(missing_ok=True)
+
+
+def _quiet_failure_case(root):
+    """A check can fail without printing anything a marker matches. Scanning
+    output alone reported those as clean, so the harness said a live defect was
+    unguarded, which is the one wrong answer it must never give."""
+    probe = root / ".mutation-quiet.tmp"
+    probe.write_bytes(b"anchor" + LF.encode())
+    try:
+        result = run_one(
+            {
+                "name": "quiet",
+                "file": probe.name,
+                "edits": [["anchor", "mutated"]],
+                "check": "python -c \"raise SystemExit(1)\"",
+            },
+            root,
+        )
+        return "error" not in result and not result["clean"] and bool(result["failed"])
     finally:
         probe.unlink(missing_ok=True)
 
