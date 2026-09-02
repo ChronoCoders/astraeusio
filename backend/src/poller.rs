@@ -539,7 +539,7 @@ async fn poll_alerts(
             None => "degraded",
         };
         writer.fire(WriteCmd::HealthSnapshot {
-            component: "noaa_alerts".to_string(),
+            component: crate::db::ALERTS_COMPONENT.to_string(),
             ts: now,
             status: Some(verdict.to_string()),
         });
@@ -928,6 +928,39 @@ async fn poll_retention(db: Arc<Mutex<Store>>, init_delay_secs: u64, interval: u
 
 // ── Health snapshot poller ────────────────────────────────────────────────────
 
+/// Every health snapshot one cycle writes, as `(component, status)`.
+///
+/// Pulled out of `poll_health` so the set can be asserted. Left inline it was
+/// three loops each naming its own components, and mutation testing on
+/// 2026-09-02 showed why that is not testable: replacing `LIVENESS_ONLY` with a
+/// literal list broke nothing, because no test runs the poller and the source
+/// scan only inspects the `component:` field, not the loop above it.
+///
+/// `None` status is the liveness pair, which record no verdict: `backend_api`
+/// wrote the literal "operational" forever and `database` wrote a value that
+/// was "operational" unless the database was empty, both by the process under
+/// observation. The row's presence is the whole observation now.
+fn health_samples(
+    series: &[(&'static str, &'static str, Option<i64>)],
+    ml_status: &str,
+    celestrak_status: &str,
+) -> Vec<(String, Option<String>)> {
+    let mut out: Vec<(String, Option<String>)> = series
+        .iter()
+        .map(|(c, s, _)| ((*c).to_string(), Some((*s).to_string())))
+        .collect();
+    for (component, status) in [
+        (crate::db::ML_COMPONENT, ml_status),
+        (crate::db::CELESTRAK_COMPONENT, celestrak_status),
+    ] {
+        out.push((component.to_string(), Some(status.to_string())));
+    }
+    for component in crate::db::LIVENESS_ONLY {
+        out.push((component.to_string(), None));
+    }
+    out
+}
+
 async fn poll_health(
     client: reqwest::Client,
     db: Arc<Mutex<Store>>,
@@ -969,34 +1002,14 @@ async fn poll_health(
 
         let celestrak_status = component_status(celestrak_ts, now, 14_400);
 
-        // Each NOAA series records its own history, so a feed that stops shows
-        // as its own gap on the status page instead of being averaged away.
-        for (component, status, _) in &series {
+        // One loop, over one list. Three loops here each named their own
+        // components, and a fourth added later would have been a fourth
+        // place for a name the readers in routes.rs never hear about.
+        for (component, status) in health_samples(&series, ml_status, celestrak_status) {
             writer.fire(WriteCmd::HealthSnapshot {
-                component: (*component).to_string(),
+                component,
                 ts: now,
-                status: Some((*status).to_string()),
-            });
-        }
-
-        for (component, status) in [("ml_forecast", ml_status), ("celestrak", celestrak_status)] {
-            writer.fire(WriteCmd::HealthSnapshot {
-                component: component.to_string(),
-                ts: now,
-                status: Some(status.to_string()),
-            });
-        }
-
-        // No status. `backend_api` recorded the literal "operational" and
-        // `database` recorded a value that was "operational" unless the whole
-        // database was empty, both written by the process under observation.
-        // Neither column could ever say anything, so the row alone is the
-        // record now, and the missing rows are what an outage looks like.
-        for component in crate::db::LIVENESS_ONLY {
-            writer.fire(WriteCmd::HealthSnapshot {
-                component: component.to_string(),
-                ts: now,
-                status: None,
+                status,
             });
         }
 
@@ -1072,6 +1085,48 @@ mod tests {
         let (attempted, marked) = run(accepting).await;
         assert_eq!(attempted, 1, "the alert must be attempted");
         assert_eq!(marked, 1, "a delivered alert must record its cooldown");
+    }
+
+    /// Every name one cycle writes is one the readers enumerate.
+    ///
+    /// The property the source scan could not reach: it inspects the
+    /// `component:` field, so a literal typed in the loop above it passed. This
+    /// runs the writer's own set and checks it against `health_components()`,
+    /// which is what the handlers publish from.
+    #[test]
+    fn every_component_a_cycle_writes_is_declared() {
+        let series = crate::db::SERIES_FRESHNESS
+            .iter()
+            .map(|s| (s.component, "operational", Some(0i64)))
+            .collect::<Vec<_>>();
+        let samples = health_samples(&series, "operational", "operational");
+
+        assert!(
+            !samples.is_empty(),
+            "an empty set would make this pass vacuously"
+        );
+        let declared = crate::db::health_components();
+        for (component, _) in &samples {
+            assert!(
+                declared.contains(&component.as_str()),
+                "{component} is written every cycle and no reader enumerates it; \
+                 declare it in db.rs"
+            );
+        }
+
+        // And the other direction: nothing declared is left unwritten, or its
+        // strip would be empty forever. `noaa_alerts` is the exception, written
+        // by the alerts poller rather than by this cycle.
+        let written: Vec<&str> = samples.iter().map(|(c, _)| c.as_str()).collect();
+        for name in declared {
+            if name == crate::db::ALERTS_COMPONENT {
+                continue;
+            }
+            assert!(
+                written.contains(&name),
+                "{name} is declared and never written by a health cycle"
+            );
+        }
     }
 
     /// The interval table must name every poller that exists, not every poller

@@ -30,6 +30,10 @@ pub enum DbError {
     /// than one missing it always.
     #[error("forecast horizons {got} are not the published set {want}, nothing was stored")]
     PartialForecast { got: String, want: String },
+    /// A health snapshot for a component no reader enumerates. Declare it in
+    /// db.rs rather than widening this.
+    #[error("health snapshot for undeclared component {0}; add it to health_components()")]
+    UndeclaredComponent(String),
     #[error("{0}")]
     EncryptionKey(#[from] crate::secretbox::KeyError),
     #[error(
@@ -365,6 +369,38 @@ pub const FORECAST_HORIZONS: [i64; 4] = [3, 6, 12, 24];
 /// have passed before it exists at all.
 pub const MIN_PAIRS_FOR_METRICS: i64 = 30;
 
+
+/// The two components judged by probing something rather than by reading a
+/// table: the ml sidecar answers or it does not, and the Celestrak fetch has a
+/// timestamp of its own.
+pub const ML_COMPONENT: &str = "ml_forecast";
+pub const CELESTRAK_COMPONENT: &str = "celestrak";
+pub const PROBED: [&str; 2] = [ML_COMPONENT, CELESTRAK_COMPONENT];
+
+/// Every component a health snapshot is ever written for.
+///
+/// The authoritative list, and the reason it exists is that there were three
+/// hand-kept ones: the health handler inserting names, the uptime handler
+/// holding `["backend_api", "ml_forecast", "database", "celestrak"]`, and
+/// `poll_health` writing them. A component added to the writer and missed by a
+/// reader simply had no history, which is how `noaa_alerts` showed an empty
+/// strip from the day it was added.
+///
+/// Composed from the four declarations rather than typed out again, so adding a
+/// series or a liveness feed reaches the readers without anyone remembering to
+/// tell them. The set spans two writers: `poll_health` writes the series, the
+/// probed pair and the liveness-only pair, while the alerts poller writes its
+/// own `POLL_LIVENESS` verdict, which is why neither writer alone is the list.
+pub fn health_components() -> Vec<&'static str> {
+    SERIES_FRESHNESS
+        .iter()
+        .map(|s| s.component)
+        .chain(POLL_LIVENESS.iter().map(|l| l.component))
+        .chain(PROBED)
+        .chain(LIVENESS_ONLY)
+        .collect()
+}
+
 /// Components whose only honest claim is that the process was running.
 ///
 /// `backend_api` used to record the literal `"operational"` written by the
@@ -379,11 +415,17 @@ pub const MIN_PAIRS_FOR_METRICS: i64 = 30;
 /// with a 500 writes exactly the rows a healthy one writes, and nothing inside
 /// the box can tell the difference. The status page says so in a line rather
 /// than leaving it to be inferred.
-pub const LIVENESS_ONLY: [&str; 2] = ["backend_api", "database"];
+pub const BACKEND_COMPONENT: &str = "backend_api";
+pub const DATABASE_COMPONENT: &str = "database";
+pub const LIVENESS_ONLY: [&str; 2] = [BACKEND_COMPONENT, DATABASE_COMPONENT];
+
+/// Named because the alerts poller writes a snapshot for it, and a name typed
+/// at both the declaration and the writer is two names that happen to agree.
+pub const ALERTS_COMPONENT: &str = "noaa_alerts";
 
 pub const POLL_LIVENESS: [PollLiveness; 1] = [PollLiveness {
     // Polls every 300 s; six missed cycles is a fault and one is not.
-    component: "noaa_alerts",
+    component: ALERTS_COMPONENT,
     max_verdict_age_secs: 1_800,
 }];
 
@@ -4289,12 +4331,22 @@ impl Store {
 
     /// `status` is `None` for the components in `LIVENESS_ONLY`, which have no
     /// verdict to record. The row is the observation.
+    ///
+    /// An undeclared component is refused rather than stored. Reading the
+    /// writers' source catches a name typed at the `component:` field and not a
+    /// name typed in the loop above it, which mutation testing demonstrated on
+    /// 2026-09-02 by replacing `LIVENESS_ONLY` with a literal list and breaking
+    /// nothing. Refusing the write closes that: a component the readers cannot
+    /// enumerate cannot accumulate history they will never show.
     pub fn insert_health_snapshot(
         &self,
         component: &str,
         ts: i64,
         status: Option<&str>,
     ) -> Result<(), DbError> {
+        if !health_components().contains(&component) {
+            return Err(DbError::UndeclaredComponent(component.to_string()));
+        }
         self.conn.execute(
             "INSERT OR IGNORE INTO health_snapshots (component, ts, status) VALUES (?, ?, ?)",
             params![component, ts, status],
@@ -6153,6 +6205,46 @@ mod tests {
             )
             .expect("recorded");
         assert_eq!(recorded, 1);
+    }
+
+    /// A component no reader enumerates cannot accumulate history.
+    ///
+    /// The source scan next door catches a name typed at the `component:`
+    /// field. It does not catch a name typed in the loop above it, which a
+    /// mutation demonstrated by swapping `LIVENESS_ONLY` for a literal list and
+    /// breaking nothing. This refuses the write itself, so the gap closes at
+    /// the point the row would be created rather than at the point someone
+    /// reads the code.
+    #[test]
+    fn a_snapshot_for_an_undeclared_component_is_refused() {
+        let store = mem_store();
+        let now = now();
+
+        // Positive control first: a declared component stores, so a refusal
+        // below means the name was rejected and not that the call never works.
+        for declared in health_components() {
+            store
+                .insert_health_snapshot(declared, now, Some("operational"))
+                .unwrap_or_else(|e| panic!("{declared} is declared and must store: {e}"));
+        }
+
+        let err = store
+            .insert_health_snapshot("a_new_component", now, Some("operational"))
+            .expect_err("an undeclared component must be refused");
+        assert!(
+            matches!(err, DbError::UndeclaredComponent(ref c) if c == "a_new_component"),
+            "got {err}"
+        );
+
+        let rows: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM health_snapshots WHERE component = 'a_new_component'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("count");
+        assert_eq!(rows, 0, "and nothing is stored for it");
     }
 
     /// The gate `rebuild-db.sh` and the rekey both apply: every row arrived,
