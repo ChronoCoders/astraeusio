@@ -215,7 +215,11 @@ fn check_neo(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
 
 fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError> {
     let since = now() - 24 * 3600;
-    if let Some((ts, kp_e2)) = db.get_kp_forecast_max_recent(since)?
+    // The detector says "within 3 hours", so it reads the 3 h head. Until the
+    // horizons were stored separately there was only one row per issue and the
+    // question could not be asked; the row it read was the 3 h mirror, so the
+    // behaviour is unchanged and the lead is now stated rather than assumed.
+    if let Some((ts, kp_e2)) = db.get_kp_forecast_max_recent(since, 3)?
         && let Some(severity) = forecast_severity(kp_e2)
     {
         let kp = kp_e2 as f64 / 100.0;

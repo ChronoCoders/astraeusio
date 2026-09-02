@@ -322,6 +322,10 @@ class HorizonForecast(BaseModel):
 
 class PredictResponse(BaseModel):
     forecast: list[HorizonForecast] = Field(description="One entry per horizon (3h/6h/12h/24h)")
+    # The checkpoint that produced these numbers, so the caller can store it
+    # beside them. /health has carried it since the deploy script needed it;
+    # a prediction that cannot name its model cannot be scored against one.
+    model_sha256: str = Field(default="", description="sha256 of the loaded checkpoint")
     n_mc_samples: int = Field(description="MC Dropout forward passes used")
     trained_through: str
     # Flat 3-hour fields mirrored for backward compatibility with existing callers.
@@ -378,6 +382,7 @@ async def predict(req: PredictRequest) -> PredictResponse:
     head = forecast[0]   # 3-hour horizon
     return PredictResponse(
         forecast=forecast,
+        model_sha256=state.model_sha256,
         n_mc_samples=MC_SAMPLES,
         trained_through=state.meta["trained_through"],
         predicted_kp=head.predicted_kp,

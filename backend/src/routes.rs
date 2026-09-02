@@ -29,21 +29,26 @@ use crate::{
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-type CacheMap = HashMap<&'static str, (Instant, serde_json::Value)>;
+// Keys are mostly literals, but the forecast history varies by horizon as well
+// as by range, so the key has to be built. Cow keeps the literal call sites
+// allocation free.
+type CacheMap = HashMap<std::borrow::Cow<'static, str>, (Instant, serde_json::Value)>;
 
-async fn cached<F, Fut>(
+async fn cached<F, Fut, K>(
     cache: &Arc<Mutex<CacheMap>>,
-    key: &'static str,
+    key: K,
     ttl: Duration,
     fetch: F,
 ) -> Result<Json<serde_json::Value>, AppError>
 where
+    K: Into<std::borrow::Cow<'static, str>>,
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = Result<serde_json::Value, AppError>>,
 {
+    let key = key.into();
     {
         let guard = cache.lock().await;
-        if let Some((ts, val)) = guard.get(key)
+        if let Some((ts, val)) = guard.get(&key)
             && ts.elapsed() < ttl
         {
             return Ok(Json(val.clone()));
@@ -698,31 +703,24 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
     match result {
         Ok(resp) if resp.status().is_success() => {
             let payload: serde_json::Value = resp.json().await?;
-            if let Some(kp) = payload.get("predicted_kp").and_then(|v| v.as_f64()) {
-                let forecast_ts = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64
-                    + 3 * 3600;
-                let ci_l = payload
-                    .get("ci_lower")
-                    .and_then(|v| v.as_f64())
-                    .map(|v| (v * 100.0).round() as i64);
-                let ci_u = payload
-                    .get("ci_upper")
-                    .and_then(|v| v.as_f64())
-                    .map(|v| (v * 100.0).round() as i64);
-                let unc = payload
-                    .get("uncertainty")
-                    .and_then(|v| v.as_f64())
-                    .map(|v| (v * 10_000.0).round() as i64);
-                s.writer.fire(WriteCmd::KpForecast {
-                    ts: forecast_ts,
-                    kp_e2: (kp * 100.0).round() as i64,
-                    ci_lower_e2: ci_l,
-                    ci_upper_e2: ci_u,
-                    uncertainty_e4: unc,
-                });
+            // Same parser as the poller. Two call sites reading `forecast[]`
+            // their own way is how three of four horizons would go missing on
+            // one path and not the other.
+            match crate::db::ForecastPoint::from_predict_payload(&payload) {
+                Ok((points, model_sha)) => {
+                    let issued_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64;
+                    s.writer.fire(WriteCmd::KpForecast {
+                        issued_at,
+                        model_sha,
+                        points,
+                    });
+                }
+                // Served to the caller, stored for nobody. The response is
+                // still useful to read; it is not useful to score against.
+                Err(e) => tracing::warn!(source = "api/kp-forecast", "{e}"),
             }
             info!("kp-forecast: ML service returned prediction");
             Ok(payload)
@@ -740,7 +738,8 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
 }
 
 async fn ml_cache_fallback(s: &AppState) -> Result<serde_json::Value, AppError> {
-    match lock_db(&s.db).await.get_kp_forecast_latest()? {
+    // The 3 h head, matching the flat fields this response mirrors.
+    match lock_db(&s.db).await.get_kp_forecast_latest(3)? {
         Some((_, kp_e2)) => Ok(serde_json::json!({
             "predicted_kp": kp_e2 as f64 / 100.0,
             "ci_lower":     serde_json::Value::Null,
@@ -789,16 +788,20 @@ async fn get_forecast_history(
     Query(q): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
     let (range, label) = parse_range(&q);
-    let key: &'static str = match label {
-        "24h" => "forecast-history-24h",
-        "30d" => "forecast-history-30d",
-        _ => "forecast-history-7d",
-    };
+    // Defaults to the 3 h series, which is what the page charted when one
+    // horizon was all there was. An unrecognised value is the default rather
+    // than an error, the same way the range parameter behaves.
+    let horizon = q
+        .get("horizon")
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|h| crate::db::FORECAST_HORIZONS.contains(h))
+        .unwrap_or(3);
+    let key: String = format!("forecast-history-{label}-{horizon}");
     cached(&s.cache, key, Duration::from_secs(60), || async {
         let val = lock_db(&s.db)
             .await
-            .get_forecast_history(now_minus(range))?;
-        info!("api/forecast/history: served from db");
+            .get_forecast_history(now_minus(range), horizon)?;
+        info!(horizon, "api/forecast/history: served from db");
         Ok(val)
     })
     .await

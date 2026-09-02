@@ -242,9 +242,10 @@ repeated here.
 - **AUD-020** The OAuth `nonce` is still generated and never compared, with no cookie and no PKCE,
   so the state token proves the server issued some state and not that the callback belongs to the
   browser that began the flow.
-- **AUD-022** `kp_forecast` is still keyed on target time alone with no horizon and no issue time,
-  and the poller still stores the 3 h mirror and discards the other three horizons, so the stored
-  history and the accuracy metrics cover one horizon while the page shows four.
+- **AUD-022** The storage half is done. What remains is the Forecast page: `/api/forecast/metrics`
+  now returns one entry per horizon and the page still renders a single set of figures, taken from
+  the 3 h entry. Four columns, four series on the chart, and the keys in both locales are their own
+  piece of work. Until then the page shows less than it stores, which is the safe direction.
 - **AUD-025** The `developer` gate on CSV export is still a formatting gate, because
   `/api/reports/kp` and `/api/reports/solar-wind` return the same rows ungated, and
   `asteroid_approaches` still counts a forward window inside a card describing the past one.

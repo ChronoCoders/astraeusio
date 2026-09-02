@@ -68,7 +68,7 @@ Authentication uses HS256 JWT tokens issued on login and verified on protected r
 
 ### ML Service
 
-A FastAPI application (Python) that exposes a `POST /predict` endpoint and a `GET /health` endpoint reporting per-horizon validation metrics. The backend refreshes the forecast on a 30-minute poller (and on demand from `/api/kp-forecast`) and persists the returned prediction to the `kp_forecast` table for anomaly detection use. `torch` is pinned to the CPU build to keep the inference image small.
+A FastAPI application (Python) that exposes a `POST /predict` endpoint and a `GET /health` endpoint reporting per-horizon validation metrics. The backend refreshes the forecast on a 30-minute poller (and on demand from `/api/kp-forecast`) and persists every horizon of the returned prediction to the `kp_forecast` table, keyed on issue time and lead, for anomaly detection and accuracy measurement. `torch` is pinned to the CPU build to keep the inference image small.
 
 **Dependencies:** `torch` (CPU build), `fastapi`, `uvicorn`, `numpy`, `pandas`, `pyarrow`, `requests`
 

@@ -35,12 +35,14 @@ pub enum WriteCmd {
         /// None for a global detection, Some for one account's custom rule.
         user_email: Option<String>,
     },
+    /// One issue, every horizon. Deliberately not one command per horizon:
+    /// four messages on a channel are four chances to write three of them, and
+    /// the store refuses a set that is not the published one, so a partial
+    /// forecast cannot reach the table through this path either.
     KpForecast {
-        ts: i64,
-        kp_e2: i64,
-        ci_lower_e2: Option<i64>,
-        ci_upper_e2: Option<i64>,
-        uncertainty_e4: Option<i64>,
+        issued_at: i64,
+        model_sha: Option<String>,
+        points: Vec<crate::db::ForecastPoint>,
     },
     HealthSnapshot {
         component: String,
@@ -538,15 +540,11 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
             },
         },
         WriteCmd::KpForecast {
-            ts,
-            kp_e2,
-            ci_lower_e2,
-            ci_upper_e2,
-            uncertainty_e4,
+            issued_at,
+            model_sha,
+            points,
         } => {
-            if let Err(e) =
-                db.insert_kp_forecast(ts, kp_e2, ci_lower_e2, ci_upper_e2, uncertainty_e4)
-            {
+            if let Err(e) = db.insert_kp_forecast(issued_at, model_sha.as_deref(), &points) {
                 error!(source = "db_writer", "kp-forecast: {e}");
             }
         }
