@@ -647,12 +647,18 @@ fn model_deploy_time(db_path: &str) -> Option<i64> {
     i64::try_from(secs).ok()
 }
 
-/// Whether the corrected rows may be committed: every row that should have
-/// moved moved, and every row that moved is internally consistent and carries
-/// the model that produced it. Same shape as `rekey_is_verified` and the same
-/// reason.
-fn era_fix_is_verified(expected: i64, updated: i64, consistent: i64) -> bool {
-    updated == expected && consistent == updated
+/// Whether the corrected rows may be committed: exactly the rows that should
+/// have moved moved, and nothing after the boundary carrying this model is left
+/// disagreeing with its own lead.
+///
+/// The second term counts what is *wrong* rather than what is right, which is
+/// the correction this needed. Counting the right ones compared 51 updated
+/// against 52 correct and refused: the extra row was a forecast the running
+/// system had already written correctly, so the gate failed on evidence that
+/// the table was in better shape than it expected. A gate that fires when
+/// nothing is wrong is worse than no gate, because the next person turns it off.
+fn era_fix_is_verified(expected: i64, updated: i64, inconsistent: i64) -> bool {
+    updated == expected && inconsistent == 0
 }
 
 
@@ -1066,6 +1072,14 @@ impl Store {
                 .unwrap_or(0);
 
             if expected > 0 {
+                // An explicit transaction, because DuckDB autocommits a bare
+                // statement. The first version of this called ROLLBACK with no
+                // transaction open, so a failed gate returned an error saying
+                // "the table is unchanged" while the UPDATE it had just run
+                // stayed applied. The message was false and the safety was not
+                // there. Now the work happens between BEGIN and COMMIT, and the
+                // failure path really does put it back.
+                conn.execute_batch("BEGIN")?;
                 let updated = conn.execute(
                     "UPDATE kp_forecast \
                         SET horizon_hours = 3, \
@@ -1075,27 +1089,32 @@ impl Store {
                     params![MODEL_061A_SHA, boundary],
                 )? as i64;
 
-                let consistent: i64 = conn.query_row(
-                    "SELECT COUNT(*) FROM kp_forecast \
-                      WHERE issued_at >= ? AND model_sha = ? \
-                        AND horizon_hours = 3 AND ts = issued_at + 3 * 3600",
-                    params![boundary, MODEL_061A_SHA],
+                // What must be true after the boundary, stated as the thing
+                // that would be wrong: no row left without a model, and no
+                // row whose target disagrees with its own lead.
+                //
+                // Its own lead, not 3 h. An earlier version asserted every
+                // row here was a 3 h forecast, which is true of the rows this
+                // fixes and false of everything the poller writes now, so a
+                // correct issue's 6, 12 and 24 h rows read as damage.
+                let inconsistent: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM kp_forecast \n                      WHERE issued_at >= ? \n                        AND (model_sha IS NULL OR ts != issued_at + horizon_hours * 3600)",
+                    params![boundary],
                     |row| row.get(0),
                 )?;
 
-                if !era_fix_is_verified(expected, updated, consistent) {
-                    // DuckDB has the update inside an implicit transaction, so
-                    // rolling back leaves the table exactly as it was found.
-                    let _ = conn.execute_batch("ROLLBACK");
+                if !era_fix_is_verified(expected, updated, inconsistent) {
+                    conn.execute_batch("ROLLBACK")?;
                     error!(
                         expected,
-                        updated, consistent, boundary, "kp_forecast era fix did not verify"
+                        updated, inconsistent, boundary, "kp_forecast era fix did not verify"
                     );
                     return Err(DbError::Migration(format!(
-                        "kp_forecast era fix updated {updated} of {expected} rows with \
-                         {consistent} consistent; the table is unchanged"
+                        "kp_forecast era fix updated {updated} of {expected} rows and left \
+                         {inconsistent} disagreeing with their lead; the change was rolled back"
                     )));
                 }
+                conn.execute_batch("COMMIT")?;
                 info!(
                     rows = updated,
                     boundary,
@@ -5870,15 +5889,111 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The shape production was actually in, which the first version of this gate
+    /// refused: rows needing correction alongside an issue the running system
+    /// had already written correctly, at every horizon, carrying the same model.
+    ///
+    /// That correct issue made the count of consistent rows exceed the count of
+    /// updated rows, and the gate read the difference as damage. It failed the
+    /// migration, the process exited, and because the UPDATE had run outside any
+    /// transaction the change stayed applied while the error said the table was
+    /// unchanged. Both halves are fixed here and this is what proves it: the
+    /// migration completes, and the already correct rows are neither counted
+    /// against it nor touched.
+    #[test]
+    fn rows_the_running_system_wrote_correctly_do_not_fail_the_correction() {
+        let boundary = MODEL_061A_DEPLOYED_AT;
+        let stale: Vec<i64> = (0..3).map(|i| boundary + 60 + i * 1800).collect();
+        let already_correct = boundary + 9000;
+
+        let path = std::env::temp_dir().join(format!("astraeus-regress-{}.duckdb", now()));
+        let _ = std::fs::remove_file(&path);
+        {
+            let conn = duckdb::Connection::open(&path).expect("open");
+            conn.execute_batch(SCHEMA).expect("schema");
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                     id TEXT NOT NULL PRIMARY KEY, applied_at BIGINT NOT NULL);",
+            )
+            .expect("migrations table");
+            for id in [PURGE_FORECASTS_MIGRATION, FORECAST_HORIZON_KEY_MIGRATION] {
+                conn.execute(
+                    "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                    params![id, now()],
+                )
+                .expect("record");
+            }
+            // Mislabelled by the rekey: 6 h, no model.
+            for issued in &stale {
+                conn.execute(
+                    "INSERT INTO kp_forecast
+                       (issued_at, horizon_hours, ts, kp_e2, model_sha, fetched_at)
+                     VALUES (?, 6, ? + 6 * 3600, 300, NULL, ?)",
+                    params![issued, issued, issued],
+                )
+                .expect("seed stale");
+            }
+            // One full issue written by the new code path: every horizon, right
+            // target, model named. Exactly what the poller wrote at 03:10:10.
+            for h in FORECAST_HORIZONS {
+                conn.execute(
+                    "INSERT INTO kp_forecast
+                       (issued_at, horizon_hours, ts, kp_e2, model_sha, fetched_at)
+                     VALUES (?, ?, ? + ? * 3600, 250, ?, ?)",
+                    params![already_correct, h, already_correct, h, MODEL_061A_SHA, already_correct],
+                )
+                .expect("seed correct");
+            }
+        }
+
+        let store = Store::open(path.to_str().unwrap()).expect("the migration must not refuse this");
+
+        let (threes, named, inconsistent, total): (i64, i64, i64, i64) = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FILTER (WHERE horizon_hours = 3), \
+                        COUNT(*) FILTER (WHERE model_sha IS NOT NULL), \
+                        COUNT(*) FILTER (WHERE ts != issued_at + horizon_hours * 3600), \
+                        COUNT(*) FROM kp_forecast",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("counts");
+
+        // The three stale rows plus the correct issue's own 3 h row.
+        assert_eq!(threes, stale.len() as i64 + 1);
+        assert_eq!(named, stale.len() as i64 + FORECAST_HORIZONS.len() as i64);
+        assert_eq!(inconsistent, 0);
+        assert_eq!(total, stale.len() as i64 + FORECAST_HORIZONS.len() as i64, "no row was added or lost");
+
+        // The already correct issue kept all four of its horizons untouched.
+        let kept: i64 = store
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM kp_forecast WHERE issued_at = ?",
+                params![already_correct],
+                |r| r.get(0),
+            )
+            .expect("kept");
+        assert_eq!(
+            kept,
+            FORECAST_HORIZONS.len() as i64,
+            "the correction must not collapse a correct issue onto one horizon"
+        );
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The same rule the rekey applies, stated once and tested as a rule. With
     /// today's single UPDATE it cannot fail, which is the point: it is there for
     /// the next edit to that statement, not for DuckDB.
     #[test]
     fn a_corrected_table_commits_only_when_it_verifies() {
-        assert!(era_fix_is_verified(51, 51, 51), "all moved, all consistent");
-        assert!(!era_fix_is_verified(51, 50, 50), "one row short does not commit");
-        assert!(!era_fix_is_verified(51, 51, 50), "one inconsistent row does not commit");
-        assert!(!era_fix_is_verified(51, 52, 52), "more than expected does not commit either");
+        assert!(era_fix_is_verified(51, 51, 0), "all moved, nothing left wrong");
+        assert!(!era_fix_is_verified(51, 50, 0), "one row short does not commit");
+        assert!(!era_fix_is_verified(51, 51, 1), "one row disagreeing with its lead does not commit");
+        assert!(!era_fix_is_verified(51, 52, 0), "more than expected does not commit either");
     }
 
     /// The gate `rebuild-db.sh` and the rekey both apply: every row arrived,
