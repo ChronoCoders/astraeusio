@@ -239,9 +239,10 @@ repeated here.
 - **AUD-015** Residual only: with Kp padding gone, `lag_1` through `lag_7` and the two rolling
   features still fall back to `0.0` at the oldest end of every window, 30 cells of 304. Closing it
   means requesting `seq_len + 7` readings, not another default.
-- **AUD-020** The OAuth `nonce` is still generated and never compared, with no cookie and no PKCE,
-  so the state token proves the server issued some state and not that the callback belongs to the
-  browser that began the flow.
+- **AUD-020** The state token is bound to the browser now, and PKCE is not added. The cookie
+  closes the login CSRF path for every provider; PKCE would add defence against code interception,
+  which a confidential client with a fixed `redirect_uri` already makes hard. Left out deliberately
+  rather than overlooked, and it is a small follow-on carrying the verifier in the same cookie.
 - **AUD-022** The storage half is done. What remains is the Forecast page: `/api/forecast/metrics`
   now returns one entry per horizon and the page still renders a single set of figures, taken from
   the 3 h entry. Four columns, four series on the chart, and the keys in both locales are their own
