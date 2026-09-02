@@ -434,6 +434,7 @@
     "autoRefresh": "Auto-refreshes every 30 seconds",
     "uptimeWindow": "Last 90 days",
     "incidents": "Incident history",
+    "livenessNote": "Platform uptime shows whether the service was running. It cannot show a service that was running and answering incorrectly.",
     "incidentsWindow": "Last 90 days",
     "noIncidents": "No incidents reported.",
     "group": {

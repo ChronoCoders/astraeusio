@@ -242,7 +242,9 @@ CREATE TABLE IF NOT EXISTS custom_anomaly_rules (
 CREATE TABLE IF NOT EXISTS health_snapshots (
     component TEXT   NOT NULL,
     ts        BIGINT NOT NULL,
-    status    TEXT   NOT NULL,
+    -- Nullable on purpose. A liveness component has no verdict to record: the
+    -- row being present is the whole observation. See LIVENESS_ONLY.
+    status    TEXT,
     PRIMARY KEY (component, ts)
 );
 
@@ -318,6 +320,22 @@ pub struct PollLiveness {
 /// Declared, like `SERIES_FRESHNESS`, so that the status page, `/api/health` and
 /// `component-check.sh` enumerate the same set. A list built from what has
 /// already spoken is how a dead feed stays invisible.
+/// Components whose only honest claim is that the process was running.
+///
+/// `backend_api` used to record the literal `"operational"` written by the
+/// backend itself, so the column held one value forever and the page published
+/// a number that could not fall below 100. The column is gone for these: their
+/// rows carry no status, and the row existing at a timestamp is the entire
+/// observation.
+///
+/// That makes a full outage visible, because a backend that is down writes no
+/// rows and the missing samples are counted against it. It does not make a
+/// broken backend visible. A process that is running and answering every route
+/// with a 500 writes exactly the rows a healthy one writes, and nothing inside
+/// the box can tell the difference. The status page says so in a line rather
+/// than leaving it to be inferred.
+pub const LIVENESS_ONLY: [&str; 2] = ["backend_api", "database"];
+
 pub const POLL_LIVENESS: [PollLiveness; 1] = [PollLiveness {
     // Polls every 300 s; six missed cycles is a fault and one is not.
     component: "noaa_alerts",
@@ -694,6 +712,7 @@ impl Store {
             "ALTER TABLE xray ADD COLUMN observed_at BIGINT",
             "ALTER TABLE imf ADD COLUMN observed_at BIGINT",
             "ALTER TABLE dst ADD COLUMN observed_at BIGINT",
+            "ALTER TABLE health_snapshots ALTER COLUMN status DROP NOT NULL",
         ] {
             if let Err(e) = conn.execute_batch(sql) {
                 let msg = e.to_string().to_lowercase();
@@ -3718,11 +3737,13 @@ impl Store {
         Ok(rows)
     }
 
+    /// `status` is `None` for the components in `LIVENESS_ONLY`, which have no
+    /// verdict to record. The row is the observation.
     pub fn insert_health_snapshot(
         &self,
         component: &str,
         ts: i64,
-        status: &str,
+        status: Option<&str>,
     ) -> Result<(), DbError> {
         self.conn.execute(
             "INSERT OR IGNORE INTO health_snapshots (component, ts, status) VALUES (?, ?, ?)",
@@ -3731,35 +3752,61 @@ impl Store {
         Ok(())
     }
 
-    /// Returns per-component daily uptime over the last `days` days.
-    /// Each row: (component, day_index_from_today, samples, operational_samples).
-    /// day_index 0 = today, increasing into the past. Days with zero samples
-    /// are omitted; the caller fills gaps as "no_data".
-    pub fn uptime_by_day(
-        &self,
-        days: i64,
-    ) -> Result<Vec<(String, i64, i64, i64)>, DbError> {
-        let now = now();
-        let since = now - days * 86_400;
+    /// Returns per-component daily counts over the last `days` days.
+    /// Each row: (component, utc_day, samples_present, operational_samples).
+    ///
+    /// `utc_day` is `ts / 86400`, a calendar day since the epoch. It used to be
+    /// `(now - ts) / 86400`, a rolling offset from request time, so the same
+    /// historical sample landed in a different cell depending on the hour the
+    /// page was loaded while the frontend labelled the cells as days.
+    ///
+    /// The counts are raw. Turning them into a percentage needs the number of
+    /// samples that *should* be there, which is why this no longer computes one:
+    /// dividing operational rows by rows present made absence invisible, and
+    /// absence is the only evidence an outage leaves.
+    pub fn uptime_by_day(&self, days: i64) -> Result<Vec<(String, i64, i64, i64)>, DbError> {
+        let since = now() - days * 86_400;
         let mut stmt = self.conn.prepare(
-            "SELECT component,
-                    CAST((? - ts) / 86400 AS BIGINT) AS day_idx,
+            // `//` and not `/`. DuckDB's `/` is float division, so
+             // `CAST(ts / 86400 AS BIGINT)` rounded, and every sample after
+             // midday was filed under the following day. The rolling bucket
+             // this replaced had the same rounding on top of its own problem.
+             "SELECT component,
+                    CAST(ts // 86400 AS BIGINT) AS utc_day,
                     COUNT(*),
                     SUM(CASE WHEN status = 'operational' THEN 1 ELSE 0 END)
              FROM health_snapshots
              WHERE ts >= ?
-             GROUP BY component, day_idx
-             ORDER BY component, day_idx",
+             GROUP BY component, utc_day
+             ORDER BY component, utc_day",
         )?;
         let rows = stmt
-            .query_map(params![now, since], |r| {
+            .query_map(params![since], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     r.get::<_, i64>(1)?,
                     r.get::<_, i64>(2)?,
-                    r.get::<_, i64>(3)?,
+                    r.get::<_, Option<i64>>(3)?.unwrap_or(0),
                 ))
             })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// The first timestamp ever recorded for each component.
+    ///
+    /// Expectation starts here and not before. `2623cf6` decided that a day
+    /// with no samples is unrecorded rather than an outage, because six NOAA
+    /// components read as three months of downtime on the day they were added.
+    /// That decision survives an expected-count denominator exactly by this:
+    /// before a component's first sample nothing was expected, so there is no
+    /// gap to hold against it. After it, a missing sample is a missing sample.
+    pub fn health_first_sample(&self) -> Result<Vec<(String, i64)>, DbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT component, MIN(ts) FROM health_snapshots GROUP BY component")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
@@ -4845,7 +4892,7 @@ mod tests {
         insert(now - 31 * 86_400, 2);
         // health_snapshots keeps 100, so a 31 day old row must survive there.
         store
-            .insert_health_snapshot("backend_api", now - 31 * 86_400, "operational")
+            .insert_health_snapshot("backend_api", now - 31 * 86_400, Some("operational"))
             .expect("snapshot");
 
         let purged = store.purge_expired().expect("purge");
@@ -5060,12 +5107,12 @@ mod tests {
         assert_eq!(status(&store), "unknown");
 
         store
-            .insert_health_snapshot("noaa_alerts", now() - 60, "operational")
+            .insert_health_snapshot("noaa_alerts", now() - 60, Some("operational"))
             .unwrap();
         assert_eq!(status(&store), "operational");
 
         store
-            .insert_health_snapshot("noaa_alerts", now() - 30, "degraded")
+            .insert_health_snapshot("noaa_alerts", now() - 30, Some("degraded"))
             .unwrap();
         assert_eq!(status(&store), "degraded", "the newest verdict wins");
 
@@ -5073,7 +5120,7 @@ mod tests {
         // means anything.
         let store = mem_store();
         store
-            .insert_health_snapshot("noaa_alerts", now() - 3_600, "operational")
+            .insert_health_snapshot("noaa_alerts", now() - 3_600, Some("operational"))
             .unwrap();
         assert_eq!(status(&store), "degraded");
     }

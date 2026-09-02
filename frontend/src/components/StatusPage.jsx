@@ -341,7 +341,16 @@ export default function StatusPage({ onSignIn }) {
           </div>
         </div>
 
-        <p className="text-zinc-600 text-xs font-mono mt-4 text-center">
+        {/* Said rather than implied. The platform figure counts the samples
+            the backend wrote against the samples it owed, so an outage shows as
+            the gap it leaves. A backend that is running and answering badly
+            writes the same rows a healthy one writes, and nothing inside the
+            service can see the difference. */}
+        <p className="text-zinc-600 text-xs mt-4 text-center max-w-md mx-auto">
+          {t('status.livenessNote')}
+        </p>
+
+        <p className="text-zinc-600 text-xs font-mono mt-3 text-center">
           {t('status.autoRefresh')}
         </p>
       </section>

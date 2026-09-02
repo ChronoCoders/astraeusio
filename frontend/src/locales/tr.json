@@ -385,6 +385,7 @@
     "autoRefresh": "Her 30 saniyede otomatik yenilenir",
     "uptimeWindow": "Son 90 gün",
     "incidents": "Olay geçmişi",
+    "livenessNote": "Platform çalışma süresi, hizmetin çalışıp çalışmadığını gösterir. Çalışırken hatalı yanıt veren bir hizmeti gösteremez.",
     "incidentsWindow": "Son 90 gün",
     "noIncidents": "Bildirilen olay yok.",
     "group": {

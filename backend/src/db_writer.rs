@@ -45,7 +45,8 @@ pub enum WriteCmd {
     HealthSnapshot {
         component: String,
         ts: i64,
-        status: String,
+        /// `None` for a liveness component, which records no verdict.
+        status: Option<String>,
     },
     WebhookDelivery {
         webhook_id: String,
@@ -559,7 +560,7 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
             ts,
             status,
         } => {
-            if let Err(e) = db.insert_health_snapshot(&component, ts, &status) {
+            if let Err(e) = db.insert_health_snapshot(&component, ts, status.as_deref()) {
                 error!(source = "db_writer", "health-snapshot: {e}");
             }
         }

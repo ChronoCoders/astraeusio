@@ -48,6 +48,20 @@ pub struct PollerConfig {
     pub http_timeout: u64,
 }
 
+/// Seconds between health samples.
+///
+/// Module level because two callers need the same number: this poller, which
+/// writes one sample per interval, and the uptime handler, which turns "samples
+/// present" into a percentage and cannot do that without knowing how many were
+/// due. A second `std::env::var` call in `routes.rs` would be the same rule
+/// written twice, and the two would drift the first time the default moved.
+pub fn health_interval_secs() -> u64 {
+    std::env::var("HEALTH_INTERVAL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(300)
+}
+
 impl PollerConfig {
     pub fn from_env() -> Self {
         fn secs(key: &str, default: u64) -> u64 {
@@ -72,7 +86,7 @@ impl PollerConfig {
             starlink_interval: secs("STARLINK_INTERVAL", 3600),
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
             forecast_interval: secs("FORECAST_INTERVAL", 1800),
-            health_interval: secs("HEALTH_INTERVAL", 300),
+            health_interval: health_interval_secs(),
             retention_interval: secs("RETENTION_INTERVAL", 86_400),
             // 0 means off, so it clamps to a single attempt rather than
             // silently falling back to three. An unparseable value keeps the
@@ -527,7 +541,7 @@ async fn poll_alerts(
         writer.fire(WriteCmd::HealthSnapshot {
             component: "noaa_alerts".to_string(),
             ts: now,
-            status: verdict.to_string(),
+            status: Some(verdict.to_string()),
         });
         tokio::time::sleep(policy.budget).await;
     }
@@ -946,11 +960,6 @@ async fn poll_health(
         }
 
         let celestrak_status = component_status(celestrak_ts, now, 14_400);
-        let db_status = if series.iter().any(|(_, _, ts)| ts.is_some()) {
-            "operational"
-        } else {
-            "unknown"
-        };
 
         // Each NOAA series records its own history, so a feed that stops shows
         // as its own gap on the status page instead of being averaged away.
@@ -958,20 +967,28 @@ async fn poll_health(
             writer.fire(WriteCmd::HealthSnapshot {
                 component: (*component).to_string(),
                 ts: now,
-                status: (*status).to_string(),
+                status: Some((*status).to_string()),
             });
         }
 
-        for (component, status) in [
-            ("backend_api", "operational"),
-            ("ml_forecast", ml_status),
-            ("database", db_status),
-            ("celestrak", celestrak_status),
-        ] {
+        for (component, status) in [("ml_forecast", ml_status), ("celestrak", celestrak_status)] {
             writer.fire(WriteCmd::HealthSnapshot {
                 component: component.to_string(),
                 ts: now,
-                status: status.to_string(),
+                status: Some(status.to_string()),
+            });
+        }
+
+        // No status. `backend_api` recorded the literal "operational" and
+        // `database` recorded a value that was "operational" unless the whole
+        // database was empty, both written by the process under observation.
+        // Neither column could ever say anything, so the row alone is the
+        // record now, and the missing rows are what an outage looks like.
+        for component in crate::db::LIVENESS_ONLY {
+            writer.fire(WriteCmd::HealthSnapshot {
+                component: component.to_string(),
+                ts: now,
+                status: None,
             });
         }
 
