@@ -1,3 +1,35 @@
+//! Astraeusio backend.
+
+// No unsafe in the shipped binary, enforced by the compiler rather than by
+// review. `forbid` and not `deny` because `forbid` cannot be switched off by an
+// inner `allow`, which is the point: a future lifetime problem should not be
+// solvable by writing `#[allow(unsafe_code)]` above the function that has it.
+//
+// The `not(test)` is a real exemption and it is deliberate. Eleven sites in the
+// test modules call `std::env::set_var` and `remove_var` on
+// `TOTP_ENCRYPTION_KEY` and `ALLOW_SELF_SERVE_PLAN_CHANGE`, which Edition 2024
+// reclassified as unsafe because the process environment is not thread safe.
+// Nobody wrote unsafe code; an edition bump made existing test setup unsafe.
+// A plain `#![forbid(unsafe_code)]` therefore does not compile, and the honest
+// choice is a narrower guarantee stated accurately. The exemption is smaller
+// than it looks: `cargo test` compiles this crate twice, once with `cfg(test)`
+// for the unit test harness and once without it for the binary, so unsafe
+// written in ordinary code is still rejected by `cargo test` as well as by
+// `cargo build`. What the exemption permits is unsafe inside `#[cfg(test)]`
+// code, which exists only in the compilation where the attribute is absent.
+// Verified by reintroducing an unsafe block in ordinary code: both `cargo build`
+// and `cargo test --no-run` refuse it with "usage of an `unsafe` block".
+//
+// Closing the gap means removing those eleven sites rather than weakening this
+// line. Each of them exists because a function reads its configuration from the
+// environment directly, so a test can only steer it by mutating the process. The
+// fix is the shape `health_interval_secs` already has: the logic takes the value
+// as an argument and a thin wrapper reads the environment, after which tests
+// pass a value and touch no globals. That is three test modules and their
+// callers, so it waits until something else is touching them.
+
+#![cfg_attr(not(test), forbid(unsafe_code))]
+
 mod anomaly;
 mod api_keys;
 mod astros;
