@@ -1680,7 +1680,7 @@ mod mcp_tests {
     #[tokio::test]
     async fn mcp_rejects_tokens_that_are_not_sessions() {
         let state = test_state();
-        let oauth_state = crate::oauth::sign_state("github", SECRET).expect("mint state");
+        let (oauth_state, _) = crate::oauth::sign_state("github", SECRET).expect("mint state");
         let verify = purpose_token("user@example.com", TokenPurpose::VerifyEmail, 300, SECRET, 0)
             .expect("mint verify");
         let partial =
