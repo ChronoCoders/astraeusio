@@ -43,10 +43,21 @@ EXIT_ALERT_SENT=10
 # server block in frontend/nginx.conf.
 URL=${COMPONENT_CHECK_URL:-http://127.0.0.1:8081/api/health}
 STATE=${COMPONENT_CHECK_STATE:-/var/lib/astraeusio-component-state}
+# The set of components the backend is expected to publish, written only by
+# `--accept-components`. Shared with poller-check.sh, which reads it to decide
+# whose alarm a missing component is; one file so one acceptance settles it for
+# both, rather than two that can disagree about what is normal.
+BASELINE=${COMPONENT_CHECK_BASELINE:-/var/lib/astraeusio-components-baseline}
 # Delivery moved to notify.sh, which owns the recipient, the sender and
 # the API key. Leaving these here would read as if they still controlled
 # where alerts go, and they do not.
 SEND_MAIL=${COMPONENT_CHECK_MAIL:-1}
+
+# Records the components the endpoint publishes right now as the expectation.
+# Run by hand after a deploy that deliberately adds or removes one. Nothing on
+# the cron path sets it, which is the point: see component-baseline.sh.
+ACCEPT=0
+[ "${1:-}" = "--accept-components" ] && ACCEPT=1
 
 send_mail() {
   local subject=$1 body=$2
@@ -66,6 +77,10 @@ http=$(printf '%s' "$body" | tail -n 1)
 payload=$(printf '%s' "$body" | sed '$d')
 
 if [ "$curl_rc" -ne 0 ] || [ "$http" != "200" ]; then
+  if [ "$ACCEPT" = "1" ]; then
+    echo "cannot accept a baseline: endpoint unreachable (curl=$curl_rc http=${http:-none})" >&2
+    exit 1
+  fi
   echo "$(date -u): endpoint unreachable (curl=$curl_rc http=${http:-none}). Not alerting; healthcheck.sh owns this."
   exit 0
 fi
@@ -87,12 +102,79 @@ for name in sorted(comps):
 ' 2>/dev/null)
 
 if [ -z "$parsed" ] || [ "${parsed%% *}" = "PARSE_FAILED" ]; then
+  if [ "$ACCEPT" = "1" ]; then
+    echo "cannot accept a baseline: /api/health did not parse (${parsed:-empty})" >&2
+    exit 1
+  fi
   echo "$(date -u): /api/health did not parse (${parsed:-empty}). Not alerting; healthcheck.sh owns the endpoint."
   exit 0
 fi
 
 overall=$(printf '%s\n' "$parsed" | head -n 1 | awk '{print $2}')
 now=$(date -u +%s)
+
+# ── Is the list itself still the list ─────────────────────────────────────────
+#
+# Everything below this reads the components the payload happened to carry and
+# asks of each whether it is fresh. That question cannot be asked of a component
+# that is no longer there. The question before it is whether the set is the set.
+# shellcheck source=component-baseline.sh
+. "$(dirname "$0")/component-baseline.sh"
+
+present=$(printf '%s\n' "$parsed" | tail -n +2 | awk 'NF {print $1}' | sort -u | tr '\n' ' ' | sed 's/ *$//')
+baseline_compare "$BASELINE" "$present"
+
+if [ "$ACCEPT" = "1" ]; then
+  case "$BASELINE_STATE" in
+    empty)
+      echo "cannot accept a baseline: /api/health parsed but published no components" >&2
+      exit 1 ;;
+    unset)
+      echo "no baseline yet, recording the current set:" ;;
+    same)
+      echo "the baseline already matches what is published:" ;;
+    changed)
+      echo "updating the baseline:"
+      [ -n "$BASELINE_GONE" ] && echo "  no longer published: $BASELINE_GONE"
+      [ -n "$BASELINE_NEW" ]  && echo "  newly published:     $BASELINE_NEW" ;;
+  esac
+  echo "  $present"
+  baseline_accept "$BASELINE" "$present" || exit 1
+  echo "written to $BASELINE"
+  echo "Astraeusio component baseline accepted: $present" | logger -t astraeusio-components -p daemon.notice
+  exit 0
+fi
+
+# Problems with the list rather than with a component in it. Kept apart from
+# `bad` because they are not degradation and must not be reported as it, and
+# because their alert key needs a prefix: `celestrak` degraded and `celestrak`
+# absent are different problems and the escalation clock should not carry over
+# from one to the other.
+structural=()
+key_extra=()
+
+case "$BASELINE_STATE" in
+  empty)
+    structural+=("/api/health published no components at all")
+    key_extra+=("components:empty") ;;
+  unset)
+    structural+=("no component baseline recorded, so a component going away cannot be seen. Run: /opt/astraeusio/component-check.sh --accept-components")
+    key_extra+=("baseline:unset") ;;
+  changed)
+    for gone in $BASELINE_GONE; do
+      structural+=("$gone is in the baseline and /api/health no longer publishes it")
+      key_extra+=("absent:$gone")
+    done ;;
+esac
+
+# A component joining is not a fault and does not mail. It is said here and in
+# the journal so a deploy that adds one leaves a trace, and because it is worth
+# knowing that a new component is not protected until the baseline is accepted.
+if [ -n "${BASELINE_NEW:-}" ]; then
+  echo "$(date -u): newly published, not in the baseline: $BASELINE_NEW"
+  echo "Astraeusio components newly published: $BASELINE_NEW. Accept with component-check.sh --accept-components" \
+    | logger -t astraeusio-components -p daemon.notice
+fi
 
 bad=()
 while read -r name status last; do
@@ -112,7 +194,9 @@ done < <(printf '%s\n' "$parsed" | tail -n +2)
 mkdir -p "$(dirname "$STATE")"
 # Component names only. The ages change every run, so keying the "already
 # alerted" comparison on the full message would re-mail every time.
-current=$(printf '%s\n' "${bad[@]:-}" | awk 'NF {print $1}' | sort | tr '\n' ' ' | sed 's/ *$//')
+current=$( { printf '%s\n' "${bad[@]:-}" | awk 'NF {print $1}'
+             printf '%s\n' "${key_extra[@]:-}"
+           } | awk 'NF' | sort -u | tr '\n' ' ' | sed 's/ *$//')
 
 # Whether this is new, an escalation on age, or something already said. Shared
 # with poller-check.sh and backup-check.sh, so the rule lives in one file with a
@@ -121,7 +205,7 @@ current=$(printf '%s\n' "${bad[@]:-}" | awk 'NF {print $1}' | sort | tr '\n' ' '
 . "$(dirname "$0")/alert-state.sh"
 alert_decide "$STATE" "$current"
 
-if [ "${#bad[@]}" -eq 0 ]; then
+if [ "${#bad[@]}" -eq 0 ] && [ "${#structural[@]}" -eq 0 ]; then
   if [ "$ALERT_ACTION" = "recovered" ]; then
     line="Astraeusio components recovered at $(date -u), after $ALERT_AGE_H. All components operational again. Previously: $ALERT_PREV"
     echo "$(date -u): recovered after $ALERT_AGE_H, all components operational (was: $ALERT_PREV)"
@@ -133,9 +217,17 @@ if [ "${#bad[@]}" -eq 0 ]; then
   exit 0
 fi
 
+if [ "${#bad[@]}" -eq 0 ]; then
+  headline="component list changed"
+elif [ "${#structural[@]}" -eq 0 ]; then
+  headline="components degraded"
+else
+  headline="components degraded and the list changed"
+fi
+
 report="Astraeusio component check FAILED at $(date -u)
 
-$(printf '  %s\n' "${bad[@]}")
+$(printf '  %s\n' ${bad[@]+"${bad[@]}"} ${structural[@]+"${structural[@]}"})
 
 overall: $overall
 source:  $URL
@@ -143,10 +235,16 @@ host:    $(hostname)
 
 A component is degraded when its newest observation is older than the limit the
 backend keeps for that series. It means the poller is no longer writing, whether
-or not anything logged an error."
+or not anything logged an error.
+
+A component named as absent is a different thing: the backend has stopped
+publishing it, which is always a deploy and never a fault in the data. If the
+removal was intended, accept it and this clears:
+
+  /opt/astraeusio/component-check.sh --accept-components"
 
 echo "$(date -u): component check FAILED (overall=$overall)"
-printf '  %s\n' "${bad[@]}"
+printf '  %s\n' ${bad[@]+"${bad[@]}"} ${structural[@]+"${structural[@]}"}
 echo "$report" | logger -t astraeusio-components -p daemon.err
 
 # Once per distinct set of bad components, so one that stays degraded does not
@@ -154,10 +252,10 @@ echo "$report" | logger -t astraeusio-components -p daemon.err
 # The seventeen hour outage on 2026-08-31 sent exactly one mail before this.
 case "$ALERT_ACTION" in
   new)
-    send_mail "[ALERT] Astraeusio components degraded: $current" "$report"
+    send_mail "[ALERT] Astraeusio $headline: $current" "$report"
     ;;
   escalate)
-    send_mail "[STILL DEGRADED $ALERT_AGE_H] Astraeusio components: $current" \
+    send_mail "[STILL FAILING $ALERT_AGE_H] Astraeusio components: $current" \
       "$report
 
 Degraded for $ALERT_AGE_H and still failing."
