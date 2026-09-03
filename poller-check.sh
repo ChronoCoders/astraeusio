@@ -119,6 +119,14 @@ send_mail() {
 # dependency was invisible and shared with three other callers. See the 8081
 # server block in frontend/nginx.conf.
 HEALTH_URL=${POLLER_CHECK_HEALTH_URL:-http://127.0.0.1:8081/api/health}
+# The components the backend is expected to publish, written only by
+# `component-check.sh --accept-components`. Read here to decide whose alarm a
+# missing component is, never to alert on the list itself: component-check.sh
+# owns that, and two mails for one removal is the noise this file spent three
+# revisions removing.
+BASELINE=${POLLER_CHECK_BASELINE:-/var/lib/astraeusio-components-baseline}
+# shellcheck source=component-baseline.sh
+. "$(dirname "$0")/component-baseline.sh"
 
 # Written out, not derived. poller/apod feeds nasa_apod, poller/starlink feeds
 # celestrak, poller/forecast feeds ml_forecast: no rule turns one name into the
@@ -178,6 +186,23 @@ for n, c in sorted(d["components"].items()):
     print(n, c.get("status", "?") if isinstance(c, dict) else str(c))
 ' 2>/dev/null) || return 1
   [ -n "$health_states" ]
+}
+
+# Whether a component this table names is still published, and if not, whose
+# problem that is. Echoes one of:
+#
+#   published  the payload carries it, nothing to say
+#   deferred   it has left a baseline the operator has not accepted, so
+#              component-check.sh is already mailing about the list
+#   fault      it is in neither, so this table names something that does not
+#              exist and the deference built on it is dead
+#
+# A function rather than three lines inline, because a rule that only exists
+# inside the loop that applies it can only be tested by running the loop.
+mapping_verdict() {  # component, published set, baseline-gone set
+  case " $2 " in *" $1 "*) echo published; return ;; esac
+  case " $3 " in *" $1 "*) echo deferred; return ;; esac
+  echo fault
 }
 
 # Returns 0 only on a clear "component-check.sh already owns this". Every other
@@ -351,6 +376,8 @@ if [ "${1:-}" = "--selftest" ]; then
 
   echo
   echo "2. every mapped component exists in /api/health"
+  echo "   (the run does this too now, against the baseline; this is the by-hand"
+  echo "    version that names every mapping rather than only the broken ones)"
   if load_health; then
     health_loaded=1
     for p in "${!COMPONENT_OF[@]}"; do
@@ -401,7 +428,16 @@ noaa_imf unknown"
   st_check "and it was recorded as unmapped"         "poller/nosuch" "${unmapped[0]:-}"
 
   echo
-  echo "6. no script pipes into grep -q, the banned construct"
+  echo "6. a mapping the backend no longer publishes is classified, not ignored"
+  st_check "still published -> nothing to say"                   published "$(mapping_verdict noaa_kp "noaa_kp celestrak" "")"
+  st_check "gone from a baseline not yet accepted -> deferred"   deferred  "$(mapping_verdict celestrak "noaa_kp" "celestrak")"
+  st_check "gone and not in the baseline either -> this table"   fault     "$(mapping_verdict nasa_imf "noaa_kp" "celestrak")"
+  st_check "no baseline at all -> this table, never silence"     fault     "$(mapping_verdict celestrak "noaa_kp" "")"
+  # A substring must not read as a member: noaa_kp is not noaa_kp_3h.
+  st_check "names match whole, not by prefix"                    fault     "$(mapping_verdict noaa_kp "noaa_kp_3h" "")"
+
+  echo
+  echo "7. no script pipes into grep -q, the banned construct"
   st_pipe_hits=$(grep -ln '|[[:space:]]*grep[^|]*-[a-zA-Z]*q' /opt/astraeusio/*.sh 2>/dev/null \
     | grep -v 'poller-check.sh' || true)
   if [ -n "$st_pipe_hits" ]; then
@@ -615,12 +651,44 @@ done
 # ── Which of these are ours to tell ───────────────────────────────────────────
 [ "${#global_problems[@]}" -gt 0 ] && problems+=("${global_problems[@]}") && alerting_names+=("container-logs")
 
-if [ -n "${msgs[*]+set}" ]; then
-  if load_health; then
-    health_loaded=1
-  else
-    echo "$(date -u): /api/health unreachable or unparseable, alerting on everything rather than deferring"
-  fi
+# Loaded on every run now, not only when there is something to defer. The
+# mapping check below needs it, and a table that has gone stale is worth
+# knowing about on a quiet hour as much as on a loud one.
+if load_health; then
+  health_loaded=1
+else
+  echo "$(date -u): /api/health unreachable or unparseable, alerting on everything rather than deferring"
+fi
+
+# ── Does this table still describe the backend ────────────────────────────────
+#
+# Every component named here must still be published, and nothing on the cron
+# path checked that: `already_reported` looks a name up among the components the
+# payload carried, so a name that has left simply falls through to alerting.
+# Nothing under-reports, which is why this went unnoticed, but the deference is
+# dead and stays dead. --selftest caught it and --selftest runs when someone
+# remembers to run it.
+#
+# Whose alarm it is depends on the baseline. A name that has left a set the
+# operator has not yet accepted is component-check.sh's to mail and this only
+# says so. A name in neither the payload nor the baseline is this table's own
+# fault: either it was never right, or the removal was accepted and this was
+# not updated with it.
+if [ "$health_loaded" = "1" ]; then
+  published=$(printf '%s\n' "$health_states" | awk 'NF {print $1}' | sort -u | tr '\n' ' ' | sed 's/ *$//')
+  baseline_compare "$BASELINE" "$published"
+  for p in $(printf '%s\n' "${!COMPONENT_OF[@]}" | sort); do
+    c=${COMPONENT_OF[$p]}
+    [ -z "$c" ] && continue
+    case "$(mapping_verdict "$c" "$published" "$BASELINE_GONE")" in
+      published) ;;
+      deferred)
+        deferred+=("$p, because $c has left /api/health and component-check.sh owns the list") ;;
+      fault)
+        problems+=("$p maps to $c, which /api/health does not publish and the baseline does not have")
+        alerting_names+=("mapping/$p") ;;
+    esac
+  done
 fi
 
 # Guarded. An empty associative array is unset as far as ${!msgs[@]} and

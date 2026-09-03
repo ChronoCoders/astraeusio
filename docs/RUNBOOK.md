@@ -285,3 +285,71 @@ feed is visible there rather than hidden behind a healthy neighbour. A series
 past its freshness limit serves nothing rather than serving stale readings, so
 an empty chart with a degraded status row is the expected appearance of a
 stopped feed.
+
+---
+
+## A component stops being published
+
+`/api/health` publishes one entry per component, and the set of names is a
+property of the deployed binary rather than of the data: `routes.rs` builds it
+from `health_components()` in `db.rs`, so it cannot differ between two runs
+against the same container. A name leaving that set is always a deploy and never
+a blip in a feed.
+
+Both host checks used to read the set from the payload, so neither could see a
+name go away: the list they compared against was built from the answer they were
+checking. `component-baseline.sh` holds the expected set in
+`/var/lib/astraeusio-components-baseline`, and
+
+- `component-check.sh` alerts when a name in the baseline is no longer
+  published, keyed as `absent:<name>` so it escalates separately from the same
+  component being degraded, which is a different problem.
+- `poller-check.sh` reads the same file to decide whose alarm it is. A mapping in
+  `COMPONENT_OF` whose component has left a baseline nobody has accepted yet is
+  deferred to `component-check.sh`, so one removal sends one mail. A mapping
+  whose component is in neither the payload nor the baseline is reported here,
+  because that means the table has outlived the thing it describes.
+
+Nothing on the cron path writes the baseline. That is the point rather than an
+oversight: a check that updates its own baseline turns a component going quiet
+into the new normal on the next run, so the alarm fires once, into a cycle nobody
+was watching, and is then gone for good. Keeping the write out of the check makes
+a removal a two step action, and an accidental one cannot be waited out.
+
+### Accepting a change to the component list
+
+After a deploy that deliberately adds or removes a component, on the host:
+
+```bash
+/opt/astraeusio/component-check.sh --accept-components
+```
+
+It fetches `/api/health` itself, prints what has left and what has joined, writes
+the new set, and records the acceptance to journald under `astraeusio-components`
+with who ran it. It refuses when the endpoint is unreachable, when the payload
+does not parse, and when the payload carries no components at all, so a baseline
+cannot be emptied during an outage.
+
+Then confirm `COMPONENT_OF` in `poller-check.sh` still names components that
+exist:
+
+```bash
+/opt/astraeusio/poller-check.sh --selftest
+```
+
+Section 2 lists every mapping and fails on one pointing at a name `/api/health`
+does not publish. The hourly run checks the same thing and reports only the
+broken ones.
+
+### A host with no baseline yet
+
+There is no bootstrap step and no first-run grace. An unset baseline raises
+`baseline:unset` and names the command above, escalating on age like any other
+unresolved problem, so a host that has never had a baseline cannot be mistaken
+for one whose components are all present.
+
+A component that has newly appeared is reported in the run output and to journald
+at notice level, and is not mailed. It is not covered by the baseline until the
+accept command has run, which is the one gap here: a component added and then
+removed between two acceptances was never in the baseline and its removal is
+invisible.

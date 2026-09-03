@@ -277,6 +277,24 @@ next to the next instance of it.
   solar cycle, and quiet periods lengthen towards solar minimum, so it should be re-derived from a
   year of data.
 
+- Closed. **Both host checks enumerated components from the payload they were checking.**
+  `component-check.sh` looped over the components `/api/health` returned and asked of each whether it
+  was fresh. `poller-check.sh` looked a mapped component up among the ones it was returned, and its
+  one check of the mapping itself ran only under `--selftest`. Neither could see a name stop being
+  published, because the list each compared against was built from the answer it was checking. Same
+  shape as the three above, and the only instance where the authoritative list lives outside the
+  repository, which is why it needed a file rather than a constant.
+
+  `component-baseline.sh` holds the expected set in `/var/lib/astraeusio-components-baseline`,
+  compares against it, and never writes it: a check that rewrites its own baseline turns a component
+  going quiet into the new normal on the next run, and its self test asserts the file is untouched on
+  every path rather than trusting that. `component-check.sh --accept-components` is the only writer,
+  refuses an unreachable endpoint, an unparseable payload and an empty component set, and is the
+  documented way to clear the raise. `poller-check.sh` reads the same file to decide whose alarm a
+  missing component is, so one removal sends one mail, and now validates `COMPONENT_OF` on every run.
+  Eleven mutations, one per behaviour, all caught; the runbook has the accept command under "A
+  component stops being published".
+
 - Closed. **The status page enumerated its components by hand.** `StatusPage.jsx` held a literal
   `COMPONENTS` array and rendered only those rows, so a component `/api/health` published and the
   array omitted was silently not displayed, on the page whose whole job is to make things visible.
