@@ -60,14 +60,8 @@ fn sections_in_file() -> Vec<&'static str> {
 fn the_backlog_carries_exactly_the_sections_declared_here() {
     let found = sections_in_file();
 
-    let missing: Vec<&&str> = SECTIONS
-        .iter()
-        .filter(|s| !found.contains(&**s))
-        .collect();
-    let extra: Vec<&&str> = found
-        .iter()
-        .filter(|s| !SECTIONS.contains(&**s))
-        .collect();
+    let missing: Vec<&&str> = SECTIONS.iter().filter(|s| !found.contains(&**s)).collect();
+    let extra: Vec<&&str> = found.iter().filter(|s| !SECTIONS.contains(&**s)).collect();
 
     assert!(
         missing.is_empty(),
@@ -141,9 +135,7 @@ const FINDINGS: [&str; 13] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
-    "AUD-020",
-    "AUD-022", "AUD-026", "AUD-027",
-    "AUD-030", "AUD-031", "AUD-033",
+    "AUD-020", "AUD-022", "AUD-026", "AUD-027", "AUD-030", "AUD-031", "AUD-033",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.
@@ -164,7 +156,10 @@ fn findings_in_file() -> Vec<&'static str> {
 fn every_declared_finding_still_has_a_bullet() {
     let found = findings_in_file();
 
-    let missing: Vec<&&str> = FINDINGS.iter().filter(|id| !found.contains(&**id)).collect();
+    let missing: Vec<&&str> = FINDINGS
+        .iter()
+        .filter(|id| !found.contains(&**id))
+        .collect();
     let extra: Vec<&&str> = found
         .iter()
         .filter(|id| !FINDINGS.contains(&**id))

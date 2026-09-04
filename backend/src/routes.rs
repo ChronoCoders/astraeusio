@@ -378,7 +378,11 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
             let day_start = day * 86_400;
             let from = day_start.max(first);
             let to = (day_start + 86_400).min(now);
-            if to <= from { 0 } else { (to - from) / interval }
+            if to <= from {
+                0
+            } else {
+                (to - from) / interval
+            }
         }
 
         let mut out = serde_json::Map::new();
@@ -433,9 +437,7 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
             // actually observed, and recorded_days says how many that is, so the
             // figure can be labelled with the window it really describes.
             let overall = if total_due > 0 {
-                serde_json::json!(
-                    ((total_ok as f64 / total_due as f64) * 10_000.0).round() / 100.0
-                )
+                serde_json::json!(((total_ok as f64 / total_due as f64) * 10_000.0).round() / 100.0)
             } else {
                 serde_json::Value::Null
             };
@@ -456,7 +458,6 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     })
     .await
 }
-
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -519,7 +520,10 @@ pub fn router(state: AppState) -> Router {
             get(webhooks::list_webhooks).post(webhooks::create_webhook),
         )
         .route("/api/webhooks/{id}", delete(webhooks::delete_webhook))
-        .route("/api/webhooks/{id}/deliveries", get(webhooks::list_deliveries))
+        .route(
+            "/api/webhooks/{id}/deliveries",
+            get(webhooks::list_deliveries),
+        )
         .route(
             "/api/email-alerts",
             get(email_alerts::get_email_alert).post(email_alerts::upsert_email_alert),
@@ -724,10 +728,9 @@ async fn call_ml_or_cached(s: &AppState) -> Result<serde_json::Value, AppError> 
         .await
         .get_recent_kp_3h(seq_len)
         .map_err(|e| match e {
-            crate::db::DbError::InsufficientHistory { .. } => AppError::with_status(
-                anyhow!("{e}"),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
+            crate::db::DbError::InsufficientHistory { .. } => {
+                AppError::with_status(anyhow!("{e}"), StatusCode::SERVICE_UNAVAILABLE)
+            }
             crate::db::DbError::StaleSeries {
                 series,
                 newest_observed_at,
@@ -1095,13 +1098,7 @@ struct UpdatePlanBody {
     plan: String,
 }
 
-pub(crate) const VALID_PLANS: &[&str] = &[
-    "free",
-    "developer",
-    "pro",
-    "business",
-    "enterprise",
-];
+pub(crate) const VALID_PLANS: &[&str] = &["free", "developer", "pro", "business", "enterprise"];
 
 /// Whether a signed in account may set its own tier.
 ///
@@ -1125,7 +1122,11 @@ pub(crate) fn self_serve_plan_change_enabled() -> bool {
 /// This is the whole mutation. When billing is connected, the payment webhook
 /// calls this and becomes the only caller that may raise a tier; the handler
 /// below and its environment flag are then deleted, and nothing else moves.
-async fn apply_plan_change(s: &AppState, email: &str, plan: String) -> Result<(), crate::db::DbError> {
+async fn apply_plan_change(
+    s: &AppState,
+    email: &str,
+    plan: String,
+) -> Result<(), crate::db::DbError> {
     s.writer.update_user_plan(email.to_string(), plan).await?;
     crate::rate_limit::clear_user_cache(&s.usage_counter, email);
     Ok(())
@@ -1248,9 +1249,7 @@ async fn get_usage(
     let history: Vec<serde_json::Value> = db
         .list_usage_history(email, 24)?
         .into_iter()
-        .map(|(c, ps, pe)| {
-            serde_json::json!({ "period_start": ps, "period_end": pe, "count": c })
-        })
+        .map(|(c, ps, pe)| serde_json::json!({ "period_start": ps, "period_end": pe, "count": c }))
         .collect();
 
     Ok(Json(serde_json::json!({
@@ -1662,10 +1661,12 @@ async fn mcp_handler(
                     };
                     info!(source = "mcp", tool = name, subject = %claims.sub, "tool call");
                     match name {
-                        "get_anomalies" => match lock_db(&s.db).await.get_anomalies_recent(&claims.sub) {
-                            Ok(v) => McpResp::ok(id, mcp_text(v)),
-                            Err(e) => McpResp::err(id, -32603, &e.to_string()),
-                        },
+                        "get_anomalies" => {
+                            match lock_db(&s.db).await.get_anomalies_recent(&claims.sub) {
+                                Ok(v) => McpResp::ok(id, mcp_text(v)),
+                                Err(e) => McpResp::err(id, -32603, &e.to_string()),
+                            }
+                        }
                         "get_neo" => match lock_db(&s.db).await.get_neo_recent() {
                             Ok(v) => McpResp::ok(id, mcp_text(v)),
                             Err(e) => McpResp::err(id, -32603, &e.to_string()),
@@ -1742,7 +1743,10 @@ mod mcp_tests {
     }
 
     fn is_auth_error(v: &serde_json::Value) -> bool {
-        v.get("error").and_then(|e| e.get("code")).and_then(|c| c.as_i64()) == Some(-32001)
+        v.get("error")
+            .and_then(|e| e.get("code"))
+            .and_then(|c| c.as_i64())
+            == Some(-32001)
     }
 
     /// The MCP check used to decode into serde_json::Value and accept any
@@ -1753,11 +1757,22 @@ mod mcp_tests {
     async fn mcp_rejects_tokens_that_are_not_sessions() {
         let state = test_state();
         let (oauth_state, _) = crate::oauth::sign_state("github", SECRET).expect("mint state");
-        let verify = purpose_token("user@example.com", TokenPurpose::VerifyEmail, 300, SECRET, 0)
-            .expect("mint verify");
-        let partial =
-            purpose_token("user@example.com", TokenPurpose::TwoFactorPartial, 300, SECRET, 0)
-                .expect("mint partial");
+        let verify = purpose_token(
+            "user@example.com",
+            TokenPurpose::VerifyEmail,
+            300,
+            SECRET,
+            0,
+        )
+        .expect("mint verify");
+        let partial = purpose_token(
+            "user@example.com",
+            TokenPurpose::TwoFactorPartial,
+            300,
+            SECRET,
+            0,
+        )
+        .expect("mint partial");
 
         for (label, token) in [
             ("no header", None),
@@ -1768,10 +1783,7 @@ mod mcp_tests {
         ] {
             for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
                 let v = call_tool(&state, tool, token).await;
-                assert!(
-                    is_auth_error(&v),
-                    "{tool} must reject {label}, got {v}"
-                );
+                assert!(is_auth_error(&v), "{tool} must reject {label}, got {v}");
             }
         }
     }
@@ -1784,7 +1796,10 @@ mod mcp_tests {
         let token = session_jwt("user@example.com", SECRET, 0).expect("mint");
         for tool in ["get_anomalies", "get_neo", "get_iss_position"] {
             let v = call_tool(&state, tool, Some(&token)).await;
-            assert!(!is_auth_error(&v), "{tool} must accept a session token, got {v}");
+            assert!(
+                !is_auth_error(&v),
+                "{tool} must accept a session token, got {v}"
+            );
         }
     }
 
@@ -1832,7 +1847,11 @@ mod mcp_tests {
             );
             assert_eq!(
                 v["caller"],
-                if auth_type == AuthType::ApiKey { "api_key" } else { "jwt" },
+                if auth_type == AuthType::ApiKey {
+                    "api_key"
+                } else {
+                    "jwt"
+                },
                 "caller must describe the reader"
             );
         }
@@ -1936,11 +1955,16 @@ mod mcp_tests {
         for (src, handler) in [
             (include_str!("api_keys.rs"), "pub async fn create_api_key"),
             (include_str!("webhooks.rs"), "pub async fn create_webhook"),
-            (include_str!("email_alerts.rs"), "pub async fn upsert_email_alert"),
+            (
+                include_str!("email_alerts.rs"),
+                "pub async fn upsert_email_alert",
+            ),
             (include_str!("routes.rs"), "async fn create_custom_rule"),
             (include_str!("routes.rs"), "async fn update_user_plan"),
         ] {
-            let start = src.find(handler).unwrap_or_else(|| panic!("{handler} is gone"));
+            let start = src
+                .find(handler)
+                .unwrap_or_else(|| panic!("{handler} is gone"));
             let window = &src[start..(start + 700).min(src.len())];
             assert!(
                 window.contains("verified_gate"),
@@ -1969,7 +1993,9 @@ mod mcp_tests {
             "async fn get_report_kp",
             "async fn get_report_solar_wind",
         ] {
-            let start = src.find(handler).unwrap_or_else(|| panic!("{handler} is gone"));
+            let start = src
+                .find(handler)
+                .unwrap_or_else(|| panic!("{handler} is gone"));
             // The handler's own body, to the start of the next item.
             let rest = &src[start..];
             let end = rest[1..].find("\nasync fn ").map_or(rest.len(), |i| i + 1);
@@ -2369,8 +2395,14 @@ mod mcp_tests {
 
         let v = call_uptime(&state).await;
         let comp = &v["components"]["noaa_dst"];
-        assert_eq!(comp["uptime_pct"], 100.0, "a clean short history is 100, not 2");
-        assert_eq!(comp["recorded_days"], 1, "and it claims one day, not ninety");
+        assert_eq!(
+            comp["uptime_pct"], 100.0,
+            "a clean short history is 100, not 2"
+        );
+        assert_eq!(
+            comp["recorded_days"], 1,
+            "and it claims one day, not ninety"
+        );
         let days = comp["days"].as_array().expect("days");
         assert!(
             days[..88].iter().all(|d| d["status"] == "no_data"),
@@ -2390,28 +2422,40 @@ mod mcp_tests {
         {
             let db = state.db.lock().await;
             for k in 0..288i64 {
-                db.insert_health_snapshot("noaa_xray", yesterday * 86_400 + k * 300, Some("operational"))
-                    .expect("snapshot");
+                db.insert_health_snapshot(
+                    "noaa_xray",
+                    yesterday * 86_400 + k * 300,
+                    Some("operational"),
+                )
+                .expect("snapshot");
             }
             // Half the same day, so the cell has to read half. The cell's own
             // denominator is what this pins: dividing by samples present would
             // call a half covered day complete, which is the outage hiding in
             // one cell rather than in the total.
             for k in 0..144i64 {
-                db.insert_health_snapshot("noaa_imf", yesterday * 86_400 + k * 300, Some("operational"))
-                    .expect("snapshot");
+                db.insert_health_snapshot(
+                    "noaa_imf",
+                    yesterday * 86_400 + k * 300,
+                    Some("operational"),
+                )
+                .expect("snapshot");
             }
         }
 
         let v = call_uptime(&state).await;
-        let days = v["components"]["noaa_xray"]["days"].as_array().expect("days");
+        let days = v["components"]["noaa_xray"]["days"]
+            .as_array()
+            .expect("days");
         // Index 89 is today, so 88 is yesterday.
         assert_eq!(
             days[88]["uptime_pct"], 100.0,
             "a full UTC day of samples belongs to that day's cell, whole"
         );
 
-        let half = v["components"]["noaa_imf"]["days"].as_array().expect("days");
+        let half = v["components"]["noaa_imf"]["days"]
+            .as_array()
+            .expect("days");
         assert_eq!(
             half[88]["uptime_pct"], 50.0,
             "half a day of samples is a half full cell, not a full one"
@@ -2472,7 +2516,9 @@ mod mcp_tests {
                 // The `component:` field of this construction, which is the
                 // next occurrence of that field name after the site.
                 let rest = &src[i..];
-                let Some(f) = rest.find("component:") else { continue };
+                let Some(f) = rest.find("component:") else {
+                    continue;
+                };
                 let line_end = rest[f..].find('\n').map_or(rest.len(), |e| f + e);
                 let field = &rest[f..line_end];
                 sites += 1;
@@ -2516,7 +2562,10 @@ mod mcp_tests {
             .iter()
             .filter(|c| !with_history.contains_key(**c))
             .collect();
-        assert!(missing.is_empty(), "declared with no uptime entry: {missing:?}");
+        assert!(
+            missing.is_empty(),
+            "declared with no uptime entry: {missing:?}"
+        );
 
         // And the four the old hand-kept list held are still among them, so
         // composing the list did not quietly drop one.
@@ -2585,7 +2634,10 @@ mod mcp_tests {
         );
         for (name, _) in &advertised {
             let v = call_tool(&state, name, Some(&token)).await;
-            let code = v.get("error").and_then(|e| e.get("code")).and_then(|c| c.as_i64());
+            let code = v
+                .get("error")
+                .and_then(|e| e.get("code"))
+                .and_then(|c| c.as_i64());
             assert_ne!(
                 code,
                 Some(-32601),
@@ -2663,8 +2715,7 @@ mod mcp_tests {
         );
 
         let advertised: Vec<String> = advertised_tools().into_iter().map(|(n, _)| n).collect();
-        let unadvertised: Vec<&String> =
-            arms.iter().filter(|a| !advertised.contains(a)).collect();
+        let unadvertised: Vec<&String> = arms.iter().filter(|a| !advertised.contains(a)).collect();
         assert!(
             unadvertised.is_empty(),
             "the dispatch answers to names tools/list does not advertise: {unadvertised:?}. \
@@ -2696,8 +2747,7 @@ mod mcp_tests {
     /// for source that has no parser, and this file has one.
     #[test]
     fn the_server_card_advertises_what_the_endpoint_serves() {
-        const CARD: &str =
-            include_str!("../../frontend/public/.well-known/mcp/server-card.json");
+        const CARD: &str = include_str!("../../frontend/public/.well-known/mcp/server-card.json");
         let card: serde_json::Value = serde_json::from_str(CARD).expect("the card is json");
 
         // The card is only this endpoint's manifest while it points here. If the
@@ -2733,16 +2783,20 @@ mod mcp_tests {
         published.sort();
         advertised.sort();
 
-        let only_on_the_card: Vec<&(String, String)> =
-            published.iter().filter(|t| !advertised.contains(t)).collect();
+        let only_on_the_card: Vec<&(String, String)> = published
+            .iter()
+            .filter(|t| !advertised.contains(t))
+            .collect();
         assert!(
             only_on_the_card.is_empty(),
             "the card publishes tools this endpoint does not serve: {only_on_the_card:?}. \
              Every name here reaches a caller as a promise."
         );
 
-        let only_in_the_manifest: Vec<&(String, String)> =
-            advertised.iter().filter(|t| !published.contains(t)).collect();
+        let only_in_the_manifest: Vec<&(String, String)> = advertised
+            .iter()
+            .filter(|t| !published.contains(t))
+            .collect();
         assert!(
             only_in_the_manifest.is_empty(),
             "the endpoint serves tools the card does not publish: {only_in_the_manifest:?}. \
@@ -2771,7 +2825,10 @@ mod mcp_tests {
         );
         for tool in &public {
             let v = call_tool(&state, tool, None).await;
-            assert!(!is_auth_error(&v), "{tool} must not require a token, got {v}");
+            assert!(
+                !is_auth_error(&v),
+                "{tool} must not require a token, got {v}"
+            );
         }
     }
 

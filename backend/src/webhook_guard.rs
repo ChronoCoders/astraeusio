@@ -291,9 +291,9 @@ mod tests {
             "fe80::1",
             "ff02::1",
             "2001:db8::1",
-            "::ffff:127.0.0.1",     // v4 mapped loopback
+            "::ffff:127.0.0.1",       // v4 mapped loopback
             "::ffff:169.254.169.254", // v4 mapped metadata service
-            "::127.0.0.1",          // deprecated v4 compatible form
+            "::127.0.0.1",            // deprecated v4 compatible form
         ] {
             let parsed: IpAddr = ip.parse().expect("test address parses");
             assert!(!is_public(parsed), "{ip} should be refused");
@@ -385,7 +385,10 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind a loopback listener");
-        let port = listener.local_addr().expect("listener has an address").port();
+        let port = listener
+            .local_addr()
+            .expect("listener has an address")
+            .port();
 
         tokio::spawn(async move {
             if let Ok((mut sock, _)) = listener.accept().await {

@@ -44,7 +44,17 @@ const PLACEHOLDER: &str = "REDACTED";
 fn ends_value(b: u8) -> bool {
     matches!(
         b,
-        b'&' | b';' | b')' | b']' | b'}' | b'"' | b'\'' | b'>' | b',' | b' ' | b'\t' | b'\n'
+        b'&' | b';'
+            | b')'
+            | b']'
+            | b'}'
+            | b'"'
+            | b'\''
+            | b'>'
+            | b','
+            | b' '
+            | b'\t'
+            | b'\n'
             | b'\r'
     )
 }
@@ -67,7 +77,9 @@ pub fn secrets(input: &str) -> Cow<'_, str> {
             let end = name_start + name.len();
             end < bytes.len()
                 && bytes[end] == b'='
-                && input.get(name_start..end).is_some_and(|s| s.eq_ignore_ascii_case(name))
+                && input
+                    .get(name_start..end)
+                    .is_some_and(|s| s.eq_ignore_ascii_case(name))
         }) else {
             i += 1;
             continue;
@@ -123,7 +135,9 @@ mod tests {
 
     #[test]
     fn a_value_in_the_middle_of_a_query_string_stops_at_the_ampersand() {
-        let got = secrets("https://api.nasa.gov/neo?start_date=2026-08-11&api_key=abc123&end_date=2026-08-12");
+        let got = secrets(
+            "https://api.nasa.gov/neo?start_date=2026-08-11&api_key=abc123&end_date=2026-08-12",
+        );
         assert_eq!(
             got,
             "https://api.nasa.gov/neo?start_date=2026-08-11&api_key=REDACTED&end_date=2026-08-12"
@@ -132,7 +146,15 @@ mod tests {
 
     #[test]
     fn every_sensitive_name_is_covered_and_matching_is_case_insensitive() {
-        for name in ["api_key", "APIKEY", "Token", "access_token", "client_secret", "password", "sig"] {
+        for name in [
+            "api_key",
+            "APIKEY",
+            "Token",
+            "access_token",
+            "client_secret",
+            "password",
+            "sig",
+        ] {
             let line = format!("https://example.invalid/x?{name}=s3cret");
             let got = secrets(&line);
             assert!(!got.contains("s3cret"), "{name} leaked: {got}");
@@ -142,7 +164,10 @@ mod tests {
     #[test]
     fn several_secrets_in_one_line_are_all_removed() {
         let got = secrets("a?token=one&b=2&password=two&c=3&sig=three");
-        assert!(!got.contains("one") && !got.contains("two") && !got.contains("three"), "{got}");
+        assert!(
+            !got.contains("one") && !got.contains("two") && !got.contains("three"),
+            "{got}"
+        );
         assert!(got.contains("b=2") && got.contains("c=3"), "{got}");
     }
 
@@ -156,7 +181,10 @@ mod tests {
             "user_api_key=notaparam",
         ];
         for s in untouched {
-            assert!(matches!(secrets(s), Cow::Borrowed(_)), "should not have changed: {s}");
+            assert!(
+                matches!(secrets(s), Cow::Borrowed(_)),
+                "should not have changed: {s}"
+            );
         }
     }
 
@@ -170,7 +198,10 @@ mod tests {
 
     #[test]
     fn an_empty_value_is_left_as_it_is() {
-        assert_eq!(secrets("https://x.invalid/a?api_key=&b=1"), "https://x.invalid/a?api_key=&b=1");
+        assert_eq!(
+            secrets("https://x.invalid/a?api_key=&b=1"),
+            "https://x.invalid/a?api_key=&b=1"
+        );
     }
 
     #[test]

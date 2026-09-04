@@ -37,7 +37,10 @@ impl PollOutcome {
         if len == 0 {
             PollOutcome::EmptyPayload
         } else {
-            PollOutcome::Parsed { received: len, kept: len }
+            PollOutcome::Parsed {
+                received: len,
+                kept: len,
+            }
         }
     }
 
@@ -61,7 +64,10 @@ pub struct Fetched<T> {
 impl<T> Fetched<T> {
     /// Upstream reported no change, so there is nothing to write.
     pub fn no_change() -> Self {
-        Fetched { items: Vec::new(), outcome: PollOutcome::NoChange }
+        Fetched {
+            items: Vec::new(),
+            outcome: PollOutcome::NoChange,
+        }
     }
 
     /// `received` is the number of entries upstream sent, before parsing.
@@ -83,7 +89,10 @@ mod tests {
         assert_eq!(PollOutcome::strict(0), PollOutcome::EmptyPayload);
         assert_eq!(
             PollOutcome::strict(3),
-            PollOutcome::Parsed { received: 3, kept: 3 }
+            PollOutcome::Parsed {
+                received: 3,
+                kept: 3
+            }
         );
     }
 
@@ -95,12 +104,18 @@ mod tests {
         // the one above, because it means the feed shape changed under us.
         assert_eq!(
             PollOutcome::lossy(120, 0),
-            PollOutcome::Parsed { received: 120, kept: 0 }
+            PollOutcome::Parsed {
+                received: 120,
+                kept: 0
+            }
         );
         // Partial loss.
         assert_eq!(
             PollOutcome::lossy(120, 118),
-            PollOutcome::Parsed { received: 120, kept: 118 }
+            PollOutcome::Parsed {
+                received: 120,
+                kept: 118
+            }
         );
     }
 

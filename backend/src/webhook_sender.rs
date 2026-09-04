@@ -101,10 +101,7 @@ pub async fn send(
 ) -> DeliveryResult {
     // The rules can have changed, or tightened, since this row was stored.
     if let Err(rejection) = webhook_guard::validate_syntax(&hook.url) {
-        warn!(
-            "webhook {} refused before sending: {}",
-            hook.id, rejection
-        );
+        warn!("webhook {} refused before sending: {}", hook.id, rejection);
         return DeliveryResult::failed(BLOCKED_BY_POLICY);
     }
 

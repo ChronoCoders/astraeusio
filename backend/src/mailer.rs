@@ -19,7 +19,6 @@ impl MailerConfig {
     }
 }
 
-
 /// A future returned by a `Sender`, boxed so the trait is dyn compatible.
 ///
 /// Hand written rather than pulling in `async-trait` for one trait with two
@@ -109,11 +108,17 @@ pub struct TestSender {
 #[cfg(test)]
 impl TestSender {
     pub fn accepting() -> Self {
-        Self { result: true, sent: std::sync::Mutex::new(Vec::new()) }
+        Self {
+            result: true,
+            sent: std::sync::Mutex::new(Vec::new()),
+        }
     }
 
     pub fn refusing() -> Self {
-        Self { result: false, sent: std::sync::Mutex::new(Vec::new()) }
+        Self {
+            result: false,
+            sent: std::sync::Mutex::new(Vec::new()),
+        }
     }
 
     pub fn count(&self) -> usize {
@@ -356,4 +361,3 @@ pub async fn send_password_reset_email(sender: &dyn Sender, to: &str, reset_url:
         .send_html(to, "Reset your Astraeusio password", &html)
         .await;
 }
-

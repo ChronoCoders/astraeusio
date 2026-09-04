@@ -15,11 +15,11 @@
 //! by the frontend, and `start` redirects back with an error).
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     response::{IntoResponse, Redirect, Response},
-    Json,
 };
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -55,12 +55,10 @@ impl OAuthConfig {
             std::env::var(id_key),
             std::env::var(secret_key),
         ) {
-            (Ok(id), Ok(secret)) if !id.is_empty() && !secret.is_empty() => {
-                Some(ProviderCreds {
-                    client_id: id,
-                    client_secret: secret,
-                })
-            }
+            (Ok(id), Ok(secret)) if !id.is_empty() && !secret.is_empty() => Some(ProviderCreds {
+                client_id: id,
+                client_secret: secret,
+            }),
             _ => None,
         };
         OAuthConfig {
@@ -226,7 +224,10 @@ fn nonces_match(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ── Redirect helpers ──────────────────────────────────────────────────────────
@@ -421,14 +422,13 @@ async fn callback_inner(
         Ok(None) => {
             // Random unguessable password so password login can never succeed.
             let pw = random_hex(24);
-            let hash = match tokio::task::spawn_blocking(move || {
-                bcrypt::hash(pw, bcrypt::DEFAULT_COST)
-            })
-            .await
-            {
-                Ok(Ok(h)) => h,
-                _ => return error_redirect(&app_url, "oauth_failed"),
-            };
+            let hash =
+                match tokio::task::spawn_blocking(move || bcrypt::hash(pw, bcrypt::DEFAULT_COST))
+                    .await
+                {
+                    Ok(Ok(h)) => h,
+                    _ => return error_redirect(&app_url, "oauth_failed"),
+                };
             if let Err(e) = s
                 .writer
                 .create_oauth_user(email.clone(), provider.clone(), hash)
@@ -448,8 +448,13 @@ async fn callback_inner(
     // 2FA is enforced even for social login: hand back a partial token instead.
     if totp_enabled {
         let ver = auth::current_token_version(&s, &email).await;
-        match auth::purpose_token(&email, auth::TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret, ver)
-        {
+        match auth::purpose_token(
+            &email,
+            auth::TokenPurpose::TwoFactorPartial,
+            300,
+            &s.jwt_secret,
+            ver,
+        ) {
             Ok(t) => frontend_redirect(&app_url, &format!("partial_token={t}")),
             Err(e) => {
                 warn!("oauth 2fa partial token error: {e}");
@@ -626,7 +631,10 @@ mod state_binding_tests {
             axum::http::HeaderValue::from_str(&sent).expect("header"),
         );
 
-        assert_eq!(nonce_from_cookies(&headers).as_deref(), Some(nonce.as_str()));
+        assert_eq!(
+            nonce_from_cookies(&headers).as_deref(),
+            Some(nonce.as_str())
+        );
     }
 
     /// The attributes are the security properties, so they are asserted rather
@@ -637,7 +645,10 @@ mod state_binding_tests {
     fn the_cookie_carries_the_attributes_that_make_it_safe() {
         let c = state_cookie("abc123", true);
         assert!(c.contains("HttpOnly"), "script must not read it: {c}");
-        assert!(c.contains("SameSite=Lax"), "Strict breaks the callback: {c}");
+        assert!(
+            c.contains("SameSite=Lax"),
+            "Strict breaks the callback: {c}"
+        );
         assert!(!c.contains("SameSite=Strict"), "{c}");
         assert!(c.contains("Secure"), "https deployments get Secure: {c}");
         assert!(c.contains("Path=/auth/oauth"), "scoped to the flow: {c}");
@@ -658,7 +669,10 @@ mod state_binding_tests {
     #[test]
     fn clearing_expires_the_same_cookie_it_set() {
         let cleared = clear_state_cookie(true);
-        assert!(cleared.starts_with(&format!("{STATE_COOKIE}=;")), "{cleared}");
+        assert!(
+            cleared.starts_with(&format!("{STATE_COOKIE}=;")),
+            "{cleared}"
+        );
         assert!(cleared.contains("Max-Age=0"), "{cleared}");
         // The path has to match the one it was set with, or the browser keeps
         // the original alongside the empty one.
@@ -682,9 +696,7 @@ mod state_binding_tests {
         // And it is found when it really is there, among others.
         headers.insert(
             axum::http::header::COOKIE,
-            axum::http::HeaderValue::from_static(
-                "unrelated=1; astraeus_oauth_nonce=real; other=2",
-            ),
+            axum::http::HeaderValue::from_static("unrelated=1; astraeus_oauth_nonce=real; other=2"),
         );
         assert_eq!(nonce_from_cookies(&headers).as_deref(), Some("real"));
 

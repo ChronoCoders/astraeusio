@@ -143,7 +143,12 @@ pub async fn list_deliveries(
     claims: AuthClaims,
     Path(id): Path<String>,
 ) -> Response {
-    match s.db.lock().await.list_webhook_deliveries(&id, &claims.sub, 20) {
+    match s
+        .db
+        .lock()
+        .await
+        .list_webhook_deliveries(&id, &claims.sub, 20)
+    {
         Ok(rows) => Json(serde_json::Value::Array(rows)).into_response(),
         Err(e) => {
             warn!("list_webhook_deliveries error: {e}");

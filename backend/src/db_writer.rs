@@ -417,12 +417,7 @@ pub fn spawn(db: Store, client: Client) -> DbWriterHandle {
     DbWriterHandle { tx }
 }
 
-async fn run(
-    db: Store,
-    client: Client,
-    mut rx: mpsc::Receiver<WriteCmd>,
-    writer: DbWriterHandle,
-) {
+async fn run(db: Store, client: Client, mut rx: mpsc::Receiver<WriteCmd>, writer: DbWriterHandle) {
     while let Some(cmd) = rx.recv().await {
         tokio::task::block_in_place(|| process(&db, &client, &writer, cmd));
     }
@@ -523,10 +518,9 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
                         let msg = message.clone();
                         let w = writer.clone();
                         tokio::spawn(async move {
-                            let r = crate::webhook_sender::send(
-                                &c, &hook, &ev, &src, &sev, &msg, ts,
-                            )
-                            .await;
+                            let r =
+                                crate::webhook_sender::send(&c, &hook, &ev, &src, &sev, &msg, ts)
+                                    .await;
                             w.fire(WriteCmd::WebhookDelivery {
                                 webhook_id: hook.id.clone(),
                                 attempted_at: ts,

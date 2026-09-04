@@ -1,6 +1,6 @@
 use duckdb::{Connection, params};
-use tracing::{error, info, warn};
 use thiserror::Error;
+use tracing::{error, info, warn};
 
 use crate::{
     iss::IssPosition,
@@ -369,7 +369,6 @@ pub const FORECAST_HORIZONS: [i64; 4] = [3, 6, 12, 24];
 /// have passed before it exists at all.
 pub const MIN_PAIRS_FOR_METRICS: i64 = 30;
 
-
 /// The two components judged by probing something rather than by reading a
 /// table: the ml sidecar answers or it does not, and the Celestrak fetch has a
 /// timestamp of its own.
@@ -481,16 +480,56 @@ pub struct Retention {
 }
 
 pub const RETENTION: [Retention; 10] = [
-    Retention { table: "iss_position", time_column: "ts", keep_days: 30 },
-    Retention { table: "kp", time_column: "observed_at", keep_days: 90 },
-    Retention { table: "solar_wind", time_column: "observed_at", keep_days: 90 },
-    Retention { table: "imf", time_column: "observed_at", keep_days: 90 },
-    Retention { table: "xray", time_column: "observed_at", keep_days: 90 },
-    Retention { table: "health_snapshots", time_column: "ts", keep_days: 100 },
-    Retention { table: "dst", time_column: "observed_at", keep_days: 365 },
-    Retention { table: "kp_forecast", time_column: "ts", keep_days: 365 },
-    Retention { table: "alerts_anomaly", time_column: "detected_at", keep_days: 365 },
-    Retention { table: "kp_3h", time_column: "observed_at", keep_days: 730 },
+    Retention {
+        table: "iss_position",
+        time_column: "ts",
+        keep_days: 30,
+    },
+    Retention {
+        table: "kp",
+        time_column: "observed_at",
+        keep_days: 90,
+    },
+    Retention {
+        table: "solar_wind",
+        time_column: "observed_at",
+        keep_days: 90,
+    },
+    Retention {
+        table: "imf",
+        time_column: "observed_at",
+        keep_days: 90,
+    },
+    Retention {
+        table: "xray",
+        time_column: "observed_at",
+        keep_days: 90,
+    },
+    Retention {
+        table: "health_snapshots",
+        time_column: "ts",
+        keep_days: 100,
+    },
+    Retention {
+        table: "dst",
+        time_column: "observed_at",
+        keep_days: 365,
+    },
+    Retention {
+        table: "kp_forecast",
+        time_column: "ts",
+        keep_days: 365,
+    },
+    Retention {
+        table: "alerts_anomaly",
+        time_column: "detected_at",
+        keep_days: 365,
+    },
+    Retention {
+        table: "kp_3h",
+        time_column: "observed_at",
+        keep_days: 730,
+    },
 ];
 
 /// Whether a reading is recent enough to describe conditions now.
@@ -688,7 +727,6 @@ const DEPLOY_ACCOUNTS: [&str; 2] = [
     "deploy-verify-dev@astraeusio.com",
 ];
 
-
 /// When the active model was placed on the volume, read from the file itself.
 ///
 /// The model lives beside the database on the shared volume, so the backend can
@@ -724,7 +762,6 @@ fn model_deploy_time(db_path: &str) -> Option<i64> {
 fn era_fix_is_verified(expected: i64, updated: i64, inconsistent: i64) -> bool {
     updated == expected && inconsistent == 0
 }
-
 
 /// Whether a rebuilt `kp_forecast` may replace the original.
 ///
@@ -1181,9 +1218,7 @@ impl Store {
                 conn.execute_batch("COMMIT")?;
                 info!(
                     rows = updated,
-                    boundary,
-                    source,
-                    "relabelled the forecasts issued by the current model as 3 h"
+                    boundary, source, "relabelled the forecasts issued by the current model as 3 h"
                 );
             }
 
@@ -1329,7 +1364,9 @@ impl Store {
                     });
                 };
                 for (email, secret) in &plaintext {
-                    let sealed = sb.seal(secret).map_err(|_| DbError::EncryptionUnavailable)?;
+                    let sealed = sb
+                        .seal(secret)
+                        .map_err(|_| DbError::EncryptionUnavailable)?;
                     conn.execute(
                         "UPDATE users SET totp_secret_enc = ? WHERE email = ?",
                         params![sealed, email],
@@ -1366,8 +1403,8 @@ impl Store {
                 // rejected here. Anything the scale cannot hold is recorded and
                 // the nearest representable value kept, since dropping the rule
                 // silently would be worse.
-                let scaled = crate::anomaly::scale_threshold(metric, *threshold)
-                    .unwrap_or_else(|e| {
+                let scaled =
+                    crate::anomaly::scale_threshold(metric, *threshold).unwrap_or_else(|e| {
                         let m = crate::anomaly::metric_scale(metric);
                         let fallback = m.map_or(*threshold, |m| (*threshold * m.scale).round());
                         warn!(
@@ -1383,9 +1420,7 @@ impl Store {
                     params![scaled, id],
                 )?;
             }
-            conn.execute_batch(
-                "ALTER TABLE custom_anomaly_rules DROP COLUMN IF EXISTS threshold",
-            )?;
+            conn.execute_batch("ALTER TABLE custom_anomaly_rules DROP COLUMN IF EXISTS threshold")?;
             conn.execute(
                 "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
                 params![RULE_THRESHOLD_MIGRATION, now()],
@@ -1469,10 +1504,7 @@ impl Store {
             )?;
             let after: i64 = conn.query_row("SELECT COUNT(*) FROM xray", [], |row| row.get(0))?;
             if after != before {
-                error!(
-                    before,
-                    after, "xray rebuild did not preserve every row"
-                );
+                error!(before, after, "xray rebuild did not preserve every row");
             }
             conn.execute(
                 "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
@@ -1491,7 +1523,8 @@ impl Store {
             |row| row.get(0),
         )?;
         if retire_starter_applied == 0 {
-            let moved = conn.execute("UPDATE users SET plan = 'free' WHERE plan = 'starter'", [])?;
+            let moved =
+                conn.execute("UPDATE users SET plan = 'free' WHERE plan = 'starter'", [])?;
             conn.execute_batch("ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'free'")?;
             conn.execute(
                 "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
@@ -2164,10 +2197,7 @@ impl Store {
     /// status is mapped back onto the static strings the rest of the health path
     /// uses, so an unrecognised value stored by an older build reads as
     /// `unknown` rather than reaching a caller as an arbitrary string.
-    fn newest_poll_verdict(
-        &self,
-        component: &str,
-    ) -> Result<Option<(&'static str, i64)>, DbError> {
+    fn newest_poll_verdict(&self, component: &str) -> Result<Option<(&'static str, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT status, ts FROM health_snapshots
              WHERE component = ? ORDER BY ts DESC LIMIT 1",
@@ -2372,9 +2402,9 @@ impl Store {
         if !self.series_is_current("imf")? {
             return Ok(serde_json::Value::Array(Vec::new()));
         }
-        let mut stmt = self
-            .conn
-            .prepare("SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY observed_at DESC LIMIT 1440")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY observed_at DESC LIMIT 1440",
+        )?;
         let rows = stmt
             .query_map([], |row| {
                 let time_tag: String = row.get(0)?;
@@ -2615,7 +2645,12 @@ impl Store {
     /// Create an account that authenticates via an external OAuth provider.
     /// `hash` is a random unguessable bcrypt hash (password login is never used for
     /// these accounts) and the email arrives pre-verified from the provider.
-    pub fn create_oauth_user(&self, email: &str, provider: &str, hash: &str) -> Result<(), DbError> {
+    pub fn create_oauth_user(
+        &self,
+        email: &str,
+        provider: &str,
+        hash: &str,
+    ) -> Result<(), DbError> {
         let result = self.conn.execute(
             "INSERT INTO users (email, password_hash, created_at, plan, email_verified, auth_provider) \
              VALUES (?, ?, ?, 'free', TRUE, ?)",
@@ -2756,9 +2791,8 @@ impl ForecastPoint {
         let mut points = Vec::with_capacity(FORECAST_HORIZONS.len());
         for want in FORECAST_HORIZONS {
             let found = entries.and_then(|list| {
-                list.iter().find(|e| {
-                    e.get("horizon_hours").and_then(|v| v.as_i64()) == Some(want)
-                })
+                list.iter()
+                    .find(|e| e.get("horizon_hours").and_then(|v| v.as_i64()) == Some(want))
             });
             let kp = found
                 .and_then(|e| e.get("predicted_kp"))
@@ -2767,8 +2801,12 @@ impl ForecastPoint {
             points.push(ForecastPoint {
                 horizon_hours: want,
                 kp_e2: (kp * 100.0).round() as i64,
-                ci_lower_e2: e2(found.and_then(|e| e.get("ci_lower")).and_then(|v| v.as_f64())),
-                ci_upper_e2: e2(found.and_then(|e| e.get("ci_upper")).and_then(|v| v.as_f64())),
+                ci_lower_e2: e2(found
+                    .and_then(|e| e.get("ci_lower"))
+                    .and_then(|v| v.as_f64())),
+                ci_upper_e2: e2(found
+                    .and_then(|e| e.get("ci_upper"))
+                    .and_then(|v| v.as_f64())),
                 uncertainty_e4: found
                     .and_then(|e| e.get("uncertainty"))
                     .and_then(|v| v.as_f64())
@@ -2995,7 +3033,10 @@ impl Store {
     }
 
     /// The most recent prediction at one horizon, as `(target_ts, kp_e2)`.
-    pub fn get_kp_forecast_latest(&self, horizon_hours: i64) -> Result<Option<(i64, i64)>, DbError> {
+    pub fn get_kp_forecast_latest(
+        &self,
+        horizon_hours: i64,
+    ) -> Result<Option<(i64, i64)>, DbError> {
         let mut stmt = self.conn.prepare(
             "SELECT ts, kp_e2 FROM kp_forecast WHERE horizon_hours = ? \
              ORDER BY issued_at DESC LIMIT 1",
@@ -3060,7 +3101,14 @@ impl Store {
                  (anomaly_type, source_ref, detected_at, severity, message, user_email)
              VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT (anomaly_type, source_ref) DO NOTHING",
-            params![anomaly_type, source_ref, now(), severity, message, user_email],
+            params![
+                anomaly_type,
+                source_ref,
+                now(),
+                severity,
+                message,
+                user_email
+            ],
         )?;
         Ok(())
     }
@@ -3747,14 +3795,12 @@ impl Store {
 
     /// Returns the user_email for the given key hash, if it exists.
     pub fn find_api_key_by_hash(&self, key_hash: &str) -> Result<Option<String>, DbError> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT user_email FROM api_keys
+        let mut stmt = self.conn.prepare(
+            "SELECT user_email FROM api_keys
                  WHERE key_hash = ? AND revoked_at IS NULL
                    AND (expires_at IS NULL OR expires_at > ?)
                  LIMIT 1",
-            )?;
+        )?;
         let mut rows = stmt.query(params![key_hash, now()])?;
         match rows.next()? {
             Some(row) => Ok(Some(row.get(0)?)),
@@ -3812,7 +3858,9 @@ impl Store {
         let Some(ref sb) = self.secret_box else {
             return Err(DbError::EncryptionUnavailable);
         };
-        let sealed = sb.seal(secret).map_err(|_| DbError::EncryptionUnavailable)?;
+        let sealed = sb
+            .seal(secret)
+            .map_err(|_| DbError::EncryptionUnavailable)?;
         self.conn.execute(
             "UPDATE users SET totp_secret_enc = ? WHERE email = ?",
             params![sealed, email],
@@ -3983,10 +4031,7 @@ impl Store {
             let cutoff = now - rule.keep_days * 86_400;
             // `table` and `time_column` come from RETENTION, never from a
             // request, which is why they can be formatted into the statement.
-            let sql = format!(
-                "DELETE FROM {} WHERE {} < ?",
-                rule.table, rule.time_column
-            );
+            let sql = format!("DELETE FROM {} WHERE {} < ?", rule.table, rule.time_column);
             let removed = self.conn.execute(&sql, params![cutoff])?;
             if removed > 0 {
                 purged.push((rule.table, removed));
@@ -4380,10 +4425,10 @@ impl Store {
         let since = now() - days * 86_400;
         let mut stmt = self.conn.prepare(
             // `//` and not `/`. DuckDB's `/` is float division, so
-             // `CAST(ts / 86400 AS BIGINT)` rounded, and every sample after
-             // midday was filed under the following day. The rolling bucket
-             // this replaced had the same rounding on top of its own problem.
-             "SELECT component,
+            // `CAST(ts / 86400 AS BIGINT)` rounded, and every sample after
+            // midday was filed under the following day. The rolling bucket
+            // this replaced had the same rounding on top of its own problem.
+            "SELECT component,
                     CAST(ts // 86400 AS BIGINT) AS utc_day,
                     COUNT(*),
                     SUM(CASE WHEN status = 'operational' THEN 1 ELSE 0 END)
@@ -4477,8 +4522,16 @@ mod tests {
         let base = now() - 120;
         store
             .insert_kp_batch(&[
-                KpRecord { time_tag: iso(base), kp_index: 2, estimated_kp: 2.33 },
-                KpRecord { time_tag: iso(base + 60), kp_index: 3, estimated_kp: 3.67 },
+                KpRecord {
+                    time_tag: iso(base),
+                    kp_index: 2,
+                    estimated_kp: 2.33,
+                },
+                KpRecord {
+                    time_tag: iso(base + 60),
+                    kp_index: 3,
+                    estimated_kp: 3.67,
+                },
             ])
             .unwrap();
 
@@ -4504,7 +4557,11 @@ mod tests {
             Some("user@example.com".to_string())
         );
 
-        assert!(store.revoke_api_key("k1", "user@example.com").expect("revoke"));
+        assert!(
+            store
+                .revoke_api_key("k1", "user@example.com")
+                .expect("revoke")
+        );
         assert_eq!(
             store.find_api_key_by_hash("hash-1").expect("lookup"),
             None,
@@ -4517,7 +4574,11 @@ mod tests {
         assert!(keys[0].revoked_at.is_some());
 
         // Revoking twice reports nothing further to do.
-        assert!(!store.revoke_api_key("k1", "user@example.com").expect("revoke again"));
+        assert!(
+            !store
+                .revoke_api_key("k1", "user@example.com")
+                .expect("revoke again")
+        );
     }
 
     /// One account must not be able to revoke another account's key.
@@ -4527,7 +4588,11 @@ mod tests {
         store
             .create_api_key("k1", "owner@example.com", "hash-1", "key", None)
             .expect("create");
-        assert!(!store.revoke_api_key("k1", "attacker@example.com").expect("revoke"));
+        assert!(
+            !store
+                .revoke_api_key("k1", "attacker@example.com")
+                .expect("revoke")
+        );
         assert_eq!(
             store.find_api_key_by_hash("hash-1").expect("lookup"),
             Some("owner@example.com".to_string()),
@@ -4548,14 +4613,23 @@ mod tests {
             .create_api_key("live", "user@example.com", "hash-new", "new", Some(future))
             .expect("create live");
 
-        assert_eq!(store.find_api_key_by_hash("hash-old").expect("lookup"), None);
+        assert_eq!(
+            store.find_api_key_by_hash("hash-old").expect("lookup"),
+            None
+        );
         assert_eq!(
             store.find_api_key_by_hash("hash-new").expect("lookup"),
             Some("user@example.com".to_string())
         );
         // A key with no expiry keeps working, which is every key made before this.
         store
-            .create_api_key("forever", "user@example.com", "hash-forever", "old style", None)
+            .create_api_key(
+                "forever",
+                "user@example.com",
+                "hash-forever",
+                "old style",
+                None,
+            )
             .expect("create unexpiring");
         assert_eq!(
             store.find_api_key_by_hash("hash-forever").expect("lookup"),
@@ -4653,13 +4727,17 @@ mod tests {
 
         assert!(store.get_iss_latest().expect("empty table").is_null());
 
-        store.insert_iss_position(&fix(now() - 3_600)).expect("insert stale");
+        store
+            .insert_iss_position(&fix(now() - 3_600))
+            .expect("insert stale");
         assert!(
             store.get_iss_latest().expect("stale").is_null(),
             "an hour old fix must not be served as the current position"
         );
 
-        store.insert_iss_position(&fix(now() - 5)).expect("insert current");
+        store
+            .insert_iss_position(&fix(now() - 5))
+            .expect("insert current");
         let v = store.get_iss_latest().expect("current");
         assert!(!v.is_null(), "a current fix must be served");
         assert!((v["latitude"].as_f64().expect("lat") - 15.4372).abs() < 1e-5);
@@ -4693,10 +4771,22 @@ mod tests {
             .insert_anomaly("kp_storm", "g1", "warning", "Kp 5.0", None)
             .expect("global");
         store
-            .insert_anomaly("custom:r1", "r1:1", "warning", "alice rule", Some("alice@example.com"))
+            .insert_anomaly(
+                "custom:r1",
+                "r1:1",
+                "warning",
+                "alice rule",
+                Some("alice@example.com"),
+            )
             .expect("alice");
         store
-            .insert_anomaly("custom:r2", "r2:1", "critical", "bob secret threshold", Some("bob@example.com"))
+            .insert_anomaly(
+                "custom:r2",
+                "r2:1",
+                "critical",
+                "bob secret threshold",
+                Some("bob@example.com"),
+            )
             .expect("bob");
 
         let msgs = |email: &str| -> Vec<String> {
@@ -4730,8 +4820,14 @@ mod tests {
         }
 
         let alice = msgs("alice@example.com");
-        assert!(alice.iter().any(|m| m == "Kp 5.0"), "global must be visible");
-        assert!(alice.iter().any(|m| m == "alice rule"), "own rule must be visible");
+        assert!(
+            alice.iter().any(|m| m == "Kp 5.0"),
+            "global must be visible"
+        );
+        assert!(
+            alice.iter().any(|m| m == "alice rule"),
+            "own rule must be visible"
+        );
         assert!(
             !alice.iter().any(|m| m.contains("bob")),
             "another account's rule must not appear: {alice:?}"
@@ -4764,10 +4860,22 @@ mod tests {
             .insert_anomaly("kp_storm", "g1", "warning", "Kp 5.0", None)
             .expect("global");
         store
-            .insert_anomaly("custom:r1", "r1:1", "warning", "alice rule", Some("alice@example.com"))
+            .insert_anomaly(
+                "custom:r1",
+                "r1:1",
+                "warning",
+                "alice rule",
+                Some("alice@example.com"),
+            )
             .expect("alice");
         store
-            .insert_anomaly("custom:r2", "r2:1", "critical", "bob secret threshold", Some("bob@example.com"))
+            .insert_anomaly(
+                "custom:r2",
+                "r2:1",
+                "critical",
+                "bob secret threshold",
+                Some("bob@example.com"),
+            )
             .expect("bob");
 
         // 1. /api/anomalies and the MCP get_anomalies tool.
@@ -4805,15 +4913,17 @@ mod tests {
 
         // 3. /api/reports/summary, which reports a count rather than the rows.
         let count = |email: &str| -> i64 {
-            store
-                .get_report_summary(email, 86_400)
-                .expect("summary")["anomaly_count"]
+            store.get_report_summary(email, 86_400).expect("summary")["anomaly_count"]
                 .as_i64()
                 .expect("count")
         };
         assert_eq!(count("alice@example.com"), 2);
         assert_eq!(count("bob@example.com"), 2);
-        assert_eq!(count("nobody@example.com"), 1, "a stranger sees globals only");
+        assert_eq!(
+            count("nobody@example.com"),
+            1,
+            "a stranger sees globals only"
+        );
     }
 
     /// A noisy rule filled the shared limit and pushed global anomalies out of
@@ -4836,7 +4946,9 @@ mod tests {
             .insert_anomaly("kp_storm", "g1", "critical", "Kp 8.0", None)
             .expect("global");
 
-        let out = store.get_anomalies_recent("noisy@example.com").expect("read");
+        let out = store
+            .get_anomalies_recent("noisy@example.com")
+            .expect("read");
         let rows = out.as_array().expect("array");
         assert!(
             rows.iter().any(|v| v["message"] == "Kp 8.0"),
@@ -4901,7 +5013,9 @@ mod tests {
         // SAFETY: single threaded test.
         unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
         let store = mem_store();
-        store.create_user("nokey@example.com", "hash").expect("user");
+        store
+            .create_user("nokey@example.com", "hash")
+            .expect("user");
         assert!(matches!(
             store.set_totp_secret("nokey@example.com", "JBSWY3DPEHPK3PXP"),
             Err(DbError::EncryptionUnavailable)
@@ -4938,11 +5052,15 @@ mod tests {
         }
 
         assert_eq!(
-            store.get_usage_for_period("u@example.com", day * 2).expect("read"),
+            store
+                .get_usage_for_period("u@example.com", day * 2)
+                .expect("read"),
             Some((20, day * 2, day * 3))
         );
 
-        let history = store.list_usage_history("u@example.com", 24).expect("history");
+        let history = store
+            .list_usage_history("u@example.com", 24)
+            .expect("history");
         assert_eq!(history.len(), 3, "every period must survive");
         assert_eq!(history[0].1, day * 3, "newest first");
         assert_eq!(history[2].1, day, "oldest last");
@@ -4952,10 +5070,18 @@ mod tests {
             .upsert_usage_record("u@example.com", 25, day * 2, day * 3)
             .expect("correct");
         assert_eq!(
-            store.get_usage_for_period("u@example.com", day * 2).expect("read"),
+            store
+                .get_usage_for_period("u@example.com", day * 2)
+                .expect("read"),
             Some((25, day * 2, day * 3))
         );
-        assert_eq!(store.list_usage_history("u@example.com", 24).expect("history").len(), 3);
+        assert_eq!(
+            store
+                .list_usage_history("u@example.com", 24)
+                .expect("history")
+                .len(),
+            3
+        );
     }
 
     /// A dashboard only account is known to the counter, because the session
@@ -4971,12 +5097,17 @@ mod tests {
                 .expect("flush");
         }
         assert!(
-            store.list_usage_history("dash@example.com", 24).expect("history").is_empty(),
+            store
+                .list_usage_history("dash@example.com", 24)
+                .expect("history")
+                .is_empty(),
             "no rows should exist for an account that spent nothing"
         );
         // And reading such a period reports zero rather than failing.
         assert_eq!(
-            store.get_usage_for_period("dash@example.com", day).expect("read"),
+            store
+                .get_usage_for_period("dash@example.com", day)
+                .expect("read"),
             None
         );
     }
@@ -4991,7 +5122,9 @@ mod tests {
             .upsert_usage_record("u@example.com", 42, day, day * 2)
             .expect("record");
         assert_eq!(
-            store.get_usage_for_period("u@example.com", day).expect("read"),
+            store
+                .get_usage_for_period("u@example.com", day)
+                .expect("read"),
             Some((42, day, day * 2))
         );
 
@@ -4999,14 +5132,19 @@ mod tests {
             .upsert_usage_record("u@example.com", 0, day, day * 2)
             .expect("correct to zero");
 
-        let stored = store.get_usage_for_period("u@example.com", day).expect("read");
+        let stored = store
+            .get_usage_for_period("u@example.com", day)
+            .expect("read");
         assert_eq!(
             stored,
             Some((0, day, day * 2)),
             "the row must survive and read zero, not vanish"
         );
         assert_eq!(
-            store.list_usage_history("u@example.com", 24).expect("history").len(),
+            store
+                .list_usage_history("u@example.com", 24)
+                .expect("history")
+                .len(),
             1
         );
     }
@@ -5016,13 +5154,25 @@ mod tests {
     fn usage_history_is_scoped_to_one_account() {
         let store = mem_store();
         let day = 86_400;
-        store.upsert_usage_record("a@example.com", 5, day, day * 2).expect("a");
-        store.upsert_usage_record("b@example.com", 7, day, day * 2).expect("b");
+        store
+            .upsert_usage_record("a@example.com", 5, day, day * 2)
+            .expect("a");
+        store
+            .upsert_usage_record("b@example.com", 7, day, day * 2)
+            .expect("b");
         assert_eq!(
-            store.get_usage_for_period("a@example.com", day).expect("read"),
+            store
+                .get_usage_for_period("a@example.com", day)
+                .expect("read"),
             Some((5, day, day * 2))
         );
-        assert_eq!(store.list_usage_history("b@example.com", 24).expect("history").len(), 1);
+        assert_eq!(
+            store
+                .list_usage_history("b@example.com", 24)
+                .expect("history")
+                .len(),
+            1
+        );
     }
 
     /// The defect: two satellites reporting the same minute and band collided on
@@ -5101,7 +5251,10 @@ mod tests {
         }
 
         let store = Store::open(&path_str).expect("open through the migration");
-        assert_eq!(store.get_user_plan("old@example.com").expect("plan"), "free");
+        assert_eq!(
+            store.get_user_plan("old@example.com").expect("plan"),
+            "free"
+        );
         assert_eq!(
             store.get_user_plan("paid@example.com").expect("plan"),
             "pro",
@@ -5109,8 +5262,13 @@ mod tests {
         );
 
         // A new account gets free, not starter.
-        store.create_user("new@example.com", "hash").expect("create");
-        assert_eq!(store.get_user_plan("new@example.com").expect("plan"), "free");
+        store
+            .create_user("new@example.com", "hash")
+            .expect("create");
+        assert_eq!(
+            store.get_user_plan("new@example.com").expect("plan"),
+            "free"
+        );
 
         drop(store);
         let _ = std::fs::remove_dir_all(&dir);
@@ -5144,7 +5302,12 @@ mod tests {
             "an eight hour old three hourly value is normal, not stale"
         );
         assert!(
-            !store.get_kp_3h_recent().unwrap().as_array().unwrap().is_empty(),
+            !store
+                .get_kp_3h_recent()
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty(),
             "and it must still be served"
         );
 
@@ -5179,9 +5342,18 @@ mod tests {
         // First poll: three hours of provisional values.
         store
             .insert_dst_batch(&[
-                DstRecord { time_tag: hour(3), dst_nt: Some(-20) },
-                DstRecord { time_tag: hour(2), dst_nt: Some(-30) },
-                DstRecord { time_tag: hour(1), dst_nt: Some(-40) },
+                DstRecord {
+                    time_tag: hour(3),
+                    dst_nt: Some(-20),
+                },
+                DstRecord {
+                    time_tag: hour(2),
+                    dst_nt: Some(-30),
+                },
+                DstRecord {
+                    time_tag: hour(1),
+                    dst_nt: Some(-40),
+                },
             ])
             .expect("first poll");
 
@@ -5189,10 +5361,22 @@ mod tests {
         // is exactly the shape the live feed returns.
         store
             .insert_dst_batch(&[
-                DstRecord { time_tag: hour(3), dst_nt: Some(-22) },
-                DstRecord { time_tag: hour(2), dst_nt: Some(-30) },
-                DstRecord { time_tag: hour(1), dst_nt: Some(-45) },
-                DstRecord { time_tag: hour(0), dst_nt: Some(-51) },
+                DstRecord {
+                    time_tag: hour(3),
+                    dst_nt: Some(-22),
+                },
+                DstRecord {
+                    time_tag: hour(2),
+                    dst_nt: Some(-30),
+                },
+                DstRecord {
+                    time_tag: hour(1),
+                    dst_nt: Some(-45),
+                },
+                DstRecord {
+                    time_tag: hour(0),
+                    dst_nt: Some(-51),
+                },
             ])
             .expect("second poll");
 
@@ -5207,8 +5391,16 @@ mod tests {
                 .ok()
         };
         assert_eq!(read(hour(3)), Some(-22), "a corrected hour must be updated");
-        assert_eq!(read(hour(2)), Some(-30), "an unchanged hour stays as it was");
-        assert_eq!(read(hour(1)), Some(-45), "the most recent hour corrects too");
+        assert_eq!(
+            read(hour(2)),
+            Some(-30),
+            "an unchanged hour stays as it was"
+        );
+        assert_eq!(
+            read(hour(1)),
+            Some(-45),
+            "the most recent hour corrects too"
+        );
         assert_eq!(read(hour(0)), Some(-51), "a new hour is still inserted");
 
         let n: i64 = store
@@ -5227,12 +5419,18 @@ mod tests {
         let older = iso(now() - 7_200);
 
         store
-            .insert_dst_batch(&[DstRecord { time_tag: newest.clone(), dst_nt: Some(-10) }])
+            .insert_dst_batch(&[DstRecord {
+                time_tag: newest.clone(),
+                dst_nt: Some(-10),
+            }])
             .expect("newest first");
         // Arrives after a newer hour is already stored, which the incremental
         // filter would have discarded.
         store
-            .insert_dst_batch(&[DstRecord { time_tag: older.clone(), dst_nt: Some(-99) }])
+            .insert_dst_batch(&[DstRecord {
+                time_tag: older.clone(),
+                dst_nt: Some(-99),
+            }])
             .expect("older hour");
 
         let stored: Option<i32> = store
@@ -5295,7 +5493,9 @@ mod tests {
         };
 
         store.insert_xray_batch(&[reading(1.0e-6)]).expect("first");
-        store.insert_xray_batch(&[reading(3.0e-6)]).expect("later revision");
+        store
+            .insert_xray_batch(&[reading(3.0e-6)])
+            .expect("later revision");
 
         let flux: i64 = store
             .conn
@@ -5478,10 +5678,7 @@ mod tests {
         let now = now();
 
         for rule in RETENTION.iter() {
-            let sql = format!(
-                "SELECT {} FROM {} LIMIT 0",
-                rule.time_column, rule.table
-            );
+            let sql = format!("SELECT {} FROM {} LIMIT 0", rule.time_column, rule.table);
             assert!(
                 store.conn.prepare(&sql).is_ok(),
                 "{} has no column {}",
@@ -5509,7 +5706,11 @@ mod tests {
 
         let purged = store.purge_expired().expect("purge");
         let removed: std::collections::HashMap<_, _> = purged.into_iter().collect();
-        assert_eq!(removed.get("iss_position"), Some(&1), "one row was past 30 days");
+        assert_eq!(
+            removed.get("iss_position"),
+            Some(&1),
+            "one row was past 30 days"
+        );
         assert!(
             !removed.contains_key("health_snapshots"),
             "31 days is inside the 100 day window"
@@ -5548,10 +5749,16 @@ mod tests {
 
         let rows = store.get_starlink_all().unwrap();
         let rows = rows.as_array().unwrap();
-        let ids: Vec<i64> = rows.iter().map(|r| r["norad_id"].as_i64().unwrap()).collect();
+        let ids: Vec<i64> = rows
+            .iter()
+            .map(|r| r["norad_id"].as_i64().unwrap())
+            .collect();
 
         assert_eq!(ids, vec![1, 3], "2 left the constellation and must go");
-        let first = rows.iter().find(|r| r["norad_id"] == 1).expect("1 is still here");
+        let first = rows
+            .iter()
+            .find(|r| r["norad_id"] == 1)
+            .expect("1 is still here");
         assert_eq!(
             first["tle_line1"].as_str().unwrap(),
             "1 00001U MOVED",
@@ -5613,9 +5820,15 @@ mod tests {
             .map(|(id, _, _)| id)
             .collect();
 
-        assert!(found.contains(&"today".to_string()), "an approach today counts");
+        assert!(
+            found.contains(&"today".to_string()),
+            "an approach today counts"
+        );
         assert!(found.contains(&"in-three-days".to_string()));
-        assert!(found.contains(&"in-seven-days".to_string()), "the horizon is inclusive");
+        assert!(
+            found.contains(&"in-seven-days".to_string()),
+            "the horizon is inclusive"
+        );
         assert!(
             !found.contains(&"passed-yesterday".to_string()),
             "an approach that already happened is not a warning"
@@ -5625,7 +5838,10 @@ mod tests {
             !found.contains(&"in-ten-days".to_string()),
             "beyond the poller's own seven day window there is no data to trust"
         );
-        assert!(!found.contains(&"far-but-soon".to_string()), "distance still decides");
+        assert!(
+            !found.contains(&"far-but-soon".to_string()),
+            "distance still decides"
+        );
     }
 
     /// An alert claims conditions have exceeded a threshold, present tense, so a
@@ -5676,7 +5892,9 @@ mod tests {
     fn every_factor_change_invalidates_sessions() {
         type Op = fn(&Store, &str) -> Result<(), DbError>;
         let operations: [(&str, Op); 3] = [
-            ("a password change", |s, e| s.update_password_hash(e, "new-hash")),
+            ("a password change", |s, e| {
+                s.update_password_hash(e, "new-hash")
+            }),
             ("enabling the second factor", |s, e| s.enable_totp(e)),
             ("disabling the second factor", |s, e| s.disable_totp(e)),
         ];
@@ -5861,7 +6079,10 @@ mod tests {
     /// Sets a file's mtime to a Unix second, so a test can describe a deploy
     /// that happened at a known instant.
     fn filetime_set(path: &std::path::Path, secs: i64) {
-        let f = std::fs::OpenOptions::new().write(true).open(path).expect("open");
+        let f = std::fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .expect("open");
         let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs as u64);
         f.set_modified(t).expect("set mtime");
     }
@@ -5924,9 +6145,21 @@ mod tests {
             )
             .expect("counts");
 
-        assert_eq!(threes, after.len() as i64, "only the post deploy rows moved");
-        assert_eq!(sixes, before.len() as i64, "the old checkpoint's rows are untouched");
-        assert_eq!(named, after.len() as i64, "and only the moved rows name a model");
+        assert_eq!(
+            threes,
+            after.len() as i64,
+            "only the post deploy rows moved"
+        );
+        assert_eq!(
+            sixes,
+            before.len() as i64,
+            "the old checkpoint's rows are untouched"
+        );
+        assert_eq!(
+            named,
+            after.len() as i64,
+            "and only the moved rows name a model"
+        );
         assert_eq!(inconsistent, 0, "every row's target matches its own lead");
 
         let sha: String = store
@@ -5937,7 +6170,10 @@ mod tests {
                 |r| r.get(0),
             )
             .expect("sha");
-        assert_eq!(sha, MODEL_061A_SHA, "the rows carry the checkpoint that made them");
+        assert_eq!(
+            sha, MODEL_061A_SHA,
+            "the rows carry the checkpoint that made them"
+        );
 
         // Recorded, so a restart does not sweep a later era's rows into this one.
         let recorded: i64 = store
@@ -6004,7 +6240,9 @@ mod tests {
         let corrected: Vec<i64> = {
             let mut stmt = store
                 .conn
-                .prepare("SELECT issued_at FROM kp_forecast WHERE horizon_hours = 3 ORDER BY issued_at")
+                .prepare(
+                    "SELECT issued_at FROM kp_forecast WHERE horizon_hours = 3 ORDER BY issued_at",
+                )
                 .expect("prepare");
             stmt.query_map([], |r| r.get::<_, i64>(0))
                 .expect("query")
@@ -6074,13 +6312,21 @@ mod tests {
                     "INSERT INTO kp_forecast
                        (issued_at, horizon_hours, ts, kp_e2, model_sha, fetched_at)
                      VALUES (?, ?, ? + ? * 3600, 250, ?, ?)",
-                    params![already_correct, h, already_correct, h, MODEL_061A_SHA, already_correct],
+                    params![
+                        already_correct,
+                        h,
+                        already_correct,
+                        h,
+                        MODEL_061A_SHA,
+                        already_correct
+                    ],
                 )
                 .expect("seed correct");
             }
         }
 
-        let store = Store::open(path.to_str().unwrap()).expect("the migration must not refuse this");
+        let store =
+            Store::open(path.to_str().unwrap()).expect("the migration must not refuse this");
 
         let (threes, named, inconsistent, total): (i64, i64, i64, i64) = store
             .conn
@@ -6098,7 +6344,11 @@ mod tests {
         assert_eq!(threes, stale.len() as i64 + 1);
         assert_eq!(named, stale.len() as i64 + FORECAST_HORIZONS.len() as i64);
         assert_eq!(inconsistent, 0);
-        assert_eq!(total, stale.len() as i64 + FORECAST_HORIZONS.len() as i64, "no row was added or lost");
+        assert_eq!(
+            total,
+            stale.len() as i64 + FORECAST_HORIZONS.len() as i64,
+            "no row was added or lost"
+        );
 
         // The already correct issue kept all four of its horizons untouched.
         let kept: i64 = store
@@ -6124,10 +6374,22 @@ mod tests {
     /// the next edit to that statement, not for DuckDB.
     #[test]
     fn a_corrected_table_commits_only_when_it_verifies() {
-        assert!(era_fix_is_verified(51, 51, 0), "all moved, nothing left wrong");
-        assert!(!era_fix_is_verified(51, 50, 0), "one row short does not commit");
-        assert!(!era_fix_is_verified(51, 51, 1), "one row disagreeing with its lead does not commit");
-        assert!(!era_fix_is_verified(51, 52, 0), "more than expected does not commit either");
+        assert!(
+            era_fix_is_verified(51, 51, 0),
+            "all moved, nothing left wrong"
+        );
+        assert!(
+            !era_fix_is_verified(51, 50, 0),
+            "one row short does not commit"
+        );
+        assert!(
+            !era_fix_is_verified(51, 51, 1),
+            "one row disagreeing with its lead does not commit"
+        );
+        assert!(
+            !era_fix_is_verified(51, 52, 0),
+            "more than expected does not commit either"
+        );
     }
 
     /// The deploy accounts are marked verified once, and nothing else is.
@@ -6174,7 +6436,10 @@ mod tests {
                     |r| r.get(0),
                 )
                 .expect("row");
-            assert!(verified, "{email} must be verified or the deploy checks break");
+            assert!(
+                verified,
+                "{email} must be verified or the deploy checks break"
+            );
         }
 
         let other: bool = store
@@ -6195,7 +6460,10 @@ mod tests {
                 |r| r.get(0),
             )
             .expect("recorded");
-        assert_eq!(recorded, 1, "recorded, so a later un-verify is not undone on restart");
+        assert_eq!(
+            recorded, 1,
+            "recorded, so a later un-verify is not undone on restart"
+        );
 
         drop(store);
         let _ = std::fs::remove_file(&path);
@@ -6263,11 +6531,26 @@ mod tests {
     /// cannot produce either failure. See `rekey_is_verified`.
     #[test]
     fn a_rebuilt_table_replaces_the_original_only_when_it_verifies() {
-        assert!(rekey_is_verified(1336, 1336, 0), "a complete, consistent copy swaps");
-        assert!(rekey_is_verified(0, 0, 0), "an empty table is a complete copy of nothing");
-        assert!(!rekey_is_verified(1336, 1335, 0), "one row short does not swap");
-        assert!(!rekey_is_verified(1336, 1337, 0), "one row extra does not swap either");
-        assert!(!rekey_is_verified(1336, 1336, 1), "one inconsistent row does not swap");
+        assert!(
+            rekey_is_verified(1336, 1336, 0),
+            "a complete, consistent copy swaps"
+        );
+        assert!(
+            rekey_is_verified(0, 0, 0),
+            "an empty table is a complete copy of nothing"
+        );
+        assert!(
+            !rekey_is_verified(1336, 1335, 0),
+            "one row short does not swap"
+        );
+        assert!(
+            !rekey_is_verified(1336, 1337, 0),
+            "one row extra does not swap either"
+        );
+        assert!(
+            !rekey_is_verified(1336, 1336, 1),
+            "one inconsistent row does not swap"
+        );
     }
 
     /// Builds a database file carrying the pre-rekey `kp_forecast` and returns
@@ -6422,7 +6705,10 @@ mod tests {
                 |r| r.get(0),
             )
             .expect("tables");
-        assert_eq!(leftover, 0, "the half built copy is not left behind to block a retry");
+        assert_eq!(
+            leftover, 0,
+            "the half built copy is not left behind to block a retry"
+        );
 
         drop(conn);
         let _ = std::fs::remove_file(&path);
@@ -6464,7 +6750,10 @@ mod tests {
         store
             .insert_kp_forecast(issued, Some("abc123"), &revised)
             .unwrap();
-        assert_eq!(store.get_kp_forecast_latest(3).unwrap(), Some((issued + 10800, 999)));
+        assert_eq!(
+            store.get_kp_forecast_latest(3).unwrap(),
+            Some((issued + 10800, 999))
+        );
     }
 
     /// Two predictions can name the same instant. The 24 h head issued at 01:00
@@ -6488,7 +6777,9 @@ mod tests {
                 })
                 .collect()
         };
-        store.insert_kp_forecast(early, Some("m"), &at(111)).unwrap();
+        store
+            .insert_kp_forecast(early, Some("m"), &at(111))
+            .unwrap();
         store.insert_kp_forecast(late, Some("m"), &at(222)).unwrap();
 
         let target = early + 24 * 3600;
@@ -6500,7 +6791,10 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(rows, 2, "the 24h call and the 12h call are different predictions");
+        assert_eq!(
+            rows, 2,
+            "the 24h call and the 12h call are different predictions"
+        );
     }
 
     /// A set that is not the published one is refused before anything is
@@ -6532,7 +6826,10 @@ mod tests {
             .conn
             .query_row("SELECT COUNT(*) FROM kp_forecast", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(rows, 0, "nothing at all is written, not the three that arrived");
+        assert_eq!(
+            rows, 0,
+            "nothing at all is written, not the three that arrived"
+        );
     }
 
     /// The parser is the other half of that guarantee, and it is shared by both
@@ -6605,7 +6902,9 @@ mod tests {
                     uncertainty_e4: Some(1000),
                 })
                 .collect();
-            store.insert_kp_forecast(issued, Some("model-a"), &points).unwrap();
+            store
+                .insert_kp_forecast(issued, Some("model-a"), &points)
+                .unwrap();
             store
                 .insert_kp_3h_batch(&[Kp3hRecord {
                     time_tag: iso(issued + 3 * 3600),
@@ -6623,7 +6922,10 @@ mod tests {
             .expect("the 3h horizon is always reported");
 
         assert_eq!(three["sufficient"], true);
-        assert_eq!(three["n_samples"].as_i64().unwrap(), (cases.len() * repeats) as i64);
+        assert_eq!(
+            three["n_samples"].as_i64().unwrap(),
+            (cases.len() * repeats) as i64
+        );
         assert_eq!(three["n_storms"].as_i64().unwrap(), (2 * repeats) as i64);
         assert_eq!(three["n_caught"].as_i64().unwrap(), repeats as i64);
         assert_eq!(three["n_false_pos"].as_i64().unwrap(), repeats as i64);
@@ -6700,7 +7002,9 @@ mod tests {
                     uncertainty_e4: None,
                 })
                 .collect();
-            store.insert_kp_forecast(issued, Some("model-a"), &points).unwrap();
+            store
+                .insert_kp_forecast(issued, Some("model-a"), &points)
+                .unwrap();
             store
                 .insert_kp_3h_batch(&[Kp3hRecord {
                     time_tag: iso(issued + 3 * 3600),
@@ -6719,7 +7023,10 @@ mod tests {
         assert_eq!(three["n_samples"].as_i64().unwrap(), short);
         assert_eq!(three["sufficient"], false);
         assert!(three["mae"].is_null(), "no figure below the floor");
-        assert_eq!(three["min_samples"].as_i64().unwrap(), MIN_PAIRS_FOR_METRICS);
+        assert_eq!(
+            three["min_samples"].as_i64().unwrap(),
+            MIN_PAIRS_FOR_METRICS
+        );
     }
 
     #[test]
@@ -6772,7 +7079,9 @@ mod tests {
         for table in ["kp", "xray", "imf"] {
             let got: i64 = store
                 .conn
-                .query_row(&format!("SELECT observed_at FROM {table}"), [], |r| r.get(0))
+                .query_row(&format!("SELECT observed_at FROM {table}"), [], |r| {
+                    r.get(0)
+                })
                 .unwrap();
             assert_eq!(got, expected, "{table} observed_at");
         }
@@ -6853,13 +7162,22 @@ mod tests {
             .unwrap();
 
         // A 24 hour window must not see a 30 hour old observation.
-        let summary = store.get_report_summary("reader@example.com", 24 * 3600).unwrap();
+        let summary = store
+            .get_report_summary("reader@example.com", 24 * 3600)
+            .unwrap();
         assert_eq!(summary["kp_count"].as_i64().unwrap(), 0);
         assert!(summary["kp_max"].is_null());
         assert!(summary["solar_wind_max_kms"].is_null());
         assert!(summary["xray_max_flux"].is_null());
 
-        assert!(store.get_kp_range(24 * 3600).unwrap().as_array().unwrap().is_empty());
+        assert!(
+            store
+                .get_kp_range(24 * 3600)
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         assert!(
             store
                 .get_solar_wind_range(24 * 3600)
@@ -6875,7 +7193,9 @@ mod tests {
         // A 48 hour window does include it, proving the row is present and the
         // exclusion above came from the window, not from a broken insert.
         assert_eq!(
-            store.get_report_summary("reader@example.com", 48 * 3600).unwrap()["kp_count"]
+            store
+                .get_report_summary("reader@example.com", 48 * 3600)
+                .unwrap()["kp_count"]
                 .as_i64()
                 .unwrap(),
             1
@@ -7161,8 +7481,12 @@ mod tests {
         StarlinkSat {
             norad_id,
             name: format!("STARLINK-{norad_id}"),
-            tle_line1: format!("1 {norad_id:05}U 24001A   26001.00000000  .00000000  00000-0  00000-0 0  9990"),
-            tle_line2: format!("2 {norad_id:05}  53.0000   0.0000 0001000   0.0000   0.0000 15.00000000    00"),
+            tle_line1: format!(
+                "1 {norad_id:05}U 24001A   26001.00000000  .00000000  00000-0  00000-0 0  9990"
+            ),
+            tle_line2: format!(
+                "2 {norad_id:05}  53.0000   0.0000 0001000   0.0000   0.0000 15.00000000    00"
+            ),
         }
     }
 
@@ -7177,7 +7501,9 @@ mod tests {
     #[test]
     fn empty_starlink_batch_must_not_wipe_the_table() {
         let store = mem_store();
-        store.insert_starlink_batch(&[sat(44713), sat(44714)]).unwrap();
+        store
+            .insert_starlink_batch(&[sat(44713), sat(44714)])
+            .unwrap();
         let before = store.get_starlink_all().unwrap();
         assert_eq!(before.as_array().unwrap().len(), 2, "setup failed");
 
@@ -7198,7 +7524,9 @@ mod tests {
     #[test]
     fn a_non_empty_starlink_batch_still_replaces_everything() {
         let store = mem_store();
-        store.insert_starlink_batch(&[sat(1), sat(2), sat(3)]).unwrap();
+        store
+            .insert_starlink_batch(&[sat(1), sat(2), sat(3)])
+            .unwrap();
         store.insert_starlink_batch(&[sat(9)]).unwrap();
 
         let rows = store.get_starlink_all().unwrap();

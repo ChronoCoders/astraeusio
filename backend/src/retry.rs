@@ -371,7 +371,11 @@ mod tests {
         })
         .await;
         assert!(got.is_none());
-        assert_eq!(calls.get(), 3, "three attempts means three, not three retries");
+        assert_eq!(
+            calls.get(),
+            3,
+            "three attempts means three, not three retries"
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -403,7 +407,11 @@ mod tests {
         })
         .await;
         assert!(got.is_none());
-        assert_eq!(calls.get(), 1, "the second attempt would have run past the interval");
+        assert_eq!(
+            calls.get(),
+            1,
+            "the second attempt would have run past the interval"
+        );
     }
 
     /// A hung request must be abandoned, not allowed to wedge the loop.

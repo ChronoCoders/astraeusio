@@ -351,14 +351,13 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
         Ok(()) => {
             // Fire verification email if mailer is configured.
             if let Some(ref mc) = s.mailer
-                && let Ok(token) =
-                    purpose_token(
-                        &email,
-                        TokenPurpose::VerifyEmail,
-                        VERIFY_EMAIL_TTL_SECS,
-                        &s.jwt_secret,
-                        0,
-                    )
+                && let Ok(token) = purpose_token(
+                    &email,
+                    TokenPurpose::VerifyEmail,
+                    VERIFY_EMAIL_TTL_SECS,
+                    &s.jwt_secret,
+                    0,
+                )
             {
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
@@ -456,7 +455,13 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
     // If 2FA is active, issue a short-lived partial token instead of a full JWT.
     if user.totp_enabled {
         let ver = current_token_version(&s, &user.email).await;
-        match purpose_token(&user.email, TokenPurpose::TwoFactorPartial, 300, &s.jwt_secret, ver) {
+        match purpose_token(
+            &user.email,
+            TokenPurpose::TwoFactorPartial,
+            300,
+            &s.jwt_secret,
+            ver,
+        ) {
             Ok(partial) => {
                 return Json(serde_json::json!({ "requires_2fa": true, "partial_token": partial }))
                     .into_response();
@@ -476,16 +481,18 @@ pub async fn login(State(s): State<AppState>, Json(body): Json<LoginRequest>) ->
 }
 
 pub async fn login_2fa(State(s): State<AppState>, Json(body): Json<TotpLoginRequest>) -> Response {
-    let email = match decode_purpose_checked(&s, &body.partial_token, TokenPurpose::TwoFactorPartial).await {
-        Ok(e) => e,
-        Err(e) => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({ "error": e })),
-            )
-                .into_response();
-        }
-    };
+    let email =
+        match decode_purpose_checked(&s, &body.partial_token, TokenPurpose::TwoFactorPartial).await
+        {
+            Ok(e) => e,
+            Err(e) => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({ "error": e })),
+                )
+                    .into_response();
+            }
+        };
 
     let user = match s.db.lock().await.find_user_by_email(&email) {
         Ok(Some(u)) => u,
@@ -637,8 +644,7 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
         VERIFY_EMAIL_TTL_SECS,
         &s.jwt_secret,
         ver,
-    )
-    {
+    ) {
         Ok(t) => t,
         Err(e) => {
             warn!("token gen error: {e}");
@@ -1080,8 +1086,13 @@ pub async fn forgot_password(
     let ver = current_token_version(&s, &requested).await;
     if let Some(ref mc) = s.mailer
         && let Ok(Some(_)) = s.db.lock().await.find_user_by_email(&requested)
-        && let Ok(token) =
-            purpose_token(&requested, TokenPurpose::ResetPassword, 3_600, &s.jwt_secret, ver)
+        && let Ok(token) = purpose_token(
+            &requested,
+            TokenPurpose::ResetPassword,
+            3_600,
+            &s.jwt_secret,
+            ver,
+        )
     {
         let url = format!("{}/reset-password?token={}", s.app_url, token);
         let mc = mc.clone();
@@ -1295,12 +1306,8 @@ impl FromRequestParts<AppState> for AuthClaims {
         // Reject a token minted before the account's current version. The
         // lookup is cached beside the plan, so this costs a map hit on the warm
         // path.
-        let current = rate_limit::resolve_token_version(
-            &state.usage_counter,
-            &state.db,
-            &claims.sub,
-        )
-        .await;
+        let current =
+            rate_limit::resolve_token_version(&state.usage_counter, &state.db, &claims.sub).await;
         if claims.ver != current {
             warn!(
                 source = "auth",
@@ -1376,8 +1383,7 @@ mod tests {
     async fn purpose_tokens_are_rejected_by_the_session_extractor() {
         let state = test_state();
         for purpose in EVERY_PURPOSE {
-            let token =
-                purpose_token("user@example.com", purpose, 300, SECRET, 0).expect("mint");
+            let token = purpose_token("user@example.com", purpose, 300, SECRET, 0).expect("mint");
             let got = extract(&state, &token).await;
             assert_eq!(
                 got.err(),
@@ -1465,8 +1471,8 @@ mod tests {
         }
 
         let ver = current_token_version(&state, email).await;
-        let link = purpose_token(email, TokenPurpose::ResetPassword, 3_600, SECRET, ver)
-            .expect("mint");
+        let link =
+            purpose_token(email, TokenPurpose::ResetPassword, 3_600, SECRET, ver).expect("mint");
 
         assert_eq!(
             decode_purpose_checked(&state, &link, TokenPurpose::ResetPassword).await,
@@ -1477,7 +1483,8 @@ mod tests {
         // Following it sets a password, which bumps the version.
         {
             let db = state.db.lock().await;
-            db.update_password_hash(email, "new-hash").expect("set password");
+            db.update_password_hash(email, "new-hash")
+                .expect("set password");
         }
 
         assert!(
@@ -1503,7 +1510,9 @@ mod tests {
         }
 
         let old_token = session_jwt(email, SECRET, 0).expect("mint");
-        extract(&state, &old_token).await.expect("valid before the change");
+        extract(&state, &old_token)
+            .await
+            .expect("valid before the change");
 
         {
             let db = state.db.lock().await;
@@ -1541,16 +1550,27 @@ mod tests {
 
     #[test]
     fn an_address_that_cannot_be_one_is_refused() {
-        for good in ["a@b.co", "first.last@sub.example.com", "x+tag@example.co.uk"] {
+        for good in [
+            "a@b.co",
+            "first.last@sub.example.com",
+            "x+tag@example.co.uk",
+        ] {
             assert!(validate_email(good).is_ok(), "{good} should be accepted");
         }
-        for bad in ["", "no-at-sign", "@example.com", "user@", "user@nodot",
-                    "user@.example.com", "user@example.", "two@at@example.com",
-                    "has space@example.com"] {
+        for bad in [
+            "",
+            "no-at-sign",
+            "@example.com",
+            "user@",
+            "user@nodot",
+            "user@.example.com",
+            "user@example.",
+            "two@at@example.com",
+            "has space@example.com",
+        ] {
             assert!(validate_email(bad).is_err(), "{bad} should be refused");
         }
     }
-
 
     /// Reads the status and the message out of a handler's response, because
     /// the status alone cannot tell a refused password from a refused token.
@@ -1620,7 +1640,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(msg.contains("password"), "refused for the wrong reason: {msg}");
+        assert!(
+            msg.contains("password"),
+            "refused for the wrong reason: {msg}"
+        );
         assert!(
             state
                 .db
@@ -1666,7 +1689,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(msg.contains("password must be"), "refused for the wrong reason: {msg}");
+        assert!(
+            msg.contains("password must be"),
+            "refused for the wrong reason: {msg}"
+        );
         assert_eq!(
             state
                 .db
@@ -1698,7 +1724,10 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(msg.contains("password must be"), "refused for the wrong reason: {msg}");
+        assert!(
+            msg.contains("password must be"),
+            "refused for the wrong reason: {msg}"
+        );
     }
 
     /// No path may write a credential into `users` without validating it first.
@@ -1774,7 +1803,10 @@ mod tests {
         }
         // A scan that finds nothing asserts nothing. Four: register,
         // change_password, reset_password, and the oauth callback.
-        assert_eq!(sites, 4, "expected the four credential writers, found {sites}");
+        assert_eq!(
+            sites, 4,
+            "expected the four credential writers, found {sites}"
+        );
     }
 
     /// Addresses are folded before anything looks them up, so one account
@@ -1812,7 +1844,10 @@ mod tests {
         for minted in EVERY_PURPOSE {
             let token = purpose_token("user@example.com", minted, 300, SECRET, 0).expect("mint");
             assert_eq!(
-                decode_purpose(&token, minted, SECRET).ok().map(|(sub, _)| sub).as_deref(),
+                decode_purpose(&token, minted, SECRET)
+                    .ok()
+                    .map(|(sub, _)| sub)
+                    .as_deref(),
                 Some("user@example.com"),
                 "{} must satisfy its own purpose",
                 minted.aud()
@@ -1851,7 +1886,10 @@ mod tests {
         )
         .expect("mint");
         let state = test_state();
-        assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
     }
 
     /// The exact 2FA partial token this service used to mint: `{sub, exp,
@@ -1894,7 +1932,9 @@ mod tests {
         let limit = crate::rate_limit::plan_limit("free").expect("free is capped");
 
         for _ in 0..limit + 5 {
-            extract(&state, &token).await.expect("sessions are never throttled");
+            extract(&state, &token)
+                .await
+                .expect("sessions are never throttled");
         }
         // The extractor caches the token version beside the plan, so an entry
         // does exist. What must stay at zero is the count: a session may be
@@ -1948,16 +1988,20 @@ mod tests {
         let email = "rotate@example.com";
         {
             let db = state.db.lock().await;
-            db.create_user(email, "irrelevant-hash").expect("create user");
+            db.create_user(email, "irrelevant-hash")
+                .expect("create user");
             assert_eq!(db.get_token_version(email).expect("version"), 0);
         }
 
         let old_token = session_jwt(email, SECRET, 0).expect("mint");
-        extract(&state, &old_token).await.expect("valid before the change");
+        extract(&state, &old_token)
+            .await
+            .expect("valid before the change");
 
         {
             let db = state.db.lock().await;
-            db.update_password_hash(email, "new-hash").expect("change password");
+            db.update_password_hash(email, "new-hash")
+                .expect("change password");
             assert_eq!(
                 db.get_token_version(email).expect("version"),
                 1,
@@ -1974,7 +2018,9 @@ mod tests {
         );
 
         let new_token = session_jwt(email, SECRET, 1).expect("mint");
-        extract(&state, &new_token).await.expect("a fresh token works");
+        extract(&state, &new_token)
+            .await
+            .expect("a fresh token works");
     }
 
     /// The cache is the hazard. A plan change already clears the entry; a
@@ -1986,11 +2032,14 @@ mod tests {
         let email = "stale@example.com";
         {
             let db = state.db.lock().await;
-            db.create_user(email, "irrelevant-hash").expect("create user");
+            db.create_user(email, "irrelevant-hash")
+                .expect("create user");
         }
 
         let old_token = session_jwt(email, SECRET, 0).expect("mint");
-        extract(&state, &old_token).await.expect("valid, and now cached");
+        extract(&state, &old_token)
+            .await
+            .expect("valid, and now cached");
         assert!(
             state.usage_counter.get(email).is_some(),
             "the lookup must have cached the version"
@@ -1998,7 +2047,8 @@ mod tests {
 
         {
             let db = state.db.lock().await;
-            db.update_password_hash(email, "new-hash").expect("change password");
+            db.update_password_hash(email, "new-hash")
+                .expect("change password");
         }
 
         // Deliberately skip clear_user_cache to show what it is preventing.
@@ -2019,7 +2069,10 @@ mod tests {
     async fn a_foreign_signature_is_rejected() {
         let token = session_jwt("user@example.com", "some-other-secret", 0).expect("mint");
         let state = test_state();
-        assert_eq!(extract(&state, &token).await.err(), Some(StatusCode::UNAUTHORIZED));
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
     }
 }
 
@@ -2086,7 +2139,11 @@ mod resend_tests {
             StatusCode::BAD_GATEWAY,
             "a refused send must not read as success"
         );
-        assert_eq!(sender.count(), 1, "and it must actually have been attempted");
+        assert_eq!(
+            sender.count(),
+            1,
+            "and it must actually have been attempted"
+        );
     }
 
     /// The other half. A gate that refuses every send would pass the test above
@@ -2115,7 +2172,11 @@ mod resend_tests {
             .await
             .status();
         assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(sender.count(), 0, "nothing is sent to an already verified address");
+        assert_eq!(
+            sender.count(),
+            0,
+            "nothing is sent to an already verified address"
+        );
     }
 
     /// The first use of a verification link proves the address and welcomes the
