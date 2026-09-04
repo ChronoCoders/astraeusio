@@ -2204,16 +2204,15 @@ mod mcp_tests {
         let now_ts = chrono::Utc::now().timestamp();
         {
             let db = state.db.lock().await;
-            // Two days of history for one component, all healthy.
-            for day in 0..2i64 {
-                for sample in 0..5i64 {
-                    db.insert_health_snapshot(
-                        "backend_api",
-                        now_ts - day * 86_400 - sample * 300,
-                        Some("operational"),
-                    )
+            // Two days of history for one component, all healthy. Today's
+            // samples are pinned inside today and yesterday's around midday, so
+            // the fixture covers exactly two days whatever the hour.
+            let midday_yesterday = now_ts - now_ts.rem_euclid(86_400) - 86_400 + 43_200;
+            let mut times = samples_within_today(now_ts, 5);
+            times.extend((0..5i64).map(|sample| midday_yesterday - sample * 300));
+            for ts in times {
+                db.insert_health_snapshot("backend_api", ts, Some("operational"))
                     .expect("snapshot");
-                }
             }
         }
 
@@ -2248,6 +2247,75 @@ mod mcp_tests {
             days.iter().all(|d| d["status"] == "no_data"),
             "unrecorded days must be no_data, never outage"
         );
+    }
+
+    /// A run of `count` sample times ending at now, all inside today's UTC day.
+    ///
+    /// These fixtures used to be written as `now - k * 300`, which slides into
+    /// the previous UTC day whenever the suite runs less than `k * 300` seconds
+    /// after midnight. `recorded_days` then counts a day the test did not intend
+    /// and the expected 1 or 2 is wrong: correct for all but the first forty
+    /// minutes of every day, which is why it stood until it failed at 00:13 UTC
+    /// on 2026-09-04. The clock found it, not a change to anything it covers.
+    ///
+    /// The spacing compresses to fit rather than the run reaching backwards, so
+    /// the number of days covered is a property of the fixture and not of the
+    /// hour the suite happens to run. Deriving the expected count from the
+    /// timestamps instead would only restate the handler's own arithmetic,
+    /// including the part where a day holding less than one poll interval after
+    /// the first sample contributes nothing.
+    ///
+    /// Within the first seven seconds of a UTC day there is no room even at one
+    /// second spacing, and the run starts up to seven seconds ahead of now. That
+    /// is bounded and harmless: `samples_due` measures to `now` either way, and
+    /// the samples still fall in today's bucket.
+    fn samples_within_today(now: i64, count: i64) -> Vec<i64> {
+        let day_start = now - now.rem_euclid(86_400);
+        let span = count - 1;
+        let step = ((now - day_start) / span.max(1)).clamp(1, 300);
+        let base = now.max(day_start + span * step);
+        (0..count).map(|k| base - k * step).collect()
+    }
+
+    /// The property the two fixtures below rest on, checked at the hours that
+    /// broke them rather than at whatever hour the suite happens to run.
+    ///
+    /// Without this, a fix for a bug that only appears in the first forty
+    /// minutes of a UTC day is only verified if the suite is run inside those
+    /// forty minutes, which is exactly when nobody is running it.
+    #[test]
+    fn a_fixture_run_stays_inside_one_utc_day() {
+        const MIDNIGHT: i64 = 1_788_480_000; // 20700 * 86400, a UTC midnight
+        for offset in [0i64, 3, 7, 60, 300, 780, 1_200, 2_400, 43_200, 86_399] {
+            for count in [5i64, 8] {
+                let now = MIDNIGHT + offset;
+                let times = samples_within_today(now, count);
+                assert_eq!(times.len() as i64, count, "at +{offset}s");
+                // Distinct instants, not one instant repeated. Without this the
+                // spacing floor could go to zero and the run would collapse
+                // onto a single timestamp while every other assertion here and
+                // in both fixtures carried on holding.
+                assert_eq!(
+                    times.iter().collect::<std::collections::HashSet<_>>().len() as i64,
+                    count,
+                    "{count} samples at +{offset}s are not {count} distinct instants: {times:?}"
+                );
+                for ts in &times {
+                    assert_eq!(
+                        ts.div_euclid(86_400),
+                        now.div_euclid(86_400),
+                        "{count} samples at +{offset}s produced {ts}, outside the day of {now}"
+                    );
+                }
+                // Newest first, and never further ahead of now than the seven
+                // second floor allows.
+                assert!(
+                    times[0] - now < count,
+                    "{count} samples at +{offset}s start {} ahead of now",
+                    times[0] - now
+                );
+            }
+        }
     }
 
     /// A gap in the record is downtime, not an absence of record.
@@ -2293,8 +2361,8 @@ mod mcp_tests {
         let now_ts = chrono::Utc::now().timestamp();
         {
             let db = state.db.lock().await;
-            for k in 0..8i64 {
-                db.insert_health_snapshot("noaa_dst", now_ts - k * 300, Some("operational"))
+            for ts in samples_within_today(now_ts, 8) {
+                db.insert_health_snapshot("noaa_dst", ts, Some("operational"))
                     .expect("snapshot");
             }
         }
