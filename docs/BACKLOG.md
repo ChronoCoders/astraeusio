@@ -350,6 +350,22 @@ repeated here.
   mint sites, and the mail body says one hour because a test holds the sentence and the constant
   to each other.
 
+  **The awaited welcome send is a deliberate trade, not an oversight.** It was
+  `tokio::spawn`ed, which returned the 204 immediately and made the send invisible: nothing could
+  assert that a first use sends exactly one mail and a replay sends none, which is the whole
+  property this change exists to add. Awaiting it puts a mail provider round trip inside the
+  request. Measured from the host on 2026-09-04, five GETs to `api.resend.com`: 0.126 to 0.387 s,
+  median 0.165 s. The cold connection samples are the representative ones, 0.26 s and up, because
+  `ResendSender::deliver` constructs a fresh `Resend` client on every call and so never reuses a
+  connection; a POST carrying a body sits at or above that. So roughly a quarter to a third of a
+  second added to `POST /auth/verify-email/{token}`, once per account, forever.
+
+  Accepted because the endpoint runs once in an account's life and an untestable property is worth
+  less than a third of a second. The send's result is deliberately ignored: a welcome mail that
+  does not go out must not turn a verification that did work into a failure the user sees. If that
+  latency ever matters, the answer is a queue with an observable seam, not a bare spawn, since a
+  bare spawn returns the property to being unassertable.
+
   **What it does not give, and the condition that would make that matter.** It tests the current
   state rather than spending the credential. The token itself is untouched by being used: what
   stops the second use is that the row is already `TRUE`, not that the link is dead. So for as
