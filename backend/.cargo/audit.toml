@@ -18,27 +18,39 @@ ignore = [
     # which would most likely arrive with OIDC id_token verification. Whoever
     # does that deletes this line first.
     "RUSTSEC-2023-0071",
+
+    # rkyv 0.7.46 - out-of-bounds reads on archives containing Rc/Arc
+    # (RUSTSEC-2026-0235). Pulled in by rust_decimal 1.41.0 under duckdb.
+    #
+    # Not fixable here. The advisory wants >=0.8.17, a major version, and the
+    # choice belongs to duckdb and rust_decimal rather than to this crate. There
+    # is no feature or version of duckdb available to us that drops it.
+    #
+    # Not compiled, measured 2026-09-04 against the current lockfile:
+    # `cargo tree -i rkyv --target all` prints "nothing to print", while the
+    # same command for `rsa` prints a real tree, so the absence is the tool
+    # working rather than the tool failing. rust_decimal's own `rkyv` feature is
+    # what is off.
+    #
+    # This is the weaker of the two arguments in this file, and deliberately so.
+    # Unlike quinn-proto, whose parent `quinn` is absent from the graph
+    # entirely, rkyv's parent rust_decimal IS compiled under duckdb. A feature
+    # change in duckdb or rust_decimal, ours or theirs on a version bump, makes
+    # rkyv live without anything in this repository looking different. So this
+    # entry is the one to re-check after any dependency update, and the check is
+    # the cargo tree line above rather than a reread of this comment.
+    #
+    # Ignored so `cargo audit` returns green and the next HIGH is visible on its
+    # own rather than buried under a permanent red that everyone learns to scroll
+    # past.
+    "RUSTSEC-2026-0235",
 ]
 
-# Not ignored, and `cargo audit` exits non-zero on both today. Recorded here
-# rather than acted on, because whether to ignore them is a decision and this
-# file is where the evidence for it belongs.
-#
-#   RUSTSEC-2026-0185  quinn-proto 0.11.14, CVSS 7.5, fixed in 0.11.15
-#   RUSTSEC-2026-0235  rkyv 0.7.46, fixed in 0.8.17
-#
-# Checked 2026-08-31: neither is compiled. `cargo tree -i quinn-proto` and
-# `cargo tree -i rkyv` both report nothing, with `--target all`, so both are
-# lockfile entries for optional dependencies that no enabled feature turns on.
-# The two are not equally safe, though, and the difference is the part worth
-# writing down:
-#
-#   quinn-proto has no path into the build at all. Its parent `quinn` is absent
-#   too, because reqwest's `http3` feature is off in both reqwest versions in
-#   the tree. Nothing beneath it is built.
-#
-#   rkyv is weaker. Its parent `rust_decimal 1.41.0` IS compiled, under duckdb,
-#   and only rust_decimal's own `rkyv` feature is off. A duckdb or rust_decimal
-#   feature change, ours or theirs on a version bump, is enough to make it live
-#   without anything in this repository looking different. It is the one to
-#   re-check after a dependency update rather than the CVSS 7.5.
+# RUSTSEC-2026-0185, quinn-proto, CVSS 7.5: fixed rather than ignored on
+# 2026-09-04 by `cargo update -p quinn-proto`, 0.11.14 -> 0.11.17, lockfile
+# only. It had never been compiled either, by the same measurement, but a
+# lockfile line is cheaper than carrying a reachability argument into every
+# future audit run. That update added eight transitive crates, chacha20,
+# cpufeatures, getrandom 0.4.3, r-efi, rand 0.10.2, rand_core 0.10.1,
+# rand_pcg 0.10.2, and `cargo tree -i --target all` reports every one of them
+# unreachable too, so nothing new reaches the binary.
