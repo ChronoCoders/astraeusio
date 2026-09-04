@@ -396,6 +396,25 @@ async fn callback_inner(
         }
     };
 
+    // The same structural rule `register` applies, and for the same reason: this
+    // address becomes the primary key of `users`, the `sub` of every session
+    // token, and the recipient of every mail we send that account. The provider
+    // establishes that the address is owned, which is a different claim from it
+    // being an address at all, and `normalise_email` only trims and lowercases.
+    //
+    // Until 2026-09-03 this was the one path that wrote a credential into
+    // `users` without validating it. It was not visible from the list of
+    // `validate_email` call sites, because a list of call sites is a list of
+    // places already covered.
+    //
+    // Its own error code rather than `oauth_failed`, so a provider returning
+    // something malformed is one log line to diagnose instead of being
+    // indistinguishable from a failed token exchange.
+    if let Err(reason) = auth::validate_email(&email) {
+        warn!("oauth {provider} returned an unusable address: {reason}");
+        return error_redirect(&app_url, "email_invalid");
+    }
+
     // Resolve account: existing → sign in; new → create password-less account.
     let totp_enabled = match s.db.lock().await.find_user_by_email(&email) {
         Ok(Some(u)) => u.totp_enabled,

@@ -1517,6 +1517,232 @@ mod tests {
         }
     }
 
+
+    /// Reads the status and the message out of a handler's response, because
+    /// the status alone cannot tell a refused password from a refused token.
+    async fn status_and_error(resp: axum::response::Response) -> (StatusCode, String) {
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let msg = serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .and_then(|v| v["error"].as_str().map(str::to_string))
+            .unwrap_or_default();
+        (status, msg)
+    }
+
+    // The four tests below exercise the call sites rather than the rules. The
+    // two tests above assert `validate_password` and `validate_email` behave,
+    // and say nothing whatever about whether any handler calls them: a rule
+    // tested but unapplied passes every test while the defect ships. That was
+    // the state of this file until 2026-09-03.
+    //
+    // Each asserts the message as well as the status, because every one of
+    // these handlers has another way to reach a 4xx, and a test that only reads
+    // the status passes when the refusal came from the wrong check.
+
+    #[tokio::test]
+    async fn register_refuses_an_address_that_cannot_be_one() {
+        let state = test_state();
+        let (status, msg) = status_and_error(
+            register(
+                State(state.clone()),
+                Json(RegisterRequest {
+                    email: "no-at-sign".to_string(),
+                    password: "a-perfectly-fine-password".to_string(),
+                }),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(msg.contains("email"), "refused for the wrong reason: {msg}");
+        assert!(
+            state
+                .db
+                .lock()
+                .await
+                .find_user_by_email("no-at-sign")
+                .expect("lookup")
+                .is_none(),
+            "the address was refused and stored anyway"
+        );
+    }
+
+    #[tokio::test]
+    async fn register_refuses_a_password_it_could_never_be_changed_to() {
+        let state = test_state();
+        let email = "shortpw@example.com";
+        let (status, msg) = status_and_error(
+            register(
+                State(state.clone()),
+                Json(RegisterRequest {
+                    email: email.to_string(),
+                    password: "short".to_string(),
+                }),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(msg.contains("password"), "refused for the wrong reason: {msg}");
+        assert!(
+            state
+                .db
+                .lock()
+                .await
+                .find_user_by_email(email)
+                .expect("lookup")
+                .is_none(),
+            "AUD-016 again: an account created with a password it could not be changed to"
+        );
+    }
+
+    #[tokio::test]
+    async fn change_password_refuses_a_short_new_password() {
+        let state = test_state();
+        let email = "changer@example.com";
+        state
+            .db
+            .lock()
+            .await
+            .create_user(email, "stored-hash")
+            .expect("create user");
+
+        let claims = AuthClaims {
+            sub: email.to_string(),
+            exp: 0,
+            aud: AUD_SESSION.to_string(),
+            ver: 0,
+            auth_type: AuthType::Jwt,
+        };
+        let (status, msg) = status_and_error(
+            change_password(
+                State(state.clone()),
+                claims,
+                Json(ChangePasswordRequest {
+                    // Deliberately correct-looking, so a 401 here would mean
+                    // the length rule did not run before the credential check.
+                    current_password: "whatever".to_string(),
+                    new_password: "short".to_string(),
+                }),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(msg.contains("password must be"), "refused for the wrong reason: {msg}");
+        assert_eq!(
+            state
+                .db
+                .lock()
+                .await
+                .find_user_by_email(email)
+                .expect("lookup")
+                .expect("user")
+                .password_hash,
+            "stored-hash",
+            "the stored hash moved on a request that was refused"
+        );
+    }
+
+    #[tokio::test]
+    async fn reset_password_refuses_a_short_new_password() {
+        let state = test_state();
+        let (status, msg) = status_and_error(
+            reset_password(
+                State(state.clone()),
+                Json(ResetPasswordRequest {
+                    // Not a real token. A 400 here would mean the token was
+                    // consumed before the password was looked at.
+                    token: "not-a-token".to_string(),
+                    new_password: "short".to_string(),
+                }),
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(msg.contains("password must be"), "refused for the wrong reason: {msg}");
+    }
+
+    /// No path may write a credential into `users` without validating it first.
+    ///
+    /// Enumerated from what writes the credential, not from where the validator
+    /// is called. A list of call sites is a list of places already covered, so
+    /// it cannot contain the site that has none: that list held four entries and
+    /// looked complete while `oauth.rs` stored a provider-supplied address that
+    /// never saw `validate_email`.
+    ///
+    /// This is the weaker of the two guards here and is meant as a net for a
+    /// path added later, not as proof the existing ones work. It reads the text
+    /// of the enclosing function and cannot tell a validator that runs from one
+    /// that sits in a branch never taken. Item 1 of this cleanup showed the
+    /// failure mode directly: a scan of the `component:` field passed while a
+    /// literal sat in the loop above it, because a scan reads the line it is
+    /// pointed at and not its surroundings. The four behavioural tests above are
+    /// what actually holds the existing sites.
+    #[test]
+    fn no_credential_reaches_the_users_table_unvalidated() {
+        // Writer methods, not the `Store` methods underneath them, because the
+        // handlers go through the writer and the tests go direct.
+        //
+        // Written without whitespace, and matched against a source with its
+        // whitespace removed. The first version of this scanned the raw text and
+        // found three of the four sites: `.writer.create_oauth_user(` is spread
+        // over three lines in oauth.rs by rustfmt, so the one call this test was
+        // written for was the one it could not see, and it passed. Same shape as
+        // the landing page claim a grep missed because the sentence wrapped. A
+        // text sweep cannot claim a count until whitespace stops being part of
+        // the pattern.
+        const WRITES: [&str; 3] = [
+            ".writer.create_user(",
+            ".writer.create_oauth_user(",
+            ".writer.update_password(",
+        ];
+        let mut sites = 0;
+        for (file, whole) in [
+            ("auth.rs", include_str!("auth.rs")),
+            ("oauth.rs", include_str!("oauth.rs")),
+        ] {
+            // Production code only. A test that sets up a fixture user is not a
+            // path a request can take.
+            let src = whole.split("#[cfg(test)]").next().unwrap_or(whole);
+            let flat: String = src.chars().filter(|c| !c.is_whitespace()).collect();
+
+            let mut found_here = 0;
+            for write in WRITES {
+                for (i, _) in flat.match_indices(write) {
+                    let start = flat[..i]
+                        .rfind("asyncfn")
+                        .expect("a credential write outside any function");
+                    let body = &flat[start..i];
+                    let name = flat[start + "asyncfn".len()..]
+                        .split(['(', '<'])
+                        .next()
+                        .unwrap_or("?");
+                    found_here += 1;
+                    assert!(
+                        body.contains("validate_password(") || body.contains("validate_email("),
+                        "{file}: {name} writes a credential with no validation before it. \
+                         Call the same rule `register` calls, or this is the fifth site."
+                    );
+                }
+            }
+            // Per file, not only in total. auth.rs supplies three on its own, so
+            // a total of four stays satisfied while the oauth site disappears.
+            assert!(
+                found_here > 0,
+                "{file} has no credential write; either it moved or this scan stopped seeing it"
+            );
+            sites += found_here;
+        }
+        // A scan that finds nothing asserts nothing. Four: register,
+        // change_password, reset_password, and the oauth callback.
+        assert_eq!(sites, 4, "expected the four credential writers, found {sites}");
+    }
+
     /// Addresses are folded before anything looks them up, so one account
     /// cannot become two by capitalisation, and a reset issued for one spelling
     /// reaches the row that exists (AUD-019).

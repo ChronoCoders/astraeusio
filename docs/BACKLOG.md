@@ -277,6 +277,28 @@ next to the next instance of it.
   solar cycle, and quiet periods lengthen towards solar minimum, so it should be re-derived from a
   year of data.
 
+- Closed. **The password and address rules were tested and their application was not.**
+  `the_password_rule_is_the_same_wherever_a_password_is_set` and
+  `an_address_that_cannot_be_one_is_refused` asserted the two validators behave, and no test asserted
+  any handler called them. A rule tested but unapplied passes every test while the defect ships.
+
+  Enumerating from `validate_password` and `validate_email` found four call sites and looked
+  complete: `register` twice, `change_password`, `reset_password`. Enumerating instead from what
+  writes a credential into `users`, back through `db_writer`, found five. The fifth was `oauth.rs`,
+  which stored a provider-supplied address that never saw `validate_email`. A list of call sites is a
+  list of places already covered, so it cannot contain the site that has none. The sharper form of the
+  rule: enumerate from the thing being protected, not from the protection.
+
+  The OAuth callback now applies the same rule, under its own `email_invalid` code rather than
+  `oauth_failed`, so a provider returning something malformed is one log line to diagnose. An
+  exemption declared in a test whose purpose is catching unguarded entry points is the line the next
+  person adding a provider copies, which is why it was closed rather than recorded. Four behavioural
+  tests hold the four handler sites, asserting the message and not only the status because each has
+  another route to a 4xx. `no_credential_reaches_the_users_table_unvalidated` is the net for a sixth
+  path and is the weaker guard: it reads text, and its first version found three of four because
+  rustfmt spreads the oauth call over three lines, so it matches against whitespace-stripped source
+  now. Eight mutations, all caught.
+
 - Closed. **Both host checks enumerated components from the payload they were checking.**
   `component-check.sh` looped over the components `/api/health` returned and asked of each whether it
   was fresh. `poller-check.sh` looked a mapped component up among the ones it was returned, and its

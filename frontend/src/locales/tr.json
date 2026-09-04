@@ -515,7 +515,8 @@
       "access_denied": "Giriş iptal edildi.",
       "bad_state": "Giriş oturumunuzun süresi doldu. Lütfen tekrar deneyin.",
       "provider_unavailable": "Bu giriş yöntemi kullanılamıyor.",
-      "email_unverified": "Sağlayıcı e-postanız doğrulanmamış. Doğrulayın veya e-posta ile giriş yapın."
+      "email_unverified": "Sağlayıcı e-postanız doğrulanmamış. Doğrulayın veya e-posta ile giriş yapın.",
+      "email_invalid": "Sağlayıcınız kullanamayacağımız bir adres gönderdi. Bunun yerine e-posta ile giriş yapın."
     }
   },
   "plan": {
