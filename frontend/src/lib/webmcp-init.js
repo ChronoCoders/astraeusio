@@ -70,7 +70,7 @@ const TOOLS = [
     execute: () => apiFetch('/api/anomalies'),
   },
   {
-    name: 'get_neo_close_approaches',
+    name: 'get_neo',
     title: 'Near-Earth Object Approaches',
     description: 'Get NASA near-Earth object close approaches for the next 7 days with miss distance (lunar), diameter, velocity, and hazard flag. Requires authentication.',
     inputSchema: { type: 'object', properties: {} },
