@@ -420,7 +420,8 @@
       "access_denied": "Sign-in was cancelled.",
       "bad_state": "Your sign-in session expired. Please try again.",
       "provider_unavailable": "This sign-in method is not available.",
-      "email_unverified": "Your provider email is not verified. Verify it or sign in with email."
+      "email_unverified": "Your provider email is not verified. Verify it or sign in with email.",
+      "email_invalid": "Your provider sent an address we cannot use. Sign in with email instead."
     }
   },
   "status": {
