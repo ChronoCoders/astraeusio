@@ -300,16 +300,40 @@ next to the next instance of it.
   is now `get_neo`, the name the backend uses and the one the manifest test covers; nothing referenced
   the old name outside the files changed here and the server card below.
 
-  Open. `frontend/public/.well-known/mcp/server-card.json` is a fifth list, published at
-  `/.well-known/mcp/` and naming `https://astraeusio.com/mcp` as its transport. It advertises eleven
-  tools where the endpoint serves seven. Four are fiction: `get_xray_flux`, `get_imf`, `get_dst_index`
-  and `get_space_weather_alerts` have no arm in the dispatch and never had one. Two more are the same
-  tools under stale names, `get_kp_index` for `get_current_kp` and `get_neo_close_approaches` for
-  `get_neo`. An agent that reads the card and calls any of the six gets "unknown tool" from a name the
-  site published. Removing the four claims or building the tools is a product decision, so it is
-  recorded rather than taken. Whatever is decided, the card belongs in
-  `every_advertised_mcp_tool_answers` alongside `MCP_TOOLS`, since that test is exactly what would
-  have caught this had it known the card existed.
+  `frontend/public/.well-known/mcp/server-card.json` was a fifth list, published at `/.well-known/mcp/`
+  and naming `https://astraeusio.com/mcp` as its transport. It advertised eleven tools where the
+  endpoint serves seven. Four were fiction: `get_xray_flux`, `get_imf`, `get_dst_index` and
+  `get_space_weather_alerts` had no arm in the dispatch and never had one. Two more were the same tools
+  under stale names, `get_kp_index` for `get_current_kp` and `get_neo_close_approaches` for `get_neo`.
+  An agent reading the card and calling any of the six got "unknown tool" from a name the site
+  published. It was found by accident, while grepping for callers of a name being changed, after three
+  passes over the tool lists had missed it: being outside the Rust tree is the whole reason it
+  survived.
+
+  The card now carries the manifest's seven names and descriptions verbatim, and
+  `the_server_card_advertises_what_the_endpoint_serves` holds it there in both directions. It parses
+  the card rather than scanning it. The sibling scans strip whitespace before matching because a
+  wrapped line defeats a text search, which has cost two guards here; a JSON parser makes the question
+  moot, since whitespace is not part of the document and no formatting of the file can hide an entry.
+  It also asserts the transport still points at `/mcp`, because if the card is repointed the two lists
+  stop being about one thing and the comparison would keep passing while meaning nothing.
+
+  The rest of `.well-known` was checked for the same shape, since the card was found by accident and
+  siblings were likely. `openapi.json` declares 23 paths and every one is mounted, a documented subset
+  rather than a claim. The four `agent-skills` SKILL.md files name 14 endpoints and all 14 are mounted.
+  Two findings, both recorded rather than taken:
+
+- No ID. **`agent-skills/index.json` declares a sha256 for each SKILL.md and all four are wrong.**
+  Not a line ending artefact: the files are LF on disk and neither the LF nor the CRLF hash matches
+  any declared value. The index publishes an integrity claim that fails for every entry it makes, so
+  a consumer that checks it rejects all four skills and one that does not check gains nothing. The fix
+  is not to recompute the four by hand, which drifts again on the next edit, but to generate the block
+  or assert it, the way the server card is asserted now.
+- No ID. **`http-message-signatures-directory` publishes an Ed25519 public key that nothing uses.**
+  `kid` is `astraeusio-bot-2026`. Nothing in `backend/` or `frontend/src/` signs an HTTP message; the
+  only match for ed25519 in the tree is a transitive entry in `Cargo.lock`. So the site tells a crawler
+  where to verify signatures it never produces. Whether to sign or to remove the directory is a product
+  decision, and it should not be settled by whoever next tidies the folder.
 
 - Closed. **The password and address rules were tested and their application was not.**
   `the_password_rule_is_the_same_wherever_a_password_is_set` and

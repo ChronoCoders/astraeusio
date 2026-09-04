@@ -2672,6 +2672,84 @@ mod mcp_tests {
         );
     }
 
+    /// The published discovery card advertises what this endpoint actually
+    /// serves.
+    ///
+    /// `frontend/public/.well-known/mcp/server-card.json` is a static file that
+    /// names `https://astraeusio.com/mcp` as its transport, so it is a manifest
+    /// for this handler written outside this crate. It sat at eleven tools while
+    /// the endpoint served seven: four were fiction and had never had an arm,
+    /// and two more were stale names for tools that do exist. An agent reading
+    /// the card and calling any of the six got "unknown tool" from a name the
+    /// site itself published.
+    ///
+    /// `every_advertised_mcp_tool_answers` is exactly the guard for that and did
+    /// not catch it, because it enumerates from `MCP_TOOLS` and this is a second
+    /// manifest for the same endpoint. Being outside the Rust tree is why it
+    /// survived three passes over the tool lists.
+    ///
+    /// Parsed rather than scanned. The sibling scans here strip whitespace
+    /// before matching because a wrapped line defeats a text search, and that has
+    /// cost two guards in this repository. A JSON parser makes the question moot:
+    /// whitespace is not part of the document, so there is no formatting of this
+    /// file that can hide an entry from this test. Text scanning is the fallback
+    /// for source that has no parser, and this file has one.
+    #[test]
+    fn the_server_card_advertises_what_the_endpoint_serves() {
+        const CARD: &str =
+            include_str!("../../frontend/public/.well-known/mcp/server-card.json");
+        let card: serde_json::Value = serde_json::from_str(CARD).expect("the card is json");
+
+        // The card is only this endpoint's manifest while it points here. If the
+        // transport moves, the comparison below is comparing two unrelated
+        // things and should be revisited rather than quietly kept passing.
+        let transport = card["transport"][0]["url"].as_str().unwrap_or_default();
+        assert!(
+            transport.ends_with("/mcp"),
+            "the card's transport is {transport}, which is not this handler; \
+             this test is comparing the wrong two lists"
+        );
+
+        let mut published: Vec<(String, String)> = card["capabilities"]["tools"]
+            .as_array()
+            .expect("the card lists tools")
+            .iter()
+            .map(|t| {
+                (
+                    t["name"].as_str().unwrap_or_default().to_string(),
+                    t["description"].as_str().unwrap_or_default().to_string(),
+                )
+            })
+            .collect();
+
+        // A card that parsed to nothing would agree with an empty manifest.
+        assert!(
+            published.len() >= 7,
+            "the card lists {} tools, too few to conclude anything from",
+            published.len()
+        );
+
+        let mut advertised = advertised_tools();
+        published.sort();
+        advertised.sort();
+
+        let only_on_the_card: Vec<&(String, String)> =
+            published.iter().filter(|t| !advertised.contains(t)).collect();
+        assert!(
+            only_on_the_card.is_empty(),
+            "the card publishes tools this endpoint does not serve: {only_on_the_card:?}. \
+             Every name here reaches a caller as a promise."
+        );
+
+        let only_in_the_manifest: Vec<&(String, String)> =
+            advertised.iter().filter(|t| !published.contains(t)).collect();
+        assert!(
+            only_in_the_manifest.is_empty(),
+            "the endpoint serves tools the card does not publish: {only_in_the_manifest:?}. \
+             Discovery is how an agent finds these, so an omission hides them."
+        );
+    }
+
     /// The tools the manifest calls unauthenticated stay unauthenticated.
     ///
     /// Taken from the manifest's own wording rather than from a list here. The
