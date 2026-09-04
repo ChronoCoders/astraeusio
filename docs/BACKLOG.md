@@ -322,6 +322,41 @@ repeated here.
   `email.delivery_delayed`, `email.delivered` and `email.failed`, so the asynchronous half does
   report this case directly.
 
+- No ID. **The email verification token is replayable for its full 24 hour life, and every use
+  sends another welcome mail.** Found 2026-09-04 while proving the AUD-017 recovery path. One
+  token produced three welcome mails: a browser opening the emailed link posted at 17:52:57 and
+  the mail went at 17:52:58, then two replays of the same token at 17:53:23 each returned 204 and
+  each sent another at 17:53:27. Nothing about the token changes when it is used.
+
+  This is the property AUD-018 gave the password reset link, and verification never got it. Reset
+  is single use because `update_password_hash` bumps `token_version` in the same statement that
+  writes the hash, and `decode_purpose_checked` refuses a purpose token whose `ver` no longer
+  matches the account. `verify_email` writes `email_verified` and touches no counter.
+
+  **The same mechanism is wrong here.** `token_version` is shared between purpose tokens and
+  session JWTs: the session extractor rejects a session whose `ver` is behind. Bumping it on
+  verification would sign the account out at the moment it verifies, and would break the page
+  doing it, since `VerifyEmailPage` refreshes `/api/user/me` with the stored session token
+  immediately after the 204. Signing a user out is right for a password change and wrong for the
+  one action we most want people to complete.
+
+  **Proposed instead, not yet done:** narrow the update to
+  `UPDATE users SET email_verified = TRUE WHERE email = ? AND email_verified IS NOT TRUE`, return
+  rows affected, and let the handler send the welcome mail only when it is 1, answering 409
+  otherwise, which is what `resend_verification` already answers for an account that is already
+  verified. The statement then is the transition test, so it is atomic rather than a read followed
+  by a write, it needs no column and no migration, and it costs the session nothing. What it does
+  not give is a spent credential: an account manually un-verified inside the token's 24 hours
+  could be verified again by the old link. Nothing in the product un-verifies an account, only a
+  direct database edit does, so that is a narrow gap, and closing it properly means a purpose
+  scoped counter beside `token_version` rather than reusing it.
+
+  **The welcome mail should not fire on a repeat regardless of how the token is fixed.** It is the
+  amplification: one captured link is one mail per request, unauthenticated, for 24 hours. A
+  welcome mail to somebody already verified is also a spam complaint waiting to happen, and a
+  complaint puts the address on Resend's suppression list, which is exactly what leaves an account
+  unable to recover in the finding above. The two defects feed each other.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
