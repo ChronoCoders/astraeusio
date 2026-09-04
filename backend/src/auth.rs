@@ -361,8 +361,18 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
             {
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
+                // The 201 stays whatever the send does. A suppressed address at
+                // sign up is real, but this is not where the user asks the
+                // question: they are told to check their mail, find nothing,
+                // and press resend, and resend is the endpoint that answers.
+                // Putting the answer here too would mean two places to keep in
+                // step for one fact. Logged so it is not invisible.
                 tokio::spawn(async move {
-                    mailer::send_verification_email(mc.as_ref(), &email, &url).await;
+                    if mailer::send_verification_email(mc.as_ref(), &email, &url).await
+                        != mailer::SendOutcome::Sent
+                    {
+                        warn!("mailer: sign up verification mail for {email} did not go out");
+                    }
                 });
             }
             StatusCode::CREATED.into_response()
@@ -581,11 +591,16 @@ pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) 
             // Awaited rather than spawned. A spawned send is unobservable, so
             // nothing could assert that a first use sends exactly one mail and
             // a replay sends none, which is the property this handler now
-            // carries. The result is deliberately ignored: a welcome mail that
-            // does not go out is not a reason to tell someone their address
-            // failed to verify when it did.
-            if let Some(ref mc) = s.mailer {
-                mailer::send_welcome_email(mc.as_ref(), &email, &s.app_url).await;
+            // carries. The outcome does not change the response, because a
+            // welcome mail that does not go out is no reason to tell someone
+            // their address failed to verify when it did, but it is logged: a
+            // suppressed welcome is the first visible sign that an address has
+            // stopped accepting anything.
+            if let Some(ref mc) = s.mailer
+                && mailer::send_welcome_email(mc.as_ref(), &email, &s.app_url).await
+                    != mailer::SendOutcome::Sent
+            {
+                warn!("mailer: welcome mail for {email} did not go out");
             }
             StatusCode::NO_CONTENT.into_response()
         }
@@ -663,18 +678,42 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
     // survivable while verification gates nothing and is not once it gates
     // anything: this mail is the only way back for an account that is locked
     // out, and "we sent it" has to mean the provider took it.
-    if !mailer::send_verification_email(mc.as_ref(), &claims.sub, &url).await {
-        return (
+    //
+    // "Took it" was still not enough. On 2026-09-04 the provider accepted a
+    // message for a suppressed address, dropped it, and this endpoint answered
+    // 204. The three outcomes get three answers because the way out of each is
+    // different.
+    match mailer::send_verification_email(mc.as_ref(), &claims.sub, &url).await {
+        mailer::SendOutcome::Sent => StatusCode::NO_CONTENT.into_response(),
+
+        // Nothing to retry: the provider will not deliver here until somebody
+        // clears the address. 422 rather than 502, which would claim our own
+        // fault, or 409, which already means the address is proven. The copy
+        // names a mailbox rather than an action the account holder can take,
+        // because there is no change-email path in this codebase: support is
+        // not the fallback here, it is the only route.
+        mailer::SendOutcome::Suppressed => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "error": "address_rejects_mail",
+                "email": claims.sub,
+                "detail": "Mail to this address bounced, so our provider has stopped \
+                           delivering to it and the verification link cannot arrive. \
+                           Email hello@astraeusio.com from an address you can read and \
+                           we will reset it.",
+            })),
+        )
+            .into_response(),
+
+        mailer::SendOutcome::Failed => (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({
                 "error": "verification_email_failed",
                 "detail": "the email provider did not accept the message, nothing was sent",
             })),
         )
-            .into_response();
+            .into_response(),
     }
-
-    StatusCode::NO_CONTENT.into_response()
 }
 
 // ── 2FA setup / verify / disable ─────────────────────────────────────────────
@@ -1097,8 +1136,19 @@ pub async fn forgot_password(
         let url = format!("{}/reset-password?token={}", s.app_url, token);
         let mc = mc.clone();
         let email = requested.clone();
+        // The 204 above is unconditional on purpose: a status that varied
+        // with whether the address exists is an account enumeration oracle.
+        // That argument covers the status code and never covered throwing the
+        // result away, which is what this used to do. Being straight about the
+        // limit: nothing aggregates this line, so "an operator can see it"
+        // means "it is in the backend log". A per-address record that something
+        // could alert on is the durable half and it does not exist yet.
         tokio::spawn(async move {
-            mailer::send_password_reset_email(mc.as_ref(), &email, &url).await;
+            if mailer::send_password_reset_email(mc.as_ref(), &email, &url).await
+                != mailer::SendOutcome::Sent
+            {
+                warn!("mailer: password reset mail for {email} did not go out");
+            }
         });
     }
     StatusCode::NO_CONTENT.into_response()
@@ -2259,6 +2309,58 @@ mod resend_tests {
             1,
             "and the replay must not send a second welcome mail"
         );
+    }
+
+    /// A suppressed address is refused, and nothing is sent to it.
+    ///
+    /// The provider accepts a message for an address on its own suppression
+    /// list, drops it, and answers success, so "the provider took it" was never
+    /// the same as "the provider will deliver it". On 2026-09-04 that gap told
+    /// an account its recovery mail was on the way when nothing had been sent.
+    #[tokio::test]
+    async fn a_suppressed_address_is_refused_and_nothing_is_sent() {
+        let email = "gone@example.com";
+        let sender = Arc::new(TestSender::suppressing(email));
+        let state = state_with(sender.clone());
+        {
+            let db = state.db.lock().await;
+            db.create_user(email, "hash").expect("create");
+        }
+
+        let resp = resend_verification(State(state), claims_for(email)).await;
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let body: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(body["error"], "address_rejects_mail");
+        assert!(
+            body["detail"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("hello@astraeusio.com"),
+            "the reader is told where to write, since there is no way for them \
+             to change the address themselves: {body}"
+        );
+        assert_eq!(
+            sender.count(),
+            0,
+            "nothing may be sent to an address the provider has stopped delivering to"
+        );
+    }
+
+    /// An address that is not on the list still sends.
+    ///
+    /// The other direction. A check that refused everything would satisfy the
+    /// test above while breaking every account that can still be reached.
+    #[tokio::test]
+    async fn an_address_not_on_the_list_still_sends() {
+        let email = "fine@example.com";
+        let sender = Arc::new(TestSender::suppressing("somebody-else@example.com"));
+        let status = resend_status(sender.clone(), email).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(sender.recipients(), vec![email.to_string()]);
     }
 
     /// The lifetime the mail claims and the lifetime the token has must be the

@@ -287,6 +287,49 @@ repeated here.
   to claim a send that the provider will not make. Until then any account whose address bounces
   once is permanently unable to recover, and is told the opposite.
 
+  **The synchronous half is closed.** `ResendSender::deliver` asks
+  `GET /suppressions/{email}` before every send and returns a three-state `SendOutcome` instead of
+  a `bool`, so a caller can tell "nothing was sent and retrying is pointless" from "the attempt
+  failed". The check sits behind the `Sender` trait rather than at the call sites, because the
+  thing being protected is the claim that mail was sent, that claim is a `SendOutcome::Sent`, and
+  only `deliver` can construct one. `only_deliver_can_claim_a_message_was_sent` and
+  `no_caller_outside_the_mailer_constructs_an_outcome` hold that shape, so a sixth mail path added
+  later is covered by existing rather than by somebody remembering.
+
+  `resend_verification` answers 422 `address_rejects_mail` and names `hello@astraeusio.com`. The
+  procedure behind that copy is in `docs/RUNBOOK.md` under "An account cannot receive our mail",
+  written in the same change: copy that points at support without support knowing what to do is
+  worse than no copy.
+
+  **A lookup that cannot be answered sends anyway, deliberately.** One attempt, two second
+  timeout, no retry. Refusing to send because the provider is unreachable would put a false
+  failure on the recovery path in place of the false success, and the user has no way to tell one
+  from the other or to act on either. It is also what the code did before this check existed, so
+  an outage degrades to the old behaviour rather than to a new one. The `Unknown` case logs, since
+  "we did not check" and "we checked and it was clear" must not look the same afterwards.
+  `an_unanswered_lookup_does_not_refuse_the_send` pins it, and is the weakest test in that file:
+  the branch only runs with a network, so it asserts the shape of the source rather than the
+  behaviour.
+
+  **Registration was left alone, as a decision rather than an oversight.** A suppressed address at
+  sign up still answers 201 and still tells the reader to check their mail. That is not where the
+  question gets asked: they look, find nothing, and press resend, and resend is the endpoint that
+  answers. Putting the answer in both places would be two things to keep in step for one fact. The
+  send is logged so it is not invisible.
+
+  **Password reset keeps its 204 and stops discarding the outcome.** The unconditional 204 is
+  deliberate and stays, because a status that varied with whether the address exists is an account
+  enumeration oracle. That argument only ever covered the status code, never throwing the result
+  away. Stating the limit plainly: nothing aggregates the new log line, so "an operator can see
+  it" means "it is in the backend log". A per-address record that something could alert on is the
+  durable half and it does not exist yet.
+
+  **What is still open under this finding** is the webhook: `email.suppressed`, `email.bounced`,
+  `email.complained` and `email.delivery_delayed`, Svix signature verification over the raw body,
+  a per-address outcome store, and `deliver` returning the provider message id so an event can be
+  joined back to a send. The pre-check stops the endpoint lying in the moment; only the webhook
+  makes the system know.
+
   **Three paths, one defect, one `Sender`.** All four mail paths run through the same
   `ResendSender::deliver`, which maps `Ok(_)` to `true`, and Resend answers `Ok` for a suppressed
   recipient. They differ only in how much of the outcome they keep, and every one of them is wrong
@@ -321,6 +364,31 @@ repeated here.
   dedicated `email.suppressed` event alongside `email.bounced`, `email.complained`,
   `email.delivery_delayed`, `email.delivered` and `email.failed`, so the asynchronous half does
   report this case directly.
+
+- No ID. **An account cannot change its own email address, so a mistyped one is unrecoverable
+  without an operator.** Found 2026-09-04 while writing the copy for a suppressed address. There
+  is no change-email handler anywhere in the codebase: `users.email` is the primary key, it is
+  written once at registration or by the OAuth path, and nothing else ever updates it.
+
+  The consequence only became visible when the copy had to be written. A user whose address is
+  wrong or dead cannot verify, cannot reset a password, and cannot correct the address, because
+  every route back runs through mail sent to the address that does not work. That is why the
+  refusal for a suppressed address says "email hello@astraeusio.com and we will reset it" rather
+  than "try another address": the second sentence would describe something the product cannot do.
+  A support mailbox is not a fallback here, it is the only path, and it is a manual one, so every
+  such account costs a person and a `DELETE /suppressions/{id}`.
+
+  Not scoped here, and it is more than one endpoint. Changing the address means proving the new
+  one before the old one stops working, which is a second verification token bound to a pending
+  address rather than to the account, a decision about whether the old address is told, and a
+  primary key that is currently the thing being changed. The last of those is the real cost: every
+  table that references a user does so by `user_email`, so either the column stops being the key
+  or the change cascades across `api_keys`, `webhooks`, `usage_records`, `email_alerts` and
+  `custom_anomaly_rules`.
+
+  Until it exists, the runbook procedure under "An account cannot receive our mail" is the
+  product's only answer, and it is worth knowing that the answer scales with a human rather than
+  with the user count.
 
 - No ID. **The email verification token is replayable for its full 24 hour life, and every use
   sends another welcome mail.** Found 2026-09-04 while proving the AUD-017 recovery path. One

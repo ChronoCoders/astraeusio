@@ -196,6 +196,65 @@ may raise a tier and this whole procedure goes away.
 
 ---
 
+## An account cannot receive our mail
+
+The symptom from the user's side is that nothing arrives: no verification link,
+no password reset. The symptom from ours is `POST /auth/resend-verification`
+answering **422** with `"error": "address_rejects_mail"`, or a backend log line
+reading `mailer: ... not sent, <address> is on the provider suppression list`.
+
+Resend keeps a suppression list. An address that hard bounces once goes on it,
+and every later send to that address is accepted by the API, dropped, and
+reported as success. Before 2026-09-04 nothing checked the list, so the endpoint
+answered 204 while nothing was sent; now the send is refused before it is
+attempted and the user is told to write to `hello@astraeusio.com`. That is the
+mail that lands here.
+
+**Why it needs a person.** There is no change-email path in the product. An
+account whose address is wrong or dead cannot be recovered by the account
+holder, so this procedure is the only route back.
+
+Check whether the address is really listed. A 200 means listed, a 404 means it
+is not and the problem is elsewhere:
+
+```bash
+K=$(grep -E '^RESEND_API_KEY=' /opt/astraeusio/backend/.env | cut -d= -f2- | tr -d '\r')
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $K" \
+  "https://api.resend.com/suppressions/someone@example.com"
+```
+
+Read the record to get its id and see why it was listed. `origin` is `bounce`
+for a hard rejection and `complaint` when the recipient marked us as spam:
+
+```bash
+curl -s -H "Authorization: Bearer $K" \
+  "https://api.resend.com/suppressions/someone@example.com"
+```
+
+Clear it, then have the user press resend:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X DELETE -H "Authorization: Bearer $K" \
+  "https://api.resend.com/suppressions/<id>"
+```
+
+200 means cleared. `GET /suppressions?limit=100` lists everything currently
+suppressed, and the whole list is normally short enough to read.
+
+**Do not clear it blind.** A suppression is the provider's record that a real
+mail server rejected us. Clearing it for an address that is genuinely dead sends
+another message, earns another bounce, and puts the address straight back on the
+list, while the extra bounces count against the domain's sending reputation.
+Clear it when you know what changed: the user fixed their mailbox, or the
+address was never deliverable and the account is being pointed somewhere else.
+
+On 2026-09-04 both `deploy-verify` accounts were on this list, from bounces
+dated 2026-08-10. They were created against a domain with no inbound routing for
+their own addresses, so their first verification mail bounced and every send
+after it was silently dropped for eight weeks.
+
+---
+
 ## Data caveats
 
 Things that are true of the stored data and not visible from the schema.
