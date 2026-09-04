@@ -287,6 +287,41 @@ repeated here.
   to claim a send that the provider will not make. Until then any account whose address bounces
   once is permanently unable to recover, and is told the opposite.
 
+  **Three paths, one defect, one `Sender`.** All four mail paths run through the same
+  `ResendSender::deliver`, which maps `Ok(_)` to `true`, and Resend answers `Ok` for a suppressed
+  recipient. They differ only in how much of the outcome they keep, and every one of them is wrong
+  under suppression:
+
+  | Path | Returns | Caller checks it | Consequence |
+  |---|---|---|---|
+  | verification, `auth.rs:600` | `bool` | yes, 502 on false | 204 claims a send that never happens |
+  | password reset, `auth.rs:1056` | `()` | cannot, discarded | same, and blind to genuine provider errors too |
+  | email alerts, `poller.rs:846` | `bool` | yes, gates the cooldown | cooldown recorded, an hour of silence for an alert nobody got |
+  | welcome, `auth.rs:561` | `()` | no | silent, and harmless |
+
+  The alert case is the same defect the code's own comment says it fixed. It stopped marking the
+  cooldown before the send; it still marks it on a send the provider will not make. Password reset
+  is the worst of the three, because `send_password_reset_email` returns `()` and there is no bool
+  to check even before suppression enters it. Its 204 is deliberate and must stay, since a 502
+  there would be an account-existence oracle, so the fix for reset is to stop discarding the
+  outcome rather than to change the status code.
+
+  **Order of work, decided 2026-09-04.** The synchronous pre-check first, the webhook after. A
+  webhook event arrives after the response has already gone out, so it can never make that response
+  truthful in the moment; only a check before sending can. `GET /suppressions/{email}` is confirmed
+  to exist and to be O(1): 200 with the suppression object for `deploy-verify@astraeusio.com`, 404
+  `Suppression not found` for `altug@bytus.io` and `891483383@qq.com`, which is also a positive
+  control on those two 404s. Note that `GET /suppressions?email=...` is **not** a filter; it
+  ignores the parameter and returns the whole list, so nothing should be designed around it.
+
+  The webhook half needs an endpoint outside the JWT extractor, Svix signature verification over
+  the raw body using the `svix-id`, `svix-timestamp` and `svix-signature` headers and a secret from
+  the webhook's dashboard page, a per-address outcome table, and `deliver` returning the provider
+  message id instead of `bool` so an event can be joined back to a send. Resend publishes a
+  dedicated `email.suppressed` event alongside `email.bounced`, `email.complained`,
+  `email.delivery_delayed`, `email.delivered` and `email.failed`, so the asynchronous half does
+  report this case directly.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
