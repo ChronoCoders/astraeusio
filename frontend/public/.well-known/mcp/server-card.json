@@ -3,7 +3,7 @@
   "serverInfo": {
     "name": "Astraeusio Space Weather",
     "version": "1.0.0",
-    "description": "Real-time space weather data and ML-powered geomagnetic storm forecasting. Access Kp index, solar wind, X-ray flux, IMF Bz, Dst, ISS position, near-Earth objects, and 3-hour Kp predictions with 95% confidence intervals.",
+    "description": "Real-time space weather data and ML-powered geomagnetic storm forecasting over MCP. Tools cover the Kp index, solar wind, a 3-hour Kp forecast, detected anomalies, near-Earth object close approaches, ISS position, and service health.",
     "homepage": "https://astraeusio.com",
     "documentation": "https://astraeusio.com/docs"
   },
@@ -17,48 +17,32 @@
   "capabilities": {
     "tools": [
       {
-        "name": "get_kp_index",
-        "description": "Get the current and recent Kp index readings (1-minute resolution)"
+        "name": "get_current_kp",
+        "description": "Get the current Kp index and recent readings from NOAA (no auth required)."
       },
       {
         "name": "get_solar_wind",
-        "description": "Get current solar wind speed and density from NOAA DSCOVR"
+        "description": "Get the latest solar wind speed and density from NOAA DSCOVR (no auth required)."
       },
       {
         "name": "get_kp_forecast",
-        "description": "Get ML-predicted Kp index for the next 3 hours with 95% confidence interval"
-      },
-      {
-        "name": "get_xray_flux",
-        "description": "Get GOES X-ray flux readings for solar flare detection"
-      },
-      {
-        "name": "get_imf",
-        "description": "Get interplanetary magnetic field Bz and Bt (key geomagnetic storm driver)"
-      },
-      {
-        "name": "get_dst_index",
-        "description": "Get Disturbance Storm Time index measuring ring current energy"
-      },
-      {
-        "name": "get_space_weather_alerts",
-        "description": "Get active NOAA space weather watches, warnings, and alerts"
-      },
-      {
-        "name": "get_anomalies",
-        "description": "Get detected anomalies: Kp storms, solar wind spikes, X-ray flares, asteroid close approaches"
-      },
-      {
-        "name": "get_neo_close_approaches",
-        "description": "Get NASA near-Earth object close approaches for the next 7 days"
-      },
-      {
-        "name": "get_iss_position",
-        "description": "Get current ISS position, altitude, and velocity"
+        "description": "Get the ML 3-hour Kp forecast with the model spread across 50 inference passes (no auth required)."
       },
       {
         "name": "get_health",
-        "description": "Get service health status for all data sources"
+        "description": "Get service health status for all data sources (no auth required)."
+      },
+      {
+        "name": "get_anomalies",
+        "description": "Get detected space weather anomalies: storms, flares, solar wind spikes, asteroid close approaches. Requires Bearer token."
+      },
+      {
+        "name": "get_neo",
+        "description": "Get NASA near-Earth object close approaches for the next 7 days with hazard flags. Requires Bearer token."
+      },
+      {
+        "name": "get_iss_position",
+        "description": "Get current ISS position, altitude, and velocity. Requires Bearer token."
       }
     ],
     "resources": [
