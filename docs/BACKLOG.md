@@ -277,6 +277,40 @@ next to the next instance of it.
   solar cycle, and quiet periods lengthen towards solar minimum, so it should be re-derived from a
   year of data.
 
+- Closed, with one part open. **Four lists named the same MCP tools and nothing held them together.**
+  `MCP_TOOLS` and the `mcp_handler` dispatch were kept in step by a line in CLAUDE.md saying to edit
+  both. The protected thing is a caller's ability to call what `tools/list` told them exists, so the
+  contract has two sides and each is blind to the other's gap: from the manifest you cannot see an arm
+  the manifest omits, and from the dispatch you cannot see an entry with no arm.
+  `every_advertised_mcp_tool_answers` calls every advertised name and fails only on -32601, so a tool
+  whose backing service is down still counts as answering. `no_mcp_tool_answers_unadvertised` scans
+  the dispatch for the other direction, on whitespace-stripped source, bounded by the dispatch's own
+  two ends rather than by a function name, and refuses to conclude anything from fewer than seven
+  arms. The CLAUDE.md instruction is gone: an instruction kept by memory beside a test that replaces
+  it reads as though the test were optional.
+
+  `mcp_public_tools_need_no_token` held three names by hand under a comment that said four, and
+  `get_kp_forecast` was the one missing. Both directions now come from the manifest's own wording,
+  with the counts asserted, and the mirror test was added because the public one alone would pass if
+  every tool were public.
+
+  `frontend/src/lib/useWebMCP.js` was deleted rather than tied to `webmcp-init.js`. It was imported by
+  nothing, so the drift the CLAUDE.md line warned about was between a live file and a dead one.
+  Deleting the copy beats automating the reminder to update it. WebMCP's `get_neo_close_approaches`
+  is now `get_neo`, the name the backend uses and the one the manifest test covers; nothing referenced
+  the old name outside the files changed here and the server card below.
+
+  Open. `frontend/public/.well-known/mcp/server-card.json` is a fifth list, published at
+  `/.well-known/mcp/` and naming `https://astraeusio.com/mcp` as its transport. It advertises eleven
+  tools where the endpoint serves seven. Four are fiction: `get_xray_flux`, `get_imf`, `get_dst_index`
+  and `get_space_weather_alerts` have no arm in the dispatch and never had one. Two more are the same
+  tools under stale names, `get_kp_index` for `get_current_kp` and `get_neo_close_approaches` for
+  `get_neo`. An agent that reads the card and calls any of the six gets "unknown tool" from a name the
+  site published. Removing the four claims or building the tools is a product decision, so it is
+  recorded rather than taken. Whatever is decided, the card belongs in
+  `every_advertised_mcp_tool_answers` alongside `MCP_TOOLS`, since that test is exactly what would
+  have caught this had it known the card existed.
+
 - Closed. **The password and address rules were tested and their application was not.**
   `the_password_rule_is_the_same_wherever_a_password_is_set` and
   `an_address_that_cannot_be_one_is_refused` asserted the two validators behave, and no test asserted

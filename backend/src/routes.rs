@@ -2528,13 +2528,197 @@ mod mcp_tests {
         }
     }
 
-    /// The four unauthenticated tools stay unauthenticated.
+    /// The manifest, as the handler's own clients read it.
+    ///
+    /// `(name, description)` for every tool `tools/list` advertises. Everything
+    /// below enumerates from this rather than from a list typed into a test:
+    /// `mcp_public_tools_need_no_token` used to hold three names by hand under a
+    /// doc comment that said four, and neither the comment nor the list could
+    /// have noticed the other was wrong.
+    fn advertised_tools() -> Vec<(String, String)> {
+        let v: serde_json::Value = serde_json::from_str(MCP_TOOLS).expect("MCP_TOOLS is json");
+        v["tools"]
+            .as_array()
+            .expect("tools array")
+            .iter()
+            .map(|t| {
+                (
+                    t["name"].as_str().expect("tool name").to_string(),
+                    t["description"].as_str().unwrap_or_default().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// Every tool the manifest advertises is one the handler answers.
+    ///
+    /// The protected thing here is a caller's ability to call what `tools/list`
+    /// told them exists. This direction catches the manifest advertising
+    /// something the dispatch has no arm for, which reaches the caller as
+    /// "unknown tool" on a name the server itself published.
+    ///
+    /// It is deliberately only half of the contract. Enumerating from the
+    /// manifest cannot see an arm the manifest omits, in the same way that
+    /// enumerating from a validator's call sites could not see the path that
+    /// called no validator. `no_mcp_tool_answers_unadvertised` is the other
+    /// direction.
+    ///
+    /// A token is supplied, so the three authenticated tools reach their
+    /// handlers rather than stopping at the auth check. An internal error is
+    /// accepted: `get_kp_forecast` reaches for the ML service, which is not
+    /// running here, and -32603 still means the arm exists. Only -32601 is a
+    /// failure, because only -32601 means nothing answered to that name.
+    #[tokio::test]
+    async fn every_advertised_mcp_tool_answers() {
+        let state = test_state();
+        let token = session_jwt("mcp@example.com", SECRET, 0).expect("mint");
+        {
+            let db = state.db.lock().await;
+            db.create_user("mcp@example.com", "hash").expect("user");
+        }
+        let advertised = advertised_tools();
+        assert_eq!(
+            advertised.len(),
+            7,
+            "the manifest advertises {} tools; if that is intended, say so here",
+            advertised.len()
+        );
+        for (name, _) in &advertised {
+            let v = call_tool(&state, name, Some(&token)).await;
+            let code = v.get("error").and_then(|e| e.get("code")).and_then(|c| c.as_i64());
+            assert_ne!(
+                code,
+                Some(-32601),
+                "{name} is advertised by tools/list and the dispatch has no arm for it: {v}"
+            );
+        }
+    }
+
+    /// Nothing answers to a name the manifest does not carry.
+    ///
+    /// The other half of the contract, and the weaker of the two guards. It
+    /// reads the text of the dispatch rather than exercising it, so it can see a
+    /// name and not whether that arm is reachable. It is here as a net for an
+    /// arm added without a manifest entry, which would be a surface no client is
+    /// told about and, for the authenticated three, an undocumented one.
+    ///
+    /// Whitespace is removed before matching. A raw text scan misses any site
+    /// rustfmt has wrapped, which has now cost two guards in this repository:
+    /// the confidence interval sweep read a sentence that wrapped as absent, and
+    /// the credential scan found three of four call sites because one call was
+    /// spread over three lines.
+    #[test]
+    fn no_mcp_tool_answers_unadvertised() {
+        let src: String = include_str!("routes.rs")
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+
+        // The dispatch, bounded by its own two ends: the arm that opens it and
+        // the unknown-tool arm that closes it. Bounding on the function name
+        // would drag in every other match in this file.
+        // Past the arm, not at it: the region must hold the tool names and not
+        // the JSON-RPC method that introduces them.
+        const OPEN: &str = r#""tools/call"=>"#;
+        let open = src.find(OPEN).expect("the tools/call arm") + OPEN.len();
+        let close = src[open..]
+            .find("_=>McpResp::err(id,-32601")
+            .expect("the unknown tool arm that ends the dispatch")
+            + open;
+        let dispatch = &src[open..close];
+
+        // A quoted string followed by `=>` or `|` is a match arm. Inside this
+        // region the only other string literals sit in json! bodies and call
+        // arguments, where neither can follow.
+        let mut arms: Vec<String> = Vec::new();
+        let bytes: Vec<char> = dispatch.chars().collect();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == '"' {
+                let start = i + 1;
+                let mut j = start;
+                while j < bytes.len() && bytes[j] != '"' {
+                    j += 1;
+                }
+                if j + 1 < bytes.len() {
+                    let after: String = bytes[j + 1..(j + 3).min(bytes.len())].iter().collect();
+                    if after.starts_with("=>") || after.starts_with('|') {
+                        arms.push(bytes[start..j].iter().collect());
+                    }
+                }
+                i = j + 1;
+            } else {
+                i += 1;
+            }
+        }
+        arms.sort();
+        arms.dedup();
+
+        // A scan that matched nothing would pass here without asserting
+        // anything at all. Seven is what the manifest carries.
+        assert!(
+            arms.len() >= 7,
+            "the dispatch scan found {} arms, which is too few to conclude anything from: {arms:?}",
+            arms.len()
+        );
+
+        let advertised: Vec<String> = advertised_tools().into_iter().map(|(n, _)| n).collect();
+        let unadvertised: Vec<&String> =
+            arms.iter().filter(|a| !advertised.contains(a)).collect();
+        assert!(
+            unadvertised.is_empty(),
+            "the dispatch answers to names tools/list does not advertise: {unadvertised:?}. \
+             Add them to MCP_TOOLS or remove the arm."
+        );
+    }
+
+    /// The tools the manifest calls unauthenticated stay unauthenticated.
+    ///
+    /// Taken from the manifest's own wording rather than from a list here. The
+    /// hand-written list this replaces held three names beneath a comment that
+    /// said four, and `get_kp_forecast` was the one missing.
     #[tokio::test]
     async fn mcp_public_tools_need_no_token() {
         let state = test_state();
-        for tool in ["get_current_kp", "get_solar_wind", "get_health"] {
+        let public: Vec<String> = advertised_tools()
+            .into_iter()
+            .filter(|(_, d)| d.contains("no auth required"))
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(
+            public.len(),
+            4,
+            "the manifest marks {} tools as needing no auth: {public:?}",
+            public.len()
+        );
+        for tool in &public {
             let v = call_tool(&state, tool, None).await;
             assert!(!is_auth_error(&v), "{tool} must not require a token, got {v}");
+        }
+    }
+
+    /// And the ones it says need a token are refused without one.
+    ///
+    /// The manifest is a claim about the handler, so both halves of the claim
+    /// are worth checking: `mcp_public_tools_need_no_token` would still pass if
+    /// every tool were public.
+    #[tokio::test]
+    async fn mcp_tools_that_say_they_need_a_token_require_one() {
+        let state = test_state();
+        let guarded: Vec<String> = advertised_tools()
+            .into_iter()
+            .filter(|(_, d)| d.contains("Requires Bearer token"))
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(
+            guarded.len(),
+            3,
+            "the manifest marks {} tools as needing a token: {guarded:?}",
+            guarded.len()
+        );
+        for tool in &guarded {
+            let v = call_tool(&state, tool, None).await;
+            assert!(is_auth_error(&v), "{tool} answered without a token: {v}");
         }
     }
 }
