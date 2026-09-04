@@ -229,6 +229,29 @@ spacecraft.
 
 ---
 
+## Shipping a change that lives outside the images
+
+Not everything in this repository ends up in a container. The host scripts,
+`docs/`, and anything else nginx does not serve and no `Dockerfile` copies,
+reach the server by `git pull` alone:
+
+```bash
+cd /opt/astraeusio
+git pull --ff-only
+```
+
+Do not run `deploy.sh` for those. When `git diff HEAD..origin/main` selects no
+service, `deploy.sh` falls through to rebuilding all three and recreates every
+container, so a change to a script or a document costs a backend interruption
+it has no reason to cost. Nothing containerised changed, so no image can
+differ, and a pull is the whole of the deployment.
+
+`deploy.sh` is still the only way to ship anything under `backend/`,
+`frontend/`, `ml/` or `docker-compose.yml`. If a change touches both, run
+`deploy.sh`; it pulls the whole repository on its way through.
+
+---
+
 ## Rolling back a deploy
 
 Images are tagged with the commit they were built from, so a rollback is a
