@@ -258,6 +258,35 @@ repeated here.
   sampling, an asymmetric penalty on under-forecasting, or a separate storm-regime model. Each needs
   measuring against persistence conditional on Kp >= 5 rather than marginally.
 
+- No ID. **A verification email to an address that once hard bounced is dropped by the provider,
+  and `/auth/resend-verification` still answers 204.** Found 2026-09-04 while proving the AUD-017
+  recovery path end to end. `resend_verification` was deliberately hardened so that a 204 means
+  the provider took the message rather than that the work was queued. Resend takes it, matches the
+  recipient against its own suppression list, and drops it. The API still returns success, the
+  backend logs `mailer: "Verify your Astraeusio email address" sent to ...`, and the caller is
+  told the mail is on its way when nothing was sent.
+
+  Sourced. `GET https://api.resend.com/emails/5a3ee458-557a-4466-91b6-4babc3852a19`, the send made
+  at 14:08:18Z, carries `last_event: suppressed`. `GET /suppressions` holds exactly two entries,
+  both `origin: bounce`: `deploy-verify@astraeusio.com` from 2026-08-10 03:10:58Z and
+  `deploy-verify-dev@astraeusio.com` from 2026-08-10 19:43:17Z. The matching bounces are in the
+  send log at 2026-08-10 03:10:57Z and 19:43:15Z. Both accounts were created against a domain that
+  had no inbound routing for those addresses, so their first verification mail hard bounced and
+  the provider has refused them ever since.
+
+  **`891483383@qq.com` is not suppressed.** That listing is complete, `has_more: false`, two of
+  two, and it is trustworthy because it contains the two addresses whose bounces were confirmed
+  independently in the send log. So the one locked out stranger is not blocked by this. What
+  reaches them is still unproven, because no send to that address appears anywhere in the 120
+  records the log retains, which reach back only to 2026-08-08.
+
+  The shape of the defect is that acceptance was treated as delivery one level too shallow. A
+  synchronous 200 from the provider cannot see a suppression, a bounce or a spam placement, all of
+  which arrive later as events. Closing it means consuming Resend's `email.bounced` and
+  `email.delivery_delayed` webhooks, recording the last delivery outcome per address, and refusing
+  to claim a send that the provider will not make. Until then any account whose address bounces
+  once is permanently unable to recover, and is told the opposite.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
