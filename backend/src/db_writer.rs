@@ -120,7 +120,7 @@ pub enum WriteCmd {
     },
     SetEmailVerified {
         email: String,
-        reply: oneshot::Sender<Result<(), DbError>>,
+        reply: oneshot::Sender<Result<bool, DbError>>,
     },
     SetTotpSecret {
         email: String,
@@ -296,7 +296,9 @@ impl DbWriterHandle {
         rx.await.map_err(|_| DbError::WriterClosed)?
     }
 
-    pub async fn set_email_verified(&self, email: String) -> Result<(), DbError> {
+    /// Passes through whether the row actually changed, which is how the caller
+    /// tells a first use of a verification link from a replay.
+    pub async fn set_email_verified(&self, email: String) -> Result<bool, DbError> {
         let (tx, rx) = oneshot::channel();
         self.tx
             .send(WriteCmd::SetEmailVerified { email, reply: tx })
