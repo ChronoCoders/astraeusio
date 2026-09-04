@@ -190,7 +190,6 @@ pub fn spawn(
         cfg.intervals_line()
     );
 
-
     // Each policy is constructed once here and then moved into its poller, so
     // the line below reports what the running process actually computed rather
     // than a second derivation that could drift from it. The per-attempt
@@ -213,24 +212,34 @@ pub fn spawn(
         retry_count = cfg.retry_count,
         http_timeout = cfg.http_timeout,
         "poller: attempt timeouts {}",
-        [&p_iss, &p_kp, &p_kp3h, &p_solar_wind, &p_xray, &p_alerts, &p_neo, &p_epic, &p_apod, &p_exoplanets, &p_imf, &p_dst, &p_starlink, &p_forecast]
-            .iter()
-            .map(|p| format!(
-                "{}={}s",
-                p.source.trim_start_matches("poller/"),
-                p.attempt_timeout.as_secs()
-            ))
-            .collect::<Vec<_>>()
-            .join(" ")
+        [
+            &p_iss,
+            &p_kp,
+            &p_kp3h,
+            &p_solar_wind,
+            &p_xray,
+            &p_alerts,
+            &p_neo,
+            &p_epic,
+            &p_apod,
+            &p_exoplanets,
+            &p_imf,
+            &p_dst,
+            &p_starlink,
+            &p_forecast
+        ]
+        .iter()
+        .map(|p| format!(
+            "{}={}s",
+            p.source.trim_start_matches("poller/"),
+            p.attempt_timeout.as_secs()
+        ))
+        .collect::<Vec<_>>()
+        .join(" ")
     );
 
     // Tier 0 - tiny/read-only, start immediately
-    tokio::spawn(poll_iss(
-        client.clone(),
-        writer.clone(),
-        0,
-        p_iss,
-    ));
+    tokio::spawn(poll_iss(client.clone(), writer.clone(), 0, p_iss));
     tokio::spawn(poll_anomaly(
         db.clone(),
         writer.clone(),
@@ -239,73 +248,28 @@ pub fn spawn(
         cfg.anomaly_interval,
     ));
     // Tier 1 - small inserts, 5-second spacing
-    tokio::spawn(poll_kp(
-        client.clone(),
-        writer.clone(),
-        5,
-        p_kp,
-    ));
-    tokio::spawn(poll_alerts(
-        client.clone(),
-        writer.clone(),
-        10,
-        p_alerts,
-    ));
-    tokio::spawn(poll_neo(
-        client.clone(),
-        writer.clone(),
-        15,
-        p_neo,
-    ));
-    tokio::spawn(poll_epic(
-        client.clone(),
-        writer.clone(),
-        20,
-        p_epic,
-    ));
-    tokio::spawn(poll_apod(
-        client.clone(),
-        writer.clone(),
-        25,
-        p_apod,
-    ));
+    tokio::spawn(poll_kp(client.clone(), writer.clone(), 5, p_kp));
+    tokio::spawn(poll_alerts(client.clone(), writer.clone(), 10, p_alerts));
+    tokio::spawn(poll_neo(client.clone(), writer.clone(), 15, p_neo));
+    tokio::spawn(poll_epic(client.clone(), writer.clone(), 20, p_epic));
+    tokio::spawn(poll_apod(client.clone(), writer.clone(), 25, p_apod));
     // Tier 2 - large initial inserts (hundreds to thousands of rows), 8-second spacing
-    tokio::spawn(poll_kp_3h(
-        client.clone(),
-        writer.clone(),
-        30,
-        p_kp3h,
-    ));
-    tokio::spawn(poll_dst(
-        client.clone(),
-        writer.clone(),
-        38,
-        p_dst,
-    ));
+    tokio::spawn(poll_kp_3h(client.clone(), writer.clone(), 30, p_kp3h));
+    tokio::spawn(poll_dst(client.clone(), writer.clone(), 38, p_dst));
     tokio::spawn(poll_exoplanets(
         client.clone(),
         writer.clone(),
         46,
         p_exoplanets,
     ));
-    tokio::spawn(poll_imf(
-        client.clone(),
-        writer.clone(),
-        54,
-        p_imf,
-    ));
+    tokio::spawn(poll_imf(client.clone(), writer.clone(), 54, p_imf));
     tokio::spawn(poll_solar_wind(
         client.clone(),
         writer.clone(),
         62,
         p_solar_wind,
     ));
-    tokio::spawn(poll_xray(
-        client.clone(),
-        writer.clone(),
-        70,
-        p_xray,
-    ));
+    tokio::spawn(poll_xray(client.clone(), writer.clone(), 70, p_xray));
     // Tier 3 - Starlink: DELETE + 7000+ inserts in one transaction, start last
     tokio::spawn(poll_starlink(
         client.clone(),
@@ -327,11 +291,7 @@ pub fn spawn(
     // Health snapshots - record per-component status every 5 minutes for the
     // status page's 90-day uptime strip.
     // Runs five minutes in, so a restart loop cannot spend its time purging.
-    tokio::spawn(poll_retention(
-        db.clone(),
-        300,
-        cfg.retention_interval,
-    ));
+    tokio::spawn(poll_retention(db.clone(), 300, cfg.retention_interval));
     tokio::spawn(poll_health(
         client.clone(),
         db.clone(),
@@ -377,7 +337,10 @@ fn log_poll(source: &str, unit: &str, outcome: PollOutcome) {
             info!(source, "upstream reports no change, existing rows kept")
         }
         PollOutcome::EmptyPayload => {
-            warn!(source, "upstream returned an empty payload, nothing written")
+            warn!(
+                source,
+                "upstream returned an empty payload, nothing written"
+            )
         }
         PollOutcome::Parsed { received, kept: 0 } => error!(
             source,
@@ -560,7 +523,9 @@ async fn poll_neo(
         let end = (today + ChronoDuration::days(7))
             .format("%Y-%m-%d")
             .to_string();
-        if let Some(feed) = retry::run(&policy, || nasa::fetch_neo_feed(&client, &start, &end)).await {
+        if let Some(feed) =
+            retry::run(&policy, || nasa::fetch_neo_feed(&client, &start, &end)).await
+        {
             log_poll(
                 "poller/neo",
                 "objects",
@@ -614,7 +579,11 @@ async fn poll_exoplanets(
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
         if let Some(planets) = retry::run(&policy, || nasa::fetch_exoplanets(&client)).await {
-            log_poll("poller/exoplanets", "planets", PollOutcome::strict(planets.len()));
+            log_poll(
+                "poller/exoplanets",
+                "planets",
+                PollOutcome::strict(planets.len()),
+            );
             writer.fire(WriteCmd::Exoplanets(planets));
         }
         tokio::time::sleep(policy.budget).await;
@@ -688,7 +657,11 @@ async fn poll_forecast(
         let seq_len = match crate::routes::ml_seq_len(&client, &ml_url).await {
             Ok(n) => n,
             Err(e) => {
-                error!(source = "poller/forecast", "ml seq_len: {}", crate::redact::secrets(&e.to_string()));
+                error!(
+                    source = "poller/forecast",
+                    "ml seq_len: {}",
+                    crate::redact::secrets(&e.to_string())
+                );
                 tokio::time::sleep(policy.budget).await;
                 continue;
             }
@@ -715,37 +688,41 @@ async fn poll_forecast(
                 .await
                 .map(|resp| resp.error_for_status());
                 match resp {
-                    Some(Ok(resp)) => match resp
-                        .json::<serde_json::Value>()
-                        .await
-                    {
-                        Ok(payload) => match crate::db::ForecastPoint::from_predict_payload(&payload) {
-                            Ok((points, model_sha)) => {
-                                let issued_at = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_secs() as i64;
-                                let near = points
-                                    .iter()
-                                    .find(|p| p.horizon_hours == 3)
-                                    .map(|p| p.kp_e2 as f64 / 100.0)
-                                    .unwrap_or_default();
-                                writer.fire(WriteCmd::KpForecast {
-                                    issued_at,
-                                    model_sha,
-                                    points,
-                                });
-                                info!(
-                                    horizons = ?crate::db::FORECAST_HORIZONS,
-                                    "poller/forecast: predicted Kp {near:.2} @ +3h"
-                                );
+                    Some(Ok(resp)) => match resp.json::<serde_json::Value>().await {
+                        Ok(payload) => {
+                            match crate::db::ForecastPoint::from_predict_payload(&payload) {
+                                Ok((points, model_sha)) => {
+                                    let issued_at = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_secs()
+                                        as i64;
+                                    let near = points
+                                        .iter()
+                                        .find(|p| p.horizon_hours == 3)
+                                        .map(|p| p.kp_e2 as f64 / 100.0)
+                                        .unwrap_or_default();
+                                    writer.fire(WriteCmd::KpForecast {
+                                        issued_at,
+                                        model_sha,
+                                        points,
+                                    });
+                                    info!(
+                                        horizons = ?crate::db::FORECAST_HORIZONS,
+                                        "poller/forecast: predicted Kp {near:.2} @ +3h"
+                                    );
+                                }
+                                // Nothing stored. A cycle that answered with three
+                                // of four horizons leaves a hole in one series and
+                                // not the others, which no aggregate would show.
+                                Err(e) => error!(source = "poller/forecast", "{e}"),
                             }
-                            // Nothing stored. A cycle that answered with three
-                            // of four horizons leaves a hole in one series and
-                            // not the others, which no aggregate would show.
-                            Err(e) => error!(source = "poller/forecast", "{e}"),
-                        },
-                        Err(e) => error!(source = "poller/forecast", "parse: {}", crate::redact::secrets(&e.to_string())),
+                        }
+                        Err(e) => error!(
+                            source = "poller/forecast",
+                            "parse: {}",
+                            crate::redact::secrets(&e.to_string())
+                        ),
                     },
                     // A status that survived every attempt, so it is not
                     // transient. retry::run already reported a failure to
@@ -759,7 +736,11 @@ async fn poll_forecast(
                 }
             }
             Ok(_) => info!("poller/forecast: no Kp data yet, skipping"),
-            Err(e) => error!(source = "poller/forecast", "db: {}", crate::redact::secrets(&e.to_string())),
+            Err(e) => error!(
+                source = "poller/forecast",
+                "db: {}",
+                crate::redact::secrets(&e.to_string())
+            ),
         }
         tokio::time::sleep(policy.budget).await;
     }
@@ -1065,10 +1046,8 @@ mod tests {
 
             let client = reqwest::Client::new();
             let db = Arc::new(Mutex::new(store));
-            let writer = crate::db_writer::spawn(
-                Store::open(":memory:").expect("writer store"),
-                client,
-            );
+            let writer =
+                crate::db_writer::spawn(Store::open(":memory:").expect("writer store"), client);
             let notified = dispatch_email_alerts(&db, &writer, sender.as_ref()).await;
             (sender.count(), notified)
         }
@@ -1185,8 +1164,8 @@ mod tests {
         crate::db::EmailAlertRow {
             user_email: "watcher@example.com".to_owned(),
             enabled: true,
-            kp_threshold_e2: 500,       // Kp 5.0
-            wind_threshold_e1: 6000,    // 600 km/s
+            kp_threshold_e2: 500,    // Kp 5.0
+            wind_threshold_e1: 6000, // 600 km/s
             last_notified_at: None,
         }
     }
@@ -1199,17 +1178,24 @@ mod tests {
     fn a_stale_reading_produces_no_alert_however_high_it_is() {
         let now = 1_800_000_000;
         let sub = subscription();
-        let storm = |age: i64| Some(("t".to_owned(), now - age, 900i64));   // Kp 9.0
-        let gale = |age: i64| Some(("t".to_owned(), now - age, 9_000i64));  // 900 km/s
+        let storm = |age: i64| Some(("t".to_owned(), now - age, 900i64)); // Kp 9.0
+        let gale = |age: i64| Some(("t".to_owned(), now - age, 9_000i64)); // 900 km/s
 
         // Fresh and over threshold: both lines.
         let lines = alert_lines(&storm(60), &gale(60), &sub, now);
-        assert_eq!(lines.len(), 2, "fresh readings over threshold must alert: {lines:?}");
+        assert_eq!(
+            lines.len(),
+            2,
+            "fresh readings over threshold must alert: {lines:?}"
+        );
 
         // The same readings, eleven hours old, which is what a dead feed looks
         // like. Kp allows 1800s and so does solar wind.
         let lines = alert_lines(&storm(40_000), &gale(40_000), &sub, now);
-        assert!(lines.is_empty(), "a stale reading must not alert: {lines:?}");
+        assert!(
+            lines.is_empty(),
+            "a stale reading must not alert: {lines:?}"
+        );
 
         // One fresh and one stale: only the fresh one speaks.
         let lines = alert_lines(&storm(60), &gale(40_000), &sub, now);
@@ -1242,10 +1228,7 @@ mod tests {
         // cannot survive it would have cried wolf in August 2026.
         for quiet_hours in [0, 2, 27, 63, 98, 120, 167] {
             assert_eq!(
-                alerts_liveness(
-                    &[alert(&fmt_issue(hours(quiet_hours)))],
-                    now
-                ),
+                alerts_liveness(&[alert(&fmt_issue(hours(quiet_hours)))], now),
                 "operational",
                 "{quiet_hours} h of quiet is normal for this feed"
             );
@@ -1259,10 +1242,7 @@ mod tests {
         let now = 1_756_600_000;
         for quiet_hours in [169, 240, 24 * 40] {
             assert_eq!(
-                alerts_liveness(
-                    &[alert(&fmt_issue(now - quiet_hours * 3_600))],
-                    now
-                ),
+                alerts_liveness(&[alert(&fmt_issue(now - quiet_hours * 3_600))], now),
                 "degraded",
                 "{quiet_hours} h without a product is past the horizon"
             );
@@ -1282,7 +1262,10 @@ mod tests {
     #[test]
     fn an_unreadable_timestamp_does_not_condemn_the_feed() {
         let now = 1_756_600_000;
-        assert_eq!(alerts_liveness(&[alert("30 August 2026, 05:55Z")], now), "operational");
+        assert_eq!(
+            alerts_liveness(&[alert("30 August 2026, 05:55Z")], now),
+            "operational"
+        );
     }
 
     /// Both spellings NOAA has used, with and without the fraction.

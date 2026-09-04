@@ -106,8 +106,17 @@ fn nulls_for_nonstandard_numbers(input: &str) -> std::borrow::Cow<'_, str> {
 
 /// Fetches a NOAA JSON feed that is parsed value by value, tolerating the
 /// non-standard number literals NOAA emits.
-async fn fetch_lenient_json(client: &Client, url: String) -> Result<Vec<serde_json::Value>, NoaaError> {
-    let text = client.get(url).send().await?.error_for_status()?.text().await?;
+async fn fetch_lenient_json(
+    client: &Client,
+    url: String,
+) -> Result<Vec<serde_json::Value>, NoaaError> {
+    let text = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
     Ok(serde_json::from_str(&nulls_for_nonstandard_numbers(&text))?)
 }
 
@@ -168,7 +177,11 @@ pub struct Kp3hRecord {
 }
 
 pub async fn fetch_kp_3h(client: &Client) -> Result<Fetched<Kp3hRecord>, NoaaError> {
-    fetch_record_list(client, format!("{SWPC}/products/noaa-planetary-k-index.json")).await
+    fetch_record_list(
+        client,
+        format!("{SWPC}/products/noaa-planetary-k-index.json"),
+    )
+    .await
 }
 
 // ── Solar wind ────────────────────────────────────────────────────────────────
@@ -256,7 +269,10 @@ pub async fn fetch_imf(client: &Client) -> Result<Fetched<ImfRecord>, NoaaError>
     // only mean an empty payload, never a parser that swallowed the feed.
     let records = parse_imf(items)?;
     let outcome = PollOutcome::strict(records.len());
-    Ok(Fetched { items: records, outcome })
+    Ok(Fetched {
+        items: records,
+        outcome,
+    })
 }
 
 /// Maps the raw feed to records. Separate from the request so it can be tested.
@@ -283,10 +299,7 @@ fn parse_imf(items: Vec<serde_json::Value>) -> Result<Vec<ImfRecord>, NoaaError>
 }
 
 /// Reads one numeric field by name. Absent is an error, null is None.
-fn numeric_field(
-    item: &serde_json::Value,
-    field: &'static str,
-) -> Result<Option<f64>, NoaaError> {
+fn numeric_field(item: &serde_json::Value, field: &'static str) -> Result<Option<f64>, NoaaError> {
     match item.get(field) {
         None => Err(NoaaError::MissingField { field }),
         Some(v) if v.is_null() => Ok(None),
@@ -348,7 +361,11 @@ mod tests {
 
         let cleaned = nulls_for_nonstandard_numbers(raw);
         let items: Vec<serde_json::Value> = serde_json::from_str(&cleaned).unwrap();
-        assert_eq!(items.len(), 2, "the good row must survive alongside the bad one");
+        assert_eq!(
+            items.len(),
+            2,
+            "the good row must survive alongside the bad one"
+        );
         assert!(items[1]["proton_speed"].is_null(), "NaN must become null");
         // Not zero. A zero speed is a real measurement and would be a lie.
         assert_ne!(items[1]["proton_speed"], serde_json::json!(0));
@@ -378,7 +395,10 @@ mod tests {
         // And the drop is visible rather than silent.
         assert_eq!(
             crate::fetch::PollOutcome::lossy(received, kept.len()),
-            crate::fetch::PollOutcome::Parsed { received: 3, kept: 2 }
+            crate::fetch::PollOutcome::Parsed {
+                received: 3,
+                kept: 2
+            }
         );
     }
 
@@ -400,7 +420,10 @@ mod tests {
         assert_eq!(kept.len(), 0);
         assert_eq!(
             crate::fetch::PollOutcome::lossy(received, kept.len()),
-            crate::fetch::PollOutcome::Parsed { received: 2, kept: 0 },
+            crate::fetch::PollOutcome::Parsed {
+                received: 2,
+                kept: 0
+            },
             "must not collapse to EmptyPayload; rows were sent and all were lost"
         );
     }
@@ -439,7 +462,10 @@ mod tests {
         let v: serde_json::Value =
             serde_json::from_str(&nulls_for_nonstandard_numbers(raw)).unwrap();
         assert!(v["a"].is_null());
-        assert!(v["b"].is_null(), "-Infinity must not leave a stray minus sign");
+        assert!(
+            v["b"].is_null(),
+            "-Infinity must not leave a stray minus sign"
+        );
         assert_eq!(v["c"], serde_json::json!(1.5));
     }
 
@@ -455,10 +481,14 @@ mod tests {
     #[test]
     fn non_ascii_inside_strings_survives() {
         // A byte-by-byte copy is required here; rebuilding through `char` mangles it.
-        let raw = r#"{"station":"Kiruna Sverige aao","v":NaN}"#.replace("aao", "\u{e5}\u{e4}\u{f6}");
+        let raw =
+            r#"{"station":"Kiruna Sverige aao","v":NaN}"#.replace("aao", "\u{e5}\u{e4}\u{f6}");
         let v: serde_json::Value =
             serde_json::from_str(&nulls_for_nonstandard_numbers(&raw)).unwrap();
-        assert_eq!(v["station"], serde_json::json!("Kiruna Sverige \u{e5}\u{e4}\u{f6}"));
+        assert_eq!(
+            v["station"],
+            serde_json::json!("Kiruna Sverige \u{e5}\u{e4}\u{f6}")
+        );
         assert!(v["v"].is_null());
     }
 
@@ -466,13 +496,17 @@ mod tests {
     /// means the schema moved, which is what froze the imf table for forty days.
     #[test]
     fn a_null_sample_is_none_but_an_absent_field_is_still_an_error() {
-        let with_null = serde_json::json!({"time_tag":"2026-08-10T23:45:00","bz_gsm":null,"bt":1.0});
+        let with_null =
+            serde_json::json!({"time_tag":"2026-08-10T23:45:00","bz_gsm":null,"bt":1.0});
         let parsed = parse_imf(vec![with_null]).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(parsed[0].bz_gsm.is_none());
 
         let missing = serde_json::json!({"time_tag":"2026-08-10T23:45:00","bt":1.0});
-        assert!(parse_imf(vec![missing]).is_err(), "an absent field must still fail");
+        assert!(
+            parse_imf(vec![missing]).is_err(),
+            "an absent field must still fail"
+        );
     }
 
     /// One real record from rtsw_mag_1m.json, trimmed to the fields that matter
@@ -548,8 +582,18 @@ mod tests {
     #[test]
     fn imf_rejects_the_retired_positional_format() {
         let legacy = serde_json::json!([
-            ["time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"],
-            ["2026-06-30 18:40:00.000", "1.92", "-14.50", "1.01", "0", "0", "14.71"]
+            [
+                "time_tag", "bx_gsm", "by_gsm", "bz_gsm", "lon_gsm", "lat_gsm", "bt"
+            ],
+            [
+                "2026-06-30 18:40:00.000",
+                "1.92",
+                "-14.50",
+                "1.01",
+                "0",
+                "0",
+                "14.71"
+            ]
         ]);
         let items = legacy.as_array().expect("array").clone();
         assert!(parse_imf(items).is_err());

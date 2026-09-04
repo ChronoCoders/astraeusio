@@ -106,7 +106,9 @@ fn classify(conn: &Connection) -> Result<Counts> {
                 (Some(_), Some(_)) => c.merged += 1,
                 // An empty rowid range means the offset walk and the storage
                 // layout disagree. Counting it as merged would hide that.
-                _ => println!("    WARNING empty rowid range for {table} start={start} count={count}"),
+                _ => println!(
+                    "    WARNING empty rowid range for {table} start={start} count={count}"
+                ),
             }
         }
     }
@@ -149,7 +151,9 @@ fn compare(conn: &Connection, label: &str) -> Result<(usize, usize)> {
             total += 1;
             if pruned != truth {
                 wrong += 1;
-                println!("    DISAGREE count {label} {table} probe={probe} pruned={pruned} truth={truth}");
+                println!(
+                    "    DISAGREE count {label} {table} probe={probe} pruned={pruned} truth={truth}"
+                );
             }
 
             if table == "kp" {
@@ -229,7 +233,9 @@ fn fetch_strings(conn: &Connection, sql: &str) -> Result<Vec<String>> {
 
 fn add_column(conn: &Connection) -> Result<()> {
     for table in TABLES {
-        let _ = conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN observed_at BIGINT"));
+        let _ = conn.execute_batch(&format!(
+            "ALTER TABLE {table} ADD COLUMN observed_at BIGINT"
+        ));
     }
     Ok(())
 }

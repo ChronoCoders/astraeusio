@@ -115,8 +115,9 @@ async fn main() -> Result<()> {
     // One `Sender` for the whole process, behind the trait so tests can put a
     // different one in. `None` when no key is configured, exactly as before.
     let mailer_config: Option<std::sync::Arc<dyn mailer::Sender>> =
-        mailer::MailerConfig::from_env()
-            .map(|c| std::sync::Arc::new(mailer::ResendSender::new(c)) as std::sync::Arc<dyn mailer::Sender>);
+        mailer::MailerConfig::from_env().map(|c| {
+            std::sync::Arc::new(mailer::ResendSender::new(c)) as std::sync::Arc<dyn mailer::Sender>
+        });
     let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let oauth_config = oauth::OAuthConfig::from_env(&app_url);
     info!("oauth providers enabled: {:?}", oauth_config.enabled());

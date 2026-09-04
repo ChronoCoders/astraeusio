@@ -130,7 +130,10 @@ mod tests {
         let sb = box_with(1);
         let sealed = sb.seal("JBSWY3DPEHPK3PXP").expect("seal");
         assert!(sealed.starts_with("v1:"));
-        assert!(!sealed.contains("JBSWY3DPEHPK3PXP"), "plaintext must not survive");
+        assert!(
+            !sealed.contains("JBSWY3DPEHPK3PXP"),
+            "plaintext must not survive"
+        );
         assert_eq!(sb.open(&sealed).expect("open"), "JBSWY3DPEHPK3PXP");
     }
 
@@ -163,7 +166,14 @@ mod tests {
         let flipped = format!("{head}{}", if tail == "0" { "1" } else { "0" });
         assert!(sb.open(&flipped).is_err());
 
-        for junk in ["", "v1", "v1::", "v2:aa:bb", "not-encrypted-at-all", "v1:zz:zz"] {
+        for junk in [
+            "",
+            "v1",
+            "v1::",
+            "v2:aa:bb",
+            "not-encrypted-at-all",
+            "v1:zz:zz",
+        ] {
             assert!(sb.open(junk).is_err(), "{junk:?} must not open");
         }
     }
@@ -179,12 +189,22 @@ mod tests {
         ));
 
         unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", "not-hex") };
-        assert!(matches!(SecretBox::from_env("jwt"), Err(KeyError::Malformed)));
+        assert!(matches!(
+            SecretBox::from_env("jwt"),
+            Err(KeyError::Malformed)
+        ));
 
         unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", "abcd") };
-        assert!(matches!(SecretBox::from_env("jwt"), Err(KeyError::Malformed)));
+        assert!(matches!(
+            SecretBox::from_env("jwt"),
+            Err(KeyError::Malformed)
+        ));
 
         unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
-        assert!(SecretBox::from_env("jwt").expect("unset is allowed").is_none());
+        assert!(
+            SecretBox::from_env("jwt")
+                .expect("unset is allowed")
+                .is_none()
+        );
     }
 }

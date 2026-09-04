@@ -237,7 +237,6 @@ fn check_ml_forecast(db: &Store, writer: &DbWriterHandle) -> Result<(), DbError>
     Ok(())
 }
 
-
 // ── Metric scales ─────────────────────────────────────────────────────────────
 
 /// What each metric is stored at, so a rule threshold can be held in the same
@@ -256,11 +255,31 @@ pub struct MetricScale {
 }
 
 pub const METRIC_SCALES: [MetricScale; 5] = [
-    MetricScale { metric: "kp", scale: 100.0, step: "0.01" },
-    MetricScale { metric: "solar_wind_speed", scale: 10.0, step: "0.1 km/s" },
-    MetricScale { metric: "xray_flux", scale: 1e12, step: "0.000000000001 W/m2" },
-    MetricScale { metric: "dst", scale: 1.0, step: "1 nT" },
-    MetricScale { metric: "imf_bz", scale: 100.0, step: "0.01 nT" },
+    MetricScale {
+        metric: "kp",
+        scale: 100.0,
+        step: "0.01",
+    },
+    MetricScale {
+        metric: "solar_wind_speed",
+        scale: 10.0,
+        step: "0.1 km/s",
+    },
+    MetricScale {
+        metric: "xray_flux",
+        scale: 1e12,
+        step: "0.000000000001 W/m2",
+    },
+    MetricScale {
+        metric: "dst",
+        scale: 1.0,
+        step: "1 nT",
+    },
+    MetricScale {
+        metric: "imf_bz",
+        scale: 100.0,
+        step: "0.01 nT",
+    },
 ];
 
 pub fn metric_scale(metric: &str) -> Option<&'static MetricScale> {
@@ -273,7 +292,9 @@ pub enum ThresholdError {
     NotFinite,
     OutOfRange,
     /// The caller gave more precision than the metric stores.
-    TooPrecise { step: &'static str },
+    TooPrecise {
+        step: &'static str,
+    },
 }
 
 /// Converts a caller supplied threshold into the metric's stored units.
@@ -505,10 +526,19 @@ mod threshold_tests {
 
     #[test]
     fn unusable_values_are_refused() {
-        assert_eq!(scale_threshold("kp", f64::NAN), Err(ThresholdError::NotFinite));
-        assert_eq!(scale_threshold("kp", f64::INFINITY), Err(ThresholdError::NotFinite));
+        assert_eq!(
+            scale_threshold("kp", f64::NAN),
+            Err(ThresholdError::NotFinite)
+        );
+        assert_eq!(
+            scale_threshold("kp", f64::INFINITY),
+            Err(ThresholdError::NotFinite)
+        );
         assert_eq!(scale_threshold("kp", 1e30), Err(ThresholdError::OutOfRange));
-        assert_eq!(scale_threshold("nonsense", 1.0), Err(ThresholdError::UnknownMetric));
+        assert_eq!(
+            scale_threshold("nonsense", 1.0),
+            Err(ThresholdError::UnknownMetric)
+        );
     }
 
     /// Every metric a rule may name must have a scale, or its threshold would
@@ -540,9 +570,15 @@ mod threshold_tests {
         let threshold = scale_threshold("kp", 5.67).expect("scale");
         assert_eq!(stored, threshold);
         assert!(fires("gte", stored, threshold), "gte fires on the boundary");
-        assert!(!fires("gt", stored, threshold), "gt does not fire on the boundary");
+        assert!(
+            !fires("gt", stored, threshold),
+            "gt does not fire on the boundary"
+        );
         assert!(fires("lte", stored, threshold), "lte fires on the boundary");
-        assert!(!fires("lt", stored, threshold), "lt does not fire on the boundary");
+        assert!(
+            !fires("lt", stored, threshold),
+            "lt does not fire on the boundary"
+        );
 
         // One step either side behaves as expected.
         assert!(fires("gt", stored + 1, threshold));
