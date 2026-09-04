@@ -823,9 +823,13 @@ async fn dispatch_email_alerts(
         // the strength of the send rather than before it. Marking first meant a
         // failed send bought an hour of silence exactly as a successful one did,
         // and the user heard about neither.
+        // Only a send that left records the cooldown. `Suppressed` and
+        // `Failed` both mean the user heard nothing, and an hour of silence
+        // bought by a message nobody got is the defect this gate exists for.
         if sender
             .send_text(&email, "Astraeusio Space Weather Alert", &body)
             .await
+            == crate::mailer::SendOutcome::Sent
         {
             writer.fire(WriteCmd::TouchEmailAlertNotified(email));
             notified += 1;

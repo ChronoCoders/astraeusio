@@ -1,3 +1,4 @@
+use reqwest::Url;
 use resend_rs::{Resend, types::CreateEmailBaseOptions};
 use tracing::{info, warn};
 
@@ -23,9 +24,29 @@ impl MailerConfig {
 ///
 /// Hand written rather than pulling in `async-trait` for one trait with two
 /// methods.
-pub type SendFuture<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + 'a>>;
+pub type SendFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = SendOutcome> + Send + 'a>>;
 
-/// Where mail goes. `true` means the provider accepted it.
+/// What became of one message.
+///
+/// This was a `bool`, which could not tell a caller apart the two failures that
+/// matter. On 2026-09-04 a verification mail to an address on the provider's
+/// suppression list was accepted by the API, dropped, and reported to the user
+/// as sent, because the send returned success and the endpoint answered 204.
+/// `Suppressed` is that case. It is not a failure to retry: it says this
+/// address receives nothing until somebody clears it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendOutcome {
+    /// The provider took the message and will attempt delivery.
+    Sent,
+    /// The provider will not deliver to this address. Nothing was sent, and
+    /// sending again changes nothing.
+    Suppressed,
+    /// The attempt failed. Trying again later may work.
+    Failed,
+}
+
+/// Where mail goes.
 ///
 /// This exists so two behaviours can be tested that could not be before, both
 /// of which turn on a send having failed:
@@ -46,31 +67,144 @@ pub type SendFuture<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = boo
 /// because `AppState` holds one mailer: seaming only the text path would mean
 /// carrying a `MailerConfig` beside the `Sender` for the two HTML callers, and
 /// two sources for one thing is the shape that goes wrong later.
+///
+/// The suppression check lives behind this trait rather than at the call sites.
+/// A caller cannot forget what it never has to remember, and the thing being
+/// protected is the claim that mail was sent, which only `SendOutcome::Sent`
+/// makes. Every path to that claim runs through one implementation of this
+/// trait, so a sixth mail path added later is covered by existing. The policy
+/// belongs to the trait, the mechanism to `ResendSender`: only it knows the
+/// answer comes from asking Resend.
 pub trait Sender: Send + Sync {
     fn send_text<'a>(&'a self, to: &'a str, subject: &'a str, body: &'a str) -> SendFuture<'a>;
     fn send_html<'a>(&'a self, to: &'a str, subject: &'a str, html: &'a str) -> SendFuture<'a>;
 }
 
+/// What the provider says about an address before anything is sent to it.
+enum Suppression {
+    /// On the suppression list. Nothing sent to it will be delivered.
+    Listed,
+    /// Not on the list.
+    Clear,
+    /// The question could not be answered.
+    Unknown,
+}
+
+/// How long to wait for the suppression answer before giving up on it.
+///
+/// One attempt, no retry. The answer only gates a send that would otherwise
+/// happen anyway, so a second attempt buys little, and this sits inside a
+/// request somebody is waiting on.
+const SUPPRESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Where the suppression lookup goes. Tests build a `ResendSender` with a
+/// different base, so the classifier can be driven against a server that
+/// answers on command.
+///
+/// It needs a seam of its own because the `Sender` seam is the wrong level for
+/// this: `TestSender` decides suppression itself and never reaches the code
+/// that reads the provider's answer. A mutation on 2026-09-04 proved the point,
+/// turning a 200 into `Clear` with every test still passing, because nothing
+/// exercised the mapping at all.
+const SUPPRESSION_BASE: &str = "https://api.resend.com/suppressions/";
+
 /// The real one.
 pub struct ResendSender {
     config: MailerConfig,
+    /// For the suppression lookup, which the Resend crate does not cover. Held
+    /// rather than built per call so the lookup reuses a connection. `Resend`
+    /// itself is still constructed per send, which is why a send pays a TLS
+    /// handshake and this check does not.
+    http: reqwest::Client,
+    base: String,
 }
 
 impl ResendSender {
     pub fn new(config: MailerConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            http: reqwest::Client::new(),
+            base: SUPPRESSION_BASE.to_string(),
+        }
     }
 
-    async fn deliver(&self, to: &str, subject: &str, opts: CreateEmailBaseOptions) -> bool {
+    /// Asks whether the provider has stopped delivering to this address.
+    ///
+    /// `GET /suppressions/{email}` answers 200 with the record, or 404 when
+    /// there is none, verified against the live API on 2026-09-04. The address
+    /// goes in through `path_segments_mut` rather than `format!` because
+    /// `validate_email` permits `?`, `#` and `/` in a local part: interpolated
+    /// raw, `a?b@example.com` truncates the path and the 404 for `a` reads as a
+    /// clear address.
+    async fn suppression(&self, to: &str) -> Suppression {
+        let mut url = match Url::parse(&self.base) {
+            Ok(u) => u,
+            Err(e) => {
+                warn!("mailer: suppression url is not parseable: {e}");
+                return Suppression::Unknown;
+            }
+        };
+        match url.path_segments_mut() {
+            Ok(mut segments) => {
+                segments.pop_if_empty().push(to);
+            }
+            Err(()) => return Suppression::Unknown,
+        }
+
+        match self
+            .http
+            .get(url)
+            .bearer_auth(&self.config.api_key)
+            .timeout(SUPPRESSION_TIMEOUT)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().as_u16() == 200 => Suppression::Listed,
+            Ok(r) if r.status().as_u16() == 404 => Suppression::Clear,
+            Ok(r) => {
+                warn!(
+                    "mailer: suppression lookup for {to} answered {}, treating as unknown",
+                    r.status()
+                );
+                Suppression::Unknown
+            }
+            Err(e) => {
+                warn!("mailer: suppression lookup for {to} failed: {e}");
+                Suppression::Unknown
+            }
+        }
+    }
+
+    async fn deliver(&self, to: &str, subject: &str, opts: CreateEmailBaseOptions) -> SendOutcome {
+        match self.suppression(to).await {
+            Suppression::Listed => {
+                warn!("mailer: {subject:?} not sent, {to} is on the provider suppression list");
+                return SendOutcome::Suppressed;
+            }
+            // Fail open, deliberately. This check exists to stop a false
+            // success on the account recovery path. Refusing to send because
+            // the provider is unreachable would put a false failure on that
+            // same path, which is worse: nothing tells the user it was our
+            // outage and there is nothing they can do about it. Sending anyway
+            // is also what this code did before the check existed, so an outage
+            // degrades to the old behaviour rather than to a new one. Logged
+            // rather than silent, because "we did not check" and "we checked
+            // and it was clear" must not look the same afterwards.
+            Suppression::Unknown => {
+                warn!("mailer: sending {subject:?} to {to} without a suppression answer")
+            }
+            Suppression::Clear => {}
+        }
+
         let client = Resend::new(&self.config.api_key);
         match client.emails.send(opts).await {
             Ok(_) => {
                 info!("mailer: {subject:?} sent to {to}");
-                true
+                SendOutcome::Sent
             }
             Err(e) => {
                 warn!("mailer: send failed to {to}: {e}");
-                false
+                SendOutcome::Failed
             }
         }
     }
@@ -102,6 +236,9 @@ impl Sender for ResendSender {
 #[derive(Default)]
 pub struct TestSender {
     pub result: bool,
+    /// Addresses this sender answers `Suppressed` for, standing in for the
+    /// provider's list without reaching it.
+    pub suppressed: Vec<String>,
     pub sent: std::sync::Mutex<Vec<(String, String, String)>>,
 }
 
@@ -110,6 +247,7 @@ impl TestSender {
     pub fn accepting() -> Self {
         Self {
             result: true,
+            suppressed: Vec::new(),
             sent: std::sync::Mutex::new(Vec::new()),
         }
     }
@@ -117,6 +255,17 @@ impl TestSender {
     pub fn refusing() -> Self {
         Self {
             result: false,
+            suppressed: Vec::new(),
+            sent: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Accepts everything except the named address, which the provider has
+    /// stopped delivering to.
+    pub fn suppressing(address: &str) -> Self {
+        Self {
+            result: true,
+            suppressed: vec![address.to_string()],
             sent: std::sync::Mutex::new(Vec::new()),
         }
     }
@@ -137,10 +286,19 @@ impl TestSender {
 impl Sender for TestSender {
     fn send_text<'a>(&'a self, to: &'a str, subject: &'a str, body: &'a str) -> SendFuture<'a> {
         Box::pin(async move {
+            // Recorded after the suppression answer, not before, so `count()`
+            // means messages that left rather than messages attempted.
+            if self.suppressed.iter().any(|s| s == to) {
+                return SendOutcome::Suppressed;
+            }
             if let Ok(mut s) = self.sent.lock() {
                 s.push((to.to_string(), subject.to_string(), body.to_string()));
             }
-            self.result
+            if self.result {
+                SendOutcome::Sent
+            } else {
+                SendOutcome::Failed
+            }
         })
     }
 
@@ -155,7 +313,11 @@ impl Sender for TestSender {
 /// wrong for this one: once verification gates anything, this mail is the only
 /// route back for an account that cannot get in, and a caller that cannot tell
 /// a send from a silent failure cannot tell the user either.
-pub async fn send_verification_email(sender: &dyn Sender, to: &str, verify_url: &str) -> bool {
+pub async fn send_verification_email(
+    sender: &dyn Sender,
+    to: &str,
+    verify_url: &str,
+) -> SendOutcome {
     let body = format!(
         "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 1 hour.\n\nIf you did not create an account, you can safely ignore this email."
     );
@@ -164,7 +326,7 @@ pub async fn send_verification_email(sender: &dyn Sender, to: &str, verify_url: 
         .await
 }
 
-pub async fn send_welcome_email(sender: &dyn Sender, to: &str, app_url: &str) {
+pub async fn send_welcome_email(sender: &dyn Sender, to: &str, app_url: &str) -> SendOutcome {
     let dashboard_url = app_url.to_string();
     let api_keys_url = format!("{app_url}/api-keys");
     let docs_url = format!("{app_url}/docs");
@@ -285,12 +447,18 @@ pub async fn send_welcome_email(sender: &dyn Sender, to: &str, app_url: &str) {
 </html>"#
     );
 
-    // Result deliberately discarded: a welcome mail that does not arrive costs
-    // nothing recoverable, unlike the verification mail below it.
-    let _ = sender.send_html(to, "Welcome to Astraeusio", &html).await;
+    // Returned rather than discarded. The caller does not act on it, but a
+    // suppressed welcome mail is the first visible sign that an address has
+    // stopped accepting anything, and that is worth a log line at the call
+    // site rather than nothing at all.
+    sender.send_html(to, "Welcome to Astraeusio", &html).await
 }
 
-pub async fn send_password_reset_email(sender: &dyn Sender, to: &str, reset_url: &str) {
+pub async fn send_password_reset_email(
+    sender: &dyn Sender,
+    to: &str,
+    reset_url: &str,
+) -> SendOutcome {
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -357,7 +525,230 @@ pub async fn send_password_reset_email(sender: &dyn Sender, to: &str, reset_url:
 </html>"#
     );
 
-    let _ = sender
+    sender
         .send_html(to, "Reset your Astraeusio password", &html)
-        .await;
+        .await
+}
+
+#[cfg(test)]
+mod outcome_tests {
+    use super::*;
+
+    /// Serves one status code on any path and returns its base URL.
+    async fn server_answering(status: u16) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let app = axum::Router::new().fallback(move || async move {
+            axum::http::StatusCode::from_u16(status).expect("status")
+        });
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        format!("http://{addr}/suppressions/")
+    }
+
+    /// Built field by field rather than through a constructor, so no test-only
+    /// entry point sits in the production impl. One did, and because the source
+    /// scans in this module cut the file at its first `#[cfg(test)]`, it hid
+    /// everything below it from them.
+    fn sender_with_base(base: &str) -> ResendSender {
+        ResendSender {
+            config: MailerConfig {
+                api_key: "test-key".to_string(),
+                from: "Astraeus <test@example.com>".to_string(),
+            },
+            http: reqwest::Client::new(),
+            base: base.to_string(),
+        }
+    }
+
+    /// What the provider's answer means. 200 is a listed address, 404 is a
+    /// clear one, and anything else is no answer at all.
+    ///
+    /// Driven against a real socket rather than a stub, because the thing being
+    /// checked is the mapping from an HTTP status, and a stub of the status
+    /// would be the assertion restating itself. Reading 200 as `Clear` is the
+    /// defect that would send mail into a black hole while reporting success,
+    /// which is the whole finding this code exists for.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_provider_answer_is_classified_by_its_status() {
+        for (status, want, label) in [
+            (200u16, "Listed", "an address on the list"),
+            (404, "Clear", "an address not on the list"),
+            (500, "Unknown", "an answer that is neither"),
+        ] {
+            let base = server_answering(status).await;
+            let sender = sender_with_base(&base);
+            let got = match sender.suppression("someone@example.com").await {
+                Suppression::Listed => "Listed",
+                Suppression::Clear => "Clear",
+                Suppression::Unknown => "Unknown",
+            };
+            assert_eq!(got, want, "{label}: HTTP {status} must read as {want}");
+        }
+    }
+
+    /// A lookup that never answers is not a clear address.
+    ///
+    /// The timeout path reaches the same `Unknown` as a 500, but by a different
+    /// route, and treating a hung provider as a clear address would send to
+    /// every suppressed address during an outage.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_lookup_that_never_answers_reads_as_unknown() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        // Accepted and then left hanging, so the client waits on the timeout
+        // rather than getting a connection refused.
+        tokio::spawn(async move {
+            loop {
+                if let Ok((stream, _)) = listener.accept().await {
+                    std::mem::forget(stream);
+                }
+            }
+        });
+        let sender = sender_with_base(&format!("http://{addr}/suppressions/"));
+        assert!(
+            matches!(
+                sender.suppression("someone@example.com").await,
+                Suppression::Unknown
+            ),
+            "a lookup that never answers must not read as a clear address"
+        );
+    }
+
+    /// Strips comments and whitespace from a source file's production half.
+    ///
+    /// Comments matter here because the trait's own documentation names
+    /// `SendOutcome::Sent` while explaining why the check lives behind it, and
+    /// a raw count would read that sentence as a second place that can claim a
+    /// message was sent.
+    fn production_code(whole: &str) -> String {
+        whole
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or(whole)
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<String>()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect()
+    }
+
+    /// Only one place in the codebase can say a message was sent.
+    ///
+    /// Enumerated from the thing being protected rather than from the places
+    /// the check already appears: the asset is the claim that mail left, every
+    /// such claim is a `SendOutcome::Sent`, and if it can only be built inside
+    /// `deliver` then it cannot be built without the suppression lookup that
+    /// runs first. A sixth mail path added later is covered by existing rather
+    /// than by remembering.
+    ///
+    /// The floor is here because a scan that reads nothing finds nothing and
+    /// passes, which is how a mutation harness in this repository reported
+    /// three defects as unguarded while running zero tests.
+    #[test]
+    fn only_deliver_can_claim_a_message_was_sent() {
+        let flat = production_code(include_str!("mailer.rs"));
+        assert!(
+            flat.len() > 2000,
+            "read only {} characters of mailer.rs, so this scan proves nothing",
+            flat.len()
+        );
+        assert_eq!(
+            flat.matches("SendOutcome::Sent").count(),
+            1,
+            "SendOutcome::Sent must be constructed in exactly one place, inside deliver"
+        );
+
+        // The rule and its application are separate things. The classifier
+        // being right says nothing about `deliver` consulting it, and a
+        // classifier that is never called is the same as no check at all.
+        let ask = flat
+            .find("self.suppression(to).await")
+            .expect("deliver must ask about the address");
+        let send = flat
+            .find("client.emails.send(opts).await")
+            .expect("deliver must send");
+        assert!(
+            ask < send,
+            "deliver sends before it asks whether the address accepts mail"
+        );
+    }
+
+    /// Everywhere else may read that claim and may not make it.
+    ///
+    /// The two callers that care compare against `Sent`. If one of them ever
+    /// returns it instead, a mail path exists that never asked the provider
+    /// whether the address accepts mail.
+    #[test]
+    fn no_caller_outside_the_mailer_constructs_an_outcome() {
+        for (file, whole) in [
+            ("auth.rs", include_str!("auth.rs")),
+            ("poller.rs", include_str!("poller.rs")),
+        ] {
+            let flat = production_code(whole);
+            assert!(
+                flat.len() > 2000,
+                "read only {} characters of {file}, so this scan proves nothing",
+                flat.len()
+            );
+            for (i, _) in flat.match_indices("SendOutcome::Sent") {
+                // Walk left off the path qualifier first. The callers write
+                // `mailer::SendOutcome::Sent`, so the two characters before the
+                // match are the `::` of the module path, not the operator that
+                // says whether this is a comparison or a construction. Reading
+                // them directly is how this test failed on correct code.
+                let mut start = i;
+                while start > 0 {
+                    let c = flat.as_bytes()[start - 1] as char;
+                    if !(c.is_alphanumeric() || c == '_' || c == ':') {
+                        break;
+                    }
+                    start -= 1;
+                }
+                let before = &flat[start.saturating_sub(2)..start];
+                let after = &flat[i + "SendOutcome::Sent".len()..];
+                // Two shapes read the value and neither builds one: an operand
+                // of a comparison, and a match arm pattern. Anything else is
+                // putting a `Sent` somewhere, which is the claim only `deliver`
+                // is allowed to make.
+                let is_read = before == "==" || before == "!=" || after.starts_with("=>");
+                assert!(
+                    is_read,
+                    "{file} appears to construct SendOutcome::Sent rather than read it, \
+                     preceded by {before:?}; only mailer.rs may construct one"
+                );
+            }
+        }
+    }
+
+    /// An unanswered suppression lookup must not stop the send.
+    ///
+    /// This is the weaker of the tests in this file and deliberately so. The
+    /// branch lives inside `deliver`, which only runs with a network, so there
+    /// is no seam to drive it through: what is asserted is the shape of the
+    /// source rather than the behaviour. It pins the one thing that would
+    /// invert the trade, an early return under `Unknown`, which would turn a
+    /// provider outage into an account lockout on the recovery path.
+    #[test]
+    fn an_unanswered_lookup_does_not_refuse_the_send() {
+        let flat = production_code(include_str!("mailer.rs"));
+        let unknown = flat
+            .find("Suppression::Unknown=>")
+            .expect("the Unknown arm must exist in deliver");
+        let listed = flat
+            .find("Suppression::Listed=>")
+            .expect("the Listed arm must exist in deliver");
+        assert!(listed < unknown, "expected Listed to be matched before Unknown");
+        let arm = &flat[unknown..flat[unknown..].find("Suppression::Clear=>").map_or(flat.len(), |o| unknown + o)];
+        assert!(
+            !arm.contains("returnSendOutcome"),
+            "the Unknown arm returns early, which fails closed: {arm}"
+        );
+    }
 }
