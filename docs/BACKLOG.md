@@ -120,6 +120,70 @@ or in the commit that created the deferral.
   shape of that distribution rather than on a total. That is a backend change and a new metric
   surface, not another rule in a shell script, which is why it is here rather than done.
 
+## Who the users are
+
+Established 2026-09-04 by reading the `users` table on the host. The account list is no longer
+four addresses that all belong to us.
+
+| Address | Plan | Verified | Origin | Created |
+|---|---|---|---|---|
+| `contact@chronocoder.dev` | enterprise | yes | password | 2026-05-10 |
+| `altug@bytus.io` | free | yes | password | 2026-05-14 |
+| `891483383@qq.com` | free | **no** | password | 2026-05-29 |
+| `deploy-verify@astraeusio.com` | free | yes | password | 2026-08-10 |
+| `deploy-verify-dev@astraeusio.com` | developer | yes | password | 2026-08-10 |
+| `dystek12@gmail.com` | free | yes | github | 2026-08-27 |
+
+Two of the six are strangers: `891483383@qq.com`, who signed up with a password and never
+confirmed the address, and `dystek12@gmail.com`, who arrived through GitHub OAuth and is
+verified because the provider vouched for the address. Neither is known to us.
+
+This ends the assumption that every schema change, session invalidation and account lockout has
+been priced against, which was that the whole user table is ours and any breakage is ours to
+absorb. From here a migration that rewrites user rows, a change that invalidates tokens, and any
+path that locks an account have to be weighed against a third party being on the other end of it.
+The two deploy accounts stay the exception: they are named literals in `DEPLOY_ACCOUNTS`, and the
+`2026-09-02-verify-deploy-accounts` migration only touches those two addresses, which is the shape
+the next user-table migration should copy rather than a bare `UPDATE users`.
+
+What it changes about findings that are still open:
+
+- **AUD-009**, no `limit_req_zone` at the edge, changes character. It was filed as a gap in
+  brute-force defence. The per-account backoff it leaves standing is also a lockout primitive:
+  six wrong passwords against an address that is not ours takes that person's account away until
+  the wait expires, and nothing at the edge limits who can spend those six. The finding is now a
+  denial of service against a third party as much as it is a weak defence for us.
+- **AUD-027**, the missing `Referrer-Policy`, now concerns other people's credentials rather than
+  only ours. `resend_verification` builds the link as `{app_url}/verify-email?token={token}` and
+  the reset link is the same shape, so a single-use secret rides in the query string, and it is
+  the credential an unverified stranger's only way back depends on. Measured on the live route
+  2026-09-04 before the header was added: every subresource `/verify-email` loads is same-origin,
+  the rendered tree is `Navbar` plus a status card with no third-party link, and the edge injects
+  no beacon, so nothing was leaving. The exposure was latent rather than active, one added font,
+  analytics tag or error reporter away from real.
+- **AUD-020**, OAuth PKCE left out deliberately, stops being hypothetical. There is a real
+  OAuth-origin account now and it is not ours, so the party exposed by the remaining gap is the
+  stranger rather than a test account we control.
+- The remaining open findings, **AUD-011**, **AUD-014**, **AUD-015**, **AUD-022**, **AUD-026**,
+  **AUD-030** through **AUD-033**, touch dependencies, the model or the containers and hold no
+  per-account data, so the change does not reach them.
+
+### AUD-017 was considered for rollback on a reading that did not survive measurement
+
+On 2026-09-04, with a stranger's account sitting unverified, the working assumption was that
+`email_verified` had locked a real user out and that the gate should come back off until the
+recovery path was proven. It had not. Reading the four `verified_gate` call sites: it gates
+creating an API key, creating a webhook, creating a custom rule, setting email alert thresholds
+and changing plan, and the first four are separately plan-gated at developer, pro, enterprise and
+developer. The account in question is on `free`, so the only capability the gate removes that its
+plan does not already remove is `POST /api/user/plan`. It can still sign in and still read
+everything its plan allows, which is exactly what `verified_gate`'s own doc comment says it is
+for.
+
+The gate stays. Rolling it back would have removed the control for every account in order to
+return one capability to one person. Recorded because the wrong reading was the urgent-sounding
+one, and what settled it was reading the call sites rather than the finding's title.
+
 ## Open audit findings
 
 Reconstructed 2026-08-30 by reading `git log` since the audit's base tree against the code as it
@@ -242,8 +306,11 @@ repeated here.
   service, and `depends_on` is still the short form, so `condition: service_healthy` is absent and
   the backend can still start before ml has loaded its checkpoint despite ml having a healthcheck
   to wait on.
-- **AUD-027** `Referrer-Policy` was named in the fix and never added. Confirmed absent from the
-  live response 2026-08-30, where the other four headers and the report-only CSP are present.
+- **AUD-027** `Referrer-Policy` was named in the fix and never added, and was still absent from
+  the live response on 2026-09-04. **Closed**: it now ships as
+  `strict-origin-when-cross-origin` in `security-headers.conf`, so the token in a verification or
+  reset link cannot cross an origin boundary. What remains open under this ID is the report-only
+  CSP above, which is a separate deferral.
 
 ## Enumeration coverage
 
