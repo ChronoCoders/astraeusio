@@ -77,14 +77,18 @@ Then, with the stack stopped so nothing else holds the file:
 ```bash
 cd /opt/astraeusio
 ./backup.sh                      # take a backup first, this is destructive
-docker compose stop backend
-/opt/astraeusio/duckdb "$DBDIR/astraeus.duckdb" -c \
-  "UPDATE users SET totp_enabled = FALSE, totp_secret_enc = NULL
-   WHERE email IN ('someone@example.com');"
-docker compose start backend
+./user-edit.sh --email someone@example.com \
+  --set "totp_enabled=FALSE, totp_secret_enc=NULL"
 ```
 
-Name the accounts explicitly. Do not run it without a `WHERE` clause.
+One address per run. The WHERE clause is built from `--email`, so there is no
+way to run this without one, and no way to reach a second account by accident.
+Run it once per person and read the undo line it prints before moving on.
+
+Add `--dry-run` first to see the statement and the current values. A dry run
+stops nothing, and it reads those values from the newest backup rather than the
+live file, because DuckDB will not open the live file even read-only while the
+backend holds the lock.
 
 Afterwards the backend starts, those users sign in with their password alone,
 and each can enrol a new authenticator from Settings. Tell them; a second factor
@@ -170,14 +174,13 @@ Two things to check before writing:
   procedure did not.
 
 ```bash
-EMAIL=deploy-verify-dev@astraeusio.com
-DB=$(docker volume inspect astraeusio_data --format '{{.Mountpoint}}')/astraeus.duckdb
-
-/opt/astraeusio/duckdb --version          # must read v1.5.2
-docker compose -f /opt/astraeusio/docker-compose.yml stop backend
-/opt/astraeusio/duckdb "$DB" -c "UPDATE users SET plan='developer' WHERE email='$EMAIL'; SELECT email, plan FROM users ORDER BY email;"
-docker compose -f /opt/astraeusio/docker-compose.yml start backend
+cd /opt/astraeusio
+./user-edit.sh --email deploy-verify-dev@astraeusio.com --set "plan='developer'"
 ```
+
+The script checks that `duckdb` reads v1.5.2 before it stops anything, prints
+the previous value and the command that restores it, and starts the backend
+again on every exit path including a failure or an interrupt.
 
 Measured downtime on 2026-08-10 was **705 ms** end to end, and the API answered
 again on the second one second poll. Migrations do not re-run, since
