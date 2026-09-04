@@ -3775,12 +3775,22 @@ impl Store {
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
 impl Store {
-    pub fn set_email_verified(&self, email: &str) -> Result<(), DbError> {
-        self.conn.execute(
-            "UPDATE users SET email_verified = TRUE WHERE email = ?",
+    /// Marks the address proven, and reports whether this call is what proved
+    /// it.
+    ///
+    /// `AND email_verified IS NOT TRUE` is what makes the row count mean
+    /// something. Without it an already verified account still reports one row
+    /// changed, so the caller cannot tell a first use of a link from a replay:
+    /// the verification token stayed usable for its whole life and sent a
+    /// welcome mail on every use, which made a captured link one mail per
+    /// request. Putting the test inside the statement rather than reading the
+    /// row first also means two uses of the same link racing cannot both win.
+    pub fn set_email_verified(&self, email: &str) -> Result<bool, DbError> {
+        let changed = self.conn.execute(
+            "UPDATE users SET email_verified = TRUE              WHERE email = ? AND email_verified IS NOT TRUE",
             params![email],
         )?;
-        Ok(())
+        Ok(changed == 1)
     }
 
     /// Decrypts a stored second factor. None when the account has none.

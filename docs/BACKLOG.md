@@ -340,16 +340,28 @@ repeated here.
   immediately after the 204. Signing a user out is right for a password change and wrong for the
   one action we most want people to complete.
 
-  **Proposed instead, not yet done:** narrow the update to
-  `UPDATE users SET email_verified = TRUE WHERE email = ? AND email_verified IS NOT TRUE`, return
-  rows affected, and let the handler send the welcome mail only when it is 1, answering 409
-  otherwise, which is what `resend_verification` already answers for an account that is already
-  verified. The statement then is the transition test, so it is atomic rather than a read followed
-  by a write, it needs no column and no migration, and it costs the session nothing. What it does
-  not give is a spent credential: an account manually un-verified inside the token's 24 hours
-  could be verified again by the old link. Nothing in the product un-verifies an account, only a
-  direct database edit does, so that is a narrow gap, and closing it properly means a purpose
-  scoped counter beside `token_version` rather than reusing it.
+  **Closed.** The update now reads
+  `UPDATE users SET email_verified = TRUE WHERE email = ? AND email_verified IS NOT TRUE` and
+  returns whether a row changed, through the writer to the handler. A first use answers 204 and
+  sends one welcome mail; a replay answers 409 and sends nothing, the same status and wording
+  `resend_verification` already gave for an address that is already proven. The welcome send is
+  awaited rather than spawned, because a spawned send is unobservable and nothing could have
+  asserted either half. The link lifetime is one hour, from `VERIFY_EMAIL_TTL_SECS`, used by both
+  mint sites, and the mail body says one hour because a test holds the sentence and the constant
+  to each other.
+
+  **What it does not give, and the condition that would make that matter.** It tests the current
+  state rather than spending the credential. The token itself is untouched by being used: what
+  stops the second use is that the row is already `TRUE`, not that the link is dead. So for as
+  long as the token lives, it remains a working key to a lock that simply happens to be open
+  already. Nothing in the product can close that lock again, since no path un-verifies an account
+  and only a direct database edit can, which is why this was the right trade rather than a column
+  and a migration. **If a path is ever added that un-verifies an account**, whether an address
+  change, an admin action, or a bounce handler marking an address unusable, that assumption dies
+  the day it ships and a stale link inside its hour becomes usable again. That is the point at
+  which a purpose scoped counter beside `token_version` stops being over-engineering and becomes
+  the fix. It cannot be `token_version` itself: that counter is shared with session JWTs and
+  bumping it would sign the account out at the moment it verifies.
 
   **The welcome mail should not fire on a repeat regardless of how the token is fixed.** It is the
   amplification: one captured link is one mail per request, unauthenticated, for 24 hours. A

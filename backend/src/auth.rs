@@ -30,6 +30,17 @@ pub(crate) const AUD_SESSION: &str = "astraeus:session";
 /// separates them. Before this existed, a 2FA partial token, an email
 /// verification token and a password reset token were all accepted as full
 /// session tokens.
+/// How long a verification link stays usable.
+///
+/// One hour, cut from twenty four on 2026-09-04. Verification is something
+/// people finish in minutes and `resend_verification` exists for the ones who
+/// do not, so a day was a day of exposure bought for nothing: the token travels
+/// in a URL and comes to rest in a mailbox, a browser history and a mail
+/// archive. The wording in the mail body has to agree with this, and
+/// `the_verification_mail_states_the_lifetime_it_actually_has` is what holds
+/// the two together.
+pub(crate) const VERIFY_EMAIL_TTL_SECS: i64 = 3_600;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TokenPurpose {
     TwoFactorPartial,
@@ -341,7 +352,13 @@ pub async fn register(State(s): State<AppState>, Json(body): Json<RegisterReques
             // Fire verification email if mailer is configured.
             if let Some(ref mc) = s.mailer
                 && let Ok(token) =
-                    purpose_token(&email, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret, 0)
+                    purpose_token(
+                        &email,
+                        TokenPurpose::VerifyEmail,
+                        VERIFY_EMAIL_TTL_SECS,
+                        &s.jwt_secret,
+                        0,
+                    )
             {
                 let url = format!("{}/verify-email?token={}", s.app_url, token);
                 let mc = mc.clone();
@@ -553,16 +570,27 @@ pub async fn verify_email(Path(token): Path<String>, State(s): State<AppState>) 
     };
 
     match s.writer.set_email_verified(email.clone()).await {
-        Ok(()) => {
+        Ok(true) => {
+            // Awaited rather than spawned. A spawned send is unobservable, so
+            // nothing could assert that a first use sends exactly one mail and
+            // a replay sends none, which is the property this handler now
+            // carries. The result is deliberately ignored: a welcome mail that
+            // does not go out is not a reason to tell someone their address
+            // failed to verify when it did.
             if let Some(ref mc) = s.mailer {
-                let mc = mc.clone();
-                let app_url = s.app_url.clone();
-                tokio::spawn(async move {
-                    mailer::send_welcome_email(mc.as_ref(), &email, &app_url).await;
-                });
+                mailer::send_welcome_email(mc.as_ref(), &email, &s.app_url).await;
             }
             StatusCode::NO_CONTENT.into_response()
         }
+        // The link has already been used. Nothing to write and nothing to send:
+        // a welcome mail on every use turned one captured URL into one mail per
+        // request for as long as the token lived. Same status and wording as
+        // `resend_verification` gives for an address that is already proven.
+        Ok(false) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "email already verified" })),
+        )
+            .into_response(),
         Err(e) => {
             warn!("set_email_verified: {e}");
             (
@@ -603,7 +631,13 @@ pub async fn resend_verification(State(s): State<AppState>, claims: AuthClaims) 
     }
 
     let ver = current_token_version(&s, &claims.sub).await;
-    let token = match purpose_token(&claims.sub, TokenPurpose::VerifyEmail, 86_400, &s.jwt_secret, ver)
+    let token = match purpose_token(
+        &claims.sub,
+        TokenPurpose::VerifyEmail,
+        VERIFY_EMAIL_TTL_SECS,
+        &s.jwt_secret,
+        ver,
+    )
     {
         Ok(t) => t,
         Err(e) => {
@@ -2082,5 +2116,102 @@ mod resend_tests {
             .status();
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(sender.count(), 0, "nothing is sent to an already verified address");
+    }
+
+    /// The first use of a verification link proves the address and welcomes the
+    /// account, exactly once.
+    ///
+    /// The other half of the replay guard below. A handler that refused every
+    /// use would pass that test while breaking every real sign up.
+    // The writer runs its DuckDB work on a blocking task, which needs a real
+    // thread pool rather than the single threaded default.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_verification_link_verifies_and_welcomes_on_first_use() {
+        let sender = Arc::new(TestSender::accepting());
+        let state = state_with(sender.clone());
+        let email = "first@example.com";
+        state
+            .writer
+            .create_user(email.to_string(), "hash".to_string())
+            .await
+            .expect("create");
+
+        let link = purpose_token(
+            email,
+            TokenPurpose::VerifyEmail,
+            VERIFY_EMAIL_TTL_SECS,
+            SECRET,
+            0,
+        )
+        .expect("mint");
+
+        let status = verify_email(Path(link), State(state)).await.status();
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(sender.recipients(), vec![email.to_string()]);
+    }
+
+    /// A verification link used once must not work twice, and the second use
+    /// must send nothing.
+    ///
+    /// The update wrote `email_verified = TRUE` without testing the row, so it
+    /// reported a change even when there was none and the handler could not
+    /// tell a first use from a replay. The link stayed good for its whole life
+    /// and produced a welcome mail on every request: one token sent three of
+    /// them on 2026-09-04, which is an unauthenticated mail primitive pointed
+    /// at whichever address the token names.
+    // The writer runs its DuckDB work on a blocking task, which needs a real
+    // thread pool rather than the single threaded default.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_used_verification_link_is_refused_and_sends_nothing() {
+        let sender = Arc::new(TestSender::accepting());
+        let state = state_with(sender.clone());
+        let email = "twice@example.com";
+        state
+            .writer
+            .create_user(email.to_string(), "hash".to_string())
+            .await
+            .expect("create");
+
+        let link = purpose_token(
+            email,
+            TokenPurpose::VerifyEmail,
+            VERIFY_EMAIL_TTL_SECS,
+            SECRET,
+            0,
+        )
+        .expect("mint");
+
+        let first = verify_email(Path(link.clone()), State(state.clone()))
+            .await
+            .status();
+        assert_eq!(first, StatusCode::NO_CONTENT, "the link must work once");
+        assert_eq!(sender.count(), 1);
+
+        let second = verify_email(Path(link), State(state)).await.status();
+        assert_eq!(
+            second,
+            StatusCode::CONFLICT,
+            "a link used twice must be refused"
+        );
+        assert_eq!(
+            sender.count(),
+            1,
+            "and the replay must not send a second welcome mail"
+        );
+    }
+
+    /// The lifetime the mail claims and the lifetime the token has must be the
+    /// same number. They live in different files, and the sentence is the only
+    /// part of it the reader can see.
+    #[tokio::test]
+    async fn the_verification_mail_states_the_lifetime_it_actually_has() {
+        let sender = TestSender::accepting();
+        crate::mailer::send_verification_email(&sender, "who@example.com", "https://app/x").await;
+        let body = sender.sent.lock().expect("lock")[0].2.clone();
+        let hours = VERIFY_EMAIL_TTL_SECS / 3_600;
+        assert!(
+            body.contains(&format!("expires in {hours} hour")),
+            "the body must state the {hours} hour lifetime, got: {body}"
+        );
     }
 }

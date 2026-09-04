@@ -34,13 +34,14 @@ const BACKLOG: &str = include_str!("../../docs/BACKLOG.md");
 ///
 /// Update this when adding or removing a section, and only then. A section that
 /// disappears without this list changing is a mistake by definition.
-const SECTIONS: [&str; 10] = [
+const SECTIONS: [&str; 11] = [
     "Deferred from AUD-013, retry logic",
     "Deferred from the container and edge work",
     "Deferred from the alerting work",
     "Deferred data correctness",
     "Operational",
     "Measurement",
+    "Who the users are",
     "Open audit findings",
     "Enumeration coverage",
     "Process",

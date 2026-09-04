@@ -152,7 +152,7 @@ impl Sender for TestSender {
 /// a send from a silent failure cannot tell the user either.
 pub async fn send_verification_email(sender: &dyn Sender, to: &str, verify_url: &str) -> bool {
     let body = format!(
-        "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 24 hours.\n\nIf you did not create an account, you can safely ignore this email."
+        "Welcome to Astraeusio!\n\nClick the link below to verify your email address:\n\n{verify_url}\n\nThis link expires in 1 hour.\n\nIf you did not create an account, you can safely ignore this email."
     );
     sender
         .send_text(to, "Verify your Astraeusio email address", &body)
