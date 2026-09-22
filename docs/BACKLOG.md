@@ -499,6 +499,14 @@ repeated here.
   boundary. Listed with the two above because it is the same kind of constant: a size written down
   once, against something that moves.
 
+- No ID, rides the next backend change. **`routes.rs:1004` documents a pricing claim that no
+  longer exists.** The comment reads that the real free-versus-paid line the pricing page claims is
+  `delay60`, a sixty second delay on free-tier data, and that nothing implements it. The claim was
+  removed from the pricing page, both locales and `plans.js` on 2026-09-22, so the comment now
+  describes something that is not there. Left in place deliberately: correcting a comment would
+  cost a full backend rebuild and container recreation on the host, which is not a price worth
+  paying for prose. It goes with whatever changes `routes.rs` next.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
