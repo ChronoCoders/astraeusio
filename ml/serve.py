@@ -8,12 +8,13 @@ POST /predict
   Returns predicted Kp at 3h/6h/12h/24h, each with the spread of 50 Monte Carlo
   Dropout passes: ci_lower and ci_upper are mean -/+ 1.96 sigma across those
   passes. That is the model's disagreement with itself and NOT a calibrated
-  predictive interval. Measured on 2026-08-31 against 1229 forecasts paired with
-  the observed three-hour Kp, 13.1 percent of outcomes fell inside it, against
-  the 95 percent this used to claim; the mean width was 0.405 Kp against a mean
-  absolute error of 0.727. The field names are kept because callers depend on
-  them. AUD-014 tracks the fix, which needs an observation noise term and
-  recalibration.
+  predictive interval, and not a probability. The 13.1 percent this comment
+  used to carry is not a property of the model now running: it was measured on
+  2026-08-31 against the model AUD-032 showed was mislabelled, which has since
+  been replaced. The band this model publishes is built the same way and is
+  uncalibrated the same way. The field names are kept because callers depend
+  on them. AUD-014 tracks the fix, which
+  needs an observation noise term and recalibration.
 
   The top-level fields (predicted_kp / ci_lower / ci_upper / uncertainty) mirror
   the 3-hour horizon for backward compatibility.
@@ -41,7 +42,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 MODEL_PATH = Path(os.getenv("MODEL_PATH", str(Path(__file__).parent / "models" / "kp_lstm.pt")))
 
 MC_SAMPLES = 50       # stochastic forward passes for uncertainty estimate
-CI_Z = 1.96           # 95 % confidence interval
+CI_Z = 1.96           # mean -/+ 1.96 sigma across the passes, not a 95 % interval
 
 # Solar cycle reference - must match preprocess.py exactly
 _CYCLE_REF = datetime(2019, 12, 1, tzinfo=timezone.utc)

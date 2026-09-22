@@ -38,7 +38,7 @@ Browser
 
 Written in Rust (Edition 2024) using Axum 0.8 as the HTTP framework and Tokio as the async runtime. External API calls use `reqwest` with a 60-second client timeout. Poller fetches and the ML prediction call retry transient failures only (connect errors, timeouts, 5xx) up to `RETRY_COUNT` attempts with exponential backoff, with each attempt and the whole sequence bounded so a retry cannot outlast the poll interval it belongs to. Permanent failures such as 404 are not retried, and a rate limit is left to the next scheduled poll. OAuth, email, and webhook delivery are not covered.
 
-Route handlers never call external APIs directly. Every data type is maintained by a dedicated background Tokio task that fetches, validates, and enqueues writes to DuckDB through an async `db_writer` channel (batched and non-blocking). Handlers read from the database and serve responses in single-digit milliseconds. An in-process TTL cache (10–3600 seconds depending on the endpoint) prevents redundant DB reads under concurrent browser connections.
+Route handlers never call external APIs directly. Every data type is maintained by a dedicated background Tokio task that fetches, validates, and enqueues writes to DuckDB through an async `db_writer` channel (batched and non-blocking). Handlers read from the database and serve responses in single-digit milliseconds. An in-process TTL cache (10 to 3600 seconds depending on the endpoint) prevents redundant DB reads under concurrent browser connections.
 
 All floating-point values are stored as scaled 64-bit integers (`flux_e12`, `speed_e1`, `lat_e6`, etc.) and de-scaled on read. Timestamps are ISO-8601 UTC text for source time-tags and UTC Unix seconds (`i64`) for `fetched_at`. No external database server is required; DuckDB runs embedded in the same process.
 
@@ -135,13 +135,17 @@ Walk-forward validation retrains the model from scratch on all data preceding ea
 
 Uncertainty is derived from Monte Carlo Dropout. At inference time the model is kept in `train()` mode for 50 stochastic forward passes per horizon. `ci_lower` and `ci_upper` are mean ± 1.96 × standard deviation across those passes, clipped to [0, 9].
 
-That is the model's disagreement with itself, not a calibrated predictive interval, and the field names are historical. Measured on 2026-08-31 against 1229 forecasts paired with the observed three-hour Kp, **13.1%** of outcomes fell inside it, with a mean width of 0.405 Kp against a mean absolute error of 0.727. It does rank uncertainty: the widest quarter of forecasts has a mean error of 0.90 Kp against 0.59 for the narrowest. Reaching 95% coverage would need a multiplier near 8.7 rather than 1.96, or an observation noise term the model does not have. Tracked as AUD-014.
+That is the model's disagreement with itself, not a calibrated predictive interval and not a probability, and the field names are historical.
+
+**The paragraph below describes a model that no longer runs.** It was measured on 2026-08-31, before AUD-032 established that every head was trained one period beyond the lead it was published as: the output sold as a 3 h forecast was in fact forecasting 6 h. Those rows carry no `model_sha` and were relabelled 6 h by the `kp_forecast` rekey, which is what keeps them out of any figure describing the model running now. It is kept as a record of what was measured and when, not as a property of the current model. The band the current model publishes is built the same way and is uncalibrated the same way; AUD-014 stays open until it carries an observation noise term and is recalibrated.
+
+Measured on 2026-08-31 against 1229 forecasts paired with the observed three-hourly Kp series, **13.1%** of outcomes fell inside the band, with a mean width of 0.405 Kp against a mean absolute error of 0.727. Those forecasts were paired at the lead they were labelled with rather than the lead they were trained for, which is the defect AUD-032 records. It did rank uncertainty: the widest quarter of forecasts had a mean error of 0.90 Kp against 0.59 for the narrowest. Tracked as AUD-014.
 
 ### Inference API
 
 ```
 POST /predict
-Body:    { "readings": [float, ...] }              7–48 Kp values, oldest first
+Body:    { "readings": [float, ...] }              7 to 48 Kp values, oldest first
          optional "f107":    [float, ...]          F10.7 adjusted flux, same length
          optional "sunspot": [float, ...]          daily sunspot number, same length
 Returns: {
@@ -167,7 +171,7 @@ The anomaly scanner runs every 60 seconds as a background Tokio task. It queries
 |---|---|---|---|
 | `kp_storm` | Latest Kp reading | Kp ≥ 5.0 | Kp ≥ 8.0 |
 | `solar_wind_speed` | Latest proton speed | > 700 km/s | > 900 km/s |
-| `xray_flare` | Latest 0.1–0.8 nm flux | ≥ 1×10⁻⁵ W/m² (M class) | ≥ 1×10⁻⁴ W/m² (X class) |
+| `xray_flare` | Latest 0.1 to 0.8 nm flux | ≥ 1×10⁻⁵ W/m² (M class) | ≥ 1×10⁻⁴ W/m² (X class) |
 | `asteroid_close` | NEO miss distance (7-day window) | < 1 LD | < 0.5 LD |
 | `ml_forecast_storm` | Most recent stored Kp forecast (3h) | Kp ≥ 5.0 | Kp ≥ 8.0 |
 
