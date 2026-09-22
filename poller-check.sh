@@ -352,6 +352,9 @@ poll_total() {
 # no entry here would defer to nothing and, if the check ever stopped defaulting
 # to alert, go silent. This fails loudly instead.
 if [ "${1:-}" = "--selftest" ]; then
+  # shellcheck source=selftest-guard.sh
+  . "$(dirname "$0")/selftest-guard.sh"
+  require_notify_suppressed "poller-check.sh --selftest" || exit 2
   st_fail=0
   st_check() {  # description, expected, actual
     if [ "$2" = "$3" ]; then
@@ -472,6 +475,39 @@ noaa_imf unknown"
     st_fail=1
   else
     echo "  ok    poller-check.sh has it only inside comments"
+  fi
+
+  echo
+  echo "8. every selftest entry point refuses to mail"
+  # Enumerated from what can send, not from a list of names. The asset is a
+  # selftest able to reach notify.sh; a check written next month is covered the
+  # day it gains a --selftest branch, without anybody remembering to add it
+  # here.
+  #
+  # Scanned in this script's own directory rather than /opt/astraeusio like
+  # section 7, so it tests the copies being tested rather than whatever is
+  # deployed.
+  st_guard_dir=$(cd "$(dirname "$0")" && pwd)
+  st_guard_missing=""
+  st_guard_seen=0
+  for st_guard_f in "$st_guard_dir"/*.sh; do
+    grep -q 'if \[ "${1:-}" = "--selftest" \]' "$st_guard_f" || continue
+    grep -q 'notify.sh' "$st_guard_f" || continue
+    st_guard_seen=$((st_guard_seen + 1))
+    if ! grep -q 'require_notify_suppressed' "$st_guard_f"; then
+      st_guard_missing="$st_guard_missing $(basename "$st_guard_f")"
+    fi
+  done
+  # A scan that reads nothing finds nothing and passes. The floor is what stops
+  # a broken pattern from reading as a clean result.
+  if [ "$st_guard_seen" -lt 3 ]; then
+    echo "  FAIL  found only $st_guard_seen entry points, expected at least 3; the scan is not reading them"
+    st_fail=1
+  elif [ -n "$st_guard_missing" ]; then
+    echo "  FAIL  these can send and can be selftested, with no guard:$st_guard_missing"
+    st_fail=1
+  else
+    echo "  ok    all $st_guard_seen of them call require_notify_suppressed"
   fi
 
   echo
