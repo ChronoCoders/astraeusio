@@ -453,6 +453,52 @@ repeated here.
   complaint puts the address on Resend's suppression list, which is exactly what leaves an account
   unable to recover in the finding above. The two defects feed each other.
 
+- **AUD-034** **Five queries use a row count to mean a duration, while the cadence that makes the
+  two equal is env-overridable.** Found 2026-09-22 while looking for other constants with the shape
+  of the backup floor. `db.rs:2246` reads `FROM kp ORDER BY observed_at DESC LIMIT 1440`, and 1440
+  rows is a day only because Kp arrives once a minute. The same at `db.rs:2345` solar_wind,
+  `db.rs:2420` imf, `db.rs:2444` dst, and `db.rs:2323` kp_3h, where `LIMIT 240` is thirty days only
+  because that series is three-hourly.
+
+  Every one of those cadences is settable from the environment: `poller.rs::PollConfig::from_env`
+  reads `KP_INTERVAL`, `SOLAR_WIND_INTERVAL`, `IMF_INTERVAL` and the rest. Double `KP_INTERVAL` to
+  cut API pressure, which is exactly what that knob is documented for, and the chart silently
+  becomes two days of data while the code, the API and the axis label all still say one. Nothing
+  connects the constant to the interval, and nothing fails.
+
+  Same shape as the backup floor: a value that is correct until a different change moves what it
+  measures. The difference is that the backup floor announced itself twice a day for nineteen days
+  and this one would announce nothing at all, because a chart with the wrong window looks exactly
+  like a chart with the right one.
+
+  Not fixed here. The fix is to express the window as a duration and let the query derive the row
+  count, or to select on `observed_at > now - 86400` and drop the count entirely, which is what the
+  range queries at `db.rs:770` and `db.rs:795` already do.
+
+- **AUD-035** **Local backup retention is a count, and nothing checks the disk it costs.**
+  `backup.sh:29` keeps `KEEP=7` files. What that occupies is set by the database size, which nobody
+  measures on this path. At the pre-rebuild 1.1G per file it was 7.7G held on a 79G volume; today
+  the same seven files are 879M. The footprint moved by a factor of nine without the constant
+  changing or anybody deciding anything.
+
+  No script on this host checks free space before writing a backup. `rebuild-db.sh:62` is the only
+  one that reads `df` at all, and only to guard its own run. So the failure mode is that the
+  database grows back, seven copies grow with it, and the first sign is a full disk rather than an
+  alert.
+
+  Measured 2026-09-22: `/` is 79G with 43G available at 44 percent used, so this is not close today.
+  It is recorded because the coupling is invisible, not because it is urgent.
+
+  Not fixed here. The candidates are a free-space check in `backup.sh` before it writes, retention
+  expressed as a budget rather than a count, or `backup-check.sh` reporting headroom alongside the
+  freshness it already reports.
+
+- No ID, low risk. **`r2_upload.py:63-64` sets `multipart_threshold` and `multipart_chunksize` to a
+  fixed 64 MB** against a file that has grown past it and will not shrink back below it. It is a
+  transfer tuning value rather than a correctness one, so nothing breaks either side of the
+  boundary. Listed with the two above because it is the same kind of constant: a size written down
+  once, against something that moves.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
