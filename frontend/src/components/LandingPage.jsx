@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { stormInfo, fmtNum } from '../lib/utils'
+import { stormInfo, fmtNum, currentKp } from '../lib/utils'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import DashboardPreview from './DashboardPreview'
@@ -271,7 +271,8 @@ export default function LandingPage({ onSignUp, onSignIn }) {
     return () => clearTimeout(t)
   }, [fetchedAt])
 
-  const latestKp = kpData?.filter(r => r.estimated_kp > 0)?.at(-1)?.estimated_kp ?? null
+  // Shared with the dashboard, so the same label cannot show two numbers.
+  const latestKp = currentKp(kpData)
   const storm    = stormInfo(latestKp ?? 0)
   const badge    = latestKp != null ? kpBadge(latestKp) : null
 
