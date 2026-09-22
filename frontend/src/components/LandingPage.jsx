@@ -712,15 +712,17 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
         <h2>Pricing Plans</h2>
         <p>
-          Astraeusio offers five pricing tiers. The Free plan provides 100 API requests per day
-          with a 60-second data delay and access to Kp and solar wind data. The Developer plan
-          provides 10,000 requests per month with real-time data, ML Kp forecast with confidence
-          intervals, basic anomaly detection, and limited email alerts. The Pro plan provides
-          100,000 requests per month, full anomaly detection, webhook alerts, and priority support.
-          The Business plan provides 1,000,000 requests per month, advanced alerting with custom
-          thresholds, multi-channel notifications, and SLA-backed uptime. The Enterprise plan
-          provides unlimited requests with dedicated infrastructure, custom anomaly models, and
-          dedicated support. All plans start with a free tier requiring no credit card.
+          Astraeusio offers five pricing tiers, and what separates them is request volume.
+          Every tier reads the same data at the same time: there is no delayed feed and no
+          real-time upgrade. The Free plan provides 100 API requests per day with Kp and solar
+          wind data. The Developer plan provides 10,000 requests per month with the ML Kp
+          forecast, basic anomaly detection, and limited email alerts. The Pro plan provides
+          100,000 requests per month with the multi-horizon ML forecast, full anomaly detection,
+          webhook alerts, and priority support. The Business plan provides 1,000,000 requests per
+          month with advanced alerting, custom thresholds, and multi-channel notifications. The
+          Enterprise plan provides unlimited requests with dedicated infrastructure, custom
+          anomaly models, dedicated support, and a custom SLA scoped per contract. No plan carries
+          a standard uptime commitment. The Free plan needs no payment details.
         </p>
 
         <h2>API Endpoints</h2>

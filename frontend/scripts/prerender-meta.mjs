@@ -25,7 +25,7 @@ const STATIC_ROUTES = [
   {
     route: '/pricing',
     title: 'Pricing - Astraeusio',
-    desc:  'Plans for monitoring, building, and integrating space weather data. Free tier, developer API, production-scale, and enterprise options with SLA.',
+    desc:  'Plans for monitoring, building, and integrating space weather data. Five tiers separated by request volume, from a free daily allowance to unlimited on Enterprise.',
   },
   {
     route: '/docs',
