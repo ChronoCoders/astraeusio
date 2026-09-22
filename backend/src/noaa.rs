@@ -192,6 +192,16 @@ pub struct SolarWindRecord {
     pub proton_speed: Option<f64>,
     pub proton_density: Option<f64>,
     pub proton_temperature: Option<f64>,
+    /// Which spacecraft measured it, and whether NOAA currently treats that
+    /// spacecraft as authoritative.
+    ///
+    /// The feed carries the same minute from more than one source: measured on
+    /// 2026-09-22, 1557 rows for 1100 minutes, SOLAR1 and ACE both present and
+    /// either able to be the active one. Their values differ, by up to 47.8
+    /// km/s on the day. Without these two fields a reader cannot tell which
+    /// number it is holding, and nothing downstream can prefer the right one.
+    pub source: Option<String>,
+    pub active: Option<bool>,
 }
 
 /// NOAA sometimes encodes numeric fields as JSON strings (same as IMF feed),
@@ -211,6 +221,11 @@ pub async fn fetch_solar_wind(client: &Client) -> Result<Fetched<SolarWindRecord
                 proton_speed: item.get("proton_speed").and_then(parse_val),
                 proton_density: item.get("proton_density").and_then(parse_val),
                 proton_temperature: item.get("proton_temperature").and_then(parse_val),
+                source: item
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned),
+                active: item.get("active").and_then(|v| v.as_bool()),
             })
         })
         .collect();
@@ -253,6 +268,11 @@ pub struct ImfRecord {
     pub time_tag: String,
     pub bz_gsm: Option<f64>,
     pub bt: Option<f64>,
+    /// See `SolarWindRecord::source`. The magnetometer feed duplicates harder:
+    /// 2196 rows for 1325 minutes on 2026-09-22, and 25 of the minutes where
+    /// we stored the secondary hold the opposite sign of Bz.
+    pub source: Option<String>,
+    pub active: Option<bool>,
 }
 
 /// Reads the rtsw magnetometer feed, an array of objects keyed by field name.
@@ -293,6 +313,14 @@ fn parse_imf(items: Vec<serde_json::Value>) -> Result<Vec<ImfRecord>, NoaaError>
             time_tag,
             bz_gsm: numeric_field(&item, "bz_gsm")?,
             bt: numeric_field(&item, "bt")?,
+            // Read leniently, unlike the measurements above. A feed that drops
+            // these two is a feed we can still chart; one that drops bz_gsm is
+            // a schema change that must stop the batch.
+            source: item
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned),
+            active: item.get("active").and_then(|v| v.as_bool()),
         });
     }
     Ok(records)

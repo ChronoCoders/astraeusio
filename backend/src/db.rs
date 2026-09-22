@@ -1,4 +1,5 @@
 use duckdb::{Connection, params};
+use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -955,6 +956,15 @@ impl Store {
             "ALTER TABLE imf ADD COLUMN observed_at BIGINT",
             "ALTER TABLE dst ADD COLUMN observed_at BIGINT",
             "ALTER TABLE health_snapshots ALTER COLUMN status DROP NOT NULL",
+            // Provenance for the two multi-spacecraft feeds. NULL on every row
+            // written before 2026-09-22 and it has to stay NULL: the upstream
+            // product keeps 24 hours and retention here is 90 days, so all but
+            // the last day is unlabelled beyond recovery. NULL means the row is
+            // the primary's or the secondary's and nothing recorded which.
+            "ALTER TABLE solar_wind ADD COLUMN source TEXT",
+            "ALTER TABLE solar_wind ADD COLUMN active BOOLEAN",
+            "ALTER TABLE imf ADD COLUMN source TEXT",
+            "ALTER TABLE imf ADD COLUMN active BOOLEAN",
         ] {
             if let Err(e) = conn.execute_batch(sql) {
                 let msg = e.to_string().to_lowercase();
@@ -1831,6 +1841,42 @@ impl Store {
         }
     }
 
+    /// One row per minute, preferring the one NOAA marks active.
+    ///
+    /// The rtsw plasma and magnetometer feeds carry the same minute from more
+    /// than one spacecraft, with different values: on 2026-09-22 the plasma
+    /// feed held 1557 rows for 1100 minutes and the magnetometer 2196 for 1325.
+    /// `active` is a single winner, never two per minute in either product, so
+    /// it decides on its own and no tie-break on `source` is needed. A minute
+    /// with no active row at all keeps the first row seen, which the read path
+    /// then labels rather than trusting.
+    ///
+    /// Selecting here is what stops a secondary reading becoming the stored
+    /// measurement. It used to be decided by arrival: the first row to reach
+    /// the table won on `ON CONFLICT DO NOTHING`, and the `> MAX(time_tag)`
+    /// filter meant the minute was never looked at again, so a wrong value was
+    /// permanent. Measured against the live database that day, 23 of 131
+    /// conflicting speed minutes and 89 of 481 conflicting Bz minutes held the
+    /// secondary value, 25 of those with the sign of Bz reversed.
+    fn prefer_active<T>(records: &[T], key: impl Fn(&T) -> (&str, Option<bool>)) -> Vec<&T> {
+        let mut chosen: HashMap<&str, usize> = HashMap::with_capacity(records.len());
+        for (i, r) in records.iter().enumerate() {
+            let (tag, active) = key(r);
+            match chosen.get(tag) {
+                Some(&j) if key(&records[j]).1.unwrap_or(false) => {}
+                Some(_) if !active.unwrap_or(false) => {}
+                _ => {
+                    chosen.insert(tag, i);
+                }
+            }
+        }
+        // Input order, so a batch inserts in the order the feed sent it and a
+        // failing test names a predictable row.
+        let mut picked: Vec<usize> = chosen.into_values().collect();
+        picked.sort_unstable();
+        picked.into_iter().map(|i| &records[i]).collect()
+    }
+
     pub fn insert_solar_wind_batch(&self, records: &[SolarWindRecord]) -> Result<(), DbError> {
         // Optimisation only: skip the mutex and the empty transaction. This
         // table is append only, so falling through would write no rows and
@@ -1839,25 +1885,20 @@ impl Store {
         if records.is_empty() {
             return Ok(());
         }
-        let max_tag: Option<String> = self
-            .conn
-            .query_row("SELECT MAX(time_tag) FROM solar_wind", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })
-            .unwrap_or(None);
-        let to_insert: Vec<&SolarWindRecord> = match &max_tag {
-            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
-            None => records.iter().collect(),
-        };
-        if to_insert.is_empty() {
-            return Ok(());
-        }
+        let to_insert = Self::prefer_active(records, |r| (r.time_tag.as_str(), r.active));
         self.begin()?;
         let result = (|| {
             let mut stmt = self.conn.prepare(&format!(
-                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at)
-                 VALUES (?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
-                 ON CONFLICT (time_tag) DO NOTHING"
+                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active)
+                 VALUES (?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?, ?, ?)
+                 ON CONFLICT (time_tag) DO UPDATE SET
+                     speed_e1   = excluded.speed_e1,
+                     density_e2 = excluded.density_e2,
+                     temp_k     = excluded.temp_k,
+                     fetched_at = excluded.fetched_at,
+                     source     = excluded.source,
+                     active     = excluded.active
+                 WHERE excluded.active AND NOT solar_wind.active"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -1866,7 +1907,9 @@ impl Store {
                     scale_opt(r.proton_density, 100.0),
                     r.proton_temperature.map(|t| t.round() as i64),
                     r.time_tag,
-                    now()
+                    now(),
+                    r.source,
+                    r.active
                 ])?;
             }
             Ok(())
@@ -1985,25 +2028,19 @@ impl Store {
         if records.is_empty() {
             return Ok(());
         }
-        let max_tag: Option<String> = self
-            .conn
-            .query_row("SELECT MAX(time_tag) FROM imf", [], |row| {
-                row.get::<_, Option<String>>(0)
-            })
-            .unwrap_or(None);
-        let to_insert: Vec<&ImfRecord> = match &max_tag {
-            Some(max) => records.iter().filter(|r| &r.time_tag > max).collect(),
-            None => records.iter().collect(),
-        };
-        if to_insert.is_empty() {
-            return Ok(());
-        }
+        let to_insert = Self::prefer_active(records, |r| (r.time_tag.as_str(), r.active));
         self.begin()?;
         let result = (|| {
             let mut stmt = self.conn.prepare(&format!(
-                "INSERT INTO imf (time_tag, bz_e2, bt_e2, observed_at, fetched_at)
-                 VALUES (?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?)
-                 ON CONFLICT (time_tag) DO NOTHING"
+                "INSERT INTO imf (time_tag, bz_e2, bt_e2, observed_at, fetched_at, source, active)
+                 VALUES (?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?, ?, ?)
+                 ON CONFLICT (time_tag) DO UPDATE SET
+                     bz_e2      = excluded.bz_e2,
+                     bt_e2      = excluded.bt_e2,
+                     fetched_at = excluded.fetched_at,
+                     source     = excluded.source,
+                     active     = excluded.active
+                 WHERE excluded.active AND NOT imf.active"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -2011,7 +2048,9 @@ impl Store {
                     scale_opt(r.bz_gsm, 100.0),
                     scale_opt(r.bt, 100.0),
                     r.time_tag,
-                    now()
+                    now(),
+                    r.source,
+                    r.active
                 ])?;
             }
             Ok(())
@@ -4715,6 +4754,169 @@ mod tests {
         assert_eq!(store.count_active_api_keys(email).expect("count"), 2);
     }
 
+    /// Builds the shape the rtsw feeds actually send: one minute, two
+    /// spacecraft, different values, in the order given.
+    fn wind_pair(
+        tag: &str,
+        first: (&str, bool, f64),
+        second: (&str, bool, f64),
+    ) -> Vec<SolarWindRecord> {
+        [first, second]
+            .into_iter()
+            .map(|(src, active, speed)| SolarWindRecord {
+                time_tag: tag.to_string(),
+                proton_speed: Some(speed),
+                proton_density: Some(2.0),
+                proton_temperature: Some(50_000.0),
+                source: Some(src.to_string()),
+                active: Some(active),
+            })
+            .collect()
+    }
+
+    fn stored_speed(store: &Store) -> f64 {
+        let (_, _, speed_e1) = store
+            .latest_solar_wind_speed_raw()
+            .expect("read")
+            .expect("a row");
+        speed_e1 as f64 / 10.0
+    }
+
+    /// Whichever order the feed lists them in, the active row is the one that
+    /// ends up stored.
+    ///
+    /// On 2026-09-22 the plasma feed carried both SOLAR1 and ACE for 450 of
+    /// 1100 minutes and the two disagreed by more than 20 km/s on 131 of them,
+    /// worst case 47.8. The row that won was the one that happened to reach the
+    /// table first.
+    #[test]
+    fn the_active_row_wins_whichever_order_the_feed_lists_it() {
+        for (label, batch) in [
+            (
+                "inactive first",
+                wind_pair(
+                    &iso(now() - 60),
+                    ("ACE", false, 448.7),
+                    ("SOLAR1", true, 296.1),
+                ),
+            ),
+            (
+                "active first",
+                wind_pair(
+                    &iso(now() - 60),
+                    ("SOLAR1", true, 296.1),
+                    ("ACE", false, 448.7),
+                ),
+            ),
+        ] {
+            let store = mem_store();
+            store.insert_solar_wind_batch(&batch).expect("insert");
+            assert_eq!(
+                stored_speed(&store),
+                296.1,
+                "{label}: stored the secondary spacecraft's reading"
+            );
+        }
+    }
+
+    /// An active row arriving after an inactive one for the same minute
+    /// replaces it.
+    ///
+    /// This is the case the `> MAX(time_tag)` pre-filter made unreachable: once
+    /// a minute was stored it was never considered again, so a secondary value
+    /// was permanent. Of 130 conflicting minutes examined against the live
+    /// database, 49 were won by a row that was not first in the feed's own
+    /// ordering, which is only possible if the winner is decided by what
+    /// existed upstream at first sight rather than by the file as it stands.
+    #[test]
+    fn a_late_active_row_corrects_an_inactive_one_already_stored() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let pair = wind_pair(&tag, ("ACE", false, 448.7), ("SOLAR1", true, 296.1));
+        store.insert_solar_wind_batch(&pair[..1]).expect("first");
+        assert_eq!(
+            stored_speed(&store),
+            448.7,
+            "the only row available must be stored"
+        );
+
+        store.insert_solar_wind_batch(&pair[1..]).expect("second");
+        assert_eq!(
+            stored_speed(&store),
+            296.1,
+            "the active row must replace the secondary"
+        );
+    }
+
+    /// The correction runs one way only.
+    #[test]
+    fn an_inactive_row_never_replaces_an_active_one() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let pair = wind_pair(&tag, ("SOLAR1", true, 296.1), ("ACE", false, 448.7));
+        store.insert_solar_wind_batch(&pair[..1]).expect("first");
+        store.insert_solar_wind_batch(&pair[1..]).expect("second");
+        assert_eq!(
+            stored_speed(&store),
+            296.1,
+            "an inactive row overwrote an active one"
+        );
+    }
+
+    /// A minute NOAA marks active nowhere is still stored, because dropping it
+    /// would lose 39 plasma minutes and 44 magnetometer minutes a day. What it
+    /// must not do is pass as authoritative, which is the read path's job and
+    /// is why the row keeps its source.
+    #[test]
+    fn a_minute_with_no_active_row_is_kept_and_labelled() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let batch = wind_pair(&tag, ("ACE", false, 448.7), ("IMAP", false, 401.2));
+        store.insert_solar_wind_batch(&batch).expect("insert");
+        assert_eq!(
+            stored_speed(&store),
+            448.7,
+            "the first row seen must survive"
+        );
+        let (source, active): (Option<String>, Option<bool>) = store
+            .conn
+            .query_row("SELECT source, active FROM solar_wind", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .expect("row");
+        assert_eq!(source.as_deref(), Some("ACE"));
+        assert_eq!(
+            active,
+            Some(false),
+            "the row must carry that nobody vouched for it"
+        );
+    }
+
+    /// The same rule on the magnetometer feed, where being wrong costs more.
+    ///
+    /// Bz drives the storm and its sign is the whole signal. On 2026-09-22, 89
+    /// of 481 conflicting Bz minutes held the secondary value and 25 of those
+    /// carried the opposite sign, for instance 09:56 where the active reading
+    /// was -1.77 nT and the stored one +2.84.
+    #[test]
+    fn the_stored_bz_keeps_the_sign_the_active_spacecraft_measured() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let batch: Vec<ImfRecord> = [("ACE", false, 2.84), ("SOLAR1", true, -1.77)]
+            .into_iter()
+            .map(|(src, active, bz)| ImfRecord {
+                time_tag: tag.clone(),
+                bz_gsm: Some(bz),
+                bt: Some(5.0),
+                source: Some(src.to_string()),
+                active: Some(active),
+            })
+            .collect();
+        store.insert_imf_batch(&batch).expect("insert");
+        let (_, bz_e2) = store.latest_imf_bz_raw().expect("read").expect("a row");
+        assert_eq!(bz_e2, -177, "stored Bz has the wrong sign");
+    }
+
     /// A series past its freshness limit must read as empty rather than as its
     /// last good window. Before this, a feed dead since June still drew a full
     /// day of June readings on a chart labelled current.
@@ -4727,6 +4929,8 @@ mod tests {
                 time_tag: iso(stale),
                 bz_gsm: Some(1.01),
                 bt: Some(14.71),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
             }])
             .unwrap();
 
@@ -4743,6 +4947,8 @@ mod tests {
                 time_tag: iso(now() - 60),
                 bz_gsm: Some(-2.5),
                 bt: Some(9.0),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
             }])
             .unwrap();
         let out = store.get_imf_recent().unwrap();
@@ -6019,6 +6225,8 @@ mod tests {
                 time_tag: iso(now() - 40 * 86_400),
                 bz_gsm: Some(1.01),
                 bt: Some(14.71),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
             }])
             .unwrap();
 
@@ -6055,6 +6263,8 @@ mod tests {
                 time_tag: a_day_ago,
                 bz_gsm: Some(1.01),
                 bt: Some(14.71),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
             }])
             .unwrap();
 
@@ -7119,6 +7329,8 @@ mod tests {
                 time_tag: "2026-05-11 03:47:00.000".into(),
                 bz_gsm: Some(-4.5),
                 bt: Some(6.0),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
             }])
             .unwrap();
 
