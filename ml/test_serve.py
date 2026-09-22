@@ -155,8 +155,10 @@ class PaddingContract(unittest.TestCase):
 
 
 class PublishedInterval(unittest.TestCase):
-    """AUD-014: the band is labelled a 95 percent confidence interval in six
-    files and is MC Dropout spread with no observation noise term.
+    """AUD-014: the band was labelled a 95 percent confidence interval in six
+    files, and is MC Dropout spread with no observation noise term. The label
+    is gone from all six. The construction it described is unchanged, which is
+    what keeps this finding open.
 
     The 13.1 percent this docstring used to quote was measured on 2026-08-31
     against the checkpoint AUD-032 showed was mislabelled, which has since been
