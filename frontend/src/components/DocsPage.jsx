@@ -566,7 +566,6 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
             headers={[t('docs.thPlan'), t('docs.thLimit'), t('docs.thWindow'), t('docs.thReset')]}
             rows={[
               ['Free',       '100 requests',         'Daily',   'Midnight UTC'],
-              ['Starter',    '100 requests',         'Daily',   'Midnight UTC'],
               ['Developer',  '10,000 requests',      'Monthly', '1st of month UTC'],
               ['Pro',        '100,000 requests',     'Monthly', '1st of month UTC'],
               ['Business',   '1,000,000 requests',   'Monthly', '1st of month UTC'],
