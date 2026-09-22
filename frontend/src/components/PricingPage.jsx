@@ -17,9 +17,7 @@ const USE_CASE_KEYS = ['api', 'dashboard', 'research', 'production']
 
 const ROWS = [
   { k: 'api',          type: 'text' },
-  { k: 'delay',        type: 'text' },
   { k: 'kp',           type: 'bool' },
-  { k: 'realtime',     type: 'bool' },
   { k: 'ml',           type: 'bool' },
   { k: 'ci',           type: 'bool' },
   { k: 'anomalyBasic', type: 'bool' },
@@ -29,18 +27,17 @@ const ROWS = [
   { k: 'webhooks',     type: 'bool' },
   { k: 'multichan',    type: 'bool' },
   { k: 'customModels', type: 'bool' },
-  { k: 'sla',          type: 'bool' },
   { k: 'dedicated',    type: 'bool' },
   { k: 'support',      type: 'text' },
 ]
 
 // Text cells: true = ✓, null/false = -, string = t('pricing.tv.' + val)
 const TABLE = {
-  free:       { api: 'req100day', delay: 'delay60',  kp: true,  realtime: false, ml: false, ci: false, anomalyBasic: false, anomalyFull: false, thresholds: false, email: null,      webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'community' },
-  developer:  { api: 'req10k',    delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: false, anomalyBasic: true,  anomalyFull: false, thresholds: false, email: 'limited', webhooks: false, multichan: false, customModels: false, sla: false, dedicated: false, support: 'email'     },
-  pro:        { api: 'req100k',   delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: false, email: true,      webhooks: true,  multichan: false, customModels: false, sla: false, dedicated: false, support: 'priority'  },
-  business:   { api: 'req1m',     delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: false, sla: true,  dedicated: false, support: 'priority'  },
-  enterprise: { api: 'unlimited', delay: 'realtime', kp: true,  realtime: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: true,  sla: true,  dedicated: true,  support: 'dedicated' },
+  free:       { api: 'req100day',  kp: true, ml: false, ci: false, anomalyBasic: false, anomalyFull: false, thresholds: false, email: null,      webhooks: false, multichan: false, customModels: false, dedicated: false, support: 'community' },
+  developer:  { api: 'req10k', kp: true,  ml: true,  ci: false, anomalyBasic: true,  anomalyFull: false, thresholds: false, email: 'limited', webhooks: false, multichan: false, customModels: false, dedicated: false, support: 'email'     },
+  pro:        { api: 'req100k', kp: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: false, email: true,      webhooks: true,  multichan: false, customModels: false, dedicated: false, support: 'priority'  },
+  business:   { api: 'req1m', kp: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: false,  dedicated: false, support: 'priority'  },
+  enterprise: { api: 'unlimited', kp: true,  ml: true,  ci: true,  anomalyBasic: true,  anomalyFull: true,  thresholds: true,  email: true,      webhooks: true,  multichan: true,  customModels: true,  dedicated: true,  support: 'dedicated' },
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────

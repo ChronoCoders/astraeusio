@@ -16,10 +16,10 @@ export const PLANS = [
 
 // i18n keys under `pricing.features.*`
 export const PLAN_FEATURES = {
-  free:       ['req100day', 'delay60', 'kpSolar'],
-  developer:  ['req10k', 'realtime', 'ml', 'anomalyBasic', 'emailLimited'],
-  pro:        ['req100k', 'realtime', 'mlCI', 'anomalyFull', 'webhooks', 'prioritySupport'],
-  business:   ['req1m', 'realtime', 'advAlerts', 'thresholds', 'multiChannel', 'sla'],
+  free:       ['req100day', 'kpSolar'],
+  developer:  ['req10k', 'ml', 'anomalyBasic', 'emailLimited'],
+  pro:        ['req100k', 'mlCI', 'anomalyFull', 'webhooks', 'prioritySupport'],
+  business:   ['req1m', 'advAlerts', 'thresholds', 'multiChannel'],
   enterprise: ['unlimited', 'dedicated', 'customModels', 'slaOnboarding', 'dedicatedSupport'],
 }
 
