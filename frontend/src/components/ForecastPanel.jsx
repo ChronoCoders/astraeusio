@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { stormProb, auroraLine, stormInfo, fmtNum } from '../lib/utils'
+import { auroraLine, stormInfo, fmtNum } from '../lib/utils'
 import UpgradePrompt from './UpgradePrompt'
 
 function Bar({ value, max = 1, cls }) {
@@ -36,7 +36,6 @@ export default function ForecastPanel({ data, loading, error, onNavigate, showSp
   if (!data)   return <Panel><p className="text-zinc-600 text-sm">{t('forecast.noData')}</p></Panel>
 
   const kp      = data.predicted_kp
-  const prob    = stormProb(kp, data.uncertainty)
   const storm   = stormInfo(kp)
   const aurora  = auroraLine(kp)
 
@@ -56,10 +55,6 @@ export default function ForecastPanel({ data, loading, error, onNavigate, showSp
           </div>
         </Row>
       )}
-
-      <Row label={t('forecast.stormProb')}>
-        <Bar value={prob} cls={prob > 0.5 ? 'bg-orange-400' : prob > 0.2 ? 'bg-yellow-400' : 'bg-zinc-400'} />
-      </Row>
 
       <Row label={t('forecast.stormLevel')}>
         <span className={`text-sm font-medium ${storm.cls}`}>{t(storm.key)}</span>

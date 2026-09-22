@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { fmtNum, stormInfo, stormProb, auroraLine } from '../lib/utils'
+import { fmtNum, stormInfo, auroraLine } from '../lib/utils'
 import { authedFetch } from '../lib/useApi'
 
 const RANGES = ['24h', '7d', '30d']
@@ -120,7 +120,6 @@ function HorizonCard({ h }) {
   const { t } = useTranslation()
   const kp    = h.predicted_kp
   const storm = stormInfo(kp)
-  const prob  = stormProb(kp, h.uncertainty)
 
   return (
     <div className="bg-zinc-950/40 border border-zinc-800 rounded p-4 flex flex-col gap-2">
@@ -130,8 +129,7 @@ function HorizonCard({ h }) {
       </div>
       <span className={`font-mono text-3xl font-semibold ${storm.cls}`}>{fmtNum(kp, 2)}</span>
       <div className="flex flex-col gap-1 mt-1">
-        <Row label={t('forecast.ciShort')}   value={`${fmtNum(h.ci_lower, 2)} – ${fmtNum(h.ci_upper, 2)}`} mono />
-        <Row label={t('forecast.probShort')} value={`${Math.round(prob * 100)}%`} mono />
+        <Row label={t('forecast.ciShort')}   value={`${fmtNum(h.ci_lower, 2)} to ${fmtNum(h.ci_upper, 2)}`} mono />
         <Row label={t('forecast.uncShort')}  value={`${fmtNum(h.uncertainty, 3)} Kp`} mono />
       </div>
     </div>
