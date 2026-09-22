@@ -48,6 +48,23 @@ STATE=${COMPONENT_CHECK_STATE:-/var/lib/astraeusio-component-state}
 # whose alarm a missing component is; one file so one acceptance settles it for
 # both, rather than two that can disagree about what is normal.
 BASELINE=${COMPONENT_CHECK_BASELINE:-/var/lib/astraeusio-components-baseline}
+# How many consecutive runs a name must appear on before it is worth a mail.
+#
+# Two, not one. Over the 28 days to 2026-09-21 this check mailed 37 times and
+# almost every incident recovered inside one or two cycles: 14m, 15m, 30m, 59m.
+# One sample was enough to alert, and one sample is not evidence.
+#
+# The cost is that a real outage is announced one cycle later, 15 minutes here,
+# and that the age alert-state.sh escalates on starts at confirmation rather
+# than first sight, so ages read one cycle short. Nothing is suppressed: a
+# problem that persists is still mailed, just not on its first sample.
+CONFIRM_RUNS=${COMPONENT_CHECK_CONFIRM_RUNS:-2}
+# Separate from STATE, which alert-state.sh owns and whose format it parses. A
+# caller that shares a state file with that helper gets its own bookkeeping read
+# back as a problem key, which is how a recovery mail once went out for an
+# outage that never happened.
+PENDING=${COMPONENT_CHECK_PENDING:-/var/lib/astraeusio-component-pending}
+
 # Delivery moved to notify.sh, which owns the recipient, the sender and
 # the API key. Leaving these here would read as if they still controlled
 # where alerts go, and they do not.
@@ -203,9 +220,22 @@ current=$( { printf '%s\n' "${bad[@]:-}" | awk 'NF {print $1}'
 # self test rather than in three copies that drift.
 # shellcheck source=alert-state.sh
 . "$(dirname "$0")/alert-state.sh"
+
+# Debounce before deciding. A name has to survive CONFIRM_RUNS consecutive runs
+# to reach the alert machinery at all, so a single bad sample produces neither
+# an alert now nor a recovery mail on the next run.
+mkdir -p "$(dirname "$PENDING")"
+alert_confirm "$PENDING" "$CONFIRM_RUNS" $current
+current=$ALERT_CONFIRMED
+
 alert_decide "$STATE" "$current"
 
-if [ "${#bad[@]}" -eq 0 ] && [ "${#structural[@]}" -eq 0 ]; then
+# Keyed on the confirmed set, not the raw one. A run whose only problems are
+# still unconfirmed has nothing to say, and saying nothing is the whole point.
+if [ -z "$current" ]; then
+  if [ -n "$ALERT_PENDING" ]; then
+    echo "$(date -u): seen but not yet confirmed, no alert: $ALERT_PENDING"
+  fi
   if [ "$ALERT_ACTION" = "recovered" ]; then
     line="Astraeusio components recovered at $(date -u), after $ALERT_AGE_H. All components operational again. Previously: $ALERT_PREV"
     echo "$(date -u): recovered after $ALERT_AGE_H, all components operational (was: $ALERT_PREV)"

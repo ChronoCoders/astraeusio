@@ -125,6 +125,20 @@ HEALTH_URL=${POLLER_CHECK_HEALTH_URL:-http://127.0.0.1:8081/api/health}
 # owns that, and two mails for one removal is the noise this file spent three
 # revisions removing.
 BASELINE=${POLLER_CHECK_BASELINE:-/var/lib/astraeusio-components-baseline}
+# How many consecutive windows a poller must appear in before it is mailed.
+#
+# Two, not one. Every `poller: iss` alert in the 28 days to 2026-09-21 recovered
+# after exactly 1h 0m, five times over, and this check runs hourly: each was one
+# bad window followed by a good one. The alert and its recovery were both noise.
+#
+# The cost is an hour's delay on announcing a real one, and ages that read one
+# window short, since alert-state.sh escalates from confirmation rather than
+# first sight.
+CONFIRM_RUNS=${POLLER_CHECK_CONFIRM_RUNS:-2}
+# Its own file. ALERT_STATE belongs to alert-state.sh, which parses what it
+# finds there and cannot tell another caller's bookkeeping from a problem key.
+PENDING=${POLLER_CHECK_PENDING:-/var/lib/astraeusio-poller-pending}
+
 # shellcheck source=component-baseline.sh
 . "$(dirname "$0")/component-baseline.sh"
 
@@ -736,9 +750,21 @@ current=$(printf '%s\n' ${alerting_names[@]+"${alerting_names[@]}"} | sort -u | 
 mkdir -p "$(dirname "$ALERT_STATE")"
 # shellcheck source=alert-state.sh
 . "$(dirname "$0")/alert-state.sh"
+
+# Debounce before deciding, so one bad window is neither an alert nor, on the
+# next run, a recovery.
+mkdir -p "$(dirname "$PENDING")"
+alert_confirm "$PENDING" "$CONFIRM_RUNS" $current
+current=$ALERT_CONFIRMED
+
 alert_decide "$ALERT_STATE" "$current"
 
-if [ "${#problems[@]}" -eq 0 ]; then
+# Keyed on the confirmed set. `problems` still holds the raw findings for the
+# log, but a run whose problems are all unconfirmed says nothing.
+if [ -z "$current" ]; then
+  if [ -n "$ALERT_PENDING" ]; then
+    echo "$(date -u): seen but not yet confirmed, no alert: $ALERT_PENDING"
+  fi
   if [ "$ALERT_ACTION" = "recovered" ]; then
     line="Astraeusio poller recovered at $(date -u), after $ALERT_AGE_H. Previously: $ALERT_PREV"
     echo "$(date -u): recovered after $ALERT_AGE_H (was: $ALERT_PREV)"
