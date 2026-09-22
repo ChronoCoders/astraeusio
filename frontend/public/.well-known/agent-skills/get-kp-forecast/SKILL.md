@@ -1,6 +1,6 @@
 # Get ML Kp Forecast
 
-Retrieve a 3-hour ahead Kp index prediction from Astraeusio's LSTM model, including the model's spread across 50 Monte Carlo Dropout passes. That spread is not a calibrated interval and its coverage has not been measured for the model now running.
+Retrieve a 3-hour ahead Kp index prediction from Astraeusio's LSTM model, including the model's spread across 50 Monte Carlo Dropout passes. That spread is not a calibrated interval: it carries no observation noise term, so outcomes fall outside it far more often than the name suggests.
 
 ## When to use
 
