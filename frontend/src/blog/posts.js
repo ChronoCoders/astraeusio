@@ -41,7 +41,7 @@ From that distribution we report:
 - **ci_lower / ci_upper**: the mean minus and plus 1.96 standard deviations across the passes. Note what this is not: it is the spread of the model's own opinions, not a calibrated forecast interval. It is not a probability, and it carries no observation noise term, so outcomes fall outside it far more often than the name suggests. Closing that gap needs an observation noise term the model does not currently have.
 - **uncertainty**: the standard deviation
 
-A narrow spread means the model's 50 passes agree - recent Kp history points clearly in one direction. A wide spread means they do not. That ranking is real: sorted by width, the widest quarter of forecasts has a mean error of 0.90 Kp against 0.59 for the narrowest. Read it as relative confidence, never as a probability that the outcome lands inside.
+A narrow spread means the model's 50 passes agree - recent Kp history points clearly in one direction. A wide spread means they do not. On the checkpoint that has since been replaced, that ranking held: sorted by width, the widest quarter of forecasts had a mean error of 0.90 Kp against 0.59 for the narrowest. It has not been re-measured on the model running now. Read it as relative confidence, never as a probability that the outcome lands inside.
 
 ## What the Model Doesn't Know
 
@@ -87,7 +87,7 @@ Bu dağılımdan şunları bildiriyoruz:
 - **ci_lower / ci_upper**: geçişler genelindeki ortalama eksi ve artı 1,96 standart sapma. Bunun ne olmadığına dikkat edin: modelin kendi görüşlerinin yayılımıdır, kalibre edilmiş bir tahmin aralığı değildir. Bir olasılık değildir ve sonuçların ne sıklıkla aralığın içine düştüğü şu anda çalışan model için ölçülmedi.
 - **uncertainty**: standart sapma
 
-Dar bir yayılım 50 geçişin birbiriyle uyuştuğu anlamına gelir; geniş bir yayılım uyuşmadığını. Bu sıralama gerçektir: genişliğe göre sıralandığında en geniş çeyreğin ortalama hatası 0,90 Kp, en darlarınki 0,59 Kp. Bunu göreli güven olarak okuyun, sonucun aralığın içine düşme olasılığı olarak değil.
+Dar bir yayılım 50 geçişin birbiriyle uyuştuğu anlamına gelir; geniş bir yayılım uyuşmadığını. Yerine yenisi konulan önceki modelde bu sıralama geçerliydi: genişliğe göre sıralandığında en geniş çeyreğin ortalama hatası 0,90 Kp, en darlarınki 0,59 Kp idi. Şu anda çalışan model için yeniden ölçülmedi. Bunu göreli güven olarak okuyun, sonucun aralığın içine düşme olasılığı olarak değil.
 
 ## Modelin Bilmediği
 
