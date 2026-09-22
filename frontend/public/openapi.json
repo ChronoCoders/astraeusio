@@ -48,7 +48,7 @@
     "/api/public/forecast": {
       "get": {
         "summary": "Latest ML Kp forecast",
-        "description": "Returns the ML-generated Kp forecast with 95% confidence interval.",
+        "description": "Returns the ML-generated Kp forecast with the model spread across 50 inference passes. The spread is not a calibrated interval.",
         "tags": ["Public"],
         "responses": {
           "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" }
@@ -84,7 +84,7 @@
     "/api/kp-forecast": {
       "get": {
         "summary": "ML storm forecast",
-        "description": "3-hour Kp prediction with 95% confidence interval from LSTM model.",
+        "description": "3-hour Kp prediction from an LSTM model, with the model spread across 50 inference passes.",
         "security": [{ "bearerAuth": [] }],
         "tags": ["Space Weather"],
         "responses": { "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" } }

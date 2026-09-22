@@ -95,9 +95,10 @@
       <h2>ML-Powered Storm Prediction</h2>
       <p>
         An LSTM neural network trained on over 20 years of NOAA Kp data produces 3-hour geomagnetic
-        storm forecasts with 95% confidence intervals. The model uses Monte Carlo Dropout to quantify
-        prediction uncertainty, giving operators a probabilistic view of storm likelihood rather than
-        a single point estimate. Forecasts are refreshed on demand and cached for fast delivery.
+        storm forecasts with the model's own spread across 50 Monte Carlo Dropout passes. That
+        spread ranks how much the model disagrees with itself; it is not a probability and its
+        coverage has not been measured for the model now running. Forecasts are refreshed on demand
+        and cached for fast delivery.
       </p>
 
       <h2>Automated Anomaly Detection</h2>

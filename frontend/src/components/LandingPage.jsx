@@ -632,10 +632,11 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           head emits four predictions in a single pass - 3, 6, 12, and 24 hours ahead - and Monte
           Carlo Dropout sampling runs 50 forward passes per request to produce per-horizon outputs:
           predicted Kp and the spread across those passes. That spread is the model
-          disagreeing with itself, not a calibrated forecast interval: measured against observed
-          Kp, about 13% of outcomes fall inside it. The model was
-          trained with walk-forward validation and a weighted Huber loss across horizons. Forecasts
-          are cached for 3 minutes and refreshed on demand via the API.
+          disagreeing with itself. It is not a probability and not a calibrated forecast
+          interval, and how often outcomes fall inside it has not been measured for the model now
+          running. The model was trained with walk-forward validation and a horizon-weighted
+          squared-error loss. Forecasts are cached for 3 minutes and refreshed on demand via the
+          API.
         </p>
 
         <h2>Kp Geomagnetic Index</h2>
