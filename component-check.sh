@@ -86,6 +86,111 @@ send_mail() {
   /opt/astraeusio/notify.sh "$subject" "$body" 2>&1 | sed 's/^/  /'
 }
 
+if [ "${1:-}" = "--selftest" ]; then
+  # shellcheck source=selftest-guard.sh
+  . "$(dirname "$0")/selftest-guard.sh"
+  require_notify_suppressed "component-check.sh --selftest" || exit 2
+  export COMPONENT_CHECK_MAIL=0
+
+  st_fail=0
+  st_d=$(mktemp -d)
+  st_srv=""
+  cleanup() { [ -n "$st_srv" ] && kill "$st_srv" 2>/dev/null; rm -rf "$st_d"; }
+  trap cleanup EXIT
+  st_check() {
+    if [ "$2" = "$3" ]; then echo "  ok    $1"; else echo "  FAIL  $1: expected '$2', got '$3'"; st_fail=1; fi
+  }
+
+  mkdir -p "$st_d/www"
+  echo "backend_api database nasa_apod" > "$st_d/baseline"
+
+  st_payload() { # status_for_apod age_secs
+    local now; now=$(date -u +%s)
+    cat > "$st_d/www/health" <<JSON
+{"status":"$1","checked_at":$now,"components":{
+ "backend_api":{"status":"operational","last_checked":$now},
+ "database":{"status":"operational","last_write":$now},
+ "nasa_apod":{"status":"$1","last_update":$(( now - $2 ))}}}
+JSON
+  }
+
+  # The port comes from the kernel. A fixed one left a server from the previous
+  # run holding it, the new server could not bind, every fetch returned 404, and
+  # this script correctly declined to alert on an unreachable endpoint. Every
+  # assertion failed and not one of them was about the code, which is why the
+  # control below exists before any of them.
+  cat > "$st_d/server.py" <<'SRVPY'
+import http.server, socketserver, sys, os
+os.chdir(sys.argv[1])
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler) as s:
+    print(s.server_address[1], flush=True)
+    s.serve_forever()
+SRVPY
+
+  st_payload degraded 100000
+  python3 "$st_d/server.py" "$st_d/www" > "$st_d/port" 2>/dev/null &
+  st_srv=$!
+  st_port=""
+  for _ in $(seq 1 40); do
+    st_port=$(cat "$st_d/port" 2>/dev/null)
+    [ -n "$st_port" ] && break
+    sleep 0.25
+  done
+  if [ -z "$st_port" ]; then
+    echo "the fixture server never reported a port; nothing below would mean anything"
+    exit 1
+  fi
+  st_url="http://127.0.0.1:$st_port/health"
+
+  st_run() {
+    COMPONENT_CHECK_URL="$st_url" \
+    COMPONENT_CHECK_STATE="$st_d/state" \
+    COMPONENT_CHECK_PENDING="$st_d/pending" \
+    COMPONENT_CHECK_BASELINE="$st_d/baseline" \
+    bash "$0" 2>&1
+    echo "RC=$?"
+  }
+
+  echo "component-check.sh --selftest (port $st_port)"
+  echo
+  echo "1. the fixture is really being served"
+  st_check "the endpoint answers 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$st_url")"
+  st_check "  with our fixture, not somebody else's" "1" "$(curl -s --max-time 5 "$st_url" | grep -c nasa_apod)"
+
+  echo
+  echo "2. one bad sample then healthy, the flap that used to mail twice"
+  out=$(st_run)
+  st_check "a first bad sample does not alert" "0" "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL')"
+  st_check "  and says what it is holding" "1" "$(echo "$out" | grep -c 'not yet confirmed, no alert: nasa_apod')"
+  st_check "  and exits clean" "1" "$(echo "$out" | grep -c 'RC=0')"
+
+  st_payload operational 60
+  out=$(st_run)
+  st_check "the good sample after it says nothing" "0" "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL')"
+
+  echo
+  echo "3. two consecutive bad samples still alert"
+  rm -f "$st_d/state" "$st_d/pending"
+  st_payload degraded 100000
+  out=$(st_run)
+  st_check "the first is still silent" "0" "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL')"
+  out=$(st_run)
+  st_check "the second alerts" "1" "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL')"
+  st_check "  naming the component in the subject" "1" \
+    "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL.*nasa_apod')"
+
+  echo
+  echo "4. and it recovers"
+  st_payload operational 60
+  out=$(st_run)
+  st_check "recovery is mailed once the problem clears" "1" "$(echo "$out" | grep -c 'RECOVERED')"
+
+  echo
+  if [ "$st_fail" = "0" ]; then echo "selftest passed"; else echo "SELFTEST FAILED"; fi
+  exit "$st_fail"
+fi
+
 # ── Ask the backend ───────────────────────────────────────────────────────────
 
 body=$(curl -s --max-time 15 -w '\n%{http_code}' "$URL" 2>/dev/null)

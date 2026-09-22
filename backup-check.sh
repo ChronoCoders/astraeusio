@@ -89,6 +89,9 @@ send_mail() {
 }
 
 if [ "${1:-}" = "--selftest" ]; then
+  # shellcheck source=selftest-guard.sh
+  . "$(dirname "$0")/selftest-guard.sh"
+  require_notify_suppressed "backup-check.sh --selftest" || exit 2
   st_fail=0
   st_dir=$(mktemp -d)
   trap 'rm -rf "$st_dir"' EXIT
