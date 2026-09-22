@@ -53,6 +53,71 @@ alert_age_human() {
   fi
 }
 
+# Which problems have lasted long enough to be worth a mail.
+#
+#   alert_confirm <state_file> <runs> <name>...
+#
+# Sets ALERT_CONFIRMED to the names seen on `runs` consecutive calls and
+# ALERT_PENDING to those seen but not yet confirmed. Feed ALERT_CONFIRMED to
+# alert_decide as the key.
+#
+# Sets variables rather than echoing, like alert_decide above it. A caller
+# reaching for the result through `$(alert_confirm ...)` would run it in a
+# subshell, and every variable it set would be discarded on return: the first
+# version echoed the confirmed set and the selftest caught ALERT_PENDING coming
+# back empty from one call and stale from the next.
+#
+# This exists because of what the inbox looked like over the 28 days to
+# 2026-09-21: 37 component alerts and 14 poller alerts, and almost every one
+# recovered within one or two check cycles. The recoveries read 14m, 15m, 30m,
+# 59m. Every `poller: iss` alert recovered after exactly 1h 0m, five times, and
+# poller-check runs hourly, so each was one bad sample followed by one good one.
+# A single sample was enough to mail, and a single sample is not evidence that
+# anything is wrong.
+#
+# Counted per name rather than per key, so a second component joining an outage
+# does not restart the clock on the first. A name absent from a run drops to
+# zero: the point is consecutive sightings, and a feed that flickers back on has
+# not been failing continuously.
+#
+# The cost is that the escalation clock in alert_decide starts when a problem is
+# confirmed rather than when it was first seen, so ages read one cycle short.
+# Against a six hour first threshold that is 15 minutes of skew for
+# component-check and an hour for poller-check, which is worth a quieter inbox.
+alert_confirm() {
+  local state=$1 runs=$2
+  shift 2
+  ALERT_CONFIRMED=""
+  ALERT_PENDING=""
+
+  declare -A _seen=()
+  if [ -f "$state" ]; then
+    local n c
+    while read -r n c; do
+      [ -n "$n" ] && _seen["$n"]=$c
+    done < "$state"
+  fi
+
+  local confirmed=() pending=() name count
+  : > "$state"
+  for name in "$@"; do
+    [ -n "$name" ] || continue
+    count=$(( ${_seen[$name]:-0} + 1 ))
+    # Capped, so a problem standing for a week does not grow a number nobody
+    # reads and the file stays the same size.
+    [ "$count" -gt "$runs" ] && count=$runs
+    echo "$name $count" >> "$state"
+    if [ "$count" -ge "$runs" ]; then
+      confirmed+=("$name")
+    else
+      pending+=("$name")
+    fi
+  done
+
+  ALERT_PENDING=$(printf '%s\n' ${pending[@]+"${pending[@]}"} | sort | tr '\n' ' ' | sed 's/ *$//')
+  ALERT_CONFIRMED=$(printf '%s\n' ${confirmed[@]+"${confirmed[@]}"} | sort | tr '\n' ' ' | sed 's/ *$//')
+}
+
 alert_decide() {
   local state=$1 key=$2 now
   now=$(date -u +%s)
@@ -188,6 +253,58 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   # helper cannot tell one caller's history from a key and should not try.
   echo "ok 1788302718" > "$s"; alert_decide "$s" ""
   check "a foreign state format is read as a key, so callers must not share one"         "recovered" "$ALERT_ACTION"
+
+
+  # alert_confirm: a sighting is not yet evidence. Called directly, never
+  # through $(...), or the variables it sets die with the subshell.
+  c=$(mktemp)
+
+  rm -f "$c"; alert_confirm "$c" 2 iss
+  check "one sighting of two confirms nothing" "" "$ALERT_CONFIRMED"
+  check "  and names it as pending" "iss" "$ALERT_PENDING"
+
+  alert_confirm "$c" 2 iss
+  check "the second consecutive sighting confirms" "iss" "$ALERT_CONFIRMED"
+  check "  and nothing is left pending" "" "$ALERT_PENDING"
+
+  alert_confirm "$c" 2 iss
+  check "and it stays confirmed while it persists" "iss" "$ALERT_CONFIRMED"
+
+  alert_confirm "$c" 2
+  check "a run with nothing wrong confirms nothing" "" "$ALERT_CONFIRMED"
+
+  alert_confirm "$c" 2 iss
+  check "a name that flickered off starts again" "" "$ALERT_CONFIRMED"
+
+  # The flapping this was built for: one bad sample, then a good one. Under the
+  # old behaviour that pair was an alert and a recovery mail.
+  rm -f "$c"
+  alert_confirm "$c" 2 noaa_imf noaa_solar_wind; a=$ALERT_CONFIRMED
+  alert_confirm "$c" 2; b=$ALERT_CONFIRMED
+  check "one bad cycle followed by a good one says nothing at all" "|" "$a|$b"
+
+  # Names confirm on their own schedule.
+  rm -f "$c"
+  alert_confirm "$c" 2 noaa_imf
+  alert_confirm "$c" 2 noaa_imf noaa_solar_wind
+  check "a name joining does not restart the first one" "noaa_imf" "$ALERT_CONFIRMED"
+  check "  and the newcomer is pending" "noaa_solar_wind" "$ALERT_PENDING"
+
+  alert_confirm "$c" 2 noaa_imf noaa_solar_wind
+  check "the newcomer confirms a cycle later" "noaa_imf noaa_solar_wind" "$ALERT_CONFIRMED"
+
+  # The default must not change behaviour for callers that do not want a delay.
+  rm -f "$c"; alert_confirm "$c" 1 backup
+  check "one required run confirms immediately" "backup" "$ALERT_CONFIRMED"
+
+  # Sorted, so the key is stable and alert_decide does not read a reordering as
+  # a different problem.
+  rm -f "$c"
+  alert_confirm "$c" 1 b a c
+  alert_confirm "$c" 1 c b a
+  check "the confirmed set is sorted, so the key is stable" "a b c" "$ALERT_CONFIRMED"
+
+  rm -f "$c"
 
   check "durations read as time" "2d 3h" "$(alert_age_human 183600)"
   check "  and minutes under the hour" "45m" "$(alert_age_human 2700)"
