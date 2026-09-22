@@ -106,6 +106,12 @@ or in the commit that created the deferral.
   This is a product decision before it is code. Implementing it means serving two versions of the
   same series, which is why it is recorded rather than done.
 
+  **Closed the other way on 2026-09-22, in `98282e0`.** The claim came off rather than the delay
+  going in: `delay60` is gone from `lib/plans.js`, the delay and real-time rows are gone from the
+  comparison table, and the eight keys behind them are gone from both locales. The product applies
+  no delay and no longer says it does. Serving two versions of the same series remains an option
+  nobody has chosen, not an outstanding defect.
+
 ## Measurement
 
 - No ID. Early degradation below the alerting floor is not detectable by rate alone. The throughput
@@ -517,12 +523,36 @@ repeated here.
   so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
   which of those two arguments, is an open decision.
 - **AUD-014** The forecast band is still uncalibrated epistemic spread with no observation noise
-  term, while six files label it a 95 percent confidence interval. Coverage was computed for the
-  first time on 2026-08-31: **13.1 percent** over 1229 forecasts paired with the observed
-  three-hour Kp, mean width 0.405 Kp against a mean absolute error of 0.727 Kp, so the typical
-  error is nearly twice the width of the band. Closing it means an observation noise term and
-  recalibration, then the label. `ml/test_serve.py` pins the construction and deliberately does not
-  assert coverage, since no unit test can turn 13.1 into 95.
+  term. Six files labelled it a 95 percent confidence interval; none does now. Closing it means an
+  observation noise term and recalibration, then the label. `ml/test_serve.py` pins the
+  construction and deliberately does not assert coverage, since no unit test can turn a coverage
+  figure into 95.
+
+  **Measured on the checkpoint now running, 2026-09-22.** Model sha
+  `061a5d30fac50c5f7e941730a37726c2bf02c008f72f484e8c01f143274760d1`, the only one that has ever
+  written a band with a recorded sha, 3835 rows issued between `issued_at` 1788236182 and
+  1789959066. The query selects `kp_forecast` rows with a non-null `model_sha` and pairs each with
+  the nearest `kp_3h` observation within 5400 s, half that series' own cadence.
+
+  | horizon | paired | inside | coverage | mean width Kp | mean abs err Kp | control at +12 h |
+  |---------|--------|--------|----------|---------------|-----------------|------------------|
+  | 3 h     | 982    | 92     | 9.4 %    | 0.189         | 0.756           | 6.6 %            |
+  | 6 h     | 925    | 132    | 14.3 %   | 0.302         | 0.772           | 12.2 %           |
+  | 12 h    | 912    | 148    | 16.2 %   | 0.326         | 0.809           | 13.1 %           |
+  | 24 h    | 888    | 116    | 13.1 %   | 0.236         | 0.793           | 9.4 %            |
+
+  Nominal is 95. The band is roughly a quarter of the width of the typical error at every horizon.
+  The control column repeats the query with each forecast deliberately paired against an
+  observation 12 hours away; it lands 2 to 4 points below the real figure, so the pairing is doing
+  some work, but a band this narrow misses whether it is paired correctly or not. These figures are
+  an internal record and are not published on any surface.
+
+  **History, on the retired checkpoint.** Coverage was computed for the first time on 2026-08-31:
+  **13.1 percent** over 1229 forecasts, mean width 0.405 Kp against a mean absolute error of 0.727
+  Kp. AUD-032 later established that every head was trained one period beyond the lead it was
+  published as, so those forecasts were also paired at a lead the model was not trained for. The
+  figure describes neither the band nor the pairing in use now, and the rows behind it carry no
+  `model_sha`.
 
   **The label half is closed** in `1915ea3`: eleven files across two languages stopped calling it a
   95 percent confidence interval, the band came off every marketing surface, and it survives on the
