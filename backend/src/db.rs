@@ -825,6 +825,22 @@ const XRAY_SATELLITE_KEY_MIGRATION: &str = "2026-08-xray-satellite-in-primary-ke
 /// never sold it, so the frontend had to translate it away on every render.
 const RETIRE_STARTER_MIGRATION: &str = "2026-08-retire-starter-tier";
 
+/// Drops the solar wind and magnetometer rows written before provenance was
+/// recorded.
+///
+/// Those rows are a mix of the primary spacecraft's measurement and a secondary
+/// one, with nothing recording which. Measured against the live database on
+/// 2026-09-22, 23 of 131 conflicting speed minutes and 89 of 481 conflicting Bz
+/// minutes held the secondary value, 25 of those with the sign of Bz reversed.
+/// They cannot be labelled after the fact: the upstream product keeps 24 hours
+/// and retention here is 90 days.
+///
+/// Keeping them meant either a sentinel label, which invents provenance, or a
+/// primary key that tolerates NULL, which is not a primary key. Deleting them
+/// is a deliberate loss of three months of chart history, taken so that every
+/// remaining row can say which spacecraft measured it.
+const DROP_UNLABELLED_MIGRATION: &str = "2026-09-drop-unlabelled-solar-wind-imf";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -841,6 +857,21 @@ const SELF_CHECK_PROBES: i64 = 3;
 /// Advisory only: a disagreement is logged and startup continues, because
 /// refusing to boot on a read anomaly would turn a reporting fault into an
 /// outage.
+/// Deletes every `solar_wind` and `imf` row that carries no source.
+///
+/// Both tables are named literally rather than taken from a list. A list is one
+/// edit away from reaching `kp`, `xray` or `dst`, none of which has a source
+/// column or any business being touched here, and a `DELETE` is not the place
+/// to find that out.
+///
+/// Returns the row counts removed, so the caller can log what it destroyed
+/// rather than report that it ran.
+fn delete_unlabelled_series_rows(conn: &Connection) -> Result<(usize, usize), DbError> {
+    let wind = conn.execute("DELETE FROM solar_wind WHERE source IS NULL", [])?;
+    let imf = conn.execute("DELETE FROM imf WHERE source IS NULL", [])?;
+    Ok((wind, imf))
+}
+
 fn self_check_observed_at(conn: &Connection) {
     for table in OBSERVED_AT_TABLES {
         let bounds = conn.query_row(
@@ -1555,6 +1586,23 @@ impl Store {
                 params![RETIRE_STARTER_MIGRATION, now()],
             )?;
             info!(moved, "retired the starter tier, accounts moved to free");
+        }
+
+        let drop_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![DROP_UNLABELLED_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if drop_applied == 0 {
+            let (wind, imf) = delete_unlabelled_series_rows(&conn)?;
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![DROP_UNLABELLED_MIGRATION, now()],
+            )?;
+            info!(
+                solar_wind = wind,
+                imf, "deleted the rows that predate provenance"
+            );
         }
 
         let enrolled: i64 = conn.query_row(
@@ -4915,6 +4963,94 @@ mod tests {
         store.insert_imf_batch(&batch).expect("insert");
         let (_, bz_e2) = store.latest_imf_bz_raw().expect("read").expect("a row");
         assert_eq!(bz_e2, -177, "stored Bz has the wrong sign");
+    }
+
+    /// The delete reaches the unlabelled rows in two tables and nothing else.
+    ///
+    /// Written from the tables being protected rather than from the statement:
+    /// every table that holds a measurement is populated here, and every one of
+    /// them is counted afterwards. A `DELETE` that grew a third table would
+    /// pass a test that only checked the two it was supposed to touch.
+    #[test]
+    fn the_delete_reaches_unlabelled_rows_in_two_tables_and_no_others() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let older = iso(now() - 120);
+
+        store
+            .insert_solar_wind_batch(&[SolarWindRecord {
+                time_tag: tag.clone(),
+                proton_speed: Some(296.1),
+                proton_density: Some(2.0),
+                proton_temperature: Some(50_000.0),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
+            }])
+            .expect("labelled wind");
+        store
+            .insert_imf_batch(&[ImfRecord {
+                time_tag: tag.clone(),
+                bz_gsm: Some(-1.77),
+                bt: Some(5.0),
+                source: Some("SOLAR1".into()),
+                active: Some(true),
+            }])
+            .expect("labelled imf");
+
+        // The shape the old writer left: a row with no provenance at all.
+        for sql in [
+            "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at) \
+             VALUES (?, 4487, 200, 50000, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0)",
+            "INSERT INTO imf (time_tag, bz_e2, bt_e2, observed_at, fetched_at) \
+             VALUES (?, 284, 500, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0)",
+        ] {
+            store
+                .conn
+                .execute(sql, params![older, older])
+                .expect("unlabelled row");
+        }
+
+        // Every other table that holds a measurement, so the blast radius is
+        // measured rather than assumed.
+        let bystanders = [
+            (
+                "kp",
+                "INSERT INTO kp (time_tag, kp_index, estimated_kp_e2, fetched_at) VALUES ('t', 3, 300, 0)",
+            ),
+            (
+                "xray",
+                "INSERT INTO xray (time_tag, energy, satellite, flux_e12, observed_flux_e12, fetched_at) VALUES ('t', '0.1-0.8nm', 16, 1, 1, 0)",
+            ),
+            (
+                "dst",
+                "INSERT INTO dst (time_tag, dst_nt, fetched_at) VALUES ('t', -20, 0)",
+            ),
+        ];
+        for (_, sql) in bystanders {
+            store.conn.execute(sql, []).expect("bystander row");
+        }
+
+        let (wind, imf) = delete_unlabelled_series_rows(&store.conn).expect("delete");
+        assert_eq!((wind, imf), (1, 1), "deleted the wrong number of rows");
+
+        let count = |t: &str| -> i64 {
+            store
+                .conn
+                .query_row(&format!("SELECT count(*) FROM {t}"), [], |r| r.get(0))
+                .expect("count")
+        };
+        assert_eq!(count("solar_wind"), 1, "the labelled wind row must survive");
+        assert_eq!(count("imf"), 1, "the labelled imf row must survive");
+        for (table, _) in bystanders {
+            assert_eq!(count(table), 1, "{table} must not be touched");
+        }
+
+        // What survived is the labelled row, not merely one row.
+        let source: Option<String> = store
+            .conn
+            .query_row("SELECT source FROM solar_wind", [], |r| r.get(0))
+            .expect("source");
+        assert_eq!(source.as_deref(), Some("SOLAR1"));
     }
 
     /// A series past its freshness limit must read as empty rather than as its
