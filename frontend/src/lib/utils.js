@@ -1,4 +1,4 @@
-import { planRank } from './plans'
+import { planRank } from './plans.js'
 
 // ── Kp / Storm ────────────────────────────────────────────────────────────────
 
@@ -75,6 +75,46 @@ export function xrayClass(flux) {
 }
 
 function fmt(n, d) { return isFinite(n) ? n.toFixed(d) : '' }
+
+// ── Current Kp ────────────────────────────────────────────────────────────────
+
+/// The one definition of "current Kp": the newest one minute estimated value.
+///
+/// Both pages derive this, and before 2026-09-22 they derived it differently.
+/// The dashboard preferred the official three hour Kp and fell back to the one
+/// minute series only when it was missing; the public site always used the one
+/// minute series. So the same label showed two numbers, and the dashboard's was
+/// the older of the two: NOAA publishes a three hour period about three hours
+/// after it ends, and on the morning of 2026-09-22 the newest one was 5.9 hours
+/// old. Storm level, colour and gauge were all computed from it.
+///
+/// A period average that arrives hours late is a real measurement and it is not
+/// the current value. It has its own card now. This function is what "current"
+/// means, and it lives here so the two callers cannot drift again.
+///
+/// Readings at or below zero are dropped rather than treated as quiet: the
+/// series carries them as the absence of an estimate, not as Kp 0.
+export function currentKp(series) {
+  if (!Array.isArray(series)) return null
+  const live = series.filter(r => r?.estimated_kp > 0)
+  return live.length ? live[live.length - 1].estimated_kp : null
+}
+
+/// The end of the three hour period a NOAA Kp row covers, as "HH:MM UTC".
+///
+/// `time_tag` is the start of the period, on the standard 00, 03, 06, 09, 12,
+/// 15, 18, 21 boundaries, so the period this value describes ended three hours
+/// after it. Showing the start would repeat the mistake the card exists to fix,
+/// by making the number look three hours fresher than it is.
+export function kp3hPeriodEnd(timeTag) {
+  if (!timeTag) return null
+  const start = new Date(`${timeTag}Z`)
+  if (Number.isNaN(start.getTime())) return null
+  const end = new Date(start.getTime() + 3 * 3600 * 1000)
+  const hh = String(end.getUTCHours()).padStart(2, '0')
+  const mm = String(end.getUTCMinutes()).padStart(2, '0')
+  return `${hh}:${mm} UTC`
+}
 
 // ── Kp chart data ─────────────────────────────────────────────────────────────
 

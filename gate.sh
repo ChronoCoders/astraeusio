@@ -65,6 +65,10 @@ step "rust test"      backend  cargo test
 step "cargo audit"    backend  cargo audit
 step "frontend lint"  frontend npx eslint src
 step "frontend build" frontend npm run build
+# Node's own test runner over the pure helpers in src/lib. No vitest and no
+# jsdom: the repository already sets "type": "module", so these import directly
+# and nothing was added to package.json to run them.
+step "frontend test"  frontend node --test src/lib/
 # Standard library unittest, discovered from the repository root exactly as
 # ml/test_serve.py documents. No pytest, no dev requirements file.
 step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"

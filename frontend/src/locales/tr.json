@@ -73,6 +73,8 @@
     "predictedKp": "Tahmin Kp (+3 s)",
     "ci": "Model yayılımı (±1,96σ)",
     "stormLevel": "Fırtına seviyesi",
+    "kp3h": "Resmî Kp (3 saatlik dönem)",
+    "kp3hPeriod": "{{end}} biten dönem",
     "horizons": "Çok ufuklu tahmin",
     "leadTime": "+{{hours}} s",
     "ciShort": "Yayılım",

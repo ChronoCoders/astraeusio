@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi }          from './lib/useApi'
-import { stormInfo, xrayClass, fmtNum, fmtFlux } from './lib/utils'
+import { stormInfo, xrayClass, fmtNum, fmtFlux, currentKp as currentKpOf, kp3hPeriodEnd } from './lib/utils'
 import Sidebar             from './components/Sidebar'
 import Logo                from './components/Logo'
 import OnboardingChecklist from './components/OnboardingChecklist'
@@ -82,8 +82,11 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
   const starlink  = useApi('/api/starlink',    STARLINK)
   const kp3h      = useApi('/api/kp-3h',       1_800_000)
 
+  // One definition, shared with the public site. The official three hour value
+  // is kept, but as its own card: it is a period average published hours after
+  // the period ends, so it is not what "current" means.
   const latestKp3h = kp3h.data?.filter(r => r.estimated_kp > 0)?.at(-1)
-  const currentKp  = latestKp3h?.estimated_kp ?? kp.data?.filter(r => r.estimated_kp > 0)?.at(-1)?.estimated_kp
+  const currentKp  = currentKpOf(kp.data)
   const storm      = stormInfo(currentKp ?? 0)
 
   const latestWind = wind.data?.find(r => r.proton_speed != null)
@@ -187,6 +190,13 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
                 value={t(storm.key)}
                 sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '-'}`}
                 valueCls={storm.cls}
+              />
+              <MetricCard
+                label={t('metrics.kp3h')}
+                value={latestKp3h?.estimated_kp != null ? fmtNum(latestKp3h.estimated_kp, 2) : null}
+                sub={latestKp3h?.time_tag
+                  ? t('metrics.kp3hPeriod', { end: kp3hPeriodEnd(latestKp3h.time_tag) })
+                  : kp3h.loading ? t('common.loading') : t('common.unavailable')}
               />
             </div>
 

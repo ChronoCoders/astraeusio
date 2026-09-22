@@ -73,6 +73,8 @@
     "predictedKp": "Predicted Kp (+3 h)",
     "ci": "Model spread (±1.96σ)",
     "stormLevel": "Storm level",
+    "kp3h": "Official Kp (3 h period)",
+    "kp3hPeriod": "Period ending {{end}}",
     "horizons": "Multi-horizon forecast",
     "leadTime": "+{{hours}} h",
     "ciShort": "Spread",
