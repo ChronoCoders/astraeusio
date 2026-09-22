@@ -76,21 +76,6 @@ export function xrayClass(flux) {
 
 function fmt(n, d) { return isFinite(n) ? n.toFixed(d) : '' }
 
-// ── Storm probability from MC forecast ───────────────────────────────────────
-
-function erf(x) {
-  const t = 1 / (1 + 0.3275911 * Math.abs(x))
-  const p = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))))
-  const r = 1 - p * Math.exp(-x * x)
-  return x >= 0 ? r : -r
-}
-
-export function stormProb(predictedKp, uncertainty) {
-  if (!uncertainty || uncertainty < 0.01) return predictedKp >= 5 ? 1 : 0
-  const z = (5 - predictedKp) / uncertainty
-  return Math.max(0, Math.min(1, 0.5 * (1 - erf(z / Math.SQRT2))))
-}
-
 // ── Kp chart data ─────────────────────────────────────────────────────────────
 
 export function processKpBuckets(records) {
