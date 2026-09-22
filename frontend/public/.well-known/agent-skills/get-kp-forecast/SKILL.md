@@ -1,6 +1,6 @@
 # Get ML Kp Forecast
 
-Retrieve a 3-hour ahead Kp index prediction from Astraeusio's LSTM model, including a 95% confidence interval.
+Retrieve a 3-hour ahead Kp index prediction from Astraeusio's LSTM model, including the model's spread across 50 Monte Carlo Dropout passes. That spread is not a calibrated interval and its coverage has not been measured for the model now running.
 
 ## When to use
 
@@ -25,8 +25,8 @@ No authentication required for the public forecast endpoint. Authenticated endpo
 | Field | Description |
 |-------|-------------|
 | `predicted_kp` | Mean predicted Kp (0–9 scale) |
-| `ci_lower` | 2.5th percentile (95% CI lower bound) |
-| `ci_upper` | 97.5th percentile (95% CI upper bound) |
+| `ci_lower` | Mean minus 1.96 standard deviations across the passes |
+| `ci_upper` | Mean plus 1.96 standard deviations across the passes |
 | `uncertainty` | Standard deviation across 50 MC Dropout passes |
 | `status` | `"ok"` or `"degraded"` (falls back to cached forecast if ML service is unreachable) |
 
@@ -36,4 +36,4 @@ No authentication required for the public forecast endpoint. Authenticated endpo
 - Features: Kp history (7–48 readings), hour sin/cos, month sin/cos, solar cycle phase
 - Trained on NOAA 1-minute estimated Kp from 2000–present
 - Cannot predict sudden storm commencement from fast CMEs with no precursor - pair with `/api/imf` and `/api/solar-wind` for full picture
-- A wide confidence interval means the situation is ambiguous; weight the forecast accordingly
+- A wide spread means the model disagrees with itself; weight the forecast accordingly

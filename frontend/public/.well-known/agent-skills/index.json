@@ -11,7 +11,7 @@
     {
       "name": "get-kp-forecast",
       "type": "api",
-      "description": "Get a 3-hour ML-powered Kp forecast with 95% confidence interval from an LSTM model trained on 20+ years of NOAA data.",
+      "description": "Get a 3-hour ML-powered Kp forecast from an LSTM model trained on 20+ years of NOAA data, with the model spread across 50 inference passes.",
       "url": "https://astraeusio.com/.well-known/agent-skills/get-kp-forecast/SKILL.md",
       "sha256": "3d2da9a50e9a1d5e14dd915425d6056fd47ba6f7863e5753b67c94fff08bad85"
     },
