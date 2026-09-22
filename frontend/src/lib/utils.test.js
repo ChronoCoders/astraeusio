@@ -94,6 +94,17 @@ test('neither page derives current Kp any way but through this function', async 
   const pages = [
     ['App.jsx', 'src/App.jsx'],
     ['LandingPage.jsx', 'src/components/LandingPage.jsx'],
+    ['DashboardPreview.jsx', 'src/components/DashboardPreview.jsx'],
+  ]
+
+  // Every way the codebase has spelled "the newest reading in this series".
+  // There were four derivations by the time anybody counted: the dashboard, the
+  // public site, the sparkline badge and the preview canvas.
+  const INLINE = [
+    '.at(-1)?.estimated_kp',
+    '.at(-1).estimated_kp',
+    'series[n-1].estimated_kp',
+    'last.estimated_kp',
   ]
 
   for (const [name, path] of pages) {
@@ -102,12 +113,12 @@ test('neither page derives current Kp any way but through this function', async 
     // A floor, because a scan that reads nothing finds nothing and passes.
     assert.ok(flat.length > 2000, `read only ${flat.length} characters of ${name}`)
 
-    // The inline shape both pages used before: pick the newest positive reading
-    // straight out of a series.
-    assert.equal(
-      flat.includes('.filter(r=>r.estimated_kp>0)?.at(-1)?.estimated_kp'), false,
-      `${name} derives current Kp inline instead of calling currentKp`,
-    )
+    for (const shape of INLINE) {
+      assert.equal(
+        flat.includes(shape), false,
+        `${name} derives current Kp inline as ${shape} instead of calling currentKp`,
+      )
+    }
     assert.ok(
       flat.includes('currentKp'),
       `${name} does not call currentKp at all`,

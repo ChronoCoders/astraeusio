@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { stormInfo, fmtNum } from '../lib/utils'
+import { stormInfo, fmtNum, currentKp } from '../lib/utils'
 import Logo from './Logo'
 import MetricCard from './MetricCard'
 import KpChart from './KpChart'
@@ -48,7 +48,7 @@ function MiniSidebar({ t }) {
 function DashboardCanvas({ kpData, wind, forecastData }) {
   const { t } = useTranslation()
   const records = kpData ?? []
-  const latestKp = records.filter(r => r.estimated_kp > 0).at(-1)?.estimated_kp ?? null
+  const latestKp = currentKp(records)
   // Null rather than a quiet-conditions default, so an absent reading cannot be
   // rendered as "quiet" in either the label or the colour.
   const storm = latestKp != null ? stormInfo(latestKp) : null
@@ -65,7 +65,7 @@ function DashboardCanvas({ kpData, wind, forecastData }) {
           {/* No public X-ray endpoint exists, so this card has never had a
               source. It shows a dash rather than a plausible reading. */}
           <MetricCard label={t('metrics.xrayClass')} value="-" />
-          <MetricCard label={t('metrics.stormLevel')} value={storm ? t(storm.key) : '-'} sub={`Kp ${fmtNum(latestKp, 1)}`} valueCls={storm?.cls} />
+          <MetricCard label={t('metrics.stormLevel')} value={storm ? t(storm.key) : '-'} sub={`Kp ${fmtNum(latestKp, 2)}`} valueCls={storm?.cls} />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">

@@ -188,7 +188,7 @@ export default function App({ user, onLogout, onReady, onUserChange }) {
               <MetricCard
                 label={t('metrics.stormLevel')}
                 value={t(storm.key)}
-                sub={`Kp ${currentKp != null ? fmtNum(currentKp, 1) : '-'}`}
+                sub={`Kp ${currentKp != null ? fmtNum(currentKp, 2) : '-'}`}
                 valueCls={storm.cls}
               />
               <MetricCard

@@ -101,14 +101,18 @@ function KpSparkline({ data }) {
   const yy = kp => H - PAD - (Math.min(Math.max(kp, 0), MAX) / MAX) * (H - 2 * PAD)
   const line = series.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xx(i).toFixed(1)} ${yy(r.estimated_kp).toFixed(1)}`).join(' ')
   const area = `${line} L ${xx(n - 1).toFixed(1)} ${(H - PAD).toFixed(1)} L ${xx(0).toFixed(1)} ${(H - PAD).toFixed(1)} Z`
-  const last = series[n - 1]
-  const badge = kpBadge(last.estimated_kp)
+  // The badge shows current Kp, so it comes from the same place as every other
+  // current Kp on the site. It used to read series[n - 1] itself, which is a
+  // third derivation of the same thing and the shape that let the dashboard and
+  // the public site disagree in the first place.
+  const latest = currentKp(data)
+  const badge = kpBadge(latest)
 
   return (
     <div className="mt-4 bg-zinc-900/60 border border-zinc-800 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-mono tracking-[0.2em] text-zinc-500 uppercase">{t('landing.sparkTitle')}</span>
-        <span className={`text-xs font-mono ${badge.text}`}>Kp {fmtNum(last.estimated_kp, 2)}</span>
+        <span className={`text-xs font-mono ${badge.text}`}>Kp {fmtNum(latest, 2)}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 84 }} aria-hidden="true">
         <defs>
@@ -322,7 +326,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
                   {flash && <span className={`absolute -inset-1 rounded-full ${badge.dot} opacity-40 animate-ping`} />}
                 </span>
                 <span className={`text-sm font-mono ${badge.text}`}>
-                  Live · Kp {fmtNum(latestKp, 1)} · {t(storm.key)}
+                  Live · Kp {fmtNum(latestKp, 2)} · {t(storm.key)}
                 </span>
               </div>
             )}
