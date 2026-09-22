@@ -38,7 +38,7 @@ We use Monte Carlo Dropout to measure how much the model disagrees with itself. 
 
 From that distribution we report:
 - **predicted_kp**: the mean across all 50 passes
-- **ci_lower / ci_upper**: the mean minus and plus 1.96 standard deviations across the passes. Note what this is not: it is the spread of the model's own opinions, not a calibrated forecast interval. It is not a probability, and how often outcomes fall inside it has not been measured for the model now running. Closing that gap needs an observation noise term the model does not currently have.
+- **ci_lower / ci_upper**: the mean minus and plus 1.96 standard deviations across the passes. Note what this is not: it is the spread of the model's own opinions, not a calibrated forecast interval. It is not a probability, and it carries no observation noise term, so outcomes fall outside it far more often than the name suggests. Closing that gap needs an observation noise term the model does not currently have.
 - **uncertainty**: the standard deviation
 
 A narrow spread means the model's 50 passes agree - recent Kp history points clearly in one direction. A wide spread means they do not. That ranking is real: sorted by width, the widest quarter of forecasts has a mean error of 0.90 Kp against 0.59 for the narrowest. Read it as relative confidence, never as a probability that the outcome lands inside.

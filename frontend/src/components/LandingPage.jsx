@@ -638,9 +638,9 @@ export default function LandingPage({ onSignUp, onSignIn }) {
           Carlo Dropout sampling runs 50 forward passes per request to produce per-horizon outputs:
           predicted Kp and the spread across those passes. That spread is the model
           disagreeing with itself. It is not a probability and not a calibrated forecast
-          interval, and how often outcomes fall inside it has not been measured for the model now
-          running. The model was trained with walk-forward validation and a horizon-weighted
-          squared-error loss. Forecasts are cached for 3 minutes and refreshed on demand via the
+          interval: it carries no observation noise term, so outcomes fall outside it far
+          more often than the name suggests. The model was trained with walk-forward
+          validation and a horizon-weighted squared-error loss. Forecasts are cached for 3 minutes and refreshed on demand via the
           API.
         </p>
 
