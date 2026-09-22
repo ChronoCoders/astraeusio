@@ -744,8 +744,14 @@ mod outcome_tests {
         let listed = flat
             .find("Suppression::Listed=>")
             .expect("the Listed arm must exist in deliver");
-        assert!(listed < unknown, "expected Listed to be matched before Unknown");
-        let arm = &flat[unknown..flat[unknown..].find("Suppression::Clear=>").map_or(flat.len(), |o| unknown + o)];
+        assert!(
+            listed < unknown,
+            "expected Listed to be matched before Unknown"
+        );
+        let arm = &flat[unknown
+            ..flat[unknown..]
+                .find("Suppression::Clear=>")
+                .map_or(flat.len(), |o| unknown + o)];
         assert!(
             !arm.contains("returnSendOutcome"),
             "the Unknown arm returns early, which fails closed: {arm}"
