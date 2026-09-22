@@ -158,16 +158,16 @@ class PublishedInterval(unittest.TestCase):
     """AUD-014: the band is labelled a 95 percent confidence interval in six
     files and is MC Dropout spread with no observation noise term.
 
-    Measured on 2026-08-31 against 1229 forecasts paired with the observed
-    three-hour Kp: **13.1 percent** of observations fell inside the interval,
-    mean width 0.405 Kp against a mean absolute error of 0.727 Kp. The error is
-    larger than the whole interval.
+    The 13.1 percent this docstring used to quote was measured on 2026-08-31
+    against the checkpoint AUD-032 showed was mislabelled, which has since been
+    replaced, so it describes neither the model running now nor the one this
+    file tests.
 
-    No unit test can assert 95 percent coverage, because coverage is a property
-    of the model and the data rather than of this file, and asserting it would
-    fail today. What is testable is the construction, so a change to it is
-    deliberate rather than incidental, and the finding stays open until the
-    interval carries an observation noise term and is recalibrated.
+    No unit test can assert coverage at all, because coverage is a property of
+    the model and the data rather than of this file. What is testable is the
+    construction, so a change to it is deliberate rather than incidental, and
+    the finding stays open until the interval carries an observation noise term
+    and is recalibrated.
     """
 
     def test_the_interval_is_built_from_the_documented_constants(self):
