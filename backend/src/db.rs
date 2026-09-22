@@ -637,11 +637,25 @@ pub const SERIES_FRESHNESS: [SeriesFreshness; 11] = [
     // appeared, so a quiet week in the exoplanet archive was indistinguishable
     // from a dead poller. Now it is the time of the last successful poll that
     // returned rows, and an empty payload correctly fails to advance it.
+    // Six hours, raised from three on 2026-09-22. This measures the last poll
+    // that returned rows, so the limit answers "how many consecutive hourly
+    // polls may fail", and three of them is a gap NASA leaves at the day
+    // boundary rather than a fault.
+    //
+    // Measured from /var/log/astraeusio-component-check.log over 2026-08-11 to
+    // 2026-09-22, which records the age at every run. Seven incidents, and they
+    // split cleanly: five peaked at 275, 289, 290, 291 and 295 minutes and then
+    // resolved themselves, two ran to 777 and 1274 minutes and were real
+    // outages. Six hours sits in that gap with an hour of margin above the
+    // largest self-resolving one and nearly seven below the shortest real one,
+    // which is a wide separation rather than a constant tuned to a narrow
+    // window. `the_apod_limit_separates_a_day_boundary_gap_from_an_outage`
+    // holds it there.
     SeriesFreshness {
         component: "nasa_apod",
         table: "apod",
         time_column: "fetched_at",
-        max_age_secs: 10_800,
+        max_age_secs: 21_600,
     },
     SeriesFreshness {
         component: "nasa_neo",
@@ -4489,6 +4503,38 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
+
+    /// The APOD allowance has to sit above the gap that resolves itself and
+    /// below an outage worth hearing about.
+    ///
+    /// Both bounds come from the same log, so this test is the measurement
+    /// written down in a form that fails when somebody moves the number without
+    /// re-measuring. At three hours it mailed for gaps that had already cleared
+    /// by the time anybody read it, which is how an alert becomes furniture.
+    #[test]
+    fn the_apod_limit_separates_a_day_boundary_gap_from_an_outage() {
+        // /var/log/astraeusio-component-check.log, 2026-08-11 to 2026-09-22.
+        const WORST_THAT_CLEARED_ITSELF: i64 = 295 * 60;
+        const SHORTEST_REAL_OUTAGE: i64 = 777 * 60;
+
+        let apod = SERIES_FRESHNESS
+            .iter()
+            .find(|s| s.component == "nasa_apod")
+            .expect("nasa_apod must have a freshness entry");
+
+        assert!(
+            apod.max_age_secs > WORST_THAT_CLEARED_ITSELF,
+            "an allowance of {}s alerts on a gap that cleared itself in {}s",
+            apod.max_age_secs,
+            WORST_THAT_CLEARED_ITSELF
+        );
+        assert!(
+            apod.max_age_secs < SHORTEST_REAL_OUTAGE,
+            "an allowance of {}s would stay silent through a real {}s outage",
+            apod.max_age_secs,
+            SHORTEST_REAL_OUTAGE
+        );
+    }
     /// Mirrors ONE_LD_SCALED in anomaly.rs. One lunar distance, in the units
     /// miss_distance_m actually holds.
     const ONE_LD_SCALED_FOR_TEST: i64 = 384_400_000;
