@@ -594,7 +594,7 @@ export default function LandingPage({ onSignUp, onSignIn }) {
         <p>
           The Astraeusio dashboard provides real-time monitoring of all major space weather parameters.
           It displays the Kp geomagnetic index updated every 60 seconds, solar wind speed and proton
-          density from NOAA DSCOVR, X-ray flux from GOES satellites, the interplanetary magnetic field
+          density from NOAA's real-time solar wind spacecraft at L1, X-ray flux from GOES satellites, the interplanetary magnetic field
           Bz component, the Dst storm-time disturbance index, NOAA space weather alerts, aurora oval
           forecast images, ISS orbital position, NASA Astronomy Picture of the Day, NASA EPIC Earth
           imagery, near-Earth asteroid tracking, Starlink constellation orbital data, and exoplanet
@@ -661,8 +661,10 @@ export default function LandingPage({ onSignUp, onSignIn }) {
 
         <h2>Solar Wind and Interplanetary Magnetic Field</h2>
         <p>
-          Solar wind measurements come from NOAA DSCOVR, a satellite positioned at the L1 Lagrange
-          point approximately 1.5 million kilometers from Earth. DSCOVR measures solar wind speed in
+          Solar wind measurements come from NOAA's real-time solar wind spacecraft at L1, positioned at the L1 Lagrange
+          point approximately 1.5 million kilometers from Earth. NOAA rotates which
+          spacecraft is authoritative; each reading we store and chart carries the one that
+          measured it. That spacecraft measures solar wind speed in
           km/s, proton density in particles per cubic centimeter, and the interplanetary magnetic
           field vector. The southward component of the IMF, known as Bz, is a critical storm driver:
           sustained negative Bz allows solar wind energy to couple into Earth's magnetosphere,
