@@ -6,14 +6,14 @@
       "type": "api",
       "description": "Retrieve real-time space weather data: Kp index, solar wind, X-ray flux, IMF Bz, Dst index, and NOAA alerts.",
       "url": "https://astraeusio.com/.well-known/agent-skills/get-space-weather/SKILL.md",
-      "sha256": "a216008060f072eaaf7ced946e1b6b94b10db07385cd358f7947faddd97fd12b"
+      "sha256": "6f752551f548c720edf7a7b65be32b7e768351beabdefefd2fac1313cef0fdc2"
     },
     {
       "name": "get-kp-forecast",
       "type": "api",
       "description": "Get a 3-hour ML-powered Kp forecast from an LSTM model trained on 20+ years of NOAA data, with the model spread across 50 inference passes.",
       "url": "https://astraeusio.com/.well-known/agent-skills/get-kp-forecast/SKILL.md",
-      "sha256": "d5b499b6190150ff3415423450b73b832fbda6c3814b22a6b43b694bb5ec08e9"
+      "sha256": "a9c6321792e66d6d06c5b37f02a76dd056e1ea52080f9c5a35494415da1b3c53"
     },
     {
       "name": "get-neo",
