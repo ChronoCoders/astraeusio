@@ -522,6 +522,24 @@ repeated here.
   into the build, while rkyv's parent rust_decimal is compiled and only its `rkyv` feature is off,
   so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
   which of those two arguments, is an open decision.
+- **AUD-037** `GROUP BY observed_at / {bucket}` does not bucket. DuckDB's `/` is float division, so
+  `1790000000 / 900` is `1988888.88...`, distinct for every second, and the grouping groups by row
+  rather than by the interval the constant names. `get_solar_wind_range` at `db.rs:2519` and
+  `get_kp_range` at `db.rs:2485` both do it, so `/api/reports/solar-wind` and the Kp chart have been
+  returning one point per minute whatever bucket they selected, 900, 3600 or 21600 seconds. Found on
+  2026-09-23 by a fixture that put two minutes in one bucket and got two rows back.
+
+  **This is the third instance of the same operator, and the second one was already fixed.**
+  `uptime_by_day` at `db.rs:4714` uses `CAST(ts // 86400 AS BIGINT)` and its comment records the
+  mechanism: with `/`, the cast rounded rather than truncated, so every health sample after midday
+  was filed under the following day. So the correct operator was known, written down and applied at
+  one site, and the two siblings were never looked for. That makes this a habit rather than two
+  bugs, and the fix is not only the operator: it is a scan of every division inside SQL, which found
+  24 candidate sites of which exactly these two are arithmetic and the rest are URL paths and units.
+
+  Not fixed here. Changing the bucketing changes the resolution of two live chart endpoints, which
+  is a separate decision from provenance.
+
 - **AUD-014** The forecast band is still uncalibrated epistemic spread with no observation noise
   term. Six files labelled it a 95 percent confidence interval; none does now. Closing it means an
   observation noise term and recalibration, then the label. `ml/test_serve.py` pins the
