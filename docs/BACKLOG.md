@@ -522,6 +522,68 @@ repeated here.
   into the build, while rkyv's parent rust_decimal is compiled and only its `rkyv` feature is off,
   so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
   which of those two arguments, is an open decision.
+- **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
+  than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
+  2026-09-22: 193,712 and 94,235 rows with a NULL source. Deleted at 23:29:40 by the migration's own
+  log line: 191,712 and 93,048. Step 1 had labelled 83 rows in between, which should have been
+  excluded from the delete rather than subtracted from it, so it accounts for none of the gap. The
+  90-day retention boundary sweeping through 2026-06-24 was the obvious candidate, but the log line
+  pulled for that window showed only the interval configuration and no purge event, so it is a
+  hypothesis and not a cause. Correctness is unaffected: the delete was scoped on `source IS NULL`
+  and zero unlabelled rows remain. Recorded because the arithmetic does not close, not because
+  anything is known to be wrong.
+
+- **AUD-039** Five readers had their reach silently narrowed and a test caught it, not review.
+  `one_row_per_minute` takes a lower bound as its only parameter, because `WHERE observed_at > ?` is
+  part of the shared SQL. `get_solar_wind_recent`, `get_imf_recent`, `get_solar_wind_latest_public`
+  and the two `latest_*_raw` readers previously had no cutoff at all, and were first wired with
+  `now() - 2 * 86_400`. In production that is invisible: 1440 one-minute rows is a single day.
+  `a_stale_series_reads_as_empty` caught it anyway, because its fixture inserts a forty-day-old row
+  and asserts it comes back. They now bind `0`, keeping exactly the reach they had. The narrowing
+  may be defensible on its own, a forty-day-old point on a chart labelled recent is questionable,
+  but it arrived as a side effect of plumbing rather than as a decision, which is the wrong way for
+  a behaviour change to arrive. Open question: should those readers have a bound at all, and if so
+  what, decided rather than inherited.
+
+- **AUD-040** `every_component_a_cycle_writes_is_declared` checks a reconstruction, not the cycle.
+  `poller.rs` builds its `series` fixture from `SERIES_FRESHNESS` directly, while the real cycle
+  passes in whatever `series_health()` composed. The two drifted the moment `PRIMARY_SOURCES` joined
+  the composition, and the guard failed with `noaa_solar_wind_primary is declared and never written
+  by a health cycle` for a component the real cycle does write. Updating the reconstruction restored
+  the guard but left the weakness: it must be edited whenever the composition changes, which is the
+  thing it exists to catch. The stronger form builds the list from a real store and calls
+  `series_health()`, so there is no second copy to drift. The poller test module has no store
+  helper, which is the only reason it was not done that way.
+
+- **AUD-041** The CSV export does not say which spacecraft measured a row. `get_report_csv` now
+  returns one row per minute with the active row preferred, which is deterministic where it used to
+  be arbitrary, but its column list is unchanged and carries no `source`. Every other Displayed
+  reader carries `source` and `active` per row so a secondary reading cannot pass as the
+  measurement; the CSV cannot. Adding a column changes the export format for every existing
+  consumer, which is a decision about the published contract rather than about provenance, and is
+  why it was left out rather than folded in.
+
+- **AUD-036** `samples_within_today` builds a fixture that cannot pass in the first forty minutes of a
+  UTC day. `routes.rs:2298` spaces its samples across the elapsed part of the current day:
+  `step = ((now - day_start) / span.max(1)).clamp(1, 300)`. A few minutes after midnight there is
+  almost no elapsed day to spread the samples over, the fixture degenerates, and
+  `history_before_the_first_sample_is_not_held_against_a_component` reads `uptime_pct` as `Null`
+  instead of `100.0`.
+
+  First observed on 2026-09-23 at 00:02 UTC, failing on `f7ac39e`, which was the commit running in
+  production at the time. It passed in the same working tree twenty minutes earlier, at 23:4x, and
+  passed again after 00:40. Nothing in the change under test touched it.
+
+  The sharp part is three lines below the helper, in its own doc comment: the property these
+  fixtures rest on is "checked at the hours that broke them rather than at whatever hour the suite
+  happens to run", written for an earlier bug that only appeared in the first forty minutes of a UTC
+  day. The rule is time-independent and tested as such. The fixture that feeds it is not. That is
+  the rule and its application diverging, with the application unguarded.
+
+  Practical effect: `gate.sh` cannot go green between roughly 00:00 and 00:40 UTC, so no work can
+  land in that window. Not fixed here; it is unrelated to anything else in flight and deserves its
+  own change.
+
 - **AUD-037** `GROUP BY observed_at / {bucket}` does not bucket. DuckDB's `/` is float division, so
   `1790000000 / 900` is `1988888.88...`, distinct for every second, and the grouping groups by row
   rather than by the interval the constant names. `get_solar_wind_range` at `db.rs:2519` and
