@@ -33,7 +33,7 @@ const ENDPOINTS = [
   { method: 'GET',  path: '/api/kp-forecast',       desc: 'ML Kp forecast (+3 h, LSTM)' },
   { method: 'GET',  path: '/api/solar-wind',        desc: 'Solar wind speed, density, temperature' },
   { method: 'GET',  path: '/api/xray',              desc: 'GOES X-ray flux (0.1-0.8 nm & 0.05-0.4 nm). The satellite field is unreliable for readings before August 2026.' },
-  { method: 'GET',  path: '/api/imf',               desc: 'IMF Bz/Bt - DSCOVR magnetometer' },
+  { method: 'GET',  path: '/api/imf',               desc: 'IMF Bz/Bt - L1 magnetometer' },
   { method: 'GET',  path: '/api/dst',               desc: 'Dst disturbance storm-time index' },
   { method: 'GET',  path: '/api/alerts',            desc: 'NOAA space weather alerts' },
   { method: 'GET',  path: '/api/anomalies',         desc: 'Locally detected anomalies (5 checks)' },
