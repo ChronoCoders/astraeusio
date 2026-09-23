@@ -67,12 +67,25 @@ class PublishedForecastSkill(unittest.TestCase):
         )
 
     def test_the_solar_drivers_are_not_omitted_from_the_feature_list(self):
+        """Anchored to the bullet, not to the document.
+
+        An earlier version asserted these phrases appeared anywhere in the
+        file, which passes while the feature list omits them and the words
+        survive in a sentence further down. The claim is about what the list
+        says, so the list is what gets read.
+        """
         minmax = code(TRAIN, r"^MINMAX_FEATURES\s*=\s*\[([^\]]+)\]")
         self.assertIn("f107_adj", minmax)
+
+        bullet = next(
+            (line for line in self.text.splitlines() if line.lstrip().startswith("- Features")),
+            None,
+        )
+        self.assertIsNotNone(bullet, "the skill has no feature bullet to check")
         for phrase in ("F10.7", "sunspot"):
             self.assertIn(
-                phrase, self.text,
-                f"the feature list omits {phrase}, which the model is fed",
+                phrase, bullet,
+                f"the feature bullet omits {phrase}, which the model is fed:\n  {bullet}",
             )
 
 
