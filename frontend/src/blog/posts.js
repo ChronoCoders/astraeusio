@@ -390,7 +390,7 @@ The Charts page plots solar wind speed, proton density, and IMF Bz together, alo
 
 ## The Honest Caveat
 
-L1 monitoring has a blind spot: it measures the wind at a single point. The magnetic structure that passes DSCOVR is not always identical to what hits Earth 1.5 million kilometres away, and Bz can rotate during transit. The warning is real but probabilistic. Treat a hard southward turn at L1 as a strong signal - not a guarantee - and weight it alongside the Kp forecast and the X-ray record.
+L1 monitoring has a blind spot: it measures the wind at a single point. The magnetic structure that passes the L1 spacecraft is not always identical to what hits Earth 1.5 million kilometres away, and Bz can rotate during transit. The warning is real but probabilistic. Treat a hard southward turn at L1 as a strong signal - not a guarantee - and weight it alongside the Kp forecast and the X-ray record.
     `.trim(),
     contentTr: `
 Kp endeksi size bir jeomanyetik fırtınanın geldiğini söyler. Güneş rüzgârı ise birinin yolda olduğunu söyler. O, akış-üstü sinyaldir - rahatsızlık yere ulaşmadan önce ölçülür - ve onu doğru okumak, bir fırtınaya tepki vermekle onu öngörmek arasındaki farktır.
@@ -435,7 +435,7 @@ Grafikler sayfası güneş rüzgârı hızını, proton yoğunluğunu ve IMF Bz'
 
 ## Dürüst Uyarı
 
-L1 izlemesinin bir kör noktası vardır: rüzgârı tek bir noktada ölçer. DSCOVR'dan geçen manyetik yapı, 1,5 milyon kilometre öteden Dünya'ya çarpana her zaman aynı olmaz ve Bz geçiş sırasında dönebilir. Uyarı gerçektir ama olasılıksaldır. L1'deki sert güneye dönüşü güçlü bir sinyal olarak değerlendirin - bir garanti değil - ve onu Kp tahmini ile X-ışını kaydının yanında tartın.
+L1 izlemesinin bir kör noktası vardır: rüzgârı tek bir noktada ölçer. L1 uzay aracından geçen manyetik yapı, 1,5 milyon kilometre öteden Dünya'ya çarpana her zaman aynı olmaz ve Bz geçiş sırasında dönebilir. Uyarı gerçektir ama olasılıksaldır. L1'deki sert güneye dönüşü güçlü bir sinyal olarak değerlendirin - bir garanti değil - ve onu Kp tahmini ile X-ışını kaydının yanında tartın.
     `.trim(),
   },
 
@@ -625,7 +625,7 @@ Economic impact estimates for a severe, prolonged event range into the trillions
 
 Better than 1859, but the warning is uneven. A flare's radiation arrives in eight minutes - effectively no warning. The CME that drives the geomagnetic storm takes one to three days to cross from the Sun, and coronagraphs like those on SOHO can spot it leaving the Sun, giving a day or more of lead time to estimate arrival.
 
-The decisive measurement comes last and latest: the CME's magnetic orientation - its Bz - cannot be reliably known until it reaches DSCOVR at L1, 15 to 60 minutes upstream. A Carrington-class CME with northward Bz would be a dramatic near-miss; the same CME with strongly southward Bz would be the worst day in the history of the electrical grid. We do not know which until the final hour.
+The decisive measurement comes last and latest: the CME's magnetic orientation - its Bz - cannot be reliably known until it reaches the spacecraft at L1, 15 to 60 minutes upstream. A Carrington-class CME with northward Bz would be a dramatic near-miss; the same CME with strongly southward Bz would be the worst day in the history of the electrical grid. We do not know which until the final hour.
 
 That final hour is the entire point of real-time monitoring. Grid operators can shed load and reconfigure; satellite operators can safe their fleets; airlines can reroute. None of it is possible without continuous, low-latency data.
 
@@ -671,7 +671,7 @@ Modern dünyaya çarpan Carrington sınıfı bir fırtına, 1859'da var olmayan 
 
 1859'dan daha iyi, ama uyarı eşitsiz. Bir patlamanın radyasyonu sekiz dakikada gelir - etkili biçimde hiçbir uyarı yok. Jeomanyetik fırtınayı süren CME'nin Güneş'ten geçmesi bir ila üç gün sürer ve SOHO üzerindekiler gibi koronagraflar onu Güneş'ten ayrılırken görebilir; bu, varışı tahmin etmek için bir gün veya daha fazla öncü süre verir.
 
-Belirleyici ölçüm en son ve en geç gelir: CME'nin manyetik yönelimi - Bz'si - 15 ila 60 dakika akış-üstündeki L1'de DSCOVR'a ulaşana kadar güvenilir biçimde bilinemez. Kuzeye dönük Bz'ye sahip Carrington sınıfı bir CME çarpıcı bir kıl payı atlatma olurdu; güçlü güneye dönük Bz'ye sahip aynı CME, elektrik şebekesi tarihindeki en kötü gün olurdu. Hangisi olduğunu son saate kadar bilemeyiz.
+Belirleyici ölçüm en son ve en geç gelir: CME'nin manyetik yönelimi - Bz'si - 15 ila 60 dakika akış-üstündeki L1 uzay aracına ulaşana kadar güvenilir biçimde bilinemez. Kuzeye dönük Bz'ye sahip Carrington sınıfı bir CME çarpıcı bir kıl payı atlatma olurdu; güçlü güneye dönük Bz'ye sahip aynı CME, elektrik şebekesi tarihindeki en kötü gün olurdu. Hangisi olduğunu son saate kadar bilemeyiz.
 
 O son saat, gerçek zamanlı izlemenin tüm amacıdır. Şebeke operatörleri yük atabilir ve yeniden yapılandırabilir; uydu operatörleri filolarını güvene alabilir; havayolları rota değiştirebilir. Sürekli, düşük gecikmeli veri olmadan bunların hiçbiri mümkün değildir.
 
