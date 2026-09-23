@@ -25,7 +25,7 @@ Returns the latest solar wind speed (km/s) and density (p/cm³).
 **GET** `https://astraeusio.com/api/kp` - 1-minute Kp time series
 **GET** `https://astraeusio.com/api/solar-wind` - solar wind time series
 **GET** `https://astraeusio.com/api/xray` - GOES X-ray flux (M/X flare detection)
-**GET** `https://astraeusio.com/api/imf` - IMF Bz/Bt from NOAA DSCOVR
+**GET** `https://astraeusio.com/api/imf` - IMF Bz/Bt from NOAA's real-time solar wind spacecraft at L1
 **GET** `https://astraeusio.com/api/dst` - Dst index (ring current energy)
 **GET** `https://astraeusio.com/api/alerts` - NOAA space weather watches and warnings
 

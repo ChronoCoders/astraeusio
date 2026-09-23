@@ -5,7 +5,7 @@ Astraeusio monitors solar activity, geomagnetic conditions, and near-Earth objec
 ## What It Does
 
 - **Live Kp index** - 1-minute estimated Kp from NOAA's ground magnetometer network
-- **Solar wind** - speed and density from NOAA DSCOVR satellite
+- **Solar wind** - speed and density from NOAA's real-time solar wind spacecraft at L1
 - **Geomagnetic storm prediction** - LSTM + Monte Carlo Dropout, with the model's spread across 50 passes
 - **X-ray flux** - GOES satellite primary channel (M/X flare detection)
 - **IMF Bz** - interplanetary magnetic field southward component (key storm driver)

@@ -22,7 +22,7 @@
       },
       {
         "name": "get_solar_wind",
-        "description": "Get the latest solar wind speed and density from NOAA DSCOVR (no auth required)."
+        "description": "Get the latest solar wind speed and density from NOAA's real-time solar wind spacecraft at L1 (no auth required)."
       },
       {
         "name": "get_kp_forecast",

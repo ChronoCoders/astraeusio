@@ -24,7 +24,7 @@ const TOOLS = [
   {
     name: 'get_solar_wind',
     title: 'Solar Wind Data',
-    description: 'Get the latest solar wind speed (km/s) and density (p/cm³) from NOAA DSCOVR.',
+    description: 'Get the latest solar wind speed (km/s) and density (p/cm³) from the NOAA real-time solar wind spacecraft at L1.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/solar-wind').then(r => r.json()),
@@ -32,7 +32,7 @@ const TOOLS = [
   {
     name: 'get_kp_forecast',
     title: 'Kp Forecast',
-    description: 'Get the 3-hour ML Kp forecast with the model spread across 50 inference passes, from an LSTM trained on 20+ years of NOAA data.',
+    description: 'Get ML Kp forecasts at 3, 6, 12 and 24 hours with the model spread across 50 inference passes, from an LSTM trained on 20 years of three-hourly Kp from GFZ Niemegk.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => fetch('/api/public/forecast').then(r => r.json()),

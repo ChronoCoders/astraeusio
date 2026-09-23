@@ -38,7 +38,7 @@
     "/api/public/solar-wind": {
       "get": {
         "summary": "Latest solar wind reading",
-        "description": "Returns the most recent solar wind speed and density from NOAA DSCOVR.",
+        "description": "Returns the most recent solar wind speed and density from NOAA's real-time solar wind spacecraft at L1.",
         "tags": ["Public"],
         "responses": {
           "200": { "description": "Latest solar wind data" }
@@ -84,7 +84,7 @@
     "/api/kp-forecast": {
       "get": {
         "summary": "ML storm forecast",
-        "description": "3-hour Kp prediction from an LSTM model, with the model spread across 50 inference passes.",
+        "description": "Kp predictions at 3, 6, 12 and 24 hours from an LSTM model, with the model spread across 50 inference passes.",
         "security": [{ "bearerAuth": [] }],
         "tags": ["Space Weather"],
         "responses": { "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" } }
@@ -110,7 +110,7 @@
     "/api/imf": {
       "get": {
         "summary": "IMF magnetometer data",
-        "description": "Interplanetary magnetic field Bz and Bt from NOAA DSCOVR.",
+        "description": "Interplanetary magnetic field Bz and Bt from NOAA's real-time solar wind spacecraft at L1.",
         "security": [{ "bearerAuth": [] }],
         "tags": ["Space Weather"],
         "responses": { "200": { "description": "Array of IMF readings" } }
