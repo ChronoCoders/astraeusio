@@ -47,7 +47,7 @@ A narrow spread means the model's 50 passes agree - recent Kp history points cle
 
 The model has no direct access to solar wind data, interplanetary magnetic field measurements, or coronagraph imagery from SOHO or STEREO. It sees only the ground-level magnetic record and time features. This means it cannot predict a sudden storm onset caused by a fast CME that hasn't yet affected the magnetometer network.
 
-What it can do is recognise precursor patterns - the subtle increase in Kp that often precedes a major storm - and extend trends that are already underway. For storms that develop gradually, it performs well. For sudden commencement events with no precursor, you still need real-time solar wind data from DSCOVR, which Astraeusio also ingests separately.
+What it can do is recognise precursor patterns - the subtle increase in Kp that often precedes a major storm - and extend trends that are already underway. For storms that develop gradually, it performs well. For sudden commencement events with no precursor, you still need the real-time solar wind measurements from NOAA's spacecraft at L1, which Astraeusio also ingests separately.
 
 The forecast is one input among several. The IMF Bz, solar wind speed, and X-ray flux data all tell complementary parts of the story.
 
@@ -93,7 +93,7 @@ Dar bir yayılım 50 geçişin birbiriyle uyuştuğu anlamına gelir; geniş bir
 
 Modelin güneş rüzgarı verilerine, gezegenlerarası manyetik alan ölçümlerine veya SOHO ya da STEREO'dan koronagraf görüntülerine doğrudan erişimi yoktur. Yalnızca yer düzeyi manyetik kaydı ve zaman özelliklerini görür. Bu, manyetometre ağını henüz etkilememiş hızlı bir CME'nin neden olduğu ani fırtına başlangıcını tahmin edemeyeceği anlamına gelir.
 
-Yapabildiği şey, öncü kalıpları tanımaktır - büyük bir fırtınadan önce Kp'deki ince artış - ve halihazırda devam eden eğilimleri uzatmak. Kademeli gelişen fırtınalarda iyi performans gösterir. Anlık başlangıç olayları için, Astraeusio'nun ayrıca aldığı DSCOVR'dan gerçek zamanlı güneş rüzgarı verisine ihtiyacınız var.
+Yapabildiği şey, öncü kalıpları tanımaktır - büyük bir fırtınadan önce Kp'deki ince artış - ve halihazırda devam eden eğilimleri uzatmak. Kademeli gelişen fırtınalarda iyi performans gösterir. Anlık başlangıç olayları için, Astraeusio'nun ayrıca aldığı, NOAA'nın L1'deki uzay aracından gelen gerçek zamanlı güneş rüzgarı ölçümlerine ihtiyacınız var.
 
 Tahmin, birkaç girdiden biridir. IMF Bz, güneş rüzgarı hızı ve X-ışını akısı verileri tablonun tamamlayıcı bölümlerini anlatır.
 
@@ -376,9 +376,9 @@ This is why a single number - solar wind speed - is never enough. A 600 km/s str
 
 ## The Warning Window: L1
 
-The reason the solar wind is a *forecast* tool and not just a *nowcast* is geometry. NOAA's DSCOVR spacecraft sits at the first Sun–Earth Lagrange point (L1), about 1.5 million kilometres upstream of Earth - roughly 1% of the way to the Sun. It measures the wind before it reaches us.
+The reason the solar wind is a *forecast* tool and not just a *nowcast* is geometry. NOAA keeps a spacecraft at the first Sun-Earth Lagrange point (L1); DSCOVR was the first, and the role has since passed on. Whichever craft holds it sits, about 1.5 million kilometres upstream of Earth - roughly 1% of the way to the Sun. It measures the wind before it reaches us.
 
-At typical solar wind speeds, that buys 15 to 60 minutes of warning. It is not much, but it is enough to safe a sensitive instrument, delay a satellite manoeuvre, or alert grid operators that strongly southward Bz is inbound. When you see Bz swing hard negative in the DSCOVR feed, you know the magnetosphere is about to respond - before Kp moves.
+At typical solar wind speeds, that buys 15 to 60 minutes of warning. It is not much, but it is enough to safe a sensitive instrument, delay a satellite manoeuvre, or alert grid operators that strongly southward Bz is inbound. When you see Bz swing hard negative in the L1 feed, you know the magnetosphere is about to respond - before Kp moves.
 
 ## Fast Streams and Corotating Interaction Regions
 
@@ -421,9 +421,9 @@ Bz kuzeye doğrultulduğunda gündüz tarafındaki yeniden bağlanma baskılanı
 
 ## Uyarı Penceresi: L1
 
-Güneş rüzgârının yalnızca bir *anlık-durum* değil bir *tahmin* aracı olmasının nedeni geometridir. NOAA'nın DSCOVR uzay aracı, Dünya'nın yaklaşık 1,5 milyon kilometre akış-üstünde - Güneş'e giden yolun kabaca %1'inde - birinci Güneş–Dünya Lagrange noktasında (L1) durur. Rüzgârı bize ulaşmadan önce ölçer.
+Güneş rüzgârının yalnızca bir *anlık-durum* değil bir *tahmin* aracı olmasının nedeni geometridir. NOAA, birinci Lagrange noktasında sürekli bir uzay aracı tutar; ilki DSCOVR'dı, bu görev o zamandan beri el değiştirdi. Görevi hangi araç üstlenirse üstlensin, Dünya'nın yaklaşık 1,5 milyon kilometre akış-üstünde - Güneş'e giden yolun kabaca %1'inde - birinci Güneş–Dünya Lagrange noktasında (L1) durur. Rüzgârı bize ulaşmadan önce ölçer.
 
-Tipik güneş rüzgârı hızlarında bu 15 ila 60 dakikalık uyarı kazandırır. Çok değil, ama hassas bir cihazı güvene almaya, bir uydu manevrasını ertelemeye veya şebeke operatörlerini güçlü güneye dönük Bz'nin yaklaştığı konusunda uyarmaya yeter. DSCOVR beslemesinde Bz'nin sert biçimde negatife döndüğünü gördüğünüzde, manyetosferin yanıt vermek üzere olduğunu Kp hareket etmeden önce bilirsiniz.
+Tipik güneş rüzgârı hızlarında bu 15 ila 60 dakikalık uyarı kazandırır. Çok değil, ama hassas bir cihazı güvene almaya, bir uydu manevrasını ertelemeye veya şebeke operatörlerini güçlü güneye dönük Bz'nin yaklaştığı konusunda uyarmaya yeter. L1 beslemesinde Bz'nin sert biçimde negatife döndüğünü gördüğünüzde, manyetosferin yanıt vermek üzere olduğunu Kp hareket etmeden önce bilirsiniz.
 
 ## Hızlı Akışlar ve Birlikte Dönen Etkileşim Bölgeleri
 
