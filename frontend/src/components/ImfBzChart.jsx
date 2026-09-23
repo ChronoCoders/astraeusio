@@ -90,6 +90,16 @@ export default function ImfBzChart({ data }) {
         {/* Line - southward portion red */}
         <polyline points={polyline} fill="none" stroke="#f87171" strokeWidth="1.5"
           strokeLinejoin="round" clipPath="url(#imf-below)" />
+        {/* A point NOAA does not mark active came from the backup spacecraft.
+            It matters more here than on the speed chart: on 2026-09-22, 25 of
+            the Bz minutes taken from the secondary carried the opposite sign,
+            and the sign is the whole signal. */}
+        {pts.map((r, i) => r.active === false && (
+          <circle key={i} cx={toX(tArr[i])} cy={toY(r.bz_gsm)} r="2.5"
+            fill="#a1a1aa" stroke="#18181b" strokeWidth="0.5">
+            <title>{t('charts.secondarySource', { source: r.source })}</title>
+          </circle>
+        ))}
       </svg>
     </div>
   )
