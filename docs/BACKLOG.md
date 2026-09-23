@@ -522,6 +522,25 @@ repeated here.
   into the build, while rkyv's parent rust_decimal is compiled and only its `rkyv` feature is off,
   so a feature change on duckdb's side is enough to make it live. Whether to ignore them, and on
   which of those two arguments, is an open decision.
+- **AUD-042** A custom anomaly rule is detected and never delivered. `anomaly.rs` writes the rule's
+  hit to `alerts_anomaly` with an `anomaly_type` of `custom:<id>`, and nothing carries it further.
+  `webhooks.rs` accepts five event names and `custom:*` is not among them, so no webhook can
+  subscribe to one. The email dispatcher evaluates only the Kp and wind thresholds. So the feature a
+  customer configures produces a row in the dashboard feed and no notification, which is the one
+  thing a person setting a threshold is asking for.
+
+  **Delivery is not built here, and the reason is ownership.** A custom rule belongs to the account
+  that created it, and `alerts_anomaly.user_email` carries that. Any delivery path has to scope to
+  the owner on both channels, or one account's rule notifies another account's webhook. That is the
+  same class as the reads audited under `ANOMALY_VISIBLE_TO`, and it is not a change to make at the
+  same time as correcting copy. The plan that should carry custom rules is also undecided: the code
+  gates creation at `enterprise` while the pricing page sells custom thresholds on Business.
+
+  Corrected on 2026-09-23 in the copy only: the pricing feature list and the comparison table now
+  say custom thresholds and custom anomaly rules appear in the dashboard feed, so nothing promises
+  a notification that does not arrive. Multi-channel alerts remain listed, because webhooks and
+  email do work for the five built-in event types.
+
 - **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
   than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
   2026-09-22: 193,712 and 94,235 rows with a NULL source. Deleted at 23:29:40 by the migration's own
