@@ -223,6 +223,7 @@
     "modelDesc": "NOAA'nın yirmi yıllık gözlemleriyle eğitilmiş bir yapay zeka modeli; Kp endeksini 3 ila 24 saat öteye tahmin eder. Her tahmin, modelin kendi 50 çıkarım geçişindeki yayılımla birlikte sunulur; bu, ağın kendisiyle nerede anlaşmazlığa düştüğünü gösterir."
   },
   "charts": {
+    "secondarySource": "{{source}} tarafından ölçüldü, yedek uzay aracı",
     "solarWind": "Güneş Rüzgarı Hızı - 24 saat",
     "xrayFlux": "X-Işını Akısı - 24 saat",
     "kpGauge": "Güncel Kp",

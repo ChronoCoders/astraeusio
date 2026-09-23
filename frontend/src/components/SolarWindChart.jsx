@@ -58,6 +58,15 @@ export default function SolarWindChart({ data }) {
             stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 2" />
         )}
         <polyline points={polyline} fill="none" stroke="#22d3ee" strokeWidth="1.5" strokeLinejoin="round" />
+        {/* A point NOAA does not mark active came from the backup spacecraft.
+            Marked and named on hover rather than drawn as if it were the
+            measurement: without this the tagging exists only in the JSON. */}
+        {pts.map((r, i) => r.active === false && (
+          <circle key={i} cx={toX(tArr[i])} cy={toY(r.proton_speed)} r="2.5"
+            fill="#a1a1aa" stroke="#18181b" strokeWidth="0.5">
+            <title>{t('charts.secondarySource', { source: r.source })}</title>
+          </circle>
+        ))}
       </svg>
     </div>
   )
