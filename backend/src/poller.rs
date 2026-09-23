@@ -1078,9 +1078,16 @@ mod tests {
     /// which is what the handlers publish from.
     #[test]
     fn every_component_a_cycle_writes_is_declared() {
+        // Mirrors what `series_health` composes, which is what the real cycle
+        // passes in. The reconstruction is the weak part of this guard: it has
+        // to be updated whenever that composition changes, and it failed to be
+        // when the primary-dark components joined, which is how this assertion
+        // earned its keep.
         let series = crate::db::SERIES_FRESHNESS
             .iter()
-            .map(|s| (s.component, "operational", Some(0i64)))
+            .map(|s| s.component)
+            .chain(crate::db::PRIMARY_SOURCES.iter().map(|p| p.component))
+            .map(|component| (component, "operational", Some(0i64)))
             .collect::<Vec<_>>();
         let samples = health_samples(&series, "operational", "operational");
 

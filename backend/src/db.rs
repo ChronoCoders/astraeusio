@@ -2642,7 +2642,7 @@ impl Store {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
-            .query_map([now() - 2 * 86_400], |row| {
+            .query_map([0i64], |row| {
                 let time_tag: String = row.get(0)?;
                 let speed_e1: Option<i64> = row.get(1)?;
                 let density_e2: Option<i64> = row.get(2)?;
@@ -2728,7 +2728,7 @@ impl Store {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
-            .query_map([now() - 2 * 86_400], |row| {
+            .query_map([0i64], |row| {
                 let time_tag: String = row.get(0)?;
                 let bz_e2: Option<i64> = row.get(1)?;
                 let bt_e2: Option<i64> = row.get(2)?;
@@ -3587,7 +3587,7 @@ impl Store {
         // speed, not an invitation to fall through to the secondary.
         let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND speed_e1 IS NOT NULL");
         let mut stmt = self.conn.prepare(&sql)?;
-        let mut rows = stmt.query([now() - 2 * 86_400])?;
+        let mut rows = stmt.query([0i64])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?)))
         } else {
@@ -3685,7 +3685,7 @@ impl Store {
         );
         let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND bz_e2 IS NOT NULL");
         let mut stmt = self.conn.prepare(&sql)?;
-        let mut rows = stmt.query([now() - 2 * 86_400])?;
+        let mut rows = stmt.query([0i64])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
         } else {
@@ -4051,7 +4051,7 @@ impl Store {
         );
         let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND speed_e1 IS NOT NULL");
         let mut stmt = self.conn.prepare(&sql)?;
-        let mut rows = stmt.query([now() - 2 * 86_400])?;
+        let mut rows = stmt.query([0i64])?;
         if let Some(row) = rows.next()? {
             let speed_e1: Option<i64> = row.get(0)?;
             let density_e2: Option<i64> = row.get(1)?;
@@ -5075,12 +5075,32 @@ mod tests {
             .collect()
     }
 
+    /// What the table holds for a minute, chosen the way a Displayed reader
+    /// chooses: the active row first, then by source.
+    ///
+    /// Deliberately not `latest_solar_wind_speed_raw`. That is a Decided
+    /// reader and returns nothing when no active row exists, which is correct
+    /// and makes it useless for asserting what the writer stored.
     fn stored_speed(store: &Store) -> f64 {
-        let (_, _, speed_e1) = store
-            .latest_solar_wind_speed_raw()
-            .expect("read")
+        let speed_e1: i64 = store
+            .conn
+            .query_row(
+                "SELECT speed_e1 FROM solar_wind \
+                 ORDER BY observed_at DESC, COALESCE(active, FALSE) DESC, source ASC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
             .expect("a row");
         speed_e1 as f64 / 10.0
+    }
+
+    /// What a Decided reader returns, which is `None` when no active row
+    /// exists for any minute in range.
+    fn decided_speed(store: &Store) -> Option<f64> {
+        store
+            .latest_solar_wind_speed_raw()
+            .expect("read")
+            .map(|(_, _, speed_e1)| speed_e1 as f64 / 10.0)
     }
 
     /// Whichever order the feed lists them in, the active row is the one that
@@ -5141,11 +5161,22 @@ mod tests {
             "the only row available must be stored"
         );
 
-        store.insert_solar_wind_batch(&pair[1..]).expect("second");
         assert_eq!(
-            stored_speed(&store),
-            296.1,
-            "the active row must replace the secondary"
+            decided_speed(&store),
+            None,
+            "an inactive row alone is not a decided value"
+        );
+
+        store.insert_solar_wind_batch(&pair[1..]).expect("second");
+        let rows: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM solar_wind", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(rows, 2, "the writer keeps both spacecraft");
+        assert_eq!(
+            decided_speed(&store),
+            Some(296.1),
+            "the decided reader must resolve to the active spacecraft"
         );
     }
 
@@ -5158,9 +5189,9 @@ mod tests {
         store.insert_solar_wind_batch(&pair[..1]).expect("first");
         store.insert_solar_wind_batch(&pair[1..]).expect("second");
         assert_eq!(
-            stored_speed(&store),
-            296.1,
-            "an inactive row overwrote an active one"
+            decided_speed(&store),
+            Some(296.1),
+            "an inactive row must not become the decided value"
         );
     }
 
@@ -5253,9 +5284,9 @@ mod tests {
         };
         store.insert_solar_wind_batch(&[active]).expect("replace");
         assert_eq!(
-            stored_speed(&store),
-            296.1,
-            "an unflagged row must not be permanent"
+            decided_speed(&store),
+            Some(296.1),
+            "an unflagged row must not outrank a vouched one"
         );
     }
 
@@ -5271,22 +5302,299 @@ mod tests {
                 ("ACE", false, 448.7),
             ))
             .expect("insert");
-        // prefer_active still collapses the batch, so only one arrives today.
-        // What this pins is that the table can hold the second one when the
-        // read path is ready for it.
-        store
-            .conn
-            .execute(
-                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active) \
-                 VALUES (?, 4487, 0, 148826, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0, 'ACE', FALSE)",
-                params![tag, tag],
-            )
-            .expect("the second spacecraft must not collide");
+        // Nothing collapses any more, so the batch itself is the evidence:
+        // both spacecraft went in under one minute and neither displaced the
+        // other. The raw insert this replaced was written while the writer
+        // still collapsed, and now collides with the row the batch stored.
         let rows: i64 = store
             .conn
             .query_row("SELECT count(*) FROM solar_wind", [], |r| r.get(0))
             .expect("count");
         assert_eq!(rows, 2, "the key must admit one row per source per minute");
+    }
+
+    /// Nothing reads `solar_wind` or `imf` except the chooser, the two insert
+    /// batches and the migrations.
+    ///
+    /// This is the application of the rule the whole change rests on. The
+    /// table holds two rows per minute now, so a query that goes around
+    /// `one_row_per_minute` returns whichever row the storage engine hands
+    /// back first, which is the secondary spacecraft roughly half the time.
+    /// `Selection` being a type stops a reader choosing wrongly; it does not
+    /// stop a reader written next month from not using it at all.
+    #[test]
+    fn no_reader_queries_the_series_tables_directly() {
+        let src = include_str!("db.rs");
+        // Production only. The test module below builds fixtures by hand and
+        // is allowed to name the tables.
+        let production = src
+            .split_once("\n#[cfg(test)]")
+            .map(|(before, _)| before)
+            .unwrap_or(src);
+        // Whitespace-normalised: these queries wrap across lines with a
+        // backslash continuation, so a raw search for "FROM solar_wind" walks
+        // straight past half of them.
+        let flat: String = production
+            .replace("\\\n", " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        const ALLOWED: [&str; 6] = [
+            "one_row_per_minute",
+            "insert_solar_wind_batch",
+            "insert_imf_batch",
+            "delete_unlabelled_series_rows",
+            "rekey_one_series",
+            "newest_from_source",
+        ];
+
+        let mut sites = 0;
+        let mut seen: Vec<&str> = Vec::new();
+        for pattern in ["FROM solar_wind", "FROM imf", "INTO solar_wind", "INTO imf"] {
+            let mut from = 0;
+            while let Some(at) = flat[from..].find(pattern) {
+                let at = from + at;
+                sites += 1;
+                // The function a site sits in is the last `fn ` before it.
+                let owner = flat[..at]
+                    .rfind("fn ")
+                    .map(|i| {
+                        let rest = &flat[i + 3..];
+                        rest.split(['(', '<', ' ']).next().unwrap_or("")
+                    })
+                    .unwrap_or("");
+                assert!(
+                    ALLOWED.contains(&owner),
+                    "`{pattern}` in fn {owner} bypasses the chooser; \
+                     read through one_row_per_minute or add it to ALLOWED with a reason"
+                );
+                seen.push(owner);
+                from = at + pattern.len();
+            }
+        }
+        // A floor taken from the sites themselves, not from a number that
+        // looked strict. Only four places name a table literally: the two
+        // inserts and the two deletes in the migration. Everything else builds
+        // its SQL from `{table}`, so a count picked by eye says nothing, and an
+        // earlier draft of this assertion failed at eight for that reason.
+        for owner in [
+            "insert_solar_wind_batch",
+            "insert_imf_batch",
+            "delete_unlabelled_series_rows",
+        ] {
+            assert!(
+                seen.contains(&owner),
+                "{owner} names a table and the scan did not see it; it is not reaching the source"
+            );
+        }
+        assert!(sites >= 4, "only {sites} query sites found");
+    }
+
+    /// A Displayed reader hands back the secondary row, saying so.
+    #[test]
+    fn displayed_returns_the_inactive_row_tagged_when_nothing_is_active() {
+        let store = mem_store();
+        // One live minute and one carrying only the backup, which is the real
+        // shape: 39 of 1100 plasma minutes on 2026-09-22 had no active row
+        // inside an otherwise healthy series. A table with no active row at
+        // all is a different case, and the freshness gate answers it first by
+        // reporting the series not current.
+        store
+            .insert_solar_wind_batch(&[
+                SolarWindRecord {
+                    time_tag: iso(now() - 120),
+                    proton_speed: Some(296.1),
+                    proton_density: Some(2.0),
+                    proton_temperature: Some(52_383.0),
+                    source: Some("SOLAR1".into()),
+                    active: Some(true),
+                },
+                SolarWindRecord {
+                    time_tag: iso(now() - 60),
+                    proton_speed: Some(448.7),
+                    proton_density: Some(0.0),
+                    proton_temperature: Some(148_826.0),
+                    source: Some("ACE".into()),
+                    active: Some(false),
+                },
+            ])
+            .expect("insert");
+
+        let out = store.get_solar_wind_recent().expect("read");
+        let rows = out.as_array().expect("array");
+        assert_eq!(
+            rows.len(),
+            2,
+            "the secondary minute must not vanish from a chart"
+        );
+        // Newest first.
+        assert_eq!(rows[0]["proton_speed"].as_f64(), Some(448.7));
+        assert_eq!(rows[0]["source"].as_str(), Some("ACE"));
+        assert_eq!(
+            rows[0]["active"].as_bool(),
+            Some(false),
+            "a secondary reading must carry that it is one"
+        );
+    }
+
+    /// A Decided reader steps back to the previous active minute rather than
+    /// taking the secondary's value for the newest one.
+    #[test]
+    fn decided_steps_back_past_a_minute_with_no_active_row() {
+        let store = mem_store();
+        let older = iso(now() - 180);
+        let newer = iso(now() - 60);
+        store
+            .insert_solar_wind_batch(&[
+                SolarWindRecord {
+                    time_tag: older,
+                    proton_speed: Some(296.1),
+                    proton_density: Some(2.0),
+                    proton_temperature: Some(52_383.0),
+                    source: Some("SOLAR1".into()),
+                    active: Some(true),
+                },
+                SolarWindRecord {
+                    time_tag: newer,
+                    proton_speed: Some(448.7),
+                    proton_density: Some(0.0),
+                    proton_temperature: Some(148_826.0),
+                    source: Some("ACE".into()),
+                    active: Some(false),
+                },
+            ])
+            .expect("insert");
+
+        assert_eq!(
+            decided_speed(&store),
+            Some(296.1),
+            "a decided reader must not take the secondary's newer value"
+        );
+    }
+
+    /// Freshness is measured on the active row, so a stream of secondary rows
+    /// cannot keep a dark series looking current.
+    ///
+    /// This is the masking seen on 2026-09-22: the plasma table kept gaining
+    /// ACE rows from 10:00 to 14:00 and the series read operational throughout.
+    #[test]
+    fn secondary_rows_do_not_keep_a_series_looking_current() {
+        let store = mem_store();
+        store
+            .insert_solar_wind_batch(&[SolarWindRecord {
+                time_tag: iso(now() - 30),
+                proton_speed: Some(448.7),
+                proton_density: Some(0.0),
+                proton_temperature: Some(148_826.0),
+                source: Some("ACE".into()),
+                active: Some(false),
+            }])
+            .expect("insert");
+
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(comp, _, _)| *comp == c)
+                .map(|(_, s, _)| *s)
+                .expect("component")
+        };
+        assert_eq!(
+            status("noaa_solar_wind"),
+            "unknown",
+            "a series with only secondary rows is not current"
+        );
+    }
+
+    /// The primary reports dark on its own component while the series carries
+    /// on, which is the distinction one freshness number cannot express.
+    #[test]
+    fn the_primary_reports_dark_while_the_secondary_keeps_publishing() {
+        let store = mem_store();
+        store
+            .insert_solar_wind_batch(&[
+                // The primary, four hours ago, the length of the real outage.
+                SolarWindRecord {
+                    time_tag: iso(now() - 4 * 3600),
+                    proton_speed: Some(296.1),
+                    proton_density: Some(2.0),
+                    proton_temperature: Some(52_383.0),
+                    source: Some("SOLAR1".into()),
+                    active: Some(true),
+                },
+                // The backup, now, and designated active in its place.
+                SolarWindRecord {
+                    time_tag: iso(now() - 30),
+                    proton_speed: Some(448.7),
+                    proton_density: Some(0.0),
+                    proton_temperature: Some(148_826.0),
+                    source: Some("ACE".into()),
+                    active: Some(true),
+                },
+            ])
+            .expect("insert");
+
+        let health = store.series_health();
+        let status = |c: &str| {
+            health
+                .iter()
+                .find(|(comp, _, _)| *comp == c)
+                .map(|(_, s, _)| *s)
+                .expect("component")
+        };
+        assert_eq!(
+            status("noaa_solar_wind"),
+            "operational",
+            "the series is alive on the backup and must say so"
+        );
+        assert_eq!(
+            status("noaa_solar_wind_primary"),
+            "degraded",
+            "the primary has been dark four hours and must say so separately"
+        );
+    }
+
+    /// A row whose flag the feed omitted does not outrank one it vouched for.
+    ///
+    /// Two spacecraft, one minute, and only one of them flagged. The ordering
+    /// is what decides, so this is the test that holds
+    /// `COALESCE(active, FALSE)` in place: with `TRUE` the unflagged row sorts
+    /// first and becomes the reading.
+    #[test]
+    fn an_unflagged_row_does_not_outrank_a_vouched_one_for_the_same_minute() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        store
+            .insert_solar_wind_batch(&[
+                SolarWindRecord {
+                    time_tag: tag.clone(),
+                    proton_speed: Some(448.7),
+                    proton_density: Some(0.0),
+                    proton_temperature: Some(148_826.0),
+                    source: Some("ACE".into()),
+                    active: None,
+                },
+                SolarWindRecord {
+                    time_tag: tag,
+                    proton_speed: Some(296.1),
+                    proton_density: Some(2.0),
+                    proton_temperature: Some(52_383.0),
+                    source: Some("SOLAR1".into()),
+                    active: Some(true),
+                },
+            ])
+            .expect("insert");
+
+        let out = store.get_solar_wind_recent().expect("read");
+        let rows = out.as_array().expect("array");
+        assert_eq!(rows.len(), 1, "one minute, one displayed row");
+        assert_eq!(
+            rows[0]["proton_speed"].as_f64(),
+            Some(296.1),
+            "the unflagged row outranked the vouched one"
+        );
+        assert_eq!(rows[0]["source"].as_str(), Some("SOLAR1"));
     }
 
     /// A bucket average is taken over the chosen rows, never across both
@@ -6777,7 +7085,11 @@ mod tests {
         assert_eq!(status("noaa_imf"), "degraded");
         // Never written, so its state is unknown rather than a false green.
         assert_eq!(status("noaa_xray"), "unknown");
-        assert_eq!(health.len(), SERIES_FRESHNESS.len());
+        assert_eq!(
+            health.len(),
+            SERIES_FRESHNESS.len() + PRIMARY_SOURCES.len(),
+            "every series plus one primary-dark component per multi-source table"
+        );
     }
 
     /// Kyoto publishes provisional Dst a day or more late. A reading that is
