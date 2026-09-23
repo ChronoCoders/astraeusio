@@ -2397,7 +2397,16 @@ impl Store {
             return Ok(None);
         };
         // Both identifiers come from SERIES_FRESHNESS, never from a request.
-        let sql = format!("SELECT MAX({}) FROM {table}", series.time_column);
+        // On a multi-source table, freshness is the newest ACTIVE row.
+        // Without the filter a secondary keeps the series looking current while
+        // the primary is dark, which is exactly what happened on 2026-09-22:
+        // the table kept gaining ACE rows and nothing reported a fault.
+        let filter = if MULTI_SOURCE_TABLES.contains(&table) {
+            " WHERE COALESCE(active, FALSE)"
+        } else {
+            ""
+        };
+        let sql = format!("SELECT MAX({}) FROM {table}{filter}", series.time_column);
         Ok(self.conn.query_row(&sql, [], |row| row.get(0))?)
     }
 
