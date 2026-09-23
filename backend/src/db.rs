@@ -1,5 +1,4 @@
 use duckdb::{Connection, params};
-use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -116,12 +115,15 @@ CREATE TABLE IF NOT EXISTS kp (
 );
 
 CREATE TABLE IF NOT EXISTS solar_wind (
-    time_tag   TEXT   NOT NULL PRIMARY KEY,
+    time_tag   TEXT   NOT NULL,
     speed_e1   BIGINT,
     density_e2 BIGINT,
     temp_k     BIGINT,
-    observed_at BIGINT,
-    fetched_at BIGINT NOT NULL
+    observed_at BIGINT NOT NULL,
+    fetched_at BIGINT NOT NULL,
+    source     TEXT   NOT NULL,
+    active     BOOLEAN,
+    PRIMARY KEY (observed_at, source)
 );
 
 CREATE TABLE IF NOT EXISTS xray (
@@ -198,11 +200,14 @@ CREATE TABLE IF NOT EXISTS starlink (
 );
 
 CREATE TABLE IF NOT EXISTS imf (
-    time_tag   TEXT   NOT NULL PRIMARY KEY,
+    time_tag   TEXT   NOT NULL,
     bz_e2      BIGINT,
     bt_e2      BIGINT,
-    observed_at BIGINT,
-    fetched_at BIGINT NOT NULL
+    observed_at BIGINT NOT NULL,
+    fetched_at BIGINT NOT NULL,
+    source     TEXT   NOT NULL,
+    active     BOOLEAN,
+    PRIMARY KEY (observed_at, source)
 );
 
 CREATE TABLE IF NOT EXISTS dst (
@@ -396,10 +401,53 @@ pub fn health_components() -> Vec<&'static str> {
         .iter()
         .map(|s| s.component)
         .chain(POLL_LIVENESS.iter().map(|l| l.component))
+        .chain(PRIMARY_SOURCES.iter().map(|p| p.component))
         .chain(PROBED)
         .chain(LIVENESS_ONLY)
         .collect()
 }
+
+/// Tables whose rows carry a `source`, where a measurement is a minute plus
+/// the spacecraft that took it.
+///
+/// Named here rather than inferred from a column lookup, so the list is
+/// greppable and a third multi-source feed has one place to join.
+pub const MULTI_SOURCE_TABLES: [&str; 2] = ["solar_wind", "imf"];
+
+/// The spacecraft a multi-source feed is expected to be running on, reported as
+/// its own component.
+///
+/// Freshness alone cannot express this. On 2026-09-22 the primary was dark from
+/// 10:00 to 14:00 while ACE kept the magnetometer alive at 51 to 58 minutes an
+/// hour, so `noaa_imf` was legitimately operational the whole time and nothing
+/// said the primary had gone. One number cannot be both "the series is alive"
+/// and "the primary is alive", and conflating them is how a four hour outage
+/// stays invisible.
+///
+/// `preferred` is a literal spacecraft name on purpose. NOAA will promote IMAP
+/// eventually, and when it does this component goes degraded and someone
+/// changes the constant, which is a loud failure rather than a silent one.
+pub struct PrimarySource {
+    pub component: &'static str,
+    pub table: &'static str,
+    pub preferred: &'static str,
+    pub max_age_secs: i64,
+}
+
+pub const PRIMARY_SOURCES: [PrimarySource; 2] = [
+    PrimarySource {
+        component: "noaa_solar_wind_primary",
+        table: "solar_wind",
+        preferred: "SOLAR1",
+        max_age_secs: 1_800,
+    },
+    PrimarySource {
+        component: "noaa_imf_primary",
+        table: "imf",
+        preferred: "SOLAR1",
+        max_age_secs: 1_800,
+    },
+];
 
 /// Components whose only honest claim is that the process was running.
 ///
@@ -841,6 +889,22 @@ const RETIRE_STARTER_MIGRATION: &str = "2026-08-retire-starter-tier";
 /// remaining row can say which spacecraft measured it.
 const DROP_UNLABELLED_MIGRATION: &str = "2026-09-drop-unlabelled-solar-wind-imf";
 
+/// Moves `solar_wind` and `imf` from a key on `time_tag` to one on
+/// `(observed_at, source)`.
+///
+/// A minute is no longer a row. The rtsw feeds carry the same minute from more
+/// than one spacecraft, so the identity of a measurement is the minute plus who
+/// measured it, and the key has to say so. Until this runs, storing the
+/// secondary alongside the primary is impossible: the second row for a minute
+/// collides.
+///
+/// This does not start storing both. `prefer_active` still collapses a batch to
+/// one row per minute, because every reader still takes the newest row by
+/// `observed_at` and would hand back the secondary. Both change together in the
+/// read path, which is the only order with no window where a chart can show the
+/// wrong spacecraft.
+const REKEY_SERIES_MIGRATION: &str = "2026-09-rekey-solar-wind-imf-by-source";
+
 /// Probe values per table for the startup self check.
 const SELF_CHECK_PROBES: i64 = 3;
 
@@ -857,6 +921,127 @@ const SELF_CHECK_PROBES: i64 = 3;
 /// Advisory only: a disagreement is logged and startup continues, because
 /// refusing to boot on a read anomaly would turn a reporting fault into an
 /// outage.
+/// Rebuilds one series table under a key on `(observed_at, source)`.
+///
+/// DuckDB cannot alter a primary key in place, so the table is rebuilt: create,
+/// copy, count, swap. The count is checked against the original before the swap
+/// and the whole thing runs in one transaction, for the reason
+/// [`rekey_is_verified`] gives about the forecast rekey. A `WHERE` or a join
+/// added to that `INSERT ... SELECT` later would drop rows silently, and the
+/// count is what makes that impossible rather than merely unlikely.
+///
+/// Returns rows before and after, so the caller logs what moved rather than
+/// that it ran.
+fn rekey_one_series(conn: &Connection, table: &str) -> Result<(i64, i64), DbError> {
+    // `table` is one of two literals below, never a request value.
+    let before: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))?;
+    let cols = match table {
+        "solar_wind" => {
+            "time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active"
+        }
+        "imf" => "time_tag, bz_e2, bt_e2, observed_at, fetched_at, source, active",
+        other => {
+            return Err(DbError::Migration(format!(
+                "rekey asked for unknown table {other}"
+            )));
+        }
+    };
+    let body = match table {
+        "solar_wind" => {
+            "time_tag TEXT NOT NULL, speed_e1 BIGINT, density_e2 BIGINT, temp_k BIGINT, \
+             observed_at BIGINT NOT NULL, fetched_at BIGINT NOT NULL, source TEXT NOT NULL, \
+             active BOOLEAN, PRIMARY KEY (observed_at, source)"
+        }
+        _ => {
+            "time_tag TEXT NOT NULL, bz_e2 BIGINT, bt_e2 BIGINT, \
+             observed_at BIGINT NOT NULL, fetched_at BIGINT NOT NULL, source TEXT NOT NULL, \
+             active BOOLEAN, PRIMARY KEY (observed_at, source)"
+        }
+    };
+
+    conn.execute_batch(&format!("CREATE TABLE {table}_rekeyed ({body})"))?;
+    conn.execute_batch(&format!(
+        "INSERT INTO {table}_rekeyed ({cols}) SELECT {cols} FROM {table}"
+    ))?;
+    let after: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}_rekeyed"), [], |r| {
+        r.get(0)
+    })?;
+    if after != before {
+        // Nothing has moved yet. Drop the copy and refuse to start rather than
+        // serve a table that lost rows on the way across.
+        conn.execute_batch(&format!("DROP TABLE {table}_rekeyed"))?;
+        return Err(DbError::Migration(format!(
+            "rekey of {table} copied {after} rows of {before}"
+        )));
+    }
+    conn.execute_batch(&format!(
+        "DROP TABLE {table}; ALTER TABLE {table}_rekeyed RENAME TO {table}"
+    ))?;
+    Ok((before, after))
+}
+
+/// What a reader is going to do with a row, which decides which row it gets.
+///
+/// A type rather than a convention, because the distinction is not something
+/// the next person writing a query should have to remember. `Selection` is the
+/// only way into `solar_wind` and `imf`, and
+/// `no_reader_queries_the_series_tables_directly` refuses any other route.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Selection {
+    /// Charts, series endpoints, CSV, public widgets.
+    ///
+    /// The active row for a minute when there is one, otherwise the best row
+    /// available, always carrying `source` and `active` so the caller can say
+    /// which spacecraft measured it. Measured on 2026-09-22, 39 plasma minutes
+    /// and 44 magnetometer minutes in a day have no active row at all, so
+    /// dropping them would be a visible hole in a chart for no gain.
+    Displayed,
+    /// Anomaly checks, the email dispatcher, report aggregates, the model.
+    ///
+    /// Active rows only. A minute with no active row is an absence rather than
+    /// a value, and the reader steps back to the previous active minute, which
+    /// falls out of filtering and ordering rather than needing a special case.
+    /// Raising an alert from a secondary reading is worse than raising none:
+    /// 25 of the Bz minutes that took a secondary value that day carried the
+    /// opposite sign, and southward Bz is the storm driver.
+    Decided,
+}
+
+impl Selection {
+    /// The predicate that narrows the candidate rows before one per minute is
+    /// chosen. Empty for `Displayed`, which considers every row.
+    fn filter(self) -> &'static str {
+        match self {
+            Selection::Displayed => "",
+            Selection::Decided => " AND COALESCE(active, FALSE)",
+        }
+    }
+}
+
+/// One row per minute, from whichever table, under the caller's `Selection`.
+///
+/// `row_number()` ranks the rows for a minute: the active one first, then by
+/// source so the answer is deterministic even if the feed ever sends two active
+/// rows for one minute. It has never done so in either product, `{0: 39, 1:
+/// 1061}` and `{0: 44, 1: 1281}` minutes by active count on 2026-09-22, but a
+/// tie-break that depends on that staying true is not a tie-break.
+///
+/// `COALESCE(active, FALSE)` treats a missing flag as not active. The feed is
+/// entitled to omit it, and an unflagged row must never outrank a vouched one.
+fn one_row_per_minute(table: &str, columns: &str, selection: Selection, order: &str) -> String {
+    let filter = selection.filter();
+    format!(
+        "SELECT {columns} FROM (
+             SELECT *, row_number() OVER (
+                 PARTITION BY observed_at
+                 ORDER BY COALESCE(active, FALSE) DESC, source ASC
+             ) AS rn
+             FROM {table}
+             WHERE observed_at > ?{filter}
+         ) WHERE rn = 1 ORDER BY {order}"
+    )
+}
+
 /// Deletes every `solar_wind` and `imf` row that carries no source.
 ///
 /// Both tables are named literally rather than taken from a list. A list is one
@@ -1605,6 +1790,22 @@ impl Store {
             );
         }
 
+        let rekey_applied: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![REKEY_SERIES_MIGRATION],
+            |row| row.get(0),
+        )?;
+        if rekey_applied == 0 {
+            for table in ["solar_wind", "imf"] {
+                let (before, after) = rekey_one_series(&conn, table)?;
+                info!(table, before, after, "rekeyed on (observed_at, source)");
+            }
+            conn.execute(
+                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+                params![REKEY_SERIES_MIGRATION, now()],
+            )?;
+        }
+
         let enrolled: i64 = conn.query_row(
             "SELECT COUNT(*) FROM users WHERE totp_secret_enc IS NOT NULL",
             [],
@@ -1889,42 +2090,6 @@ impl Store {
         }
     }
 
-    /// One row per minute, preferring the one NOAA marks active.
-    ///
-    /// The rtsw plasma and magnetometer feeds carry the same minute from more
-    /// than one spacecraft, with different values: on 2026-09-22 the plasma
-    /// feed held 1557 rows for 1100 minutes and the magnetometer 2196 for 1325.
-    /// `active` is a single winner, never two per minute in either product, so
-    /// it decides on its own and no tie-break on `source` is needed. A minute
-    /// with no active row at all keeps the first row seen, which the read path
-    /// then labels rather than trusting.
-    ///
-    /// Selecting here is what stops a secondary reading becoming the stored
-    /// measurement. It used to be decided by arrival: the first row to reach
-    /// the table won on `ON CONFLICT DO NOTHING`, and the `> MAX(time_tag)`
-    /// filter meant the minute was never looked at again, so a wrong value was
-    /// permanent. Measured against the live database that day, 23 of 131
-    /// conflicting speed minutes and 89 of 481 conflicting Bz minutes held the
-    /// secondary value, 25 of those with the sign of Bz reversed.
-    fn prefer_active<T>(records: &[T], key: impl Fn(&T) -> (&str, Option<bool>)) -> Vec<&T> {
-        let mut chosen: HashMap<&str, usize> = HashMap::with_capacity(records.len());
-        for (i, r) in records.iter().enumerate() {
-            let (tag, active) = key(r);
-            match chosen.get(tag) {
-                Some(&j) if key(&records[j]).1.unwrap_or(false) => {}
-                Some(_) if !active.unwrap_or(false) => {}
-                _ => {
-                    chosen.insert(tag, i);
-                }
-            }
-        }
-        // Input order, so a batch inserts in the order the feed sent it and a
-        // failing test names a predictable row.
-        let mut picked: Vec<usize> = chosen.into_values().collect();
-        picked.sort_unstable();
-        picked.into_iter().map(|i| &records[i]).collect()
-    }
-
     pub fn insert_solar_wind_batch(&self, records: &[SolarWindRecord]) -> Result<(), DbError> {
         // Optimisation only: skip the mutex and the empty transaction. This
         // table is append only, so falling through would write no rows and
@@ -1933,20 +2098,20 @@ impl Store {
         if records.is_empty() {
             return Ok(());
         }
-        let to_insert = Self::prefer_active(records, |r| (r.time_tag.as_str(), r.active));
+        let to_insert = records;
         self.begin()?;
         let result = (|| {
             let mut stmt = self.conn.prepare(&format!(
                 "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active)
                  VALUES (?, ?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?, ?, ?)
-                 ON CONFLICT (time_tag) DO UPDATE SET
+                 ON CONFLICT (observed_at, source) DO UPDATE SET
                      speed_e1   = excluded.speed_e1,
                      density_e2 = excluded.density_e2,
                      temp_k     = excluded.temp_k,
                      fetched_at = excluded.fetched_at,
                      source     = excluded.source,
                      active     = excluded.active
-                 WHERE excluded.active AND NOT solar_wind.active"
+                 WHERE excluded.active AND NOT COALESCE(solar_wind.active, FALSE)"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -2076,19 +2241,19 @@ impl Store {
         if records.is_empty() {
             return Ok(());
         }
-        let to_insert = Self::prefer_active(records, |r| (r.time_tag.as_str(), r.active));
+        let to_insert = records;
         self.begin()?;
         let result = (|| {
             let mut stmt = self.conn.prepare(&format!(
                 "INSERT INTO imf (time_tag, bz_e2, bt_e2, observed_at, fetched_at, source, active)
                  VALUES (?, ?, ?, {OBSERVED_AT_PARAM_SQL}, ?, ?, ?)
-                 ON CONFLICT (time_tag) DO UPDATE SET
+                 ON CONFLICT (observed_at, source) DO UPDATE SET
                      bz_e2      = excluded.bz_e2,
                      bt_e2      = excluded.bt_e2,
                      fetched_at = excluded.fetched_at,
                      source     = excluded.source,
                      active     = excluded.active
-                 WHERE excluded.active AND NOT imf.active"
+                 WHERE excluded.active AND NOT COALESCE(imf.active, FALSE)"
             ))?;
             for r in to_insert {
                 stmt.execute(params![
@@ -2267,7 +2432,31 @@ impl Store {
                 };
                 (s.component, status, newest)
             })
+            .chain(PRIMARY_SOURCES.iter().map(|p| {
+                let newest = self.newest_from_source(p.table, p.preferred).ok().flatten();
+                let status = match newest {
+                    None => "unknown",
+                    Some(t) if now - t > p.max_age_secs => "degraded",
+                    Some(_) => "operational",
+                };
+                (p.component, status, newest)
+            }))
             .collect()
+    }
+
+    /// Newest observation from one named source, whatever its active flag.
+    ///
+    /// Deliberately not filtered on `active`: the question this answers is
+    /// whether that spacecraft is still publishing, not whether NOAA is
+    /// currently designating it authoritative.
+    fn newest_from_source(&self, table: &str, source: &str) -> Result<Option<i64>, DbError> {
+        if !MULTI_SOURCE_TABLES.contains(&table) {
+            return Ok(None);
+        }
+        let sql = format!("SELECT MAX(observed_at) FROM {table} WHERE source = ?");
+        Ok(self
+            .conn
+            .query_row(&sql, params![source], |row| row.get(0))?)
     }
 
     /// The newest recorded verdict for each `POLL_LIVENESS` component.
@@ -2384,9 +2573,18 @@ impl Store {
         } else {
             21_600
         };
+        // Through the chooser before the average. Two spacecraft for one
+        // minute would otherwise be averaged together, which is neither
+        // reading and belongs to no instrument.
+        let inner = one_row_per_minute(
+            "solar_wind",
+            "time_tag, observed_at, speed_e1",
+            Selection::Displayed,
+            "observed_at",
+        );
         let sql = format!(
             "SELECT MIN(time_tag) as time_tag, CAST(AVG(speed_e1) AS BIGINT) as speed_e1 \
-             FROM solar_wind WHERE observed_at > ? AND speed_e1 IS NOT NULL \
+             FROM ({inner}) WHERE speed_e1 IS NOT NULL \
              GROUP BY observed_at / {bucket} ORDER BY time_tag ASC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
@@ -2427,21 +2625,31 @@ impl Store {
         if !self.series_is_current("solar_wind")? {
             return Ok(serde_json::Value::Array(Vec::new()));
         }
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
-             ORDER BY observed_at DESC LIMIT 1440",
-        )?;
+        let sql = one_row_per_minute(
+            "solar_wind",
+            "time_tag, speed_e1, density_e2, temp_k, source, active",
+            Selection::Displayed,
+            "observed_at DESC LIMIT 1440",
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map([now() - 2 * 86_400], |row| {
                 let time_tag: String = row.get(0)?;
                 let speed_e1: Option<i64> = row.get(1)?;
                 let density_e2: Option<i64> = row.get(2)?;
                 let temp_k: Option<i64> = row.get(3)?;
+                let source: String = row.get(4)?;
+                let active: Option<bool> = row.get(5)?;
                 Ok(serde_json::json!({
                     "time_tag": time_tag,
                     "proton_speed":       speed_e1.map(|v| v as f64 / 10.0),
                     "proton_density":     density_e2.map(|v| v as f64 / 100.0),
                     "proton_temperature": temp_k.map(|v| v as f64),
+                    // Which spacecraft measured it. A point whose `active`
+                    // is false is a secondary reading and must not be
+                    // presented as the measurement.
+                    "source": source,
+                    "active": active.unwrap_or(false),
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -2503,18 +2711,26 @@ impl Store {
         if !self.series_is_current("imf")? {
             return Ok(serde_json::Value::Array(Vec::new()));
         }
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, bz_e2, bt_e2 FROM imf ORDER BY observed_at DESC LIMIT 1440",
-        )?;
+        let sql = one_row_per_minute(
+            "imf",
+            "time_tag, bz_e2, bt_e2, source, active",
+            Selection::Displayed,
+            "observed_at DESC LIMIT 1440",
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
-            .query_map([], |row| {
+            .query_map([now() - 2 * 86_400], |row| {
                 let time_tag: String = row.get(0)?;
                 let bz_e2: Option<i64> = row.get(1)?;
                 let bt_e2: Option<i64> = row.get(2)?;
+                let source: String = row.get(3)?;
+                let active: Option<bool> = row.get(4)?;
                 Ok(serde_json::json!({
                     "time_tag": time_tag,
                     "bz_gsm":  bz_e2.map(|v| v as f64 / 100.0),
                     "bt":      bt_e2.map(|v| v as f64 / 100.0),
+                    "source": source,
+                    "active": active.unwrap_or(false),
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -3351,10 +3567,18 @@ impl Store {
     /// Newest solar wind speed as `(time_tag, observed_at, value)`, for the same
     /// reason as [`Store::latest_kp_raw`].
     pub fn latest_solar_wind_speed_raw(&self) -> Result<Option<(String, i64, i64)>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, observed_at, speed_e1 FROM solar_wind WHERE speed_e1 IS NOT NULL ORDER BY observed_at DESC LIMIT 1",
-        )?;
-        let mut rows = stmt.query([])?;
+        let sql = one_row_per_minute(
+            "solar_wind",
+            "time_tag, observed_at, speed_e1",
+            Selection::Decided,
+            "observed_at DESC LIMIT 1",
+        );
+        // The NOT NULL filter applies after the ranking, not before it. A
+        // minute whose active row carries no speed is a minute without a
+        // speed, not an invitation to fall through to the secondary.
+        let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND speed_e1 IS NOT NULL");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query([now() - 2 * 86_400])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?, row.get(2)?)))
         } else {
@@ -3444,10 +3668,15 @@ impl Store {
     }
 
     pub fn latest_imf_bz_raw(&self) -> Result<Option<(String, i64)>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT time_tag, bz_e2 FROM imf WHERE bz_e2 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
-        )?;
-        let mut rows = stmt.query([])?;
+        let sql = one_row_per_minute(
+            "imf",
+            "time_tag, bz_e2",
+            Selection::Decided,
+            "observed_at DESC LIMIT 1",
+        );
+        let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND bz_e2 IS NOT NULL");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query([now() - 2 * 86_400])?;
         if let Some(row) = rows.next()? {
             Ok(Some((row.get(0)?, row.get(1)?)))
         } else {
@@ -3617,10 +3846,13 @@ impl Store {
 
         // Max solar wind speed in km/s (speed_e1 / 10)
         let sw_max: Option<i64> = {
-            let mut stmt = self.conn.prepare(
-                "SELECT MAX(speed_e1) FROM solar_wind \
-                 WHERE observed_at > ? AND speed_e1 IS NOT NULL",
-            )?;
+            // Decided, not Displayed. This is a number people quote, and a
+            // maximum drawn from a secondary reading is wrong however the
+            // row is labelled.
+            let inner =
+                one_row_per_minute("solar_wind", "speed_e1", Selection::Decided, "observed_at");
+            let sql = format!("SELECT MAX(speed_e1) FROM ({inner}) WHERE speed_e1 IS NOT NULL");
+            let mut stmt = self.conn.prepare(&sql)?;
             let mut rows = stmt.query([cutoff])?;
             match rows.next()? {
                 Some(row) => row.get(0)?,
@@ -3717,8 +3949,16 @@ impl Store {
         out.push_str("time_tag,speed_kms,density_pcm3,temperature_k\n");
         {
             let mut stmt = self.conn.prepare(
-                "SELECT time_tag, speed_e1, density_e2, temp_k FROM solar_wind \
-                 WHERE observed_at > ? ORDER BY observed_at ASC",
+                // One row per minute, active preferred. The column list is
+                // deliberately unchanged: adding a provenance column would
+                // alter the export format for every existing consumer, and
+                // that is a bigger decision than this change is making.
+                &one_row_per_minute(
+                    "solar_wind",
+                    "time_tag, speed_e1, density_e2, temp_k",
+                    Selection::Displayed,
+                    "observed_at ASC",
+                ),
             )?;
             type WindRow = (String, Option<i64>, Option<i64>, Option<i64>);
             let rows: Vec<WindRow> = stmt
@@ -3794,11 +4034,15 @@ impl Store {
     }
 
     pub fn get_solar_wind_latest_public(&self) -> Result<serde_json::Value, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT speed_e1, density_e2, time_tag FROM solar_wind \
-             WHERE speed_e1 IS NOT NULL ORDER BY time_tag DESC LIMIT 1",
-        )?;
-        let mut rows = stmt.query([])?;
+        let sql = one_row_per_minute(
+            "solar_wind",
+            "speed_e1, density_e2, time_tag, source, active",
+            Selection::Displayed,
+            "observed_at DESC LIMIT 1",
+        );
+        let sql = sql.replace("WHERE rn = 1", "WHERE rn = 1 AND speed_e1 IS NOT NULL");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query([now() - 2 * 86_400])?;
         if let Some(row) = rows.next()? {
             let speed_e1: Option<i64> = row.get(0)?;
             let density_e2: Option<i64> = row.get(1)?;
@@ -4965,6 +5209,139 @@ mod tests {
         assert_eq!(bz_e2, -177, "stored Bz has the wrong sign");
     }
 
+    /// A record whose `active` flag the feed omitted is storable, counts as not
+    /// active, and is replaced when the active row for that minute arrives.
+    ///
+    /// The key forbids a missing source; it says nothing about a missing flag,
+    /// and the feed is entitled to omit one. What must not happen is the row
+    /// becoming permanent: `NOT NULL` is `NULL` in SQL, so an update guarded on
+    /// the stored flag alone would never fire and the minute would keep a value
+    /// nobody vouched for.
+    #[test]
+    fn a_row_with_no_active_flag_is_stored_and_can_still_be_replaced() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        let unflagged = SolarWindRecord {
+            time_tag: tag.clone(),
+            proton_speed: Some(448.7),
+            proton_density: Some(0.0),
+            proton_temperature: Some(148_826.0),
+            source: Some("ACE".into()),
+            active: None,
+        };
+        store
+            .insert_solar_wind_batch(&[unflagged])
+            .expect("a record with no flag must still store");
+        assert_eq!(stored_speed(&store), 448.7);
+
+        let active = SolarWindRecord {
+            time_tag: tag,
+            proton_speed: Some(296.1),
+            proton_density: Some(2.18),
+            proton_temperature: Some(52_383.0),
+            source: Some("ACE".into()),
+            active: Some(true),
+        };
+        store.insert_solar_wind_batch(&[active]).expect("replace");
+        assert_eq!(
+            stored_speed(&store),
+            296.1,
+            "an unflagged row must not be permanent"
+        );
+    }
+
+    /// Two spacecraft for one minute now coexist rather than collide.
+    #[test]
+    fn the_key_admits_two_sources_for_one_minute() {
+        let store = mem_store();
+        let tag = iso(now() - 60);
+        store
+            .insert_solar_wind_batch(&wind_pair(
+                &tag,
+                ("SOLAR1", true, 296.1),
+                ("ACE", false, 448.7),
+            ))
+            .expect("insert");
+        // prefer_active still collapses the batch, so only one arrives today.
+        // What this pins is that the table can hold the second one when the
+        // read path is ready for it.
+        store
+            .conn
+            .execute(
+                "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active) \
+                 VALUES (?, 4487, 0, 148826, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0, 'ACE', FALSE)",
+                params![tag, tag],
+            )
+            .expect("the second spacecraft must not collide");
+        let rows: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM solar_wind", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(rows, 2, "the key must admit one row per source per minute");
+    }
+
+    /// A bucket average is taken over the chosen rows, never across both
+    /// spacecraft.
+    ///
+    /// This is worse than an arbitrary pick and it is why it gets its own test.
+    /// An arbitrary pick at least returns a number some instrument measured.
+    /// Averaging the primary and the secondary together returns one neither of
+    /// them produced: with SOLAR1 at 296 km/s and ACE at 449 for the same
+    /// minute, both real values on 2026-09-22, the mean is 372, which is not a
+    /// solar wind speed that existed.
+    #[test]
+    fn a_bucket_average_covers_the_active_rows_only() {
+        let store = mem_store();
+        // Two minutes in one 900 second bucket, each carrying both spacecraft.
+        // Anchored to the bucket rather than offset from now, otherwise the
+        // pair straddles a boundary whenever the suite runs near one and the
+        // test fails for a reason that has nothing to do with averaging.
+        // One minute carrying both spacecraft. Deliberately one, not two:
+        // `GROUP BY observed_at / 900` is float division in DuckDB, so it
+        // groups by the second rather than by the bucket it names. That is a
+        // separate defect, recorded as AUD-037, and a fixture that spanned two
+        // minutes would fail on it instead of on the thing under test.
+        let base = now() - 600;
+        let batch: Vec<SolarWindRecord> = [("SOLAR1", true, 300.0), ("ACE", false, 500.0)]
+            .into_iter()
+            .map(|(source, active, speed)| SolarWindRecord {
+                time_tag: iso(base),
+                proton_speed: Some(speed),
+                proton_density: Some(2.0),
+                proton_temperature: Some(50_000.0),
+                source: Some(source.to_string()),
+                active: Some(active),
+            })
+            .collect();
+        store.insert_solar_wind_batch(&batch).expect("insert");
+
+        let stored: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM solar_wind", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(
+            stored, 2,
+            "the writer must keep both spacecraft for the minute"
+        );
+
+        let out = store.get_solar_wind_range(86_400).expect("range");
+        let arr = out.as_array().expect("array");
+        assert_eq!(arr.len(), 1, "one minute, one point");
+        let got = arr[0]["proton_speed"].as_f64().expect("speed");
+
+        // The active readings alone.
+        assert!(
+            (got - 300.0).abs() < 0.05,
+            "average is {got}, expected the active reading alone, 300"
+        );
+        // Not the mean across all four rows, which is what averaging the table
+        // gives and what no instrument measured.
+        assert!(
+            (got - 400.0).abs() > 0.05,
+            "average {got} is the mean across both spacecraft, a number no instrument measured"
+        );
+    }
+
     /// The delete reaches the unlabelled rows in two tables and nothing else.
     ///
     /// Written from the tables being protected rather than from the statement:
@@ -4977,27 +5354,40 @@ mod tests {
         let tag = iso(now() - 60);
         let older = iso(now() - 120);
 
+        // The delete runs before the rekey in `open`, against tables that still
+        // carry the old key. That state cannot be built through the writer or
+        // by relaxing a column, because `source` is part of the primary key and
+        // so is NOT NULL whatever the column says. Both tables are rebuilt in
+        // the pre-migration shape instead, which is the shape the delete has to
+        // work on.
         store
-            .insert_solar_wind_batch(&[SolarWindRecord {
-                time_tag: tag.clone(),
-                proton_speed: Some(296.1),
-                proton_density: Some(2.0),
-                proton_temperature: Some(50_000.0),
-                source: Some("SOLAR1".into()),
-                active: Some(true),
-            }])
-            .expect("labelled wind");
-        store
-            .insert_imf_batch(&[ImfRecord {
-                time_tag: tag.clone(),
-                bz_gsm: Some(-1.77),
-                bt: Some(5.0),
-                source: Some("SOLAR1".into()),
-                active: Some(true),
-            }])
-            .expect("labelled imf");
+            .conn
+            .execute_batch(
+                "DROP TABLE solar_wind;
+                 DROP TABLE imf;
+                 CREATE TABLE solar_wind (
+                     time_tag TEXT NOT NULL PRIMARY KEY, speed_e1 BIGINT,
+                     density_e2 BIGINT, temp_k BIGINT, observed_at BIGINT,
+                     fetched_at BIGINT NOT NULL, source TEXT, active BOOLEAN);
+                 CREATE TABLE imf (
+                     time_tag TEXT NOT NULL PRIMARY KEY, bz_e2 BIGINT, bt_e2 BIGINT,
+                     observed_at BIGINT, fetched_at BIGINT NOT NULL,
+                     source TEXT, active BOOLEAN)",
+            )
+            .expect("pre-migration shape");
 
-        // The shape the old writer left: a row with no provenance at all.
+        for sql in [
+            "INSERT INTO solar_wind (time_tag, speed_e1, observed_at, fetched_at, source, active) \
+             VALUES (?, 2961, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0, 'SOLAR1', TRUE)",
+            "INSERT INTO imf (time_tag, bz_e2, observed_at, fetched_at, source, active) \
+             VALUES (?, -177, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0, 'SOLAR1', TRUE)",
+        ] {
+            store
+                .conn
+                .execute(sql, params![tag, tag])
+                .expect("labelled row");
+        }
+
         for sql in [
             "INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at) \
              VALUES (?, 4487, 200, 50000, epoch(strptime(?, '%Y-%m-%dT%H:%M:%S')), 0)",
@@ -7550,8 +7940,8 @@ mod tests {
                  VALUES ('2020-01-01T00:00:00', 9, 900, {stale_obs}, {now});
                  INSERT INTO xray (time_tag, energy, satellite, flux_e12, observed_flux_e12, observed_at, fetched_at)
                  VALUES ('2020-01-01T00:00:00Z', '0.1-0.8nm', 16, 500000000, 500000000, {stale_obs}, {now});
-                 INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at)
-                 VALUES ('2020-01-01T00:00:00', 9500, 500, 100000, {stale_obs}, {now})"
+                 INSERT INTO solar_wind (time_tag, speed_e1, density_e2, temp_k, observed_at, fetched_at, source, active)
+                 VALUES ('2020-01-01T00:00:00', 9500, 500, 100000, {stale_obs}, {now}, 'SOLAR1', TRUE)"
             ))
             .unwrap();
 
