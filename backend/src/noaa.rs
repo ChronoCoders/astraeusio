@@ -212,25 +212,40 @@ pub async fn fetch_solar_wind(client: &Client) -> Result<Fetched<SolarWindRecord
     // Held before the filter_map consumes the vector, so a feed that changes
     // shape reports "sent 1440, kept 0" instead of a silent zero.
     let received = items.len();
-    let records: Vec<SolarWindRecord> = items
-        .into_iter()
-        .filter_map(|item| {
-            let time_tag = item.get("time_tag")?.as_str()?.to_owned();
-            Some(SolarWindRecord {
-                time_tag,
-                proton_speed: item.get("proton_speed").and_then(parse_val),
-                proton_density: item.get("proton_density").and_then(parse_val),
-                proton_temperature: item.get("proton_temperature").and_then(parse_val),
-                source: item
-                    .get("source")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_owned),
-                active: item.get("active").and_then(|v| v.as_bool()),
-            })
-        })
-        .collect();
+    let mut records: Vec<SolarWindRecord> = Vec::with_capacity(received);
+    for item in items {
+        let Some(time_tag) = item.get("time_tag").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        records.push(SolarWindRecord {
+            time_tag: time_tag.to_owned(),
+            proton_speed: item.get("proton_speed").and_then(parse_val),
+            proton_density: item.get("proton_density").and_then(parse_val),
+            proton_temperature: item.get("proton_temperature").and_then(parse_val),
+            // Required, and an error rather than a skip. Provenance is part of
+            // a row's identity now: the table is keyed on (observed_at, source),
+            // so a record with no source has no place to go. A feed that stops
+            // sending it has changed shape, and the batch must stop the way it
+            // stops when bz_gsm disappears, rather than quietly storing fewer
+            // minutes than it received.
+            source: Some(required_str(&item, "source")?),
+            // Not required. A record can carry a source and no flag, and
+            // `prefer_active` treats a missing flag as not active, so an active
+            // row for the same minute still replaces it.
+            active: item.get("active").and_then(|v| v.as_bool()),
+        });
+    }
 
     Ok(Fetched::lossy(records, received))
+}
+
+/// Reads one required string field. Absent, null or not a string is an error
+/// naming the field, so a schema change is reported rather than absorbed.
+fn required_str(item: &serde_json::Value, field: &'static str) -> Result<String, NoaaError> {
+    item.get(field)
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or(NoaaError::MissingField { field })
 }
 
 // ── X-ray flux ────────────────────────────────────────────────────────────────
@@ -313,13 +328,10 @@ fn parse_imf(items: Vec<serde_json::Value>) -> Result<Vec<ImfRecord>, NoaaError>
             time_tag,
             bz_gsm: numeric_field(&item, "bz_gsm")?,
             bt: numeric_field(&item, "bt")?,
-            // Read leniently, unlike the measurements above. A feed that drops
-            // these two is a feed we can still chart; one that drops bz_gsm is
-            // a schema change that must stop the batch.
-            source: item
-                .get("source")
-                .and_then(|v| v.as_str())
-                .map(str::to_owned),
+            // Required, for the same reason as the plasma feed: imf is keyed
+            // on (observed_at, source) too, so a record with no source has no
+            // identity. `active` stays optional.
+            source: Some(required_str(&item, "source")?),
             active: item.get("active").and_then(|v| v.as_bool()),
         });
     }
@@ -524,13 +536,14 @@ mod tests {
     /// means the schema moved, which is what froze the imf table for forty days.
     #[test]
     fn a_null_sample_is_none_but_an_absent_field_is_still_an_error() {
-        let with_null =
-            serde_json::json!({"time_tag":"2026-08-10T23:45:00","bz_gsm":null,"bt":1.0});
+        let with_null = serde_json::json!(
+            {"time_tag":"2026-08-10T23:45:00","bz_gsm":null,"bt":1.0,"source":"SOLAR1"});
         let parsed = parse_imf(vec![with_null]).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(parsed[0].bz_gsm.is_none());
 
-        let missing = serde_json::json!({"time_tag":"2026-08-10T23:45:00","bt":1.0});
+        let missing =
+            serde_json::json!({"time_tag":"2026-08-10T23:45:00","bt":1.0,"source":"SOLAR1"});
         assert!(
             parse_imf(vec![missing]).is_err(),
             "an absent field must still fail"
@@ -625,5 +638,61 @@ mod tests {
         ]);
         let items = legacy.as_array().expect("array").clone();
         assert!(parse_imf(items).is_err());
+    }
+}
+
+#[cfg(test)]
+mod provenance_tests {
+    use super::*;
+
+    fn wind_item(with_source: bool, with_active: bool) -> serde_json::Value {
+        let mut o = serde_json::json!({
+            "time_tag": "2026-09-22T21:10:00",
+            "proton_speed": 296.1,
+            "proton_density": 2.18,
+            "proton_temperature": 52383.0
+        });
+        if with_source {
+            o["source"] = serde_json::json!("SOLAR1");
+        }
+        if with_active {
+            o["active"] = serde_json::json!(true);
+        }
+        o
+    }
+
+    /// A feed that stops sending `source` has changed shape, and the batch must
+    /// say which field went missing rather than store rows with no identity.
+    #[test]
+    fn a_record_with_no_source_is_rejected_by_name() {
+        let err = required_str(&wind_item(false, true), "source").unwrap_err();
+        assert!(
+            matches!(err, NoaaError::MissingField { field: "source" }),
+            "expected a named missing field, got {err}"
+        );
+        assert_eq!(
+            err.to_string(),
+            "upstream record is missing required field `source`"
+        );
+    }
+
+    /// A source that is present but not a string is the same failure, not a
+    /// silently empty label.
+    #[test]
+    fn a_non_string_source_is_rejected_too() {
+        let mut item = wind_item(true, true);
+        item["source"] = serde_json::json!(7);
+        assert!(matches!(
+            required_str(&item, "source").unwrap_err(),
+            NoaaError::MissingField { field: "source" }
+        ));
+    }
+
+    /// The flag is optional and its absence is not an error.
+    #[test]
+    fn a_record_with_a_source_and_no_active_flag_is_accepted() {
+        let item = wind_item(true, false);
+        assert_eq!(required_str(&item, "source").unwrap(), "SOLAR1");
+        assert_eq!(item.get("active").and_then(|v| v.as_bool()), None);
     }
 }
