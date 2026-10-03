@@ -77,6 +77,27 @@ naming_tracked() {
 	return $rc
 }
 
+# Run the repository's own hook, if it ships one, with the same arguments and
+# standard input. Used by the machine level dispatcher; harmless in a gate.
+naming_delegate() {
+	local hook="$1"; shift
+	local root p rc
+	root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+	for p in "scripts/hooks/$hook" ".githooks/$hook" "hooks/$hook"; do
+		if [ -f "$root/$p" ]; then
+			echo "naming: running the repository's own $p" >&2
+			if [ -n "${NAMING_STDIN:-}" ] && [ -f "${NAMING_STDIN:-}" ]; then
+				bash "$root/$p" "$@" < "$NAMING_STDIN"; rc=$?
+			else
+				bash "$root/$p" "$@"; rc=$?
+			fi
+			[ $rc -ne 0 ] && echo "repository hook $p refused (exit $rc)" >&2
+			return $rc
+		fi
+	done
+	return 0
+}
+
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 	naming_self_test || exit 1
 	case "${1:---gate}" in
