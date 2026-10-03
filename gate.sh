@@ -76,6 +76,9 @@ step "skill hashes"   .        bash skill-hashes.sh
 # Standard library unittest, discovered from the repository root exactly as
 # ml/test_serve.py documents. No pytest, no dev requirements file.
 step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"
+step "naming rule"              .        bash scripts/lib/naming.sh --gate
+step "control: naming detector" .        bash scripts/lib/naming.sh --self-test
+
 
 echo
 printf '%s\n' "${RESULTS[@]}" | sed 's/^/  /'
