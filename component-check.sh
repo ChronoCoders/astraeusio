@@ -102,14 +102,18 @@ if [ "${1:-}" = "--selftest" ]; then
   }
 
   mkdir -p "$st_d/www"
-  echo "backend_api database nasa_apod" > "$st_d/baseline"
+  echo "backend_api database nasa_apod noaa_solar_wind noaa_solar_wind_primary" \
+    > "$st_d/baseline"
 
-  st_payload() { # status_for_apod age_secs
+  st_payload() { # status_for_apod age_secs [series_status] [primary_status]
     local now; now=$(date -u +%s)
+    local series="${3:-operational}" primary="${4:-operational}"
     cat > "$st_d/www/health" <<JSON
 {"status":"$1","checked_at":$now,"components":{
  "backend_api":{"status":"operational","last_checked":$now},
  "database":{"status":"operational","last_write":$now},
+ "noaa_solar_wind":{"status":"$series","last_update":$(( now - 7200 ))},
+ "noaa_solar_wind_primary":{"status":"$primary","last_update":$(( now - 7200 ))},
  "nasa_apod":{"status":"$1","last_update":$(( now - $2 ))}}}
 JSON
   }
@@ -187,6 +191,24 @@ SRVPY
   st_check "recovery is mailed once the problem clears" "1" "$(echo "$out" | grep -c 'RECOVERED')"
 
   echo
+  echo "5. a primary component only mails when it disagrees with its series"
+  rm -f "$st_d/state" "$st_d/pending"
+  # Both degraded: the series alert covers it and the primary stays out.
+  st_payload operational 60 degraded degraded
+  st_run > /dev/null
+  out=$(st_run)
+  st_check "both degraded alerts once, naming the series" "1"     "$(echo "$out" | grep -c 'suppressed by COMPONENT_CHECK_MAIL.*noaa_solar_wind')"
+  st_check "  and does not name the primary" "0"     "$(echo "$out" | grep -c 'noaa_solar_wind_primary is degraded')"
+
+  # The case the component exists for: a secondary is carrying the series while
+  # the primary is dark, which is what happened on 2026-09-22.
+  rm -f "$st_d/state" "$st_d/pending"
+  st_payload operational 60 operational degraded
+  st_run > /dev/null
+  out=$(st_run)
+  st_check "primary dark with the series current does alert" "1"     "$(echo "$out" | grep -c 'noaa_solar_wind_primary is degraded')"
+
+  echo
   if [ "$st_fail" = "0" ]; then echo "selftest passed"; else echo "SELFTEST FAILED"; fi
   exit "$st_fail"
 fi
@@ -209,6 +231,11 @@ fi
 
 parsed=$(printf '%s' "$payload" | python3 -c '
 import sys, json
+# Line endings are forced, because python3 on Windows writes CRLF in text mode
+# and the carriage return then rides into `last`, where `$(( now - last ))` is a
+# syntax error. On the Linux host it never appeared, so the selftest passed
+# locally while reporting a garbled age in the one place it mattered.
+sys.stdout.reconfigure(newline="\n")
 try:
     d = json.load(sys.stdin)
     comps = d["components"]
@@ -298,10 +325,32 @@ if [ -n "${BASELINE_NEW:-}" ]; then
     | logger -t astraeusio-components -p daemon.notice
 fi
 
+# Every component's status, keyed by name, so a *_primary row can be compared
+# with the series it belongs to before deciding whether to mail about it.
+declare -A st_of=()
+while read -r name status _; do
+  [ -n "${name:-}" ] && st_of["$name"]="$status"
+done < <(printf '%s\n' "$parsed" | tail -n +2)
+
 bad=()
 while read -r name status last; do
   [ -z "${name:-}" ] && continue
   if [ "$status" != "operational" ]; then
+    # A *_primary component is only news when it disagrees with its series.
+    #
+    # It exists for one case: the series is current because a secondary
+    # spacecraft is carrying it while the primary is dark. That happened on
+    # 2026-09-22, when ACE held the magnetometer for four hours and the series
+    # stayed operational with nothing saying the primary had gone.
+    #
+    # When both are degraded the primary adds nothing. On 2026-09-25 every mail
+    # carried noaa_solar_wind and noaa_solar_wind_primary with identical
+    # staleness, and the same pair for imf, which is one fault described twice.
+    # /api/health still reports both honestly; only the mail is narrowed.
+    series="${name%_primary}"
+    if [ "$series" != "$name" ] && [ "${st_of[$series]:-}" != "operational" ]; then
+      continue
+    fi
     if [ "$last" != "-" ] && [ -n "$last" ]; then
       age=$(( (now - last) / 60 ))
       bad+=("$name is $status, last update ${age}m ago")
