@@ -541,6 +541,124 @@ repeated here.
   a notification that does not arrive. Multi-channel alerts remain listed, because webhooks and
   email do work for the five built-in event types.
 
+- **AUD-043** Every poller sleeps after its work, so no poll rate derived from an interval constant is
+  exactly achievable, and every alert target built from one is wrong by the fetch time. The mechanism
+  is real. In steady state its magnitude is below every threshold, and the figures first recorded here
+  overstated it by a factor of about thirty.
+
+  `poll_iss` and its fifteen siblings in `poller.rs` all have this shape:
+
+  ```rust
+  loop {
+      if let Some(x) = retry::run(&policy, || fetch(&client)).await { write(x); }
+      tokio::time::sleep(policy.budget).await;   // budget == that source's interval
+  }
+  ```
+
+  The sleep is the whole gap between polls, not the period. There is no `tokio::time::interval` and no
+  `MissedTickBehavior` anywhere in the file. So the real period is `interval + fetch`, the achievable
+  rate is `3600 / (interval + fetch)` per hour, and the shortfall against a target of
+  `3600 / interval` is `fetch / (interval + fetch)` of it. The error is a fixed proportion of the
+  period, so a short interval is hurt most.
+
+  **Seventeen pollers share the shape**, from `PollerConfig::intervals`, which returns 17 entries.
+
+  `poller-check.sh:268` is the target: `expected_per_window()` is `WINDOW_SECS / interval`, read from
+  the backend's own boot line. It has never accounted for the fetch.
+
+  **Measured, not assumed.** The spacing between consecutive poll log lines for one source is
+  `interval + fetch`, because the loop logs once per completed poll and then sleeps. That measurement
+  was already in the record and the first version of this finding did not use it. Over 20 h of
+  production on 2026-10-04, 15,249 gaps:
+
+  | source | interval | p50 period | p99 period | implied fetch (p50) | achievable vs target | steady loss |
+  |---|---|---|---|---|---|---|
+  | xray | 120 s | 120.059 s | 120.224 s | 0.059 s | 29.99 of 30 | 0.05% |
+  | kp | 60 s | 60.048 s | 60.188 s | 0.048 s | 59.95 of 60 | 0.08% |
+  | imf | 60 s | 60.086 s | 60.297 s | 0.086 s | 59.91 of 60 | 0.14% |
+  | solar-wind | 60 s | 60.108 s | 60.340 s | 0.108 s | 59.89 of 60 | 0.18% |
+  | iss | 5 s | 5.027 s | 6.279 s | 0.027 s | 716.1 of 720 | 0.54% |
+
+  So the real steady-state loss is **0.05% to 0.54%**, not the 0.8% to 3.2% first recorded here. Zero
+  of the 15,249 gaps exceeded 1.5 times their interval. Nothing in that range reaches
+  `THROUGHPUT_SOFT` of 90, and `THROUGHPUT_MIN_MISSED` of 10 would stop it mailing even if it did. At
+  the 30 s ISS interval the range narrows to 0.05% to 0.18%.
+
+  **The first version of this entry inverted the formula instead of reading the recorded period**, and
+  assumed a 1 s fetch where the measured median is 0.027 to 0.108 s. Every figure in that table was
+  10 to 30 times too large. Corrected 2026-10-04.
+
+  **The retry arithmetic is the part that is not negligible.** `retry::Policy::new` sets
+  `attempt_timeout = min(HTTP_TIMEOUT, max(interval, 2 s))` and `budget = interval`, with
+  `BACKOFF_BASE` 250 ms doubling. A retry to failure therefore consumes the whole budget and is then
+  followed by a full sleep, so the period **doubles**. For xray that is 120.25 s of retrying plus
+  120 s of sleeping, about 240 s. One timeout then a success is about 1.5 times the period.
+
+  Visible in the live record rather than inferred: `poller/iss` at a 5 s interval has a maximum
+  observed period of **10.007 s**, exactly its own doubled period, and logged **23 ERROR lines in
+  20 h**, each one a retry to failure. That is about 1.15 lost polls an hour out of 720, or 0.16%,
+  so even this is small at a healthy rate. The other errors in that window were 6 on `poller/apod`,
+  which also had the only 4 retried successes; `poller/apod` runs on a 3600 s interval, so the
+  10.007 s periods are not and cannot be its.
+
+  **The 557 to 626 ISS episodes had two causes, not one.** An earlier report of mine said no upstream
+  failure was required to produce them. That was wrong: at the measured 0.027 s median, 557 of 720
+  requires a fetch of about 1.46 s, a 54-fold increase, so the upstream did slow. What this finding
+  adds is the amplification. The same 1.46 s latency costs 23% of delivery at a 5 s interval and about
+  5% at 30 s, because the loss is `fetch / (interval + fetch)`.
+
+  So **lowering `ISS_INTERVAL` to 30 s is right for the amplification, not for an unreachable
+  target.** The target was always reachable to within half a percent. What the short interval did was
+  turn an ordinary upstream latency excursion into an alert.
+
+  Not fixed. A fixed-period tick changes behaviour rather than only timing: `MissedTickBehavior`
+  decides what happens after a slow period, and the default fires the missed ticks back to back, which
+  would send a burst at an upstream that was just slow. Seventeen call sites and a burst policy to
+  choose, so it is its own change. Given the measured magnitude it is also not urgent.
+
+  Recorded 2026-10-04 while lowering `ISS_INTERVAL` to 30 s. Corrected the same day against measured
+  data. Naming the cause of a single bad hour still needs per-request duration recorded durably, which
+  is the open item in the `## Measurement` section above.
+
+- **AUD-044** A 25.1 hour outage on 2026-07-21 lost 1,505 minutes of X-ray flux permanently, and
+  nothing in the repository recorded it until now.
+
+  `xray` has a gap from `2026-07-21T18:27:00Z` to `2026-07-22T19:33:00Z`, 90,360 seconds. Measured
+  from the stored series on the production database: 128,706 distinct observations from 2026-07-06,
+  exactly two rows each for the two energy bands.
+
+  **It is ours, and the one-day window is why it is permanent.** `fetch_xray` reads
+  `services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json`, a rolling one-day file. Every poll
+  downloads the whole day and the writer keeps what is new, so an outage shorter than the window
+  backfills itself completely on recovery. An outage **longer** than the window cannot: by the time
+  the poller returns, the rows from the start of the gap have already left the file. 25.1 hours is 1.1
+  hours past the horizon, and those 1,505 minutes are unrecoverable from this source.
+
+  That makes the window a hard deadline on recovery time for every source read this way, which is a
+  property no alert currently knows about. It is not the same thing as a freshness threshold:
+  `SERIES_FRESHNESS` for xray is 300 s and would have fired within minutes, so the outage was
+  detectable. What was missing is that the cost of not recovering changes discontinuously at 24 hours,
+  and nothing says so.
+
+  **The largest single data loss in the record.** The full distribution of gaps over 60 s is 36 gaps
+  and 1,726 unstored minutes, so this one event is 87% of all X-ray data ever missed. Second is
+  4,920 s on 2026-09-10, 81 minutes. Four gaps of 30, 26, 21 and 18 minutes cluster on 2026-09-21 and
+  22. The remaining 21 are single minutes, 0.016% of the record, and are the upstream rather than us.
+
+  The feed itself is not the problem: **99.97% of the 128,669 intervals are exactly 60 s.**
+
+  Which sources share the exposure has not been enumerated, and that is the next step rather than part
+  of this entry. The question for each is the width of the upstream window against the longest
+  plausible outage. `xray` reads a one-day file. Not recorded here are the windows for the other NOAA
+  products, which are a mix of rolling files and full products, so the check is per endpoint.
+
+  No cause for the outage itself is recorded. 2026-07-21 predates the earliest logs still on the host,
+  and nothing in the repository mentions that date.
+
+  Recorded 2026-10-04, found while measuring X-ray observation spacing to look for a second cause
+  behind a 90% delivery hour. The 90% turned out to be three missed polls at a low expected count,
+  which `poller-check.sh:67` already explains, and this was the real finding in that data.
+
 - **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
   than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
   2026-09-22: 193,712 and 94,235 rows with a NULL source. Deleted at 23:29:40 by the migration's own
