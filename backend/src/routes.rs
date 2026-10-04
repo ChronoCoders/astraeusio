@@ -347,114 +347,138 @@ async fn health(State(s): State<AppState>) -> impl IntoResponse {
 /// Expectation starts at a component's first ever sample, never before, which
 /// is what keeps `2623cf6` intact: a component added yesterday still reads as
 /// ninety days of no data rather than eighty-nine days of outage.
+/// The uptime report, computed from the data and an explicit clock.
+///
+/// `now` is a parameter rather than a call to `Utc::now` inside the loop, so a
+/// test can place itself at a chosen point in a UTC day. Three tests share one
+/// fixture helper here, and all three depended on how much of the current day
+/// had elapsed: `samples_due` counts nothing for a day holding less than one
+/// poll interval, so inside the first five minutes of a UTC day today
+/// contributes no due samples. Recorded as AUD-036. Moving the fixtures to a
+/// fabricated day does not fix it, because `now` still lands in today and today
+/// is then counted with no operational samples, which is why that attempt took
+/// recorded_days to 3 and uptime_pct to 5.26.
+///
+/// The arithmetic is unchanged from when this lived inside the handler.
+fn uptime_report(
+    now: i64,
+    interval: i64,
+    rows: &[(String, i64, i64, i64)],
+    first_seen: &[(String, i64)],
+) -> serde_json::Value {
+    const DAYS: i64 = 90;
+    let today = now / 86_400;
+
+    // rows: (component, utc_day, samples_present, operational_samples)
+    //
+    // One list, composed from the declarations the writers use, rather than
+    // the hand-kept `["backend_api", "ml_forecast", "database", "celestrak"]`
+    // that used to sit here beside two chained constants. That arrangement
+    // could disagree with the writer and nothing would say so.
+    //
+    // "nasa" is deliberately absent: it was split into one component per
+    // feed. Its historical rows stay in health_snapshots and stop being
+    // rendered, which is what an identifier leaving `health_components`
+    // means.
+    let components = crate::db::health_components().into_iter();
+
+    /// Samples due for one component on one UTC day: the part of that day
+    /// that lies after its first sample and before now, divided by the
+    /// interval. A day before the component existed expects nothing, and so
+    /// does a day that has not happened yet.
+    fn samples_due(day: i64, first: i64, now: i64, interval: i64) -> i64 {
+        let day_start = day * 86_400;
+        let from = day_start.max(first);
+        let to = (day_start + 86_400).min(now);
+        if to <= from {
+            0
+        } else {
+            (to - from) / interval
+        }
+    }
+
+    let mut out = serde_json::Map::new();
+    for comp in components {
+        let liveness = crate::db::LIVENESS_ONLY.contains(&comp);
+        let first = first_seen.iter().find(|(c, _)| c == comp).map(|(_, t)| *t);
+        // 90 entries, oldest first (index 0 = 89 days ago, last = today)
+        let mut days: Vec<serde_json::Value> = (0..DAYS)
+            .map(|_| serde_json::json!({"status": "no_data", "uptime_pct": null}))
+            .collect();
+        let mut total_due = 0i64;
+        let mut total_ok = 0i64;
+        let mut recorded_days = 0i64;
+
+        for idx in 0..DAYS {
+            let day = today - (DAYS - 1 - idx);
+            let Some(first) = first else { continue };
+            let due = samples_due(day, first, now, interval);
+            if due <= 0 {
+                continue;
+            }
+            let (present, operational) = rows
+                .iter()
+                .find(|(c, d, _, _)| c == comp && *d == day)
+                .map(|(_, _, p, o)| (*p, *o))
+                .unwrap_or((0, 0));
+            // A liveness component has no verdict, so the sample being
+            // there is the whole of what it can say.
+            let ok = if liveness { present } else { operational };
+            // Restarts and interval jitter can write more samples than the
+            // arithmetic expects. More than complete is still complete.
+            let pct = ((ok as f64 / due as f64) * 100.0).min(100.0);
+            let status = if pct >= 99.0 {
+                "operational"
+            } else if pct >= 90.0 {
+                "degraded"
+            } else {
+                "outage"
+            };
+            days[idx as usize] = serde_json::json!({
+                "status": status,
+                "uptime_pct": (pct * 100.0).round() / 100.0,
+            });
+            total_due += due;
+            total_ok += ok.min(due);
+            recorded_days += 1;
+        }
+
+        // Null, not zero, when nothing was ever recorded. A component added
+        // yesterday has no history, and reporting 0 percent would read as
+        // three months of downtime. The percentage covers only the days
+        // actually observed, and recorded_days says how many that is, so the
+        // figure can be labelled with the window it really describes.
+        let overall = if total_due > 0 {
+            serde_json::json!(((total_ok as f64 / total_due as f64) * 10_000.0).round() / 100.0)
+        } else {
+            serde_json::Value::Null
+        };
+        out.insert(
+            comp.to_string(),
+            serde_json::json!({
+                "uptime_pct":    overall,
+                "recorded_days": recorded_days,
+                "measures":      if liveness { "liveness" } else { "health" },
+                "days":          days,
+            }),
+        );
+    }
+    serde_json::json!({
+        "window_days": DAYS,
+        "components":  out,
+    })
+}
+
 async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError> {
     cached(&s.cache, "uptime_90d", Duration::from_secs(300), || async {
         const DAYS: i64 = 90;
         let interval = crate::poller::health_interval_secs().max(1) as i64;
         let now = chrono::Utc::now().timestamp();
-        let today = now / 86_400;
         let (rows, first_seen) = {
             let db = lock_db(&s.db).await;
             (db.uptime_by_day(DAYS)?, db.health_first_sample()?)
         };
-        // rows: (component, utc_day, samples_present, operational_samples)
-        //
-        // One list, composed from the declarations the writers use, rather than
-        // the hand-kept `["backend_api", "ml_forecast", "database", "celestrak"]`
-        // that used to sit here beside two chained constants. That arrangement
-        // could disagree with the writer and nothing would say so.
-        //
-        // "nasa" is deliberately absent: it was split into one component per
-        // feed. Its historical rows stay in health_snapshots and stop being
-        // rendered, which is what an identifier leaving `health_components`
-        // means.
-        let components = crate::db::health_components().into_iter();
-
-        /// Samples due for one component on one UTC day: the part of that day
-        /// that lies after its first sample and before now, divided by the
-        /// interval. A day before the component existed expects nothing, and so
-        /// does a day that has not happened yet.
-        fn samples_due(day: i64, first: i64, now: i64, interval: i64) -> i64 {
-            let day_start = day * 86_400;
-            let from = day_start.max(first);
-            let to = (day_start + 86_400).min(now);
-            if to <= from {
-                0
-            } else {
-                (to - from) / interval
-            }
-        }
-
-        let mut out = serde_json::Map::new();
-        for comp in components {
-            let liveness = crate::db::LIVENESS_ONLY.contains(&comp);
-            let first = first_seen.iter().find(|(c, _)| c == comp).map(|(_, t)| *t);
-            // 90 entries, oldest first (index 0 = 89 days ago, last = today)
-            let mut days: Vec<serde_json::Value> = (0..DAYS)
-                .map(|_| serde_json::json!({"status": "no_data", "uptime_pct": null}))
-                .collect();
-            let mut total_due = 0i64;
-            let mut total_ok = 0i64;
-            let mut recorded_days = 0i64;
-
-            for idx in 0..DAYS {
-                let day = today - (DAYS - 1 - idx);
-                let Some(first) = first else { continue };
-                let due = samples_due(day, first, now, interval);
-                if due <= 0 {
-                    continue;
-                }
-                let (present, operational) = rows
-                    .iter()
-                    .find(|(c, d, _, _)| c == comp && *d == day)
-                    .map(|(_, _, p, o)| (*p, *o))
-                    .unwrap_or((0, 0));
-                // A liveness component has no verdict, so the sample being
-                // there is the whole of what it can say.
-                let ok = if liveness { present } else { operational };
-                // Restarts and interval jitter can write more samples than the
-                // arithmetic expects. More than complete is still complete.
-                let pct = ((ok as f64 / due as f64) * 100.0).min(100.0);
-                let status = if pct >= 99.0 {
-                    "operational"
-                } else if pct >= 90.0 {
-                    "degraded"
-                } else {
-                    "outage"
-                };
-                days[idx as usize] = serde_json::json!({
-                    "status": status,
-                    "uptime_pct": (pct * 100.0).round() / 100.0,
-                });
-                total_due += due;
-                total_ok += ok.min(due);
-                recorded_days += 1;
-            }
-
-            // Null, not zero, when nothing was ever recorded. A component added
-            // yesterday has no history, and reporting 0 percent would read as
-            // three months of downtime. The percentage covers only the days
-            // actually observed, and recorded_days says how many that is, so the
-            // figure can be labelled with the window it really describes.
-            let overall = if total_due > 0 {
-                serde_json::json!(((total_ok as f64 / total_due as f64) * 10_000.0).round() / 100.0)
-            } else {
-                serde_json::Value::Null
-            };
-            out.insert(
-                comp.to_string(),
-                serde_json::json!({
-                    "uptime_pct":    overall,
-                    "recorded_days": recorded_days,
-                    "measures":      if liveness { "liveness" } else { "health" },
-                    "days":          days,
-                }),
-            );
-        }
-        Ok(serde_json::json!({
-            "window_days": DAYS,
-            "components":  out,
-        }))
+        Ok(uptime_report(now, interval, &rows, &first_seen))
     })
     .await
 }
@@ -2301,6 +2325,63 @@ mod mcp_tests {
         let step = ((now - day_start) / span.max(1)).clamp(1, 300);
         let base = now.max(day_start + span * step);
         (0..count).map(|k| base - k * step).collect()
+    }
+
+    /// The day boundary, pinned from both sides instead of covered by luck.
+    ///
+    /// `samples_due` divides the elapsed part of a day by the poll interval, so
+    /// a day holding less than one interval is due nothing and is skipped. That
+    /// is deliberate and documented, and it is why three tests that place their
+    /// samples in today failed inside the first five minutes of a UTC day:
+    /// AUD-036. It was unreproducible for the rest of the day, which is how it
+    /// survived. With `now` a parameter both ends are reachable at any hour.
+    #[test]
+    fn the_uptime_day_boundary_holds_at_both_ends_of_a_fabricated_day() {
+        const MIDNIGHT: i64 = 1_788_480_000; // 20700 * 86400, a UTC midnight
+        const INTERVAL: i64 = 300;
+        let today = MIDNIGHT / 86_400;
+
+        // One component, samples only in the fabricated today.
+        let first = vec![("backend_api".to_string(), MIDNIGHT)];
+        let rows = vec![("backend_api".to_string(), today, 288i64, 288i64)];
+
+        let pct = |v: &serde_json::Value| v["components"]["backend_api"].clone();
+
+        // 00:03. 180 seconds is under one 300 second interval, so today is due
+        // nothing, contributes no recorded day, and the percentage is null
+        // rather than zero. This is the case that failed at 00:03 and cleared
+        // by 00:07 before it could be captured.
+        let early = uptime_report(MIDNIGHT + 180, INTERVAL, &rows, &first);
+        let e = pct(&early);
+        assert_eq!(
+            e["recorded_days"], 0,
+            "a day under one interval must contribute no recorded day: {e}"
+        );
+        assert!(
+            e["uptime_pct"].is_null(),
+            "nothing due means null, not zero: {e}"
+        );
+
+        // 23:59:40. 86340 seconds is 287 intervals, so today counts and the
+        // component reports a real figure over one day.
+        let late = uptime_report(MIDNIGHT + 86_340, INTERVAL, &rows, &first);
+        let l = pct(&late);
+        assert_eq!(
+            l["recorded_days"], 1,
+            "a nearly complete day must be recorded: {l}"
+        );
+        assert!(
+            l["uptime_pct"].is_f64(),
+            "a recorded day must carry a percentage: {l}"
+        );
+
+        // The two ends disagree, which is the property. If they ever agree the
+        // boundary has moved and one of these assertions is no longer testing
+        // anything.
+        assert_ne!(
+            e["recorded_days"], l["recorded_days"],
+            "the two ends of the day must differ, or this test pins nothing"
+        );
     }
 
     /// The property the two fixtures below rest on, checked at the hours that

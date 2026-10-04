@@ -582,26 +582,41 @@ repeated here.
   consumer, which is a decision about the published contract rather than about provenance, and is
   why it was left out rather than folded in.
 
-- **AUD-036** `samples_within_today` builds a fixture that cannot pass in the first forty minutes of a
-  UTC day. `routes.rs:2298` spaces its samples across the elapsed part of the current day:
-  `step = ((now - day_start) / span.max(1)).clamp(1, 300)`. A few minutes after midnight there is
-  almost no elapsed day to spread the samples over, the fixture degenerates, and
-  `history_before_the_first_sample_is_not_held_against_a_component` reads `uptime_pct` as `Null`
-  instead of `100.0`.
+- **AUD-036** Three tests shared a fixture whose spacing depended on how much of the current UTC day
+  had elapsed, so they failed in the first minutes of a day and passed for the rest of it.
 
-  First observed on 2026-09-23 at 00:02 UTC, failing on `f7ac39e`, which was the commit running in
-  production at the time. It passed in the same working tree twenty minutes earlier, at 23:4x, and
-  passed again after 00:40. Nothing in the change under test touched it.
+  `samples_due` in `routes.rs` divides the elapsed part of a day by the poll interval, so a day
+  holding less than one 300 second interval is due nothing and is skipped. That is deliberate and the
+  handler's own comment says so. The fixtures placed their samples in today and then asserted a day
+  count that only holds once today has a due sample, which is about five minutes after midnight UTC.
 
-  The sharp part is three lines below the helper, in its own doc comment: the property these
-  fixtures rest on is "checked at the hours that broke them rather than at whatever hour the suite
-  happens to run", written for an earlier bug that only appeared in the first forty minutes of a UTC
-  day. The rule is time-independent and tested as such. The fixture that feeds it is not. That is
-  the rule and its application diverging, with the application unguarded.
+  **All three call sites, enumerated from the source rather than from the ones observed failing:**
+  - `routes.rs` `a_component_with_no_history_reports_null_not_zero`, failed 2026-10-04 at 00:03 and
+    passed again by 00:07
+  - `routes.rs` `history_before_the_first_sample_is_not_held_against_a_component`, failed 2026-09-23
+    at 00:02, the only one this entry originally named
+  - `routes.rs` `a_fixture_run_stays_inside_one_utc_day`, the helper's own property test, which never
+    failed because it already anchors to a fabricated midnight
 
-  Practical effect: `gate.sh` cannot go green between roughly 00:00 and 00:40 UTC, so no work can
-  land in that window. Not fixed here; it is unrelated to anything else in flight and deserves its
-  own change.
+  **The entry itself was the enumeration mistake.** It described one symptom when three tests shared
+  the helper, because it was written from the test that happened to fail that night rather than from a
+  scan of the call sites. A finding recorded from observed output covers only what has spoken, which
+  is the same error the [[feedback-enumerate-from-the-protected]] rule exists to prevent, appearing
+  inside the record instead of in the code.
+
+  **A fixture-only fix was tried first and made it worse**, which is the evidence that the cause was
+  not the fixture. Moving the samples to a fabricated complete day leaves `now` in today, so today is
+  counted with no operational samples: `recorded_days` went to 3 against an expected 2 and
+  `uptime_pct` to 5.26 against an expected 100.
+
+  **Closed 2026-10-04.** The computation moved out of the handler into `uptime_report(now, interval,
+  rows, first_seen)`, with the handler passing `chrono::Utc::now().timestamp()`. The arithmetic is
+  unchanged: 90 lines before and after, identical once indentation is ignored, and all 236 tests
+  passed without modification. `the_uptime_day_boundary_holds_at_both_ends_of_a_fabricated_day` now
+  pins both ends at any hour, `recorded_days` 0 with a null percentage at midnight plus 180 seconds
+  and 1 with a real figure at midnight plus 86,340. Mutation: restoring the internal clock makes it
+  report 31 recorded days instead of 0 and the test fails.
+
 
 - **AUD-037** `GROUP BY observed_at / {bucket}` does not bucket. DuckDB's `/` is float division, so
   `1790000000 / 900` is `1988888.88...`, distinct for every second, and the grouping groups by row
