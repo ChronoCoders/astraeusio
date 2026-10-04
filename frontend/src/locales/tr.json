@@ -701,7 +701,7 @@
       { "term": "NEO", "body": "Near-Earth Object (Yakın Dünya Nesnesi). Yörüngesi Dünya'ya yaklaşan asteroid veya kuyruklu yıldız. Astraeusio, yaklaşan 7 günlük pencere için NASA NeoWs verisini alır ve kaçış mesafesini LD cinsinden takip eder." },
       { "term": "Güneş rüzgârı", "body": "Güneş'ten yüzlerce km/s hızla dışarı akan sürekli yüklü parçacık akışı (çoğunlukla proton ve elektron). Temel parametreler yoğunluk (p/cm^3), hız (km/s) ve gömülü manyetik alandır (Bz, Bt)." },
       { "term": "SWPC", "body": "NOAA'nın Uzay Hava Tahmin Merkezi. ABD'nin uzay havası tahminleri için operasyonel otorite ve Astraeusio'nun Kp, güneş rüzgârı, X-ışını, IMF ve uyarı akışlarının akış-üstü kaynağı." },
-      { "term": "TLE", "body": "Two-Line Element (İki Satırlı Eleman) kümesi. Uydu yörünge verilerinin dağıtımı için standart format. Astraeusio, Starlink takımyıldızının tamamı için Celestrak'tan TLE alır, saatlik yenilenir." },
+      { "term": "TLE", "body": "Two-Line Element (İki Satırlı Eleman) kümesi. Uydu yörünge verilerinin dağıtımı için standart format. Astraeusio, Starlink takımyıldızının tamamı için Celestrak'tan TLE alır; Celestrak'ın kendi güncelleme sıklığıyla aynı şekilde 2 saatte bir yenilenir." },
       { "term": "X-ışını patlama sınıfı", "body": "Güneş patlamalarının zirve X-ışını akısına göre logaritmik sınıflandırması: A, B, C, M, X. Her sınıf bir öncekinin 10 katı güçlüdür. M sınıfı patlamalar gündüz tarafında küçük KF radyo karartmalarına; X sınıfı patlamalar büyük karartmalara ve yüksek irtifa uçuşları için radyasyon tehlikelerine yol açabilir." }
     ],
     "authIntro": "Tüm API uç noktaları (genel olanlar hariç) kimlik doğrulama gerektirir. Astraeusio iki kimlik doğrulama yöntemini destekler.",
@@ -728,7 +728,7 @@
     "epNeo": "Güncel 7 günlük pencere için NASA NeoWs'dan Dünya'ya yakın cisimler. Yakın geçiş mesafesi (ay mesafesi ve km), çap, hız ve tehlike durumunu içerir.",
     "epEpic": "DSCOVR'dan en güncel NASA EPIC görüntüleri. Merkez koordinatlarıyla birlikte en fazla 20 son kareyi döndürür.",
     "epExoplanets": "NASA Ötegezegen Arşivi'nden en kısa yörünge periyoduna göre sıralanmış ilk 100 onaylı ötegezegen. Yıldız adı, yörünge periyodu, yarıçap ve kütle bilgisi içerir.",
-    "epStarlink": "Celestrak'tan tam Starlink takımyıldızı TLE verisi. Yörünge yayılımı için NORAD katalog kimliği, ad ve iki TLE satırı döndürür. Saatte bir güncellenir.",
+    "epStarlink": "Celestrak'tan tam Starlink takımyıldızı TLE verisi. Yörünge yayılımı için NORAD katalog kimliği, ad ve iki TLE satırı döndürür. Celestrak'ın kendi yenileme sıklığına uygun olarak 2 saatte bir güncellenir.",
     "epAnomalies": "Yerel olarak tespit edilen uzay hava anomalileri. Her 60 saniyede beş kontrol çalışır: Kp fırtınası (≥G1/G4), güneş rüzgarı hızı (>700/>900 km/s), X-ışını patlaması (M/X sınıfı), asteroid yakın geçişi (<1 Ay Mesafesi) ve ML fırtına tahmini.",
     "epSummary": "Seçilen zaman aralığı için toplanmış uzay hava istatistikleri. Ortalama ve en yüksek Kp, en yüksek güneş rüzgarı, X-ışını sınıfı özeti, anomali sayısı ve asteroid yaklaşmalarını içerir.",
     "epExport": "Seçilen zaman aralığı için ham Kp, güneş rüzgarı ve X-ışını okumalarının CSV dışa aktarımı. Dosya adı eki başlığıyla Content-Type: text/csv döndürür.",

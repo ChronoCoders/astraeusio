@@ -701,7 +701,7 @@
       { "term": "NEO", "body": "Near-Earth Object. An asteroid or comet whose orbit comes close to Earth's. Astraeusio ingests NASA NeoWs data for the upcoming 7-day window and tracks miss distance in LD." },
       { "term": "Solar wind", "body": "The continuous stream of charged particles (mostly protons and electrons) flowing outward from the Sun at hundreds of km/s. Key parameters are density (p/cm^3), speed (km/s), and the embedded magnetic field (Bz, Bt)." },
       { "term": "SWPC", "body": "NOAA's Space Weather Prediction Center. The operational authority for U.S. space weather forecasts and the upstream source of Astraeusio's Kp, solar wind, X-ray, IMF, and alert feeds." },
-      { "term": "TLE", "body": "Two-Line Element set. The standard format for distributing satellite orbital data. Astraeusio ingests TLEs from Celestrak for the full Starlink constellation, refreshed hourly." },
+      { "term": "TLE", "body": "Two-Line Element set. The standard format for distributing satellite orbital data. Astraeusio ingests TLEs from Celestrak for the full Starlink constellation, refreshed every 2 hours, which is how often Celestrak itself updates them." },
       { "term": "X-ray flare class", "body": "Logarithmic classification of solar flares by peak X-ray flux: A, B, C, M, X. Each class is 10x stronger than the previous. M-class flares can cause minor HF radio blackouts on the dayside; X-class flares cause major blackouts and radiation hazards for high-altitude flights." }
     ],
     "authIntro": "All API endpoints (except public ones) require authentication. Astraeusio supports two authentication methods.",
@@ -728,7 +728,7 @@
     "epNeo": "Near-Earth objects from NASA NeoWs for the current 7-day window. Includes close approach distance (in lunar distances and km), diameter, velocity, and hazard status.",
     "epEpic": "Latest NASA EPIC (Earth Polychromatic Imaging Camera) images from DSCOVR. Returns up to 20 most recent frames with centroid coordinates.",
     "epExoplanets": "Top 100 confirmed exoplanets from the NASA Exoplanet Archive, ordered by shortest orbital period. Includes host star, orbital period, radius, and mass.",
-    "epStarlink": "Full Starlink constellation TLE data from Celestrak. Returns NORAD catalog ID, name, and two TLE lines for orbital propagation. Updated hourly.",
+    "epStarlink": "Full Starlink constellation TLE data from Celestrak. Returns NORAD catalog ID, name, and two TLE lines for orbital propagation. Updated every 2 hours, matching Celestrak's own refresh.",
     "epAnomalies": "Locally detected space weather anomalies. Five checks run every 60 seconds: Kp storm (≥G1/G4), solar wind speed (>700/>900 km/s), X-ray flare (M/X class), asteroid close approach (<1 LD), and ML storm forecast.",
     "epSummary": "Aggregated space weather statistics for the selected time range. Includes average and peak Kp, peak solar wind, X-ray class summary, anomaly count, and asteroid approaches.",
     "epExport": "CSV export of raw Kp, solar wind, and X-ray readings for the selected time range. Returns Content-Type: text/csv with a filename attachment header.",

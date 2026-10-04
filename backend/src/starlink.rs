@@ -21,11 +21,16 @@ pub struct StarlinkSat {
 /// FORMAT=json from Celestrak returns GP elements without TLE strings;
 /// FORMAT=tle returns the classic format that contains the actual TLE lines.
 ///
-/// Celestrak refreshes every 2 hours and we poll hourly, so roughly every other
-/// poll it answers 403 with "GP data has not updated since your last successful
-/// download" (or 304 when it uses the conditional path). That is a no-change
-/// response, not a failure and not an empty constellation, so it comes back as
-/// [`PollOutcome::NoChange`] and the existing rows stand.
+/// Celestrak refreshes every 2 hours and we now poll on the same period, so the
+/// 403 "GP data has not updated since your last successful download" (or 304 on
+/// the conditional path) becomes occasional rather than routine. It does not go
+/// away: the two periods are not phase locked, so a poll can still land before
+/// the refresh it was waiting for. Until 2026-10-04 we polled hourly and about
+/// every other request was refused this way, which was Celestrak telling us we
+/// were asking twice per update while this code logged it as normal.
+///
+/// That is a no-change response, not a failure and not an empty constellation, so
+/// it comes back as [`PollOutcome::NoChange`] and the existing rows stand.
 ///
 /// Nothing downstream skips on that. The poller still hands the empty batch to
 /// the writer, and `Store::insert_starlink_batch` is what declines to touch the

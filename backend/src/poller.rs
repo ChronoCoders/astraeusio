@@ -89,7 +89,16 @@ impl PollerConfig {
             exoplanet_interval: secs("EXOPLANET_INTERVAL", 86400),
             imf_interval: secs("IMF_INTERVAL", 60),
             dst_interval: secs("DST_INTERVAL", 300),
-            starlink_interval: secs("STARLINK_INTERVAL", 3600),
+            // 7200 s because celestrak.org/usage-policy.php asks for it. Of the GP
+            // data this fetches it says "updates are once every 2 hours", and of
+            // every endpoint: "Only download the data you need, when you are going to
+            // use it, and only download data once per update". At 3600 we fetched
+            // twice per update, so half the requests returned a file we already had.
+            // They also say "machine-to-machine software should immediately stop
+            // querying when it receives any non-HTTP 200 responses" and that
+            // "Repeatedly ignoring them will end up sending your IP address to the
+            // firewall", which is the cost of getting this wrong. Read 2026-10-04.
+            starlink_interval: secs("STARLINK_INTERVAL", 7200),
             anomaly_interval: secs("ANOMALY_INTERVAL", 60),
             forecast_interval: secs("FORECAST_INTERVAL", 1800),
             health_interval: health_interval_secs(),
