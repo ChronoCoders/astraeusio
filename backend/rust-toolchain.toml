@@ -1,0 +1,18 @@
+# The one place the Rust version is written.
+#
+# The gate and the Docker build take it from here. `backend/Dockerfile` copies
+# this file into the builder stage before it compiles anything, and rustup
+# honours it, so the base image tag fixes only the Debian release and carries no
+# version of its own. Two numbers is how they drift: before this file existed the
+# gate ran 1.93.1 while production built on rust:1.88, five minor versions apart,
+# and nothing in the repository could see the gap.
+#
+# An exact patch rather than a channel. `stable` means a new lint lands on an
+# unrelated day and fails a build that changed nothing.
+#
+# No nightly pin here. The Miri step applies to crates that contain unsafe, and
+# this one carries `forbid(unsafe_code)`.
+[toolchain]
+channel = "1.93.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

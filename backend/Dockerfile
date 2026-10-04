@@ -1,6 +1,17 @@
 # ── Build stage ───────────────────────────────────────────────────────────────
-FROM rust:1.88-bookworm AS builder
+# The tag fixes the Debian release and nothing else. bookworm has to match the
+# runtime stage below, because the binary is copied across and links against
+# that glibc. The Rust version is not written here: rust-toolchain.toml is
+# copied in below and rustup honours it, so this build and the gate compile with
+# the same compiler. A pinned version in this tag would be a second number to
+# drift, which is how the gate came to run 1.93 while this built 1.88.
+FROM rust:1-bookworm AS builder
 WORKDIR /build
+
+# Before any compile, so the toolchain install is its own cached layer and is not
+# redone on a source change. `rustup show` is what triggers the install.
+COPY rust-toolchain.toml ./
+RUN rustup show
 
 # Cache dependency compilation separately from source changes
 COPY Cargo.toml Cargo.lock build.rs ./
