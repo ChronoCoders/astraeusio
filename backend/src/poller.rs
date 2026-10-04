@@ -71,7 +71,13 @@ impl PollerConfig {
                 .unwrap_or(default)
         }
         Self {
-            iss_interval: secs("ISS_INTERVAL", 5),
+            // 30 s because that is what a client ever sees: App.jsx polls /api/iss on
+            // FAST, 30 s, and the only read is ORDER BY ts DESC LIMIT 1. At 5 s, five of
+            // every six fetches were written to a table whose only query discarded them,
+            // and 17,280 requests a day went to a one person free service that publishes
+            // no terms. Nothing a user sees changes: the station moves about 230 km
+            // between renders either way, and the iss freshness threshold is 300 s.
+            iss_interval: secs("ISS_INTERVAL", 30),
             kp_interval: secs("KP_INTERVAL", 60),
             kp_3h_interval: secs("KP_3H_INTERVAL", 1800),
             solar_wind_interval: secs("SOLAR_WIND_INTERVAL", 60),

@@ -504,11 +504,12 @@ pub fn is_auxiliary(component: &str) -> bool {
 /// twice. The window is set by what actually queries the table, not by a
 /// feeling about how much history is nice to have:
 ///
-/// - `iss_position` is written every five seconds, 16,600 rows a day, and the
+/// - `iss_position` is written every thirty seconds, 2,880 rows a day, and the
 ///   only read is `ORDER BY ts DESC LIMIT 1`. Thirty days rather than the seven
 ///   that reading alone justifies, because a position history is the obvious
 ///   thing a satellite tracking product grows into and thirty days of it is
-///   cheap. If that turns out to be wrong it is one number.
+///   cheap. If that turns out to be wrong it is one number. It was five seconds
+///   and 16,600 rows a day until the cadence was matched to what is read.
 /// - The NOAA series back charts and the thirty day report, so ninety days
 ///   covers the longest query with room.
 /// - `health_snapshots` backs the ninety day uptime strip, so it keeps a

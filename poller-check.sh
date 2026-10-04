@@ -43,7 +43,7 @@ STREAK=3     # consecutive windows in which a source errored at all
 # exactly what the retry is for and must stay quiet.
 #
 # The bar is a proportion rather than a count, because a flat number cannot suit
-# both ends: the ISS polls 720 times an hour and APOD once, so five retries is
+# both ends: the ISS polls 120 times an hour and APOD once, so five retries is
 # noise for one and impossible for the other. A source must need a retry on at
 # least a quarter of its polls before this says anything, which healthy sources
 # never approach, and never on fewer than RETRY_MIN retries so a low rate source
