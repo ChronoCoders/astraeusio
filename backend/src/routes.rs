@@ -2885,6 +2885,57 @@ mod mcp_tests {
         );
     }
 
+    /// The forecast tool's published wording names every horizon the model
+    /// actually serves.
+    ///
+    /// `the_server_card_advertises_what_the_endpoint_serves` compares the card
+    /// and `MCP_TOOLS` as `(name, description)` pairs, so the two cannot drift
+    /// apart. That is agreement, not correctness, and both carried "the ML
+    /// 3-hour Kp forecast" for as long as the model had been multi-horizon: the
+    /// guard held them identically wrong and stayed green. A consistency check
+    /// between two copies can only say they match.
+    ///
+    /// So the expected phrase is rendered from `FORECAST_HORIZONS`, the array
+    /// the response is actually built from, and the description must contain it
+    /// verbatim. Adding, removing or reordering a horizon changes the phrase and
+    /// fails here, which is the direction no amount of copying one surface to
+    /// the other can satisfy.
+    ///
+    /// Containment of a substring built at run time needs a floor, because an
+    /// empty needle is contained in everything. The phrase is checked to carry
+    /// one number per horizon before it is used.
+    #[test]
+    fn the_forecast_tool_names_every_horizon_it_serves() {
+        let hs = crate::db::FORECAST_HORIZONS;
+        let phrase = match hs.split_last() {
+            Some((last, head)) if !head.is_empty() => format!(
+                "{} and {last} hours",
+                head.iter()
+                    .map(|h| h.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            _ => String::new(),
+        };
+
+        assert_eq!(
+            phrase.matches(char::is_numeric).count(),
+            hs.iter().map(|h| h.to_string().len()).sum::<usize>(),
+            "the expected phrase {phrase:?} does not carry every horizon in {hs:?},              so containment of it would prove nothing"
+        );
+
+        let desc = advertised_tools()
+            .into_iter()
+            .find(|(n, _)| n == "get_kp_forecast")
+            .map(|(_, d)| d)
+            .expect("get_kp_forecast is advertised");
+
+        assert!(
+            desc.contains(&phrase),
+            "the forecast tool is advertised as {desc:?}, which does not say {phrase:?}.              The response carries every entry of FORECAST_HORIZONS, so this sentence tells a              caller the model is narrower than it is."
+        );
+    }
+
     /// The tools the manifest calls unauthenticated stay unauthenticated.
     ///
     /// Taken from the manifest's own wording rather than from a list here. The
