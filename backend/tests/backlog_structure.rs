@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 24] = [
+const FINDINGS: [&str; 31] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -153,6 +153,10 @@ const FINDINGS: [&str; 24] = [
     // it. AUD-043 was recorded with an assumed fetch time and corrected the same
     // day against the period the logs already held.
     "AUD-043", "AUD-044",
+    // The 2026-09-23 audit, re-verified against 0947fd0 and recorded 2026-10-04.
+    // Eleven days in conversation only, which is how AUD-038 to AUD-041 were also
+    // called recorded while absent from this list and from the bullets.
+    "AUD-045", "AUD-046", "AUD-047", "AUD-048", "AUD-049", "AUD-050", "AUD-051",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.

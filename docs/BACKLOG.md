@@ -659,6 +659,156 @@ repeated here.
   behind a 90% delivery hour. The 90% turned out to be three missed polls at a low expected count,
   which `poller-check.sh:67` already explains, and this was the real finding in that data.
 
+- **AUD-045** The email lowercase migration folds the key and follows none of its references.
+  `db.rs:1279`, `migrate`.
+
+  ```sql
+  UPDATE users SET email = lower(email) WHERE email <> lower(email)
+  ```
+
+  `users.email` is the primary key and six tables reference it by `user_email`: `api_keys`
+  (`db.rs:227`), `usage_records` (`237`), `webhooks` (`245`), `email_alerts` (`255`),
+  `custom_anomaly_rules` (`265`) and `alerts_anomaly` (`185`). Folding the key without folding the
+  references orphans every row that pointed at the mixed-case spelling. An orphaned `api_keys` row is
+  a key that authenticates nobody; an orphaned `webhooks` row is a delivery that never fires again.
+
+  **It has never triggered.** Verified on production 2026-09-23: zero addresses carried upper case and
+  zero orphans existed across all six tables. The defect is the pattern, not the damage. It is
+  recorded because the next migration written to this shape may touch a column that does have variance,
+  and because the surviving code teaches the shape.
+
+  Closed by folding the references in the same transaction as the key, or by proving the fold
+  unnecessary and deleting the migration. Either way the test is a fixture with a mixed-case address
+  and one row in each of the six tables, asserting zero orphans afterwards. There is no such fixture
+  now, which is why a migration that never ran also never failed.
+
+- **AUD-046** A webhook whose `events` column fails to parse silently matches nothing and logs nothing.
+  Two sites, not one: `db.rs:4477` in `list_active_webhooks_for_event` and `db.rs:4434` in
+  `list_webhooks`.
+
+  ```rust
+  let events: Vec<String> = serde_json::from_str(&events_json).unwrap_or_default();
+  if events.iter().any(|e| e == event_type) {
+  ```
+
+  An empty vector matches no event type, so the row is filtered out of the delivery set and the
+  customer's webhook stops firing with no error anywhere. The second site is worse in a different way:
+  `list_webhooks` is what the customer's own dashboard reads, so the row renders with an empty event
+  list and the UI agrees with the silence.
+
+  **The clearest case in the codebase of `unwrap_or_default` swallowing a real error**, and the
+  standing rule against ignored errors names exactly this. The two sites were found by scanning
+  `db.rs` for `from_str` followed by `unwrap_or_default` rather than from the report, which named one.
+
+  Closed by returning the parse error or logging it with the webhook id and the raw column, and by
+  deciding what a row with an unparseable filter should do: fail closed and deliver nothing, which is
+  current behaviour made visible, or fail open and deliver everything. That is a product decision, not
+  a code one. The guard is a fixture row holding invalid JSON in `events`, asserting that it is
+  reported rather than absent.
+
+- **AUD-047** `unwrap()` in production code. `routes.rs:1606`.
+
+  ```rust
+  let tools: serde_json::Value = serde_json::from_str(MCP_TOOLS).unwrap();
+  ```
+
+  Inside `mcp_handler`, on the `tools/list` path. The input is a `const &str` in the same file and
+  `the_server_card_advertises_what_the_endpoint_serves` plus two sibling tests parse it, so it cannot
+  fail in practice. The rule is no `unwrap` outside tests, with no practical-impossibility exemption,
+  and `routes.rs:2669` already uses `.expect("MCP_TOOLS is json")` for the same parse in a test.
+
+  Closed by parsing once into a `LazyLock<serde_json::Value>` so the cost and the failure both move to
+  startup, or by returning a 500 through the existing `AppError`. The first is better: a manifest that
+  does not parse should stop the process, not serve one broken route.
+
+- **AUD-048** The `custom_anomaly_rules` declaration contradicts the live table and the no-float rule,
+  and a fresh install is correct only by migration order. `db.rs:271`.
+
+  ```sql
+  threshold  DOUBLE  NOT NULL,
+  ```
+
+  No `threshold_scaled` column is declared. The live shape comes from a later migration that adds the
+  scaled column and drops this one, so `CREATE TABLE IF NOT EXISTS` plus that migration happen to
+  converge. Two things are wrong with that. The declaration states a float where the standing rule
+  requires scaled integers, so the file teaches the wrong thing to the next reader. And correctness
+  depends on the migration running after the DDL on every path, which nothing asserts.
+
+  Closed by declaring the table in its current shape and making the migration a no-op on a fresh
+  database, with a test that opens a brand new file and asserts the column set matches what a migrated
+  database has. That test does not exist for any table, so it is worth more than this one fix.
+
+- **AUD-049** A migration check that fails open. `db.rs:1301`.
+
+  ```rust
+  let needs_forecast_rekey: i64 = conn
+      .query_row("SELECT COUNT(*) FROM duckdb_columns() WHERE table_name = 'kp_forecast'
+                  AND column_name = 'horizon_hours'", [], |row| row.get(0))
+      .unwrap_or(1);
+  if needs_forecast_rekey == 0 { ...rekey... }
+  ```
+
+  A failing schema query returns 1, which reads as "the column is already there" and skips the rekey.
+  The fail-closed rule says authorization, integrity, secret loading, environment selection and
+  migration all close to the safe state when uncertain, and the safe state for a migration check is to
+  attempt the migration or refuse to start, never to assume it is done.
+
+  **The live exposure is narrow and specific.** The rekey has already run in production, so a failing
+  query there changes nothing today. The exposure is a restore from a backup predating the rekey: the
+  query fails, the rekey is skipped, and the service runs on the old key shape with no complaint.
+
+  Closed by propagating the error with `?` so a failing check stops startup. One line, and the test is
+  a fixture whose schema query errors, asserting the open fails rather than proceeding.
+
+- **AUD-050** CORS allows any origin on every route, and the premise that made that safe has changed.
+  `routes.rs:563`.
+
+  ```rust
+  CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any)
+  ```
+
+  Applied to the whole router, including `/auth/*` and `/mcp`. The reason this was not a CSRF path is
+  that authentication is a Bearer token in a header, which a cross-origin page cannot make the browser
+  attach, and `allow_credentials` is not set, so cookies are not sent either. That still holds for the
+  session token.
+
+  **What changed is that the OAuth state now lives in a cookie.** The browser-binding work put it
+  there, so there is now a cookie in the authentication flow where previously there was none. Whether
+  that is reachable through this layer depends on `allow_credentials` staying unset and on the state
+  cookie's own `SameSite`, neither of which is asserted anywhere.
+
+  **This one needs a decision rather than a default.** Narrowing to an allowlist breaks the public API
+  for browser callers, which is a product promise, and `/api/public/*` plus `/mcp` are deliberately
+  open. A split layer, open on the data routes and origin-restricted on `/auth/*`, keeps both. Closed
+  either by that split plus a test that a cross-origin preflight to `/auth/login` is refused, or by a
+  recorded decision that any-origin is intended with the cookie's own attributes named as the control.
+
+- **AUD-051** 58 dash-like characters remain in tracked files. The rule is none.
+
+  Counted 2026-10-04 across all 176 readable tracked text files, 17 further tracked files being
+  binary. **It was 61 before the blog corrections, so 58 is the baseline for the next count.**
+
+  | class | count |
+  |---|---|
+  | en dash U+2013 | 36 |
+  | minus sign U+2212 | 17 |
+  | em dash U+2014 | 5 |
+
+  Nineteen files carry them. `frontend/src/blog/posts.js` has 31 of the 58. Then `ml/preprocess.py` 5,
+  `get-space-weather/SKILL.md` 3, `ml/download_kp.py` 3, `DocsPage.jsx` 2, and twelve files with one
+  each.
+
+  **Two things the raw count hides.** The 17 U+2212 are a different character from the two the rule
+  names, so whether they are in scope is a decision rather than a defect. And almost every en dash is
+  a numeric range, two of them in text a user reads: `routes.rs:1363` is API error copy, "name must be
+  1-80 characters", and `AsteroidTable.jsx:104` renders a diameter range in the asteroid table. The
+  rest are code comments and docstrings, plus one em dash in an HTML comment inside
+  `astraeusio-logo.svg`.
+
+  Closed by a gate step that counts them and fails above zero, in the shape of `scripts/lib/naming.sh`
+  with its own self test, so the count cannot drift back up unnoticed. Fixing the 58 without that step
+  buys one clean day. The step is the deliverable; the sweep is its first run.
+
 - **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
   than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
   2026-09-22: 193,712 and 94,235 rows with a NULL source. Deleted at 23:29:40 by the migration's own
