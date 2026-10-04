@@ -80,6 +80,12 @@ step "advisories"     .        python advisory-check.py
 step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"
 step "naming rule"              .        bash scripts/lib/naming.sh --gate
 step "control: naming detector" .        bash scripts/lib/naming.sh --self-test
+# The Rust version lives in backend/rust-toolchain.toml and nowhere else. The
+# Dockerfile used to carry its own, and the two drifted five minor versions
+# apart without anything noticing. The check refuses any version there, not
+# today's, so the rule holds whatever number someone reaches for.
+step "toolchain pin"            .        bash scripts/lib/toolchain.sh --gate
+step "control: toolchain pin"   .        bash scripts/lib/toolchain.sh --self-test
 
 
 echo
