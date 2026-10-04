@@ -677,10 +677,19 @@ repeated here.
   recorded because the next migration written to this shape may touch a column that does have variance,
   and because the surviving code teaches the shape.
 
-  Closed by folding the references in the same transaction as the key, or by proving the fold
-  unnecessary and deleting the migration. Either way the test is a fixture with a mixed-case address
-  and one row in each of the six tables, asserting zero orphans afterwards. There is no such fixture
-  now, which is why a migration that never ran also never failed.
+  **Decided 2026-10-04: delete the migration rather than complete it.** It has never folded anything
+  on production, so the reference-following version would be new code on a path that has never been
+  taken, and untaken code is where defects live unobserved. Deleting it removes both the orphaning
+  shape and the obligation to maintain a fold nobody needs.
+
+  Recorded here so nobody restores a half version later: **the danger is a future edit that reinstates
+  the `UPDATE users SET email = lower(email)` without the reference fold**, which is the state this
+  entry describes. If address case ever does need normalising, it is a new migration written with the
+  six references in the same transaction, not a revival of this one.
+
+  Closed by the deletion plus the new-database-versus-migrated fixture under AUD-048, which is what
+  proves the deletion left a fresh install and a migrated one with the same shape. The fixture is the
+  reason these two are one change.
 
 - **AUD-046** A webhook whose `events` column fails to parse silently matches nothing and logs nothing.
   Two sites, not one: `db.rs:4477` in `list_active_webhooks_for_event` and `db.rs:4434` in
@@ -700,11 +709,20 @@ repeated here.
   standing rule against ignored errors names exactly this. The two sites were found by scanning
   `db.rs` for `from_str` followed by `unwrap_or_default` rather than from the report, which named one.
 
-  Closed by returning the parse error or logging it with the webhook id and the raw column, and by
-  deciding what a row with an unparseable filter should do: fail closed and deliver nothing, which is
-  current behaviour made visible, or fail open and deliver everything. That is a product decision, not
-  a code one. The guard is a fixture row holding invalid JSON in `events`, asserting that it is
-  reported rather than absent.
+  **Decided 2026-10-04: stay closed and stop being silent.** A row whose filter will not parse
+  delivers nothing, which is what it does today, because delivering everything would push data to a
+  customer who never asked for it. What changes is that the failure becomes visible in three places
+  rather than none.
+
+  Closed by all three, since any one alone leaves somebody blind:
+  - an `error!` at both sites carrying the webhook id and `user_email`, so the operator sees it
+  - the same condition surfaced to the owner through `list_webhooks`, which is `db.rs:4434`, the
+    second site. Their dashboard currently renders the row with an empty event list and agrees with
+    the silence, so it is the one place the person who can fix it would look
+  - a fixture row holding invalid JSON in `events`, asserting the condition is reported rather than
+    absent, at both sites
+
+  Fail-closed delivery with a loud failure, not fail-open delivery.
 
 - **AUD-047** `unwrap()` in production code. `routes.rs:1606`.
 
@@ -777,11 +795,30 @@ repeated here.
   that is reachable through this layer depends on `allow_credentials` staying unset and on the state
   cookie's own `SameSite`, neither of which is asserted anywhere.
 
-  **This one needs a decision rather than a default.** Narrowing to an allowlist breaks the public API
-  for browser callers, which is a product promise, and `/api/public/*` plus `/mcp` are deliberately
-  open. A split layer, open on the data routes and origin-restricted on `/auth/*`, keeps both. Closed
-  either by that split plus a test that a cross-origin preflight to `/auth/login` is refused, or by a
-  recorded decision that any-origin is intended with the cookie's own attributes named as the control.
+  **Decided 2026-10-04: the split layer.** Any-origin stays on the data routes, because browser
+  callers of the public API are a product promise and `/api/public/*` and `/mcp` are deliberately
+  open. The credential routes get an origin-restricted layer, with a test that a cross-origin
+  preflight to `/auth/login` is refused.
+
+  **The `/auth` prefix is not the boundary, and that is the part worth recording.** Routes outside it
+  create and destroy credentials: `/api/keys` and `/api/keys/{id}` mint and revoke API keys, and
+  `/api/user/plan` changes billing state. A split written on the prefix would leave all three on the
+  open side while looking complete, which is the same shape as a check that enumerates from the
+  protection instead of from the asset.
+
+  So the side a route lands on is decided by **what it does, not where it sits**. The rule, to be
+  applied by enumerating every `.route(...)` in `routes.rs` rather than by matching a path:
+
+  > A route is credential-bearing if it creates, reveals, changes or revokes a means of
+  > authentication, or changes billing or plan state. Everything else is data.
+
+  Stated so a route added later lands on the right side without re-deriving the argument.
+
+  One thing this entry should not overclaim: with `allow_origin(Any)` and `allow_credentials` unset,
+  a cross-origin page cannot attach the session Bearer token nor the OAuth state cookie, so there is
+  no live bypass today. The split is defence in depth, and specifically it is what stops a future
+  `allow_credentials(true)` from turning into a vulnerability with no other edit. Closing it means the
+  split, the enumerated list recorded, and the preflight test.
 
 - **AUD-051** 58 dash-like characters remain in tracked files. The rule is none.
 
@@ -805,9 +842,20 @@ repeated here.
   rest are code comments and docstrings, plus one em dash in an HTML comment inside
   `astraeusio-logo.svg`.
 
-  Closed by a gate step that counts them and fails above zero, in the shape of `scripts/lib/naming.sh`
-  with its own self test, so the count cannot drift back up unnoticed. Fixing the 58 without that step
-  buys one clean day. The step is the deliverable; the sweep is its first run.
+  **Decided 2026-10-04: U+2212 is in scope. The target is 58, not 41.** A reader cannot tell a minus
+  sign from an en dash on screen, so the rule is no dash-like character rather than no em or en dash.
+  The gate step says this in its own text rather than leaving the next person to infer which of the
+  three classes it counts.
+
+  Closed by that gate step, counting all three classes across tracked text files and failing above
+  zero, in the shape of `scripts/lib/naming.sh` with its own self test, so the count cannot drift back
+  up unnoticed. Fixing the 58 without the step buys one clean day. The step is the deliverable; the
+  sweep is its first run.
+
+  Two of the 58 are text a user reads and need a replacement chosen rather than deleted:
+  `routes.rs:1363` is API error copy, "name must be 1-80 characters", and `AsteroidTable.jsx:104`
+  renders a diameter range. The rest are code comments, docstrings, and one em dash in an HTML comment
+  inside `astraeusio-logo.svg`.
 
 - **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
   than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
