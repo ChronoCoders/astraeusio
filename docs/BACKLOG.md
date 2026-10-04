@@ -857,6 +857,79 @@ repeated here.
   renders a diameter range. The rest are code comments, docstrings, and one em dash in an HTML comment
   inside `astraeusio-logo.svg`.
 
+- **AUD-052** Three counts in `Store::open` swallow a failing query, and each makes the code believe
+  something different. None is the fail-open class AUD-049 was.
+
+  Found by scanning `Store::open` for the shape AUD-049 had, rather than from a report. The function
+  holds 29 `query_row` calls; 26 use `?` and these three do not. What decides whether each matters is
+  what reads the value afterwards, not the `.unwrap_or` itself.
+
+  | line | binding | what reads it | what a failing count makes the code believe |
+  |---|---|---|---|
+  | `db.rs:1418` | `expected` | `era_fix_is_verified(expected, updated, inconsistent)` at `db.rs:1452` | that the `kp_forecast` era fix touched rows it should not have. `expected` becomes 0, so `updated == expected` is false whenever real work happened, and it logs an error naming a mismatch that did not occur |
+  | `db.rs:1730` | `before` | `error!(before, after, "xray rebuild did not preserve every row")` at `db.rs:1752` | that the `xray` rebuild lost every row. `before` becomes 0 and the comparison against `after` reports a rebuild that destroyed data |
+  | `db.rs:1691` | `carried` | one `info!` at `db.rs:1711` and nothing else | nothing. No decision reads it. The log line claims 0 rows were carried when rows were, so only the record is wrong |
+
+  **Two of the three fail loud and one is cosmetic**, which is the opposite direction from AUD-049.
+  There the swallowed error made a migration check read as "already done" and skip work in silence.
+  Here a swallowed error raises a false alarm about data loss, or writes a misleading log. A false
+  alarm about a rebuild destroying rows is still expensive, because the next person reads it as real.
+
+  Closed by `?` at all three, which is what `every_migration_decision_propagates_its_query_error`
+  already requires of the decision bindings and does not yet require of these. Widening that test to
+  every `query_row` in `Store::open` is the obvious move and needs one judgement first: whether any
+  count in that function is legitimately optional, because the test would then need an exemption list
+  and an exemption list is the thing that rots.
+
+  Not fixed. Recorded 2026-10-04 while closing AUD-049, so the reasoning for each is written while the
+  call sites were in front of me rather than reconstructed later.
+
+- **AUD-053** The `SameAsJwtSecret` guard cannot fire while `JWT_SECRET` is unset, and both callers
+  that reach it run before `main` validates that variable.
+
+  `secretbox.rs:62` refuses to start when the TOTP encryption key equals the JWT secret:
+
+  ```rust
+  if raw == jwt_secret {
+      return Err(KeyError::SameAsJwtSecret);
+  }
+  ```
+
+  Two call sites pass a value that can be empty:
+  - `db.rs:1589` in `Store::open`: `std::env::var("JWT_SECRET").unwrap_or_default()`
+  - `db.rs:1863` in `try_clone`: the same expression inline
+
+  **The ordering that makes it inert.** `main.rs:92` calls `Store::open` and `main.rs:93` calls
+  `try_clone`. `main.rs:136` is where `JWT_SECRET` is actually required, by
+  `.expect("JWT_SECRET must be set")`, forty lines later. So with `JWT_SECRET` unset, both calls pass
+  `""`. `secretbox.rs:59` has already returned `Ok(None)` for an empty or whitespace
+  `TOTP_ENCRYPTION_KEY`, so `raw` is non-empty by the time line 62 runs, and `raw == ""` is false for
+  every possible key. The comparison can never be true, and the guard passes silently.
+
+  **What would have to hold for it to bite.** `JWT_SECRET` set, and `TOTP_ENCRYPTION_KEY` set to the
+  same value. Then `open` reads the real secret, the comparison is true, and the process refuses to
+  start as intended. So the guard works in exactly the configuration it was written for, and is inert
+  only when the other variable is missing.
+
+  **There is no live exposure**, and the entry says so rather than implying one. With `JWT_SECRET`
+  unset the process reaches `main.rs:136` and panics, so it never serves. The defect is that a
+  security guard's effectiveness depends on a variable checked later, in a different file, by a
+  different mechanism, and nothing records that dependency. It is the AUD-045 shape: the pattern, not
+  the damage.
+
+  Three edits would turn it into a live hole, none of them obviously dangerous on its own: moving
+  `main`'s validation after the database opens, softening that `expect` into a default, or calling
+  `Store::open` from anything that is not `main`, such as a migration tool or a fixture harness. The
+  last is the likeliest, because a test harness that opens a store is an ordinary thing to write.
+
+  Closed by reading `JWT_SECRET` once, with `?`, before the store opens, and passing it in; or by
+  having `from_env` refuse an empty `jwt_secret` outright, which makes the dependency explicit at the
+  point that relies on it. The second is smaller and fails closed. The guard is a fixture with
+  `JWT_SECRET` unset and `TOTP_ENCRYPTION_KEY` set, asserting the open is refused rather than
+  accepted.
+
+  Not fixed. Recorded 2026-10-04, found while hunting the AUD-049 shape through `Store::open`.
+
 - **AUD-038** The unlabelled delete removed 2,000 fewer `solar_wind` rows and 1,187 fewer `imf` rows
   than were counted 42 minutes earlier, and the difference is unexplained. Measured at 22:47 UTC on
   2026-09-22: 193,712 and 94,235 rows with a NULL source. Deleted at 23:29:40 by the migration's own
