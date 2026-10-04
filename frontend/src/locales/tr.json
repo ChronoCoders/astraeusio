@@ -565,7 +565,7 @@
     "aud2Role": "Uydu operatörleri",
     "aud2Desc": "Fırtına başlamadan önce canlı uyarılar - yüklerinizi zamanında güvenli moda alın.",
     "aud3Role": "Aurora tur operatörleri",
-    "aud3Desc": "3 saatlik tahmin ve görünürlük enlemi tahminleri ile gecelik planlama.",
+    "aud3Desc": "3, 6, 12 ve 24 saatlik tahminler ve görünürlük enlemi tahminleri ile gecelik planlama.",
     "aud4Role": "Şebeke mühendisleri",
     "aud4Desc": "Kp ve Dst izleme; webhook ile olay kanallarınıza doğrudan iletim.",
     "apiEyebrow": "Geliştiriciler için",
@@ -591,7 +591,7 @@
       }
     },
     "ctaTitle": "Uzay hava durumunu izlemeye başla.",
-    "ctaSub": "Ücretsiz katman canlı veri, 3 saatlik ML tahmini ve e-posta uyarılarını içerir. Kredi kartı gerekmez.",
+    "ctaSub": "Ücretsiz katman canlı veri, 3, 6, 12 ve 24 saatlik ML tahminleri ve e-posta uyarılarını içerir. Kredi kartı gerekmez.",
     "ctaPrimary": "Ücretsiz hesap oluştur",
     "ctaSecondary": "Fiyatları görüntüle"
   },
@@ -722,7 +722,7 @@
     "epImf": "NOAA'nın L1'deki gerçek zamanlı uzay aracından Gezegenlerarası Manyetik Alan ölçümleri. Bz kuzey-güney bileşenidir (negatif = güneye = jeoetkili). Değerler nT cinsinden.",
     "epDst": "NOAA aracılığıyla Kyoto Dünya Veri Merkezi'nden Dst (Disturbance Storm Time) endeksi. Halka akımı gücünü ölçer. Değerler nT cinsinden; negatif = jeomanyetik fırtına.",
     "epAlerts": "NOAA SWPC uzay hava uyarıları, izlemeleri ve dikkat uyarıları. Son 7 günden tüm aktif ürünleri döndürür.",
-    "epForecast": "Sonraki 3 saat için makine öğrenmesi destekli Kp tahmini. Belirsizlik tahmini için Monte Carlo Dropout'lu LSTM sinir ağı kullanır (50 çıkarım geçişi). Tahmin edilen Kp'yi, bu geçişlerdeki yayılımla birlikte döndürür (ortalama ± 1,96σ, ci_lower ve ci_upper alanlarında). Bu yayılım modelin kendi anlaşmazlığıdır; bir olasılık veya kalibre edilmiş bir tahmin aralığı değildir: gözlem gürültüsü terimi içermez, bu yüzden sonuçlar adının ima ettiğinden çok daha sık aralığın dışında kalır.",
+    "epForecast": "3, 6, 12 ve 24 saat sonrası için makine öğrenmesi destekli Kp tahminleri; her ufuk için bir girişle forecast[] olarak döner. Belirsizlik tahmini için Monte Carlo Dropout'lu LSTM sinir ağı kullanır (50 çıkarım geçişi). Tahmin edilen Kp'yi, bu geçişlerdeki yayılımla birlikte döndürür (ortalama ± 1,96σ, ci_lower ve ci_upper alanlarında). Bu yayılım modelin kendi anlaşmazlığıdır; bir olasılık veya kalibre edilmiş bir tahmin aralığı değildir: gözlem gürültüsü terimi içermez, bu yüzden sonuçlar adının ima ettiğinden çok daha sık aralığın dışında kalır.",
     "epIss": "Open Notify'dan güncel ISS konumu. Her 5 saniyede bir güncellenir. Yükseklik km, hız km/s cinsinden.",
     "epApod": "NASA Günün Astronomi Fotoğrafı. Güncel görüntüyü veya videoyu başlık ve açıklamasıyla döndürür.",
     "epNeo": "Güncel 7 günlük pencere için NASA NeoWs'dan Dünya'ya yakın cisimler. Yakın geçiş mesafesi (ay mesafesi ve km), çap, hız ve tehlike durumunu içerir.",

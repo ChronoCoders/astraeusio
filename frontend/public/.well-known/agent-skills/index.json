@@ -11,7 +11,7 @@
     {
       "name": "get-kp-forecast",
       "type": "api",
-      "description": "Get a 3-hour ML-powered Kp forecast from an LSTM model trained on 20+ years of NOAA data, with the model spread across 50 inference passes.",
+      "description": "Get ML-powered Kp forecasts at 3, 6, 12 and 24 hours from an LSTM model trained on 20+ years of NOAA data, each with the model spread across 50 inference passes.",
       "url": "https://astraeusio.com/.well-known/agent-skills/get-kp-forecast/SKILL.md",
       "sha256": "a9c6321792e66d6d06c5b37f02a76dd056e1ea52080f9c5a35494415da1b3c53"
     },

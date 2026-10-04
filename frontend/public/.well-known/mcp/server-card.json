@@ -3,7 +3,7 @@
   "serverInfo": {
     "name": "Astraeusio Space Weather",
     "version": "1.0.0",
-    "description": "Real-time space weather data and ML-powered geomagnetic storm forecasting over MCP. Tools cover the Kp index, solar wind, a 3-hour Kp forecast, detected anomalies, near-Earth object close approaches, ISS position, and service health.",
+    "description": "Real-time space weather data and ML-powered geomagnetic storm forecasting over MCP. Tools cover the Kp index, solar wind, multi-horizon Kp forecasts at 3, 6, 12 and 24 hours, detected anomalies, near-Earth object close approaches, ISS position, and service health.",
     "homepage": "https://astraeusio.com",
     "documentation": "https://astraeusio.com/docs"
   },
@@ -26,7 +26,7 @@
       },
       {
         "name": "get_kp_forecast",
-        "description": "Get the ML 3-hour Kp forecast with the model spread across 50 inference passes (no auth required)."
+        "description": "Get ML Kp forecasts at 3, 6, 12 and 24 hours ahead, each with the model spread across 50 inference passes (no auth required)."
       },
       {
         "name": "get_health",

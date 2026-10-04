@@ -28,7 +28,7 @@ We use a Long Short-Term Memory network (LSTM) trained on over 20 years of NOAA 
 
 The input to the model is a window of recent Kp readings (7 to 48 readings, depending on availability), along with cyclical time features: hour of day encoded as sine and cosine, month of year encoded as sine and cosine, and solar cycle phase. The solar cycle feature matters because background geomagnetic activity varies systematically over the 11-year cycle - solar maximum years have a different baseline than solar minimum years.
 
-The output is a single predicted Kp value for the next three hours.
+The output is a predicted Kp value at each of four horizons, 3, 6, 12 and 24 hours ahead. The nearer two are predicted as a change from the last reading, the further two as a level, because a residual stops carrying useful information once the horizon is long enough.
 
 ## Uncertainty: Monte Carlo Dropout
 
@@ -74,7 +74,7 @@ NOAA Kp verisi üzerinde eğitilmiş bir Uzun Kısa Süreli Bellek ağı (LSTM) 
 
 Modelin girdisi, en son Kp okumalarından oluşan bir penceredir (mevcudiyete bağlı olarak 7 ile 48 okuma), döngüsel zaman özellikleriyle birlikte: sinüs ve kosinüs olarak kodlanmış günün saati, yılın ayı ve güneş döngüsü fazı. Güneş döngüsü özelliği önemlidir çünkü arka plan jeomanyetik aktivitesi 11 yıllık döngü boyunca sistematik olarak değişir.
 
-Çıktı, sonraki üç saat için tek bir tahmin edilen Kp değeridir.
+Çıktı, dört ufuk için tahmin edilen Kp değerleridir: 3, 6, 12 ve 24 saat sonrası. Yakın iki ufuk son okumaya göre değişim olarak, uzak iki ufuk ise doğrudan seviye olarak tahmin edilir; çünkü ufuk yeterince uzadığında değişim değeri bilgi taşımayı bırakır.
 
 ## Belirsizlik: Monte Carlo Dropout
 
@@ -148,7 +148,7 @@ GPS satellite anomalies are well-correlated with SEP events. The aviation indust
 
 For LEO operators, the key metrics are:
 - **Kp index**: values ≥ 5 indicate conditions worth monitoring for drag effects
-- **Kp forecast**: 3-hour prediction lets you plan propulsion windows or delay launches
+- **Kp forecast**: predictions at 3, 6, 12 and 24 hours let you plan propulsion windows or delay launches
 - **Solar wind speed**: >600 km/s indicates a fast solar wind stream that will likely elevate Kp
 - **IMF Bz**: strongly negative Bz (< -10 nT) is the primary driver of energy coupling into the magnetosphere
 
@@ -156,7 +156,7 @@ For GEO operators:
 - **Kp history**: sustained Kp > 5 for multiple hours indicates injection events likely in progress
 - **Dst index**: deeply negative Dst (< -100 nT) indicates major ring current enhancement and elevated GEO charging risk
 
-Astraeusio ingests all of these in real time. The anomaly detection layer fires alerts when thresholds are crossed. The forecast gives you a 3-hour look-ahead.
+Astraeusio ingests all of these in real time. The anomaly detection layer fires alerts when thresholds are crossed. The forecast gives you a look-ahead at 3, 6, 12 and 24 hours.
 
 ## The Honest Assessment
 
@@ -193,7 +193,7 @@ GPS uydusu anomalileri SEP olaylarıyla iyi koreledir. Havacılık endüstrisi, 
 
 LEO operatörleri için temel ölçütler:
 - **Kp endeksi**: ≥5 değerleri sürükleme etkileri için izlemeye değer koşulları gösterir
-- **Kp tahmini**: 3 saatlik tahmin tahrik pencerelerini planlamanıza veya fırlatmaları ertelemenize olanak tanır
+- **Kp tahmini**: 3, 6, 12 ve 24 saatlik tahminler tahrik pencerelerini planlamanıza veya fırlatmaları ertelemenize olanak tanır
 - **Güneş rüzgarı hızı**: >600 km/s Kp'yi yükseltecek hızlı bir güneş rüzgarı akışını gösterir
 - **IMF Bz**: güçlü negatif Bz (< -10 nT) manyetosferle enerji bağlantısının birincil sürücüsüdür
 
@@ -201,7 +201,7 @@ GEO operatörleri için:
 - **Kp geçmişi**: birden fazla saat boyunca süregelen Kp > 5 enjeksiyon olaylarının devam ettiğini gösterir
 - **Dst endeksi**: derin negatif Dst (< -100 nT) büyük halka akımı güçlenmesini ve yüksek GEO yükleme riskini gösterir
 
-Astraeusio tüm bunları gerçek zamanlı olarak alır. Anomali tespit katmanı eşikler aşıldığında uyarı verir. Tahmin 3 saatlik bir ileriye bakış sağlar.
+Astraeusio tüm bunları gerçek zamanlı olarak alır. Anomali tespit katmanı eşikler aşıldığında uyarı verir. Tahmin 3, 6, 12 ve 24 saatlik ileriye bakış sağlar.
 
 ## Dürüst Değerlendirme
 

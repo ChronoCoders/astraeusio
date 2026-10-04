@@ -10,21 +10,21 @@
     <link rel="preload" as="image" href="/earth.webp" type="image/webp" fetchpriority="high" crossorigin="anonymous" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Astraeusio - Space Weather Intelligence</title>
-    <meta name="description" content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered 3-hour storm predictions from NOAA data." />
+    <meta name="description" content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered storm predictions at 3, 6, 12 and 24 hours from NOAA data." />
     <meta property="og:type"           content="website" />
     <meta property="og:site_name"      content="Astraeusio" />
     <meta property="og:locale"         content="en_US" />
     <meta property="og:locale:alternate" content="tr_TR" />
     <meta property="og:url"            content="https://astraeusio.com/" />
     <meta property="og:title"          content="Astraeusio - Space Weather Intelligence" />
-    <meta property="og:description"    content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered 3-hour storm predictions from NOAA data." />
+    <meta property="og:description"    content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered storm predictions at 3, 6, 12 and 24 hours from NOAA data." />
     <meta property="og:image"          content="https://astraeusio.com/og-image.png" />
     <meta property="og:image:width"    content="1200" />
     <meta property="og:image:height"   content="630" />
     <meta property="og:image:alt"      content="Astraeusio - Real-time space weather intelligence" />
     <meta name="twitter:card"          content="summary_large_image" />
     <meta name="twitter:title"         content="Astraeusio - Space Weather Intelligence" />
-    <meta name="twitter:description"   content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered 3-hour storm predictions from NOAA data." />
+    <meta name="twitter:description"   content="Monitor live Kp index, solar wind, X-ray flux, and aurora forecasts. ML-powered storm predictions at 3, 6, 12 and 24 hours from NOAA data." />
     <meta name="twitter:image"         content="https://astraeusio.com/og-image.png" />
     <meta name="twitter:image:alt"     content="Astraeusio - Real-time space weather intelligence" />
     <script type="application/ld+json">
@@ -54,7 +54,7 @@
     <div aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
       <h1>Astraeusio - Space Weather Intelligence</h1>
       <h2>Live Kp Index, Solar Wind &amp; X-Ray Flux Monitoring</h2>
-      <h2>ML-Powered 3-Hour Geomagnetic Storm Forecasts</h2>
+      <h2>ML-Powered Geomagnetic Storm Forecasts at 3, 6, 12 and 24 Hours</h2>
       <h2>Automated Space Weather Anomaly Detection</h2>
       <nav>
         <a href="/">Home</a>
@@ -94,8 +94,9 @@
 
       <h2>ML-Powered Storm Prediction</h2>
       <p>
-        An LSTM neural network trained on over 20 years of NOAA Kp data produces 3-hour geomagnetic
-        storm forecasts with the model's own spread across 50 Monte Carlo Dropout passes. That
+        An LSTM neural network trained on over 20 years of NOAA Kp data produces geomagnetic
+        storm forecasts at 3, 6, 12 and 24 hours, each with the model's own spread across 50
+        Monte Carlo Dropout passes. That
         spread ranks how much the model disagrees with itself; it is not a probability and it
         carries no observation noise term, so outcomes fall outside it far more often than the
         name suggests. Forecasts are refreshed on demand

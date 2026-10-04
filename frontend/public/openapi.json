@@ -51,7 +51,7 @@
         "description": "Returns the ML-generated Kp forecast with the model spread across 50 inference passes. The spread is not a calibrated interval.",
         "tags": ["Public"],
         "responses": {
-          "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" }
+          "200": { "description": "forecast[] with one entry per horizon (3, 6, 12, 24 h), each carrying horizon_hours, predicted_kp, ci_lower, ci_upper and uncertainty. The top-level predicted_kp, ci_lower, ci_upper and uncertainty mirror the 3 h entry and are kept for older callers." }
         }
       }
     },
@@ -87,7 +87,7 @@
         "description": "Kp predictions at 3, 6, 12 and 24 hours from an LSTM model, with the model spread across 50 inference passes.",
         "security": [{ "bearerAuth": [] }],
         "tags": ["Space Weather"],
-        "responses": { "200": { "description": "Forecast with predicted_kp, ci_lower, ci_upper, uncertainty" } }
+        "responses": { "200": { "description": "forecast[] with one entry per horizon (3, 6, 12, 24 h), each carrying horizon_hours, predicted_kp, ci_lower, ci_upper and uncertainty. The top-level predicted_kp, ci_lower, ci_upper and uncertainty mirror the 3 h entry and are kept for older callers." } }
       }
     },
     "/api/solar-wind": {

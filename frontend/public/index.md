@@ -1,6 +1,7 @@
 # Astraeusio - Real-Time Space Weather & Astronomy Dashboard
 
-Astraeusio monitors solar activity, geomagnetic conditions, and near-Earth objects in real time, with an ML-powered 3-hour Kp forecast powered by an LSTM model trained on 20+ years of NOAA data.
+Astraeusio monitors solar activity, geomagnetic conditions, and near-Earth objects in real time, with ML-powered Kp forecasts at 3, 6, 12 and 24 hours from an LSTM model trained on 20+ years
+of NOAA data.
 
 ## What It Does
 
