@@ -75,6 +75,8 @@ step "frontend test"  frontend node --test src/lib/
 step "skill hashes"   .        bash skill-hashes.sh
 # Standard library unittest, discovered from the repository root exactly as
 # ml/test_serve.py documents. No pytest, no dev requirements file.
+step "advisory tests" .        python -m unittest test_advisory_check
+step "advisories"     .        python advisory-check.py
 step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"
 step "naming rule"              .        bash scripts/lib/naming.sh --gate
 step "control: naming detector" .        bash scripts/lib/naming.sh --self-test

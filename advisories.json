@@ -1,0 +1,16 @@
+{
+  "comment": [
+    "Recorded decisions for informational advisories, the ones cargo audit",
+    "reports as unsound, yanked, unmaintained or notice. A vulnerability",
+    "advisory never appears here: those block unconditionally and cargo audit",
+    "fails on them by itself.",
+    "",
+    "Empty on 2026-10-03, because anyhow 1.0.104 and spin 0.9.9 cleared the two",
+    "that were open. advisory-check.py proves its own parser on fixtures rather",
+    "than on this file, since an empty file and a broken parser look the same.",
+    "",
+    "An entry carries parameters, never a command. See advisory-check.py for the",
+    "typed checks and what each one establishes."
+  ],
+  "informational": []
+}
