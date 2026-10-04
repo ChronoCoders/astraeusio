@@ -197,3 +197,93 @@ async fn shutdown_signal() {
         _ = terminate => info!("received SIGTERM, shutting down"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every outbound client identifies itself, or is one of the two that
+    /// deliberately does not.
+    ///
+    /// reqwest adds no User-Agent of its own, so a client built without
+    /// `.user_agent(...)` is silently anonymous and nothing at runtime says so.
+    /// That is how every poller fetch reached six third party services with no
+    /// identification until 2026-10-04.
+    ///
+    /// Enumerated from the files that construct a client rather than from a list
+    /// of the ones known to be correct, because a list cannot see the client
+    /// somebody adds next. The floor below fails if the scan stops finding
+    /// constructions at all, which is the way this check would otherwise rot
+    /// into a pass.
+    #[test]
+    fn every_shipped_http_client_is_identified_or_named_as_an_exception() {
+        // (file, source, how many non-test constructions it is allowed, why)
+        let files: [(&str, &str); 3] = [
+            ("main.rs", include_str!("main.rs")),
+            ("mailer.rs", include_str!("mailer.rs")),
+            ("webhook_guard.rs", include_str!("webhook_guard.rs")),
+        ];
+
+        // Resend goes through its own client and webhook delivery through
+        // `webhook_guard`, which constrains the client for reasons unrelated to
+        // identification. Both are named here so adding a third unidentified
+        // client is a deliberate edit to this list.
+        const EXCEPT: [&str; 2] = ["mailer.rs", "webhook_guard.rs"];
+
+        let mut found = 0;
+        for (name, src) in files {
+            // Only the part of each file that ships. Test modules build throwaway
+            // clients and are not what this protects.
+            // Split on the attribute as it appears at the start of a line followed
+            // by the module, not on the bare token. This crate root explains the
+            // `forbid(unsafe_code)` exemption and writes `#[cfg(test)]` twice inside
+            // a comment, so splitting on the token truncated main.rs before the
+            // client it exists to check. The floor below is what caught that.
+            let shipped = src
+                .split(
+                    "
+#[cfg(test)]
+mod ",
+                )
+                .next()
+                .unwrap_or(src);
+            let builds = shipped.matches("Client::builder()").count()
+                + shipped.matches("Client::new()").count();
+            found += builds;
+            if builds == 0 || EXCEPT.contains(&name) {
+                continue;
+            }
+            assert!(
+                shipped.contains(".user_agent("),
+                "{name} builds {builds} http client(s) and never calls .user_agent(..). \
+                 Set crate::USER_AGENT on it, or add {name} to EXCEPT with a reason."
+            );
+        }
+        assert!(
+            found >= 3,
+            "the scan found only {found} client constructions across {} files, \
+             too few to conclude anything from",
+            files.len()
+        );
+        assert!(
+            !USER_AGENT.is_empty(),
+            "USER_AGENT is empty, so setting it identifies nothing"
+        );
+    }
+
+    /// The GitHub exchanges keep their own header.
+    ///
+    /// They share the client this crate builds, so the client default would now
+    /// cover them. The explicit header stays because GitHub rejects a request
+    /// without one, and a per-request header that depends on a client built
+    /// elsewhere is the kind of coupling that breaks quietly.
+    #[test]
+    fn the_oauth_exchanges_set_the_header_themselves() {
+        let src = include_str!("oauth.rs");
+        let sites = src.matches(r#".header("User-Agent", USER_AGENT)"#).count();
+        assert_eq!(
+            sites, 2,
+            "expected both GitHub exchanges to set User-Agent explicitly, found {sites}"
+        );
+    }
+}
