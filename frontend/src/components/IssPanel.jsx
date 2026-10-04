@@ -40,8 +40,17 @@ export default function IssPanel({ data }) {
   const astros = useApi('/api/astros', 6 * 60 * 60 * 1000)
   const [location, setLocation] = useState(null)
 
-  // Refresh location only when ISS has moved ~2° (~220 km), to avoid hammering
-  // the reverse-geocode endpoint while the dashboard polls every 5 s.
+  // Refresh location only when ISS has moved ~2°, to avoid hammering
+  // api.bigdatacloud.net on every render. The dashboard polls /api/iss on FAST,
+  // 30 s, which is what reaches a browser; the backend's own poll interval is a
+  // separate number and not this one. This comment said 5 s, which was never the
+  // client cadence: FAST has been 30 s since the panel was written, and 5 s was
+  // the backend interval until 2026-10-04.
+  //
+  // That matters for what the bucket achieves. A 2° bucket is about 222 km and the
+  // station covers roughly 230 km in 30 s, so most updates cross a boundary and
+  // the throttle saves less than it reads as saving. Widening it is a behaviour
+  // change, not a comment fix, so it is recorded rather than done here.
   const latBucket = data ? Math.round(data.latitude / 2) : null
   const lonBucket = data ? Math.round(data.longitude / 2) : null
   useEffect(() => {
