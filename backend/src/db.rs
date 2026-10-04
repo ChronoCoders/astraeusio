@@ -5814,6 +5814,88 @@ mod tests {
     /// The ISS feed polls every five seconds, so a stale fix means it stopped.
     /// Drawing the last known position with nothing marking it old put the
     /// station parked at one point on the map.
+    /// A query that decides whether a migration runs must propagate its error.
+    ///
+    /// `needs_forecast_rekey` ended in `.unwrap_or(1)`, so a failing schema query
+    /// read as "already migrated" and the rekey was skipped. That is fail open in
+    /// a migration check, and the fail-closed rule names migration explicitly.
+    /// AUD-049.
+    ///
+    /// Written as a rule rather than one assertion, because the single site was
+    /// found by an audit and the shape is what matters. The bindings are
+    /// enumerated from the source by the naming the code already uses, `needs_*`
+    /// and `*_applied`, so a migration added later is covered without anyone
+    /// adding it here.
+    ///
+    /// Scanning rather than executing is the compromise: forcing
+    /// `duckdb_columns()` to fail needs a broken connection, which this harness
+    /// cannot build. The floor below fails if the scan stops finding bindings,
+    /// which is how a text scan otherwise rots into a pass.
+    #[test]
+    fn every_migration_decision_propagates_its_query_error() {
+        let src = include_str!("db.rs");
+        let start = src
+            .find("\n    pub fn open(")
+            .expect("Store::open is where the migrations live");
+        let rest = &src[start + 20..];
+        let end = rest
+            .find("\n    pub fn ")
+            .or_else(|| rest.find("\n    fn "))
+            .unwrap_or(rest.len());
+        let body = &src[start..start + 20 + end];
+
+        let mut checked = 0;
+        let mut bad: Vec<String> = Vec::new();
+        for (i, line) in body.lines().enumerate() {
+            let t = line.trim_start();
+            let name = t
+                .strip_prefix("let ")
+                .and_then(|r| r.split(':').next())
+                .map(str::trim)
+                .filter(|n| n.starts_with("needs_") || n.ends_with("_applied"));
+            let Some(name) = name else { continue };
+            if !t.contains(": i64") {
+                continue;
+            }
+            checked += 1;
+            // The statement runs until its terminating semicolon.
+            // Comments stripped before matching. The comment recording this very
+            // fix quotes `.unwrap_or(1)`, and scanning raw text made the
+            // explanation of the fix read as the defect. Two other scans in this
+            // repository have been fooled the same way by their own docs.
+            let strip = |l: &str| l.split("//").next().unwrap_or("").to_string();
+            let tail: String = body
+                .lines()
+                .map(strip)
+                .skip(i)
+                .take(12)
+                .take_while(|l| !l.trim_end().ends_with(';'))
+                .chain(
+                    body.lines()
+                        .map(strip)
+                        .skip(i)
+                        .take(12)
+                        .find(|l| l.trim_end().ends_with(';')),
+                )
+                .collect::<Vec<_>>()
+                .join("\n");
+            if tail.contains(".unwrap_or") || tail.contains(".ok()") {
+                bad.push(format!("{name}: {}", tail.trim().replace('\n', " ")));
+            }
+        }
+
+        assert!(
+            checked >= 10,
+            "the scan found only {checked} migration decisions in Store::open, \
+             too few to conclude anything from"
+        );
+        assert!(
+            bad.is_empty(),
+            "these migration decisions swallow a query error and would read as \
+             already migrated: {bad:?}. Use `?` so a failing check stops the open."
+        );
+    }
+
     #[test]
     fn a_stale_iss_position_reads_as_empty() {
         let store = mem_store();

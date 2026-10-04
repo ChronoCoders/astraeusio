@@ -2967,6 +2967,121 @@ mod mcp_tests {
         );
     }
 
+    /// The manifest is parsed at startup and nowhere else, and this file ships
+    /// no `unwrap`.
+    ///
+    /// Both halves are source properties that the behavioural test below cannot
+    /// see. It drives the handler and checks the response, so reverting to a
+    /// per-request `from_str(...).unwrap()` still returns the right tools and
+    /// still passes; and it fills the OnceLock itself, so it cannot notice that
+    /// `main` stopped filling it. Two mutations proved exactly that, which is
+    /// why this test exists next to it rather than instead of it.
+    #[test]
+    fn the_manifest_is_parsed_once_at_startup_and_this_file_ships_no_unwrap() {
+        let src = include_str!("routes.rs");
+        let shipped = src
+            .split(
+                "
+#[cfg(test)]",
+            )
+            .next()
+            .unwrap_or(src);
+        // Comments stripped: the doc comments here quote the old `unwrap` call
+        // while explaining its removal, and a raw scan reads the explanation as
+        // the defect. That has now cost three scans in this repository.
+        let code: String = shipped
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+
+        assert!(
+            code.contains("MCP_TOOLS_PARSED"),
+            "the parsed manifest is gone, so the scan below proves nothing"
+        );
+        assert_eq!(
+            code.matches("from_str(MCP_TOOLS)").count(),
+            1,
+            "MCP_TOOLS should be parsed in exactly one shipped place, init_mcp_tools"
+        );
+        assert!(
+            !code.contains(".unwrap()"),
+            "shipped code in routes.rs calls .unwrap(), which the rule forbids              outside tests"
+        );
+
+        // And the startup fill is actually wired up. A OnceLock nobody fills is
+        // a dead route that looks careful.
+        let m = include_str!("main.rs");
+        let m_code: String = m
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        assert!(
+            m_code.contains("init_mcp_tools()"),
+            "main does not call init_mcp_tools, so the manifest is never parsed              and tools/list answers -32603 on a healthy process"
+        );
+    }
+
+    /// `tools/list` answers from the manifest parsed at startup.
+    ///
+    /// The handler used to parse `MCP_TOOLS` on every call and `unwrap` the
+    /// result. Nothing covered that path: `call_tool` above drives `tools/call`
+    /// only, so removing the parse entirely would not have failed a single test.
+    /// This drives the real handler so the OnceLock, the startup fill and the
+    /// response shape are all exercised together.
+    #[tokio::test]
+    async fn the_tools_list_route_answers_from_the_manifest_parsed_at_startup() {
+        init_mcp_tools().expect("the manifest is valid json");
+
+        let state = test_state();
+        let (parts, ()) = Request::builder().body(()).expect("request").into_parts();
+        let resp = mcp_handler(
+            State(state),
+            parts,
+            Json(McpRequest {
+                id: Some(serde_json::json!(1)),
+                method: "tools/list".to_string(),
+                params: None,
+            }),
+        )
+        .await;
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+
+        assert!(
+            v["error"].is_null(),
+            "tools/list returned an error: {v}. If the manifest is unavailable the \
+             startup fill did not run, which is the whole point of this test."
+        );
+
+        let mut got: Vec<String> = v["result"]["tools"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|t| t["name"].as_str().unwrap_or_default().to_string())
+            .collect();
+        let mut want: Vec<String> = advertised_tools().into_iter().map(|(n, _)| n).collect();
+        got.sort();
+        want.sort();
+        assert!(
+            !want.is_empty(),
+            "the manifest advertises nothing, so this comparison proves nothing"
+        );
+        assert_eq!(
+            got, want,
+            "tools/list served a different set than the manifest advertises"
+        );
+    }
+
     /// The tools the manifest calls unauthenticated stay unauthenticated.
     ///
     /// Taken from the manifest's own wording rather than from a list here. The
