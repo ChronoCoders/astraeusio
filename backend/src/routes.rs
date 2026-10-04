@@ -1570,6 +1570,34 @@ fn mcp_text(data: serde_json::Value) -> serde_json::Value {
     serde_json::json!({ "content": [{ "type": "text", "text": data.to_string() }] })
 }
 
+/// `MCP_TOOLS` parsed, filled once at startup by [`init_mcp_tools`].
+///
+/// The handler used to call `serde_json::from_str(MCP_TOOLS).unwrap()` on every
+/// `tools/list`. The input is a constant and three tests parse it, so it could
+/// not fail in practice, but the rule is no `unwrap` outside tests and a
+/// practical impossibility is not an exemption.
+///
+/// A `LazyLock` was the obvious replacement and is the wrong one: it parses on
+/// first access, so a malformed manifest would surface as a panicking request
+/// handler rather than a process that refuses to start. `OnceLock` filled from
+/// `main` puts the failure where a bad manifest belongs, before the listener
+/// binds.
+static MCP_TOOLS_PARSED: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+
+/// Parses the tool manifest and refuses to continue if it is malformed.
+///
+/// Called from `main` before the server binds. Returning an error here stops
+/// the process, which is the point: a manifest that does not parse means
+/// discovery is broken for every agent, and serving the other routes while
+/// `tools/list` is dead is worse than not starting.
+pub fn init_mcp_tools() -> Result<(), serde_json::Error> {
+    let parsed: serde_json::Value = serde_json::from_str(MCP_TOOLS)?;
+    // Already set means this ran twice, which is harmless and not worth an
+    // error: the value is identical because the input is a constant.
+    let _ = MCP_TOOLS_PARSED.set(parsed);
+    Ok(())
+}
+
 const MCP_TOOLS: &str = r#"{"tools":[
   {"name":"get_current_kp","description":"Get the current Kp index and recent readings from NOAA (no auth required).","inputSchema":{"type":"object","properties":{}}},
   {"name":"get_solar_wind","description":"Get the latest solar wind speed and density from NOAA's real-time solar wind spacecraft at L1 (no auth required).","inputSchema":{"type":"object","properties":{}}},
@@ -1602,10 +1630,13 @@ async fn mcp_handler(
             }),
         ),
 
-        "tools/list" => {
-            let tools: serde_json::Value = serde_json::from_str(MCP_TOOLS).unwrap();
-            McpResp::ok(id, tools)
-        }
+        "tools/list" => match MCP_TOOLS_PARSED.get() {
+            Some(tools) => McpResp::ok(id, tools.clone()),
+            // Unreachable after a successful start, because `init_mcp_tools`
+            // runs before the listener binds and fails the process otherwise.
+            // Answered rather than unwrapped so this file holds no `unwrap`.
+            None => McpResp::err(id, -32603, "tool manifest unavailable"),
+        },
 
         "tools/call" => {
             let name = req

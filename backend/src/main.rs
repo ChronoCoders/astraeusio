@@ -84,6 +84,11 @@ async fn main() -> Result<()> {
         .init();
 
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "astraeus.duckdb".to_string());
+    // Before anything else that can fail slowly. A malformed tool manifest is a
+    // programming error in a constant, so it should stop the process here rather
+    // than surface as a dead route after a successful looking start.
+    routes::init_mcp_tools()?;
+
     let write_db = db::Store::open(&db_path)?;
     let read_db = write_db.try_clone()?;
     let http_timeout = std::env::var("HTTP_TIMEOUT")

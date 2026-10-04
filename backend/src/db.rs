@@ -1298,7 +1298,11 @@ impl Store {
                 [],
                 |row| row.get(0),
             )
-            .unwrap_or(1);
+            // Was `.unwrap_or(1)`, which read a failing schema query as "the
+            // column is already there" and skipped the rekey. A migration check
+            // closes to the safe state when it cannot tell, and the safe state
+            // is to stop, not to assume the work is done. AUD-049.
+            ?;
         if needs_forecast_rekey == 0 {
             let before: i64 =
                 conn.query_row("SELECT COUNT(*) FROM kp_forecast", [], |row| row.get(0))?;
