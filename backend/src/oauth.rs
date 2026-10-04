@@ -23,9 +23,8 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode}
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::{auth, routes::AppState};
+use crate::{USER_AGENT, auth, routes::AppState};
 
-const USER_AGENT: &str = "astraeusio";
 /// Audience of the OAuth state token. It is minted for an anonymous caller by
 /// the start endpoint, so it must never validate as a session.
 const AUD_OAUTH_STATE: &str = "astraeus:oauth_state";

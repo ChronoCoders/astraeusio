@@ -55,6 +55,22 @@ mod webhook_guard;
 mod webhook_sender;
 mod webhooks;
 
+/// What every outbound request says we are.
+///
+/// reqwest sends no User-Agent unless one is set, so until 2026-10-04 every
+/// poller fetch reached NOAA, NASA, Celestrak, the Exoplanet Archive,
+/// wheretheiss.at and Launch Library 2 with no identification at all. For a
+/// free service run by one person that is the difference between being able to
+/// see who is responsible for the traffic and not. GitHub requires the header
+/// and OAuth has always set it per request, which is where this constant lived
+/// and why it already existed.
+///
+/// Deliberately not applied to Resend or webhook delivery: both build their
+/// own clients, the first because it is a vendor SDK path and the second
+/// because `webhook_guard` constrains it for safety reasons that have nothing
+/// to do with identification.
+pub const USER_AGENT: &str = "astraeusio";
+
 use anyhow::Result;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -76,6 +92,7 @@ async fn main() -> Result<()> {
         .unwrap_or(60u64);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(http_timeout))
+        .user_agent(USER_AGENT)
         .build()?;
     // Webhook delivery goes out on its own client: https only, no redirects,
     // and a resolver that refuses any answer containing a non-public address
