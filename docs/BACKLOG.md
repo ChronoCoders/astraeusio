@@ -687,9 +687,13 @@ repeated here.
   entry describes. If address case ever does need normalising, it is a new migration written with the
   six references in the same transaction, not a revival of this one.
 
-  Closed by the deletion plus the new-database-versus-migrated fixture under AUD-048, which is what
-  proves the deletion left a fresh install and a migrated one with the same shape. The fixture is the
-  reason these two are one change.
+  **Closed 2026-10-05.** Deleted, with the constant, and the reasoning left in place where the next
+  person will look for it: the six referencing tables by name, the production measurement, the four
+  call sites of `auth::normalise_email` that make a new mixed-case row impossible, and an explicit
+  instruction not to revive an `UPDATE users SET email = lower(email)` without the reference fold.
+
+  The schema comparison under AUD-048 is what proves the deletion left a fresh install and a migrated
+  one in the same shape, which is why the two were one change.
 
 - **AUD-046** A webhook whose `events` column fails to parse silently matches nothing and logs nothing.
   Two sites, not one: `db.rs:4477` in `list_active_webhooks_for_event` and `db.rs:4434` in
@@ -752,9 +756,41 @@ repeated here.
   requires scaled integers, so the file teaches the wrong thing to the next reader. And correctness
   depends on the migration running after the DDL on every path, which nothing asserts.
 
-  Closed by declaring the table in its current shape and making the migration a no-op on a fresh
-  database, with a test that opens a brand new file and asserts the column set matches what a migrated
-  database has. That test does not exist for any table, so it is worth more than this one fix.
+  **Closed 2026-10-05.** The DDL declares `threshold_scaled BIGINT`, nullable rather than NOT NULL so
+  a fresh database matches what the `ALTER` produces on an older one, and the `RULE_THRESHOLD` backfill
+  is guarded by `needs_threshold_backfill`, which counts the column in `duckdb_columns()` and skips the
+  select when it is absent. `a_new_database_and_a_migrated_one_agree_on_every_column` compares both
+  schemas in full, with a floor of 100 columns so an empty read cannot pass vacuously.
+
+  **The fix broke every new install for an hour, and the fixture caught it on its first run.**
+  Declaring the real shape removed `threshold`, while the backfill still ran
+  `SELECT id, metric, threshold ... WHERE threshold IS NOT NULL`. On a fresh database that cannot bind,
+  so `Store::open` failed with a DuckDB binder error before the listener bound. Half the decision had
+  been applied, the declaration, and not the other half, the no-op.
+
+  **The comparison alone was not enough, and that is the finding worth keeping.** Restoring
+  `threshold DOUBLE NOT NULL` to the DDL left the two schemas still agreeing, because a fresh database
+  then takes the same ALTER-then-DROP path a migrated one takes, and that mutation survived. A
+  consistency check between two artifacts cannot detect both being wrong in the same way. So
+  `the_ddl_declares_the_column_the_inserts_write` reads the `SCHEMA` constant directly and asserts the
+  declaration, with its own floor against a mis-bounded slice.
+
+  **Third instance of that shape in one day.** `the_server_card_advertises_what_the_endpoint_serves`
+  compared `MCP_TOOLS` against the published card as `(name, description)` pairs and held both
+  identically wrong at "3-hour" for as long as the model had been multi-horizon. The User-Agent
+  behavioural test could not see a reverted per-request `unwrap`, because the response was identical.
+  And this one. In each case the repair is the same: derive the expectation from the authority, or
+  assert the source, rather than comparing two copies of it.
+
+  Four mutations, all caught: the DDL regression by the source guard, the missing backfill guard and an
+  emptied schema read by the comparison, and a guard that defaults instead of propagating by the
+  AUD-049 rule.
+
+  One pre-existing defect surfaced by the deletion, recorded because nothing could have found it
+  otherwise: `TOKEN_VERSION_MIGRATION` was undocumented while the comment describing it sat above
+  `EMAIL_LOWERCASE_MIGRATION`, which had been inserted between a doc comment and its constant. A doc
+  comment on the wrong item is still a valid doc comment, so no lint saw it until its neighbour went
+  away.
 
 - **AUD-049** A migration check that fails open. `db.rs:1301`.
 
@@ -876,7 +912,27 @@ repeated here.
   alarm about a rebuild destroying rows is still expensive, because the next person reads it as real.
 
   Closed by `?` at all three, which is what `every_migration_decision_propagates_its_query_error`
-  already requires of the decision bindings and does not yet require of these. Widening that test to
+  already requires of the decision bindings and does not yet require of these.
+
+  **The hunt that found these was scoped to one file, and that is worth recording separately.** It
+  scanned `Store::open` in `db.rs` and never left that function. Across shipped code there are 84
+  `unwrap_or*` sites in 14 modules. Thirteen sit in a fallible-call position outside `db.rs` and none
+  was looked at: `main.rs` 86, 97, 135, 143, 168; `poller.rs` 62, 71, 112, 117, 668; `routes.rs` 774;
+  `mailer.rs` 18; `oauth.rs` 69.
+
+  Read afterwards, all thirteen are environment or configuration defaults, the ones the project's
+  local instruction file lists as optional with defaults in code, so no verdict changes. **The scope was wrong and the outcome was
+  right**, which is luck rather than method: the one genuinely fail-open site happened to be inside the
+  one function that was scanned. Had it been in `poller.rs`, nothing about the approach would have
+  found it or reported that it had not looked.
+
+  `routes.rs:906` was raised as a candidate and is not one. It defaults an absent `?page=` to 1 and
+  clamps to at least 1, so a failing parse makes the code believe the caller asked for page 1, which is
+  the documented behaviour and matches `parse_range` above it. User input failing to parse is the
+  expected case, not a swallowed error.
+
+  One inconsistency the sweep did turn up: `ML_TIMEOUT` is read with different defaults in two places,
+  10 at `poller.rs:668` and 5 at `routes.rs:774`. One variable, two meanings depending on the path. Widening that test to
   every `query_row` in `Store::open` is the obvious move and needs one judgement first: whether any
   count in that function is legitimately optional, because the test would then need an exemption list
   and an exemption list is the thing that rots.
