@@ -955,6 +955,25 @@ repeated here.
   request. `an_empty_origin_list_refuses_every_cross_origin_credential_request` asserts it rather
   than leaving it as a claim.
 
+  **Decided 2026-10-05: production ships with no configured origins.** `ALLOWED_ORIGINS` is set
+  nowhere, in `backend/.env` or in `docker-compose.yml`, and that is the decision rather than an
+  omission. Nothing makes a cross-origin credential request today, so a configured list would be work
+  for a case that does not exist. The first consumer that actually needs one is what makes the list
+  worth writing.
+
+  To enable it later, either of two places, not both:
+
+  - `docker-compose.yml`, the `backend` service's `environment` block, beside the `DB_PATH`,
+    `ML_SERVICE_URL` and `BIND_ADDR` overrides already there. Tracked, so it deploys with the repo and
+    is visible in review
+  - `/opt/astraeusio/backend/.env` on the server, which that service loads through `env_file`.
+    Untracked, so it stays out of the repository and has to be set again on a fresh host
+
+  The value is comma separated and each entry carries its scheme, for example
+  `https://astraeusio.com,https://www.astraeusio.com`. A bare host is dropped with an `error!`, and a
+  `*` is refused, so a wrong value narrows access rather than widening it. Startup logs the count when
+  the list parses and warns when it is empty, which is how to tell the two apart in the container logs.
+
   **A consequence accepted, not overlooked.** A CORS layer attaches per path and not per method, so
   `GET /api/keys` and `GET /api/webhooks` ride into the strict layer with their POSTs. A third party
   cannot list their own keys or webhooks cross-origin from a browser. A deliberate loss.
