@@ -4376,6 +4376,44 @@ pub struct WebhookRow {
     pub secret: String,
     pub events: Vec<String>,
     pub created_at: i64,
+    /// The stored `events` column did not parse, so this row matches no event
+    /// and delivers nothing.
+    ///
+    /// Carried rather than inferred from an empty `events`, because an empty
+    /// filter and an unreadable one are different states and only one of them
+    /// is a fault. The owner's dashboard reads this so the silence is visible
+    /// to the person who can fix it. AUD-046.
+    pub events_malformed: bool,
+}
+
+/// Parses a stored `events` filter, reporting rather than swallowing a failure.
+///
+/// `serde_json::from_str(..).unwrap_or_default()` returned an empty list, which
+/// matches no event type, so a customer's webhook stopped firing with nothing
+/// logged anywhere and the dashboard rendering an empty filter in agreement.
+/// That was the clearest case in this codebase of a default standing in for an
+/// error. AUD-046.
+///
+/// Fails closed: an unreadable filter still delivers nothing, because delivering
+/// everything would push data to a customer who never asked for it. What changed
+/// is that it is no longer quiet.
+fn parse_event_filter(webhook_id: &str, owner: &str, raw: &str) -> (Vec<String>, bool) {
+    match serde_json::from_str::<Vec<String>>(raw) {
+        Ok(events) => (events, false),
+        Err(e) => {
+            error!(
+                webhook = webhook_id,
+                owner,
+                // Truncated: it is the owner's own filter rather than a secret,
+                // but an unbounded value from the database does not belong in a
+                // log line.
+                raw = raw.chars().take(120).collect::<String>().as_str(),
+                "webhook event filter will not parse ({e}); this webhook matches \
+                 no event and delivers nothing until it is corrected"
+            );
+            (Vec::new(), true)
+        }
+    }
 }
 
 impl Store {
@@ -4457,13 +4495,14 @@ impl Store {
         Ok(rows
             .into_iter()
             .map(|(id, url, secret, events_json, created_at)| {
-                let events = serde_json::from_str(&events_json).unwrap_or_default();
+                let (events, events_malformed) = parse_event_filter(&id, user_email, &events_json);
                 WebhookRow {
                     id,
                     url,
                     secret,
                     events,
                     created_at,
+                    events_malformed,
                 }
             })
             .collect())
@@ -4483,7 +4522,7 @@ impl Store {
         event_type: &str,
     ) -> Result<Vec<WebhookRow>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, url, secret, events, created_at
+            "SELECT id, url, secret, events, created_at, user_email
              FROM webhooks WHERE active = true",
         )?;
         let rows = stmt
@@ -4494,13 +4533,17 @@ impl Store {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, i64>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows
             .into_iter()
-            .filter_map(|(id, url, secret, events_json, created_at)| {
-                let events: Vec<String> = serde_json::from_str(&events_json).unwrap_or_default();
+            .filter_map(|(id, url, secret, events_json, created_at, owner)| {
+                let (events, events_malformed) = parse_event_filter(&id, &owner, &events_json);
+                // Fails closed. A row whose filter will not parse matches no
+                // event, so it is dropped here exactly as before; the difference
+                // is that `parse_event_filter` has already reported it.
                 if events.iter().any(|e| e == event_type) {
                     Some(WebhookRow {
                         id,
@@ -4508,6 +4551,7 @@ impl Store {
                         secret,
                         events,
                         created_at,
+                        events_malformed,
                     })
                 } else {
                     None

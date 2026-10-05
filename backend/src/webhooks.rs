@@ -122,6 +122,11 @@ pub async fn list_webhooks(State(s): State<AppState>, claims: AuthClaims) -> Res
                         "url":        h.url,
                         "events":     h.events,
                         "created_at": h.created_at,
+                        // The owner is the only person who can fix a filter
+                        // that will not parse, and this is the one place they
+                        // look. Without it the row renders an empty event list
+                        // and agrees with the silence. AUD-046.
+                        "events_malformed": h.events_malformed,
                     })
                 })
                 .collect();

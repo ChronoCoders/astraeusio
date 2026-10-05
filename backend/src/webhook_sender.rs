@@ -189,6 +189,7 @@ mod tests {
             secret: "s3cret".to_owned(),
             events: vec!["kp_storm".to_owned()],
             created_at: 0,
+            events_malformed: false,
         }
     }
 
