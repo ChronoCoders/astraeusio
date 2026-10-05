@@ -208,3 +208,136 @@ fn every_declared_finding_still_has_a_bullet() {
         "docs/BACKLOG.md has findings that are not declared: {extra:?}.          Add them to FINDINGS so the next accidental deletion fails here."
     );
 }
+
+/// Findings that are fully closed, and the date their marker carries.
+///
+/// One accepted form, and the identifier is inside the marker:
+///
+/// ```text
+/// **AUD-NNN closed YYYY-MM-DD**
+/// ```
+///
+/// The identifier is in the marker because a marker without one cannot be
+/// attributed by machine. `AUD-012`'s closure sits seventy three lines below its
+/// own bullet with other top level list items in between, so slicing a bullet and
+/// reading the closure inside it does not work. Four spellings were in use until
+/// 2026-10-05 and counting them by eye was wrong three times in one session: a
+/// pattern that matched only the compact spelling saw three of seven, reading the
+/// first `Closed` line in a bullet read a plan sentence as a closure, and a
+/// `No ID` bullet's closure was attributed to the finding above it.
+///
+/// A partial closure must not use this form. `AUD-027` shipped one half and kept
+/// the other open, and it says that in words instead.
+const CLOSED: [(&str, &str); 9] = [
+    // Closed the other way: the claim came off rather than the delay going in.
+    ("AUD-012", "2026-09-22"),
+    ("AUD-036", "2026-10-04"),
+    // The 2026-09-23 audit, closed 2026-10-04 and 2026-10-05.
+    ("AUD-045", "2026-10-05"),
+    ("AUD-046", "2026-10-05"),
+    // Both were fixed in code on 2026-10-04 and left unmarked here for a day,
+    // which is how a tally of this file came out two short.
+    ("AUD-047", "2026-10-04"),
+    ("AUD-048", "2026-10-05"),
+    ("AUD-049", "2026-10-04"),
+    ("AUD-050", "2026-10-05"),
+    ("AUD-051", "2026-10-05"),
+];
+
+/// Every closure marker in the file, as (identifier, date).
+///
+/// Parsed by hand rather than with a pattern crate, because this directory has no
+/// dependencies and should not gain one for nine lines of string work.
+fn closure_markers() -> Vec<(&'static str, &'static str)> {
+    const OPEN: &str = "**AUD-";
+    const MID: &str = " closed ";
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(hit) = BACKLOG[from..].find(OPEN) {
+        let at = from + hit + 2;
+        from = at + 4;
+        let tail = &BACKLOG[at..];
+        if tail.len() < 27 {
+            continue;
+        }
+        let (id, rest) = tail.split_at(7);
+        if !id.starts_with("AUD-") || !id[4..].bytes().all(|b| b.is_ascii_digit()) {
+            continue;
+        }
+        let Some(rest) = rest.strip_prefix(MID) else {
+            continue;
+        };
+        if rest.len() < 12 {
+            continue;
+        }
+        let (date, close) = rest.split_at(10);
+        let shaped = date.len() == 10
+            && date.as_bytes()[4] == b'-'
+            && date.as_bytes()[7] == b'-'
+            && date
+                .bytes()
+                .enumerate()
+                .all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit());
+        if shaped && close.starts_with("**") {
+            out.push((id, date));
+        }
+    }
+    out
+}
+
+/// A closure is declared here and written in the one form, in both directions.
+///
+/// Without this the file carried four spellings and the only way to count what
+/// was closed was to read it, which produced three different wrong answers in a
+/// day. The declaration also keeps a closed finding from quietly losing its
+/// bullet, since every identifier here must still be declared in `FINDINGS`.
+#[test]
+fn every_closure_is_declared_and_written_in_the_one_form() {
+    let found = closure_markers();
+
+    // A floor. If the parser above stops matching, `found` goes empty and the
+    // comparisons below would all pass for a file with no closures at all.
+    assert!(
+        found.len() >= 5,
+        "found {} closure markers, which is too few for this file to be right: \
+         the parser is broken rather than the backlog",
+        found.len()
+    );
+
+    let missing: Vec<&(&str, &str)> = CLOSED.iter().filter(|pair| !found.contains(pair)).collect();
+    assert!(
+        missing.is_empty(),
+        "declared closed but not marked that way in docs/BACKLOG.md: {missing:?}. \
+         The form is `**AUD-NNN closed YYYY-MM-DD**`, identifier included, and the \
+         date here must match the one in the file."
+    );
+
+    let extra: Vec<&(&str, &str)> = found.iter().filter(|pair| !CLOSED.contains(pair)).collect();
+    assert!(
+        extra.is_empty(),
+        "marked closed in docs/BACKLOG.md but not declared here: {extra:?}. \
+         Add it to CLOSED in the same commit so the diff shows both halves."
+    );
+
+    let mut seen = found.clone();
+    seen.sort_unstable();
+    let before = seen.len();
+    seen.dedup();
+    assert_eq!(
+        before,
+        seen.len(),
+        "a closure marker appears more than once, so one finding would answer for \
+         two: {found:?}"
+    );
+
+    let undeclared: Vec<&&str> = CLOSED
+        .iter()
+        .map(|(id, _)| id)
+        .filter(|id| !FINDINGS.contains(&**id))
+        .collect();
+    assert!(
+        undeclared.is_empty(),
+        "closed findings missing from FINDINGS: {undeclared:?}. A closed finding \
+         still has a bullet, so it stays declared."
+    );
+}

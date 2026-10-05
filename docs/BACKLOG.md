@@ -106,7 +106,7 @@ or in the commit that created the deferral.
   This is a product decision before it is code. Implementing it means serving two versions of the
   same series, which is why it is recorded rather than done.
 
-  **Closed the other way on 2026-09-22, in `98282e0`.** The claim came off rather than the delay
+  **AUD-012 closed 2026-09-22**, the other way, in `98282e0`. The claim came off rather than the delay
   going in: `delay60` is gone from `lib/plans.js`, the delay and real-time rows are gone from the
   comparison table, and the eight keys behind them are gone from both locales. The product applies
   no delay and no longer says it does. Serving two versions of the same series remains an option
@@ -414,7 +414,7 @@ repeated here.
   immediately after the 204. Signing a user out is right for a password change and wrong for the
   one action we most want people to complete.
 
-  **Closed.** The update now reads
+  **Closed 2026-09-04**, in `431e561`. The update now reads
   `UPDATE users SET email_verified = TRUE WHERE email = ? AND email_verified IS NOT TRUE` and
   returns whether a row changed, through the writer to the handler. A first use answers 204 and
   sends one welcome mail; a replay answers 409 and sends nothing, the same status and wording
@@ -687,7 +687,7 @@ repeated here.
   entry describes. If address case ever does need normalising, it is a new migration written with the
   six references in the same transaction, not a revival of this one.
 
-  **Closed 2026-10-05.** Deleted, with the constant, and the reasoning left in place where the next
+  **AUD-045 closed 2026-10-05**. Deleted, with the constant, and the reasoning left in place where the next
   person will look for it: the six referencing tables by name, the production measurement, the four
   call sites of `auth::normalise_email` that make a new mixed-case row impossible, and an explicit
   instruction not to revive an `UPDATE users SET email = lower(email)` without the reference fold.
@@ -728,7 +728,7 @@ repeated here.
 
   Fail-closed delivery, loudly.
 
-  **Closed 2026-10-05**, commits `afe5b3e` for the fix and `beb4351` for the guard, split because
+  **AUD-046 closed 2026-10-05**, commits `afe5b3e` for the fix and `beb4351` for the guard, split because
   stopping recurrence is separate work from the fix.
 
   `parse_event_filter` replaces both `unwrap_or_default` calls and is the only place the column is
@@ -784,6 +784,13 @@ repeated here.
   fail in practice. The rule is no `unwrap` outside tests, with no practical-impossibility exemption,
   and `routes.rs:2669` already uses `.expect("MCP_TOOLS is json")` for the same parse in a test.
 
+  **AUD-047 closed 2026-10-04**, commit `8051082` for the fix and `f0c22e5` for the guard. Marked on
+  2026-10-05 after verifying it in the code rather than in this entry: `MCP_TOOLS_PARSED` is a
+  `OnceLock` filled by `init_mcp_tools()` before the database opens, the handler answers `-32603` when
+  it is empty, and the only `from_str(MCP_TOOLS)` outside that function is in a test. The entry carried
+  its plan wording alone while the work was already done, which is the state this file exists to
+  prevent.
+
   Closed by parsing once into a `LazyLock<serde_json::Value>` so the cost and the failure both move to
   startup, or by returning a 500 through the existing `AppError`. The first is better: a manifest that
   does not parse should stop the process, not serve one broken route.
@@ -801,7 +808,7 @@ repeated here.
   requires scaled integers, so the file teaches the wrong thing to the next reader. And correctness
   depends on the migration running after the DDL on every path, which nothing asserts.
 
-  **Closed 2026-10-05.** The DDL declares `threshold_scaled BIGINT`, nullable rather than NOT NULL so
+  **AUD-048 closed 2026-10-05**. The DDL declares `threshold_scaled BIGINT`, nullable rather than NOT NULL so
   a fresh database matches what the `ALTER` produces on an older one, and the `RULE_THRESHOLD` backfill
   is guarded by `needs_threshold_backfill`, which counts the column in `duckdb_columns()` and skips the
   select when it is absent. `a_new_database_and_a_migrated_one_agree_on_every_column` compares both
@@ -856,6 +863,11 @@ repeated here.
   query there changes nothing today. The exposure is a restore from a backup predating the rekey: the
   query fails, the rekey is skipped, and the service runs on the old key shape with no complaint.
 
+  **AUD-049 closed 2026-10-04**, commit `8051082`, guarded by `f0c22e5`. Marked on 2026-10-05 after
+  verifying it in the code: `db.rs` carries no `unwrap_or(1)` outside the comments that quote the old
+  line, and `every_migration_decision_propagates_its_query_error` is the rule test over the decision
+  bindings.
+
   Closed by propagating the error with `?` so a failing check stops startup. One line, and the test is
   a fixture whose schema query errors, asserting the open fails rather than proceeding.
 
@@ -901,7 +913,7 @@ repeated here.
   `allow_credentials(true)` from turning into a vulnerability with no other edit. Closing it means the
   split, the enumerated list recorded, and the preflight test.
 
-  **Closed 2026-10-05**, commits `89a66a9` for the split and `316e6d1` for the guard.
+  **AUD-050 closed 2026-10-05**, commits `89a66a9` for the split and `316e6d1` for the guard.
 
   **The rule that shipped is narrower than the one written above, and the reasoning is the part worth
   keeping.** Two axes were measured over all 56 routes.
@@ -1051,7 +1063,7 @@ repeated here.
   renders a diameter range. The rest are code comments, docstrings, and one em dash in an HTML comment
   inside `astraeusio-logo.svg`.
 
-  **Closed 2026-10-05**, commit `1b0ae08`. The sweep rides inside the commit that adds the step rather
+  **AUD-051 closed 2026-10-05**, commit `1b0ae08`. The sweep rides inside the commit that adds the step rather
   than taking a subject of its own, because a commit subject describing a dash cleanup is not one this
   project makes.
 
@@ -1346,7 +1358,7 @@ repeated here.
   counted with no operational samples: `recorded_days` went to 3 against an expected 2 and
   `uptime_pct` to 5.26 against an expected 100.
 
-  **Closed 2026-10-04.** The computation moved out of the handler into `uptime_report(now, interval,
+  **AUD-036 closed 2026-10-04**. The computation moved out of the handler into `uptime_report(now, interval,
   rows, first_seen)`, with the handler passing `chrono::Utc::now().timestamp()`. The arithmetic is
   unchanged: 90 lines before and after, identical once indentation is ignored, and all 236 tests
   passed without modification. `the_uptime_day_boundary_holds_at_both_ends_of_a_fabricated_day` now
@@ -1437,7 +1449,7 @@ repeated here.
   the backend can still start before ml has loaded its checkpoint despite ml having a healthcheck
   to wait on.
 - **AUD-027** `Referrer-Policy` was named in the fix and never added, and was still absent from
-  the live response on 2026-09-04. **Closed**: it now ships as
+  the live response on 2026-09-04. **The header half is done**: it now ships as
   `strict-origin-when-cross-origin` in `security-headers.conf`, so the token in a verification or
   reset link cannot cross an origin boundary. What remains open under this ID is the report-only
   CSP above, which is a separate deferral.
@@ -1584,6 +1596,23 @@ next to the next instance of it.
   unreachable, because a blank page is the worst answer at the moment somebody is looking at it.
 
 ## Process
+
+- No ID. **A closure is written one way, and declared.** The form is
+  `**AUD-NNN closed YYYY-MM-DD**`, with the identifier inside the marker, and the same identifier and
+  date are declared in `CLOSED` in `backend/tests/backlog_structure.rs`. The test compares the two in
+  both directions, so a closure that is marked and not declared fails, and so does one declared and
+  not marked.
+
+  The identifier is inside the marker because a marker without one cannot be attributed by machine.
+  `AUD-012`'s closure sits seventy three lines below its own bullet with other top level list items in
+  between, so slicing a bullet and reading the closure inside it does not work. Four spellings were in
+  use until 2026-10-05 and counting them by eye gave three different wrong answers in one day: a
+  pattern that matched only the compact spelling saw three of seven, reading the first `Closed` line in
+  a bullet read a plan sentence as a closure, and a `No ID` bullet's closure was credited to the
+  finding above it.
+
+  A partial closure does not use the form. `AUD-027` shipped one half and says so in words, because a
+  word meaning finished should not sit on something that is not.
 
 - No ID. **Every security fix is public before it is live.** `deploy.sh` deploys what it finds at
   `origin/main`: it runs `git fetch origin`, selects services from `git diff HEAD..origin/main`,
