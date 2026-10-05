@@ -6136,6 +6136,122 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A webhook whose stored event filter will not parse is reported, and the
+    /// two paths treat it differently on purpose.
+    ///
+    /// `serde_json::from_str(..).unwrap_or_default()` turned a corrupt filter
+    /// into an empty one at both sites. An empty filter matches no event, so a
+    /// customer's webhook stopped firing with nothing logged, and their own
+    /// dashboard rendered an empty event list in agreement. AUD-046.
+    ///
+    /// Delivery stays closed: the row is dropped and nothing is sent, because
+    /// delivering everything would push data to a customer who never asked for
+    /// it. The dashboard does the opposite and still returns the row, flagged,
+    /// since hiding it from the only person who can fix it is the original
+    /// defect wearing a different hat.
+    #[test]
+    fn an_unparseable_event_filter_is_reported_rather_than_silently_empty() {
+        let store = mem_store();
+        let now_ts = now();
+
+        // Three rows: one sound, one whose filter is not JSON at all, and one
+        // whose filter is JSON of the wrong shape. The last matters because
+        // `from_str::<Vec<String>>` fails on it while a laxer parse would not.
+        store
+            .conn
+            .execute_batch(&format!(
+                "INSERT INTO webhooks (id, user_email, url, secret, events, active, created_at)
+                 VALUES
+                   ('good', 'owner@example.com', 'https://example.com/a', 's1',
+                    '[\"kp_storm\"]', true, {now_ts}),
+                   ('notjson', 'owner@example.com', 'https://example.com/b', 's2',
+                    'not json at all', true, {now_ts}),
+                   ('wrongshape', 'owner@example.com', 'https://example.com/c', 's3',
+                    '{{\"events\":[\"kp_storm\"]}}', true, {now_ts});"
+            ))
+            .expect("seed three webhooks");
+
+        // A floor. If the seed did not land, every assertion below passes for
+        // the wrong reason.
+        let seeded: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM webhooks", [], |r| r.get(0))
+            .expect("count");
+        assert_eq!(
+            seeded, 3,
+            "the seed did not land, so this test proves nothing"
+        );
+
+        // Delivery: only the sound row is offered, and the two bad ones are
+        // dropped rather than delivered to.
+        let for_event = store
+            .list_active_webhooks_for_event("kp_storm")
+            .expect("list for event");
+        let ids: Vec<&str> = for_event.iter().map(|h| h.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["good"],
+            "delivery must stay closed: only the row with a readable filter \
+             matching the event should be offered, got {ids:?}"
+        );
+
+        // The dashboard: all three come back, and the two bad ones are flagged
+        // so the owner can see why nothing fires.
+        let listed = store
+            .list_webhooks("owner@example.com")
+            .expect("list for owner");
+        assert_eq!(
+            listed.len(),
+            3,
+            "the owner must still see every webhook they own, including the \
+             broken ones, or the silence stays invisible to them"
+        );
+        let flagged: Vec<&str> = listed
+            .iter()
+            .filter(|h| h.events_malformed)
+            .map(|h| h.id.as_str())
+            .collect();
+        let mut flagged_sorted = flagged.clone();
+        flagged_sorted.sort_unstable();
+        assert_eq!(
+            flagged_sorted,
+            vec!["notjson", "wrongshape"],
+            "both unreadable filters should be flagged to the owner, got {flagged:?}"
+        );
+        let sound: Vec<&str> = listed
+            .iter()
+            .filter(|h| !h.events_malformed)
+            .map(|h| h.id.as_str())
+            .collect();
+        assert_eq!(
+            sound,
+            vec!["good"],
+            "a readable filter must not be flagged, got {sound:?}"
+        );
+
+        // And an empty filter is not the same state as an unreadable one. This
+        // is why the flag is carried rather than inferred from `events` being
+        // empty: a customer who subscribed to nothing is not a fault.
+        store
+            .conn
+            .execute_batch(&format!(
+                "INSERT INTO webhooks (id, user_email, url, secret, events, active, created_at)
+                 VALUES ('empty', 'owner@example.com', 'https://example.com/d', 's4',
+                         '[]', true, {now_ts});"
+            ))
+            .expect("seed an empty filter");
+        let listed = store.list_webhooks("owner@example.com").expect("relist");
+        let empty = listed
+            .iter()
+            .find(|h| h.id == "empty")
+            .expect("the empty-filter row");
+        assert!(
+            empty.events.is_empty() && !empty.events_malformed,
+            "an empty filter is a deliberate subscription to nothing, not a \
+             parse failure, and must not be flagged"
+        );
+    }
+
     #[test]
     fn a_stale_iss_position_reads_as_empty() {
         let store = mem_store();
