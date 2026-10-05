@@ -3235,3 +3235,185 @@ mod mcp_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod cors_tests {
+    use super::*;
+    use crate::db::Store;
+
+    /// Serves the real router on a loopback port and returns its base URL.
+    ///
+    /// The router is the one `main` builds, not a stand-in. A test router would
+    /// only prove the test agrees with itself, and the point of the third leg
+    /// below is that a route nobody touched is still on the permissive layer.
+    async fn serve(allowed_origins: Vec<HeaderValue>) -> (String, reqwest::Client) {
+        let client = reqwest::Client::new();
+        let state = AppState::new(
+            client.clone(),
+            Store::open(":memory:").expect("in-memory store"),
+            crate::db_writer::spawn(
+                Store::open(":memory:").expect("in-memory store for the writer"),
+                client.clone(),
+            ),
+            String::new(),
+            "test secret".to_string(),
+            None,
+            String::new(),
+            crate::oauth::OAuthConfig {
+                github: None,
+                google: None,
+                redirect_base: String::new(),
+            },
+        );
+        let app = router(state, &allowed_origins);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind a loopback port");
+        let addr = listener.local_addr().expect("the bound address");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve the router");
+        });
+        (format!("http://{addr}"), client)
+    }
+
+    /// Sends a CORS preflight and returns the `access-control-allow-origin` the
+    /// server answered with, or `None` when it sent none.
+    async fn preflight(
+        client: &reqwest::Client,
+        base: &str,
+        path: &str,
+        origin: &str,
+        method: &str,
+    ) -> Option<String> {
+        let res = client
+            .request(reqwest::Method::OPTIONS, format!("{base}{path}"))
+            .header("Origin", origin)
+            .header("Access-Control-Request-Method", method)
+            .send()
+            .await
+            .expect("the preflight reached the server");
+        res.headers()
+            .get("access-control-allow-origin")
+            .map(|v| v.to_str().expect("a printable header").to_string())
+    }
+
+    const APP: &str = "https://astraeusio.com";
+    const EVIL: &str = "https://evil.example";
+
+    /// The split refuses a foreign origin on a credential route and leaves the
+    /// API product alone.
+    ///
+    /// Three legs. The third carries the weight: a wildcard still answering
+    /// `/api/kp` is what distinguishes a split from a blanket tightening, which
+    /// would have broken every third party calling the API from a browser.
+    /// AUD-050.
+    #[tokio::test]
+    async fn the_cors_split_refuses_a_foreign_origin_only_where_a_credential_crosses() {
+        let (base, client) = serve(vec![HeaderValue::from_static(APP)]).await;
+
+        // Leg 1: a page on another origin cannot read a login response.
+        assert_eq!(
+            preflight(&client, &base, "/auth/login", EVIL, "POST").await,
+            None,
+            "a foreign origin must get no allow-origin on a credential route, or a page              anywhere can drive sign in from a visitor's browser and read the token"
+        );
+
+        // Leg 2: the configured origin still can, so the split is not a ban.
+        assert_eq!(
+            preflight(&client, &base, "/auth/login", APP, "POST").await,
+            Some(APP.to_string()),
+            "the configured origin must be allowed, or the strict layer is simply broken              and leg 1 would pass for the wrong reason"
+        );
+
+        // Leg 3: the API product is untouched, from the same foreign origin that
+        // was refused in leg 1.
+        assert_eq!(
+            preflight(&client, &base, "/api/kp", EVIL, "GET").await,
+            Some("*".to_string()),
+            "a data route must keep the wildcard: third parties call the API from browsers              with their own key, so tightening these would break the product rather than              protect it"
+        );
+
+        // An unmatched path keeps the wildcard it carried before the split.
+        // The single layer used to cover the fallback, so a mistyped path
+        // answered 404; outside both layers it answers a CORS error instead,
+        // which is why the fallback is attached inside the permissive layer.
+        assert_eq!(
+            preflight(&client, &base, "/api/does-not-exist", EVIL, "GET").await,
+            Some("*".to_string()),
+            "an unmatched path must stay inside the permissive layer, or splitting the \
+             layer turns every third party's typo into a CORS error"
+        );
+
+        // A floor on the three. If the server answered nothing at all, leg 1
+        // would pass for the wrong reason, so prove this port serves the router.
+        let health = client
+            .get(format!("{base}/health"))
+            .send()
+            .await
+            .expect("the health route answered");
+        assert!(
+            health.status().is_success(),
+            "the test is talking to the router, not to a closed port: {}",
+            health.status()
+        );
+    }
+
+    /// An empty origin list closes rather than opens.
+    ///
+    /// `ALLOWED_ORIGINS` unset must not resolve to a permissive layer. The
+    /// dashboard is served same-origin through nginx, so refusing every
+    /// cross-origin credential request is the safe state and costs the
+    /// application nothing. AUD-050.
+    #[tokio::test]
+    async fn an_empty_origin_list_refuses_every_cross_origin_credential_request() {
+        let (base, client) = serve(Vec::new()).await;
+
+        for origin in [APP, EVIL] {
+            assert_eq!(
+                preflight(&client, &base, "/auth/login", origin, "POST").await,
+                None,
+                "with no configured origin, {origin} must be refused too; an unset list                  falling back to permissive is the failure this guards"
+            );
+        }
+
+        // And the permissive layer is unaffected by the strict layer being
+        // empty, which is what makes the empty case safe to ship.
+        assert_eq!(
+            preflight(&client, &base, "/api/kp", EVIL, "GET").await,
+            Some("*".to_string()),
+            "an empty credential allow-list must not change the API product"
+        );
+    }
+
+    /// What `ALLOWED_ORIGINS` accepts, and what it refuses to pass on.
+    ///
+    /// A `*` is dropped rather than forwarded, because `AllowOrigin::list`
+    /// panics on it and a caller who wrote it meant the opposite of what the
+    /// strict layer is for.
+    #[test]
+    fn the_origin_list_drops_what_cannot_be_an_origin() {
+        assert_eq!(
+            parse_allowed_origins("https://astraeusio.com, https://www.astraeusio.com"),
+            vec![
+                HeaderValue::from_static("https://astraeusio.com"),
+                HeaderValue::from_static("https://www.astraeusio.com"),
+            ],
+            "a comma separated pair with spaces is the documented production value"
+        );
+        assert!(parse_allowed_origins("").is_empty());
+        assert!(parse_allowed_origins("   ,  ,").is_empty());
+        assert!(
+            parse_allowed_origins("*").is_empty(),
+            "a wildcard must never reach AllowOrigin::list, which panics on it"
+        );
+        assert!(
+            parse_allowed_origins("astraeusio.com").is_empty(),
+            "a bare host can never match a browser Origin header"
+        );
+        assert_eq!(
+            parse_allowed_origins("*, https://astraeusio.com, astraeusio.com").len(),
+            1,
+            "a bad entry is dropped without taking the good ones with it"
+        );
+    }
+}
