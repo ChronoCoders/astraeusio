@@ -1105,6 +1105,86 @@ repeated here.
   repository does not ship, so the rule is enforced in the gate and nowhere else. Recorded rather than
   widened into this change.
 
+- **AUD-054** Five checks in one session compared two artifacts and could not see both being wrong
+  the same way. The fifth hid a live defect rather than merely failing to find one.
+
+  Recorded 2026-10-05 as a method finding. The individual repairs are already closed under their own
+  identifiers; what is new here is the shape and its frequency, because a defect found is a pattern to
+  hunt and this one recurred five times in a day.
+
+  **The shape.** A check asserts that two things agree. Agreement is necessary and not sufficient: if
+  both derive from the same mistake, or one was written by copying the other, the check passes while
+  the property it stands for is false. The repair in every instance is the same, which is why it is
+  worth writing once: derive the expectation from the authority, or assert the source directly, rather
+  than comparing two copies of it.
+
+  | # | the check | what it could not see | repair |
+  |---|---|---|---|
+  | 1 | `the_server_card_advertises_what_the_endpoint_serves` compared `MCP_TOOLS` against the published card as `(name, description)` pairs | both said "3-hour" for as long as the model had been multi-horizon | the expected phrase is rendered from `FORECAST_HORIZONS` |
+  | 2 | a behavioural test that the shared HTTP client sends a User-Agent | a reverted per-request header, because the response was identical either way | assert the client construction, not only the response |
+  | 3 | `a_new_database_and_a_migrated_one_agree_on_every_column` | a fresh database taking the same ALTER-then-DROP path as a migrated one, so both agreed while the DDL was wrong | `the_ddl_declares_the_column_the_inserts_write` reads the `SCHEMA` constant |
+  | 4 | the AUD-046 mutation round, where disabling the wildcard branch of `parse_allowed_origins` changed nothing | two guards masking each other, since a wildcard has no scheme and the scheme check drops it alone | the mutation removes both, since that is what the property rests on |
+  | 5 | `dashes.sh --self-test`, which planted a character and found it | the planted string and the search pattern were the same wrong six ASCII bytes | patterns tied to each code point's UTF-8 encoding, asserted against it |
+
+  **The fifth is the one that cost something, and the measurement is the record.** The detector
+  assembled each pattern as a backslash-u escape around a variable. Measured in this bash, inside a
+  file so no shell layer could rewrite it:
+
+  | form | bytes produced |
+  |---|---|
+  | the escape written as a literal | `e28093`, the character |
+  | the format taken whole from a variable | `e28093`, the character |
+  | the escape assembled around a variable | `5c7532303133`, the six ASCII bytes of the escape |
+  | hex escapes through `printf %b`, as shipped | `e28093`, the character |
+
+  So the gate step searched for a string no tracked file contains and reported a clean tree while 58
+  dash-like characters sat in it. The self test passed beside it because it planted the identical
+  `5c7532303133`. Both halves were wrong together and agreed, which is the whole shape in one file.
+
+  An earlier draft of this record claimed the cause was that this bash does not expand a
+  backslash-u escape. The table above is why that was corrected: two of the four forms expand
+  correctly, and the one that fails is specifically the assembled one. A cause recorded from
+  recollection rather than from measurement would have sent the next reader looking for the wrong
+  thing.
+
+  **What the five have in common beyond the shape.** Four were caught by mutation testing and one by
+  an independent count. None was caught by the check itself, which is the argument for a positive
+  control on every check rather than on the ones that feel risky: a check that has only ever been seen
+  to pass is indistinguishable from one that cannot fail.
+
+- **AUD-055** The git hooks enforce one rule, not the five the standing notes list. Found 2026-10-05
+  while closing AUD-051, by reading the three hook files rather than the notes.
+
+  `core.hooksPath` points outside the repository, so the hooks are not tracked here and a clone does
+  not get them. Each hook runs the naming rule and then calls `naming_delegate`, which looks for
+  `scripts/hooks/<hook>`, `.githooks/<hook>` and `hooks/<hook>`. This repository ships none of those,
+  so the delegation is a no-op and the naming rule is the whole of it.
+
+  | hook | what the notes claim | what it does |
+  |---|---|---|
+  | `pre-commit` | dashes, staging of the instruction files, formatter, banned names | the naming rule over staged paths, staged added lines and the git identity. The instruction files are covered, but only because their path carries the banned name. No dash check. No formatter. |
+  | `commit-msg` | one line, conventional prefix, no dash, no trailers, no cleanup-only subjects | the naming rule over the message, plus a trailer check. One line, the prefix, the dash rule and the cleanup-only subject rule are not checked at all. |
+  | `pre-push` | the naming rule across tracked content, the messages being pushed, and tag annotations | accurate. It also covers author and committer identity, changed paths and added content. |
+
+  **So four commit-message rules this project follows are enforced by nothing.** One line, the
+  conventional prefix, no dash in a subject, and no cleanup-only subject are habits, not gates. The
+  standing notes say a rule that lives only in a document is one that can be forgotten, which is
+  exactly their status.
+
+  A fifth claim in the same place is also wrong in the gate's direction: the notes say the gate
+  includes an unsafe-code attribute check. It does not. `main.rs:31` carries
+  `#![cfg_attr(not(test), forbid(unsafe_code))]` and the compiler enforces it while it is there, but no
+  gate step and no test asserts it is still there, so deleting that line compiles and nothing notices.
+  The dash sweep in the same sentence became true with AUD-051.
+
+  **Where the dash rule should live.** The gate is the right single place and it is now there. A
+  repository-level `scripts/hooks/pre-commit` sourcing the same `dashes.sh` over staged added lines is
+  worth adding on top, for one reason that is not tidiness: a dash caught at commit time avoids a
+  commit that has to be amended, and this project prefers a new commit over an amend. The honest limit
+  is that such a hook only runs where `core.hooksPath` already points at the delegating hook, so it is
+  a convenience for this machine rather than enforcement. The gate stays the authority either way.
+  Not built, because it is outside the step that found it.
+
 - **AUD-052** Three counts in `Store::open` swallow a failing query, and each makes the code believe
   something different. None is the fail-open class AUD-049 was.
 
