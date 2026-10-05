@@ -1051,6 +1051,60 @@ repeated here.
   renders a diameter range. The rest are code comments, docstrings, and one em dash in an HTML comment
   inside `astraeusio-logo.svg`.
 
+  **Closed 2026-10-05**, commit `1b0ae08`. The sweep rides inside the commit that adds the step rather
+  than taking a subject of its own, because a commit subject describing a dash cleanup is not one this
+  project makes.
+
+  `scripts/lib/dashes.sh` counts the three classes across tracked text files and fails above zero, in
+  the shape of `naming.sh` with its own self test, wired as two gate steps. The step is named
+  `dash sweep: U+2013 U+2212 U+2014, target 0`, so which characters it counts is in the gate output
+  rather than inferred from the script. Seventeen steps now, from fifteen.
+
+  The sweep: 58 characters across 19 files, every one a numeric range or a negative value, so a
+  hyphen-minus is the replacement throughout. Three decided rather than substituted:
+
+  - `ml/test_published_claims.py` searches published documents for the stale string `7` plus an en dash
+    plus `48`. Replacing the character would have deleted the spelling the test exists to catch, so the
+    source now carries it as a `\u2013` escape. The file is ASCII and the assertion is unchanged.
+  - four SVG comments used an em dash as an apposition separator, which became a comma
+  - `gen-blog-og.py` printed `Done` and an em dash before a count, which became a colon
+
+  **The first version of the detector passed on a tree holding all 58, and its self test passed
+  alongside it.** It assembled each pattern as a backslash-u escape around a variable. Measured in this
+  bash, that form yields the six ASCII bytes `5c7532303133` rather than the character, while the same
+  escape written as a literal, or taken whole from a variable, expands correctly. So the check searched
+  for a string no file contains. The self test agreed with it because it planted the identical wrong
+  string: a self test that plants what the detector looks for cannot see the two being wrong together.
+
+  **That is the fifth instance of the shape today** and the first where it hid a real defect rather than
+  merely failing to find one. The repair is the same as the others: the patterns are tied to each code
+  point's UTF-8 encoding, which is a fact outside the file, and the self test checks the built bytes
+  against it.
+
+  **The step also had to be shown able to fail, not only to pass.** On a swept tree it passes, and a
+  check that has never been seen to fail is indistinguishable from one that cannot. The failure path is
+  controlled inside the self test over a planted file list rather than the working repository: a list
+  holding a planted dash must be rejected, a clean list must not be, and an empty list must be rejected
+  because a count of zero over nothing proves nothing.
+
+  **Six mutations, each caught by the self test and by the message aimed at it:** a class dropping out
+  of the list, the build reverting to an assembled escape, the per-file count always answering zero, the
+  gate passing despite a non-zero count, the empty-list floor removed, and the binary test inverted so
+  every text file is skipped. The control step is therefore what guards the gate step, which is the
+  claim worth having rather than six green lines.
+
+  **Two things the sweep turned up that reasoning had not.** `dashes.sh` itself carried two en dashes in
+  its own header, and the gate passed because `git ls-files` does not see an untracked file: it would
+  have rejected itself the moment it was staged. And `get-space-weather/SKILL.md` has a published sha256
+  in `agent-skills/index.json`, so editing it broke the `skill hashes` step until the manifest was
+  regenerated from the file.
+
+  **One thing this did not fix.** The standing rules say the pre-commit hook checks dashes. It does
+  not. The
+  hook at `core.hooksPath` runs the naming rule and then delegates to a repository hook that this
+  repository does not ship, so the rule is enforced in the gate and nowhere else. Recorded rather than
+  widened into this change.
+
 - **AUD-052** Three counts in `Store::open` swallow a failing query, and each makes the code believe
   something different. None is the fail-open class AUD-049 was.
 
