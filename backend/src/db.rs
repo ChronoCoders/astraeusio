@@ -5918,6 +5918,180 @@ mod tests {
         );
     }
 
+    /// The DDL declares the shape the code writes, not one a migration repairs.
+    ///
+    /// `a_new_database_and_a_migrated_one_agree_on_every_column` cannot catch
+    /// this. Putting `threshold DOUBLE NOT NULL` back in the DDL leaves the two
+    /// agreeing, because a fresh database then takes the same ALTER-then-DROP
+    /// path a migrated one takes, and the mutation survived that test. A
+    /// comparison between two things can only say they match, which is the same
+    /// blind spot the MCP server card test had while both copies said 3-hour.
+    ///
+    /// Read from the SCHEMA constant rather than from a live database, because
+    /// the live shape is the thing the migrations repair and this is about what
+    /// is declared before they run. AUD-048.
+    #[test]
+    fn the_ddl_declares_the_column_the_inserts_write() {
+        // The custom_anomaly_rules block of the DDL, bounded by its own ends so
+        // a column named in a different table cannot satisfy this.
+        let open = SCHEMA
+            .find("CREATE TABLE IF NOT EXISTS custom_anomaly_rules")
+            .expect("the DDL declares custom_anomaly_rules");
+        let close = SCHEMA[open..]
+            .find(");")
+            .expect("the declaration is terminated")
+            + open;
+        let block = &SCHEMA[open..close];
+        // Comments stripped: this block carries a comment explaining the old
+        // DOUBLE column, and a raw scan would read the explanation as the
+        // declaration. Three scans have been fooled that way today.
+        let decl: String = block
+            .lines()
+            .map(|l| l.split("--").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            decl.contains("threshold_scaled"),
+            "the DDL does not declare custom_anomaly_rules.threshold_scaled, which \
+             every insert writes: {decl}"
+        );
+        assert!(
+            !decl.contains("DOUBLE"),
+            "the DDL declares a DOUBLE column in custom_anomaly_rules. Storage is \
+             scaled integers, and a NOT NULL DOUBLE the inserts never supply only \
+             works while a later migration drops it: {decl}"
+        );
+
+        // A floor. An empty or mis-bounded slice would satisfy the negative
+        // assertion above without proving anything.
+        assert!(
+            decl.contains("user_email") && decl.contains("severity"),
+            "the extracted declaration does not look like custom_anomaly_rules, so \
+             the bounds are wrong and this test proves nothing: {decl}"
+        );
+    }
+
+    /// A fresh database and a migrated one end up with the same schema.
+    ///
+    /// `custom_anomaly_rules` declared `threshold DOUBLE NOT NULL` with no
+    /// default while the insert never supplied it, so a new install worked only
+    /// because a later migration dropped the column. Correctness depended on
+    /// migration order and nothing checked it. AUD-048.
+    ///
+    /// Written for every table rather than that one, because the defect is the
+    /// class: the DDL and the migrations are two descriptions of one schema and
+    /// nothing held them equal. The deletion of the email lowercase migration
+    /// under AUD-045 is also covered here, since removing a migration is exactly
+    /// the kind of edit that can leave the two shapes apart.
+    #[test]
+    fn a_new_database_and_a_migrated_one_agree_on_every_column() {
+        fn schema_of(path: &str) -> Vec<(String, String)> {
+            let store = Store::open(path).expect("open");
+            let mut stmt = store
+                .conn
+                .prepare(
+                    "SELECT table_name, column_name FROM duckdb_columns()
+                     WHERE schema_name = 'main' ORDER BY table_name, column_name",
+                )
+                .expect("prepare");
+            stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .expect("query")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect")
+        }
+
+        let dir = std::env::temp_dir().join(format!("schema-cmp-{}", now()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        // A fresh database: DDL plus whatever the migrations do to it.
+        let fresh_path = dir.join("fresh.duckdb");
+        let fresh = schema_of(&fresh_path.to_string_lossy());
+
+        // An older database carrying the shape this code used to create, put
+        // through the same `open`. Only the table the finding names is seeded in
+        // its old shape; every other table arrives from the DDL, which is what
+        // an upgrade of a database predating that column looks like.
+        let legacy_path = dir.join("legacy.duckdb");
+        {
+            let conn = Connection::open(legacy_path.to_string_lossy().as_ref()).expect("open");
+            conn.execute_batch(
+                "CREATE TABLE custom_anomaly_rules (
+                     id         TEXT    NOT NULL PRIMARY KEY,
+                     user_email TEXT    NOT NULL,
+                     name       TEXT    NOT NULL,
+                     metric     TEXT    NOT NULL,
+                     operator   TEXT    NOT NULL,
+                     threshold  DOUBLE  NOT NULL,
+                     severity   TEXT    NOT NULL,
+                     enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+                     created_at BIGINT  NOT NULL
+                 );
+                 INSERT INTO custom_anomaly_rules VALUES
+                     ('r1', 'a@example.com', 'kp high', 'kp', 'gte', 5.0,
+                      'warning', TRUE, 1767225600);",
+            )
+            .expect("seed the old shape");
+        }
+        let migrated = schema_of(&legacy_path.to_string_lossy());
+
+        // A floor. An empty read would make the comparison below vacuous, which
+        // is how a schema check rots into a pass.
+        assert!(
+            fresh.len() >= 100,
+            "the fresh schema read returned only {} columns, too few to compare; \
+             the query did not run rather than the schema being small",
+            fresh.len()
+        );
+        assert!(
+            migrated.len() >= 100,
+            "the migrated schema read returned only {} columns",
+            migrated.len()
+        );
+
+        let only_fresh: Vec<_> = fresh.iter().filter(|c| !migrated.contains(c)).collect();
+        let only_migrated: Vec<_> = migrated.iter().filter(|c| !fresh.contains(c)).collect();
+        assert!(
+            only_fresh.is_empty() && only_migrated.is_empty(),
+            "a new database and a migrated one disagree.\n  only in a new database: {only_fresh:?}\n               only in a migrated database: {only_migrated:?}\nThe DDL and the migrations describe \
+             one schema and must end in the same place."
+        );
+
+        // And the specific shape the finding is about, stated so a future reader
+        // sees what this was for.
+        let has = |s: &Vec<(String, String)>, c: &str| {
+            s.iter()
+                .any(|(t, col)| t == "custom_anomaly_rules" && col == c)
+        };
+        assert!(
+            has(&fresh, "threshold_scaled"),
+            "a new database has no custom_anomaly_rules.threshold_scaled, which every \
+             insert writes"
+        );
+        assert!(
+            !has(&fresh, "threshold"),
+            "a new database still has the dropped DOUBLE column custom_anomaly_rules.threshold"
+        );
+
+        // The seeded row survived the migration with a scaled value.
+        let store = Store::open(&legacy_path.to_string_lossy()).expect("reopen");
+        let scaled: Option<i64> = store
+            .conn
+            .query_row(
+                "SELECT threshold_scaled FROM custom_anomaly_rules WHERE id = 'r1'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("the seeded rule survived");
+        assert_eq!(
+            scaled,
+            Some(500),
+            "kp 5.0 scales by 100, so the migrated row should hold 500"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn a_stale_iss_position_reads_as_empty() {
         let store = mem_store();
