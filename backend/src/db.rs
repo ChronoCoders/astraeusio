@@ -268,7 +268,18 @@ CREATE TABLE IF NOT EXISTS custom_anomaly_rules (
     name       TEXT    NOT NULL,
     metric     TEXT    NOT NULL,
     operator   TEXT    NOT NULL,
-    threshold  DOUBLE  NOT NULL,
+    -- Nullable, and scaled rather than DOUBLE. This declared
+    -- `threshold DOUBLE NOT NULL` with no default until 2026-10-05, while the
+    -- insert never supplied it, so a fresh install only worked because a later
+    -- migration dropped the column. If that drop had ever failed to run, every
+    -- custom rule insert would have failed on a new database. AUD-048.
+    --
+    -- Nullable on purpose: the ALTER that adds this column to an older database
+    -- produces a nullable one, and declaring NOT NULL here would make a fresh
+    -- database differ from a migrated one, which is the same defect one level
+    -- down. `new_database_and_migrated_database_agree_on_every_column` holds
+    -- the two shapes equal.
+    threshold_scaled BIGINT,
     severity   TEXT    NOT NULL,
     enabled    BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT  NOT NULL
@@ -735,10 +746,6 @@ const PURGE_FORECASTS_MIGRATION: &str = "2026-08-purge-kp-forecast-wrong-input-s
 /// Identifier for the one-shot removal of the observed_at indexes.
 const DROP_OBSERVED_AT_INDEXES_MIGRATION: &str = "2026-08-drop-observed-at-indexes";
 
-/// Adds `users.token_version`, the counter that lets a password change or reset
-/// invalidate sessions that were issued before it.
-const EMAIL_LOWERCASE_MIGRATION: &str = "2026-09-01-email-lowercase";
-
 /// Rekeys `kp_forecast` on `(issued_at, horizon_hours)` and relabels the rows
 /// that predate `001cda9`.
 const FORECAST_HORIZON_KEY_MIGRATION: &str = "2026-09-02-kp-forecast-horizon-key";
@@ -840,6 +847,12 @@ fn era_fix_is_verified(expected: i64, updated: i64, inconsistent: i64) -> bool {
 fn rekey_is_verified(before: i64, copied: i64, inconsistent: i64) -> bool {
     copied == before && inconsistent == 0
 }
+/// Adds `users.token_version`, the counter that lets a password change or reset
+/// invalidate sessions that were issued before it.
+///
+/// This comment sat above `EMAIL_LOWERCASE_MIGRATION` until 2026-10-05, because
+/// that constant had been inserted between this comment and the constant it
+/// describes. Deleting the email migration under AUD-045 is what exposed it.
 const TOKEN_VERSION_MIGRATION: &str = "2026-08-users-token-version";
 
 /// Adds `api_keys.expires_at` and `api_keys.revoked_at`. Both nullable, so an
@@ -1257,35 +1270,28 @@ impl Store {
             info!("added users.token_version");
         }
 
-        // Addresses are stored and compared in lower case from 2026-09-01. Six
-        // production rows were already lower case when this was written, so
-        // this is defensive rather than corrective, and it is written to fail
-        // loudly rather than silently merge if two rows ever differ only in
-        // case: `email` is the primary key, so a collision aborts the update
-        // and the operator has to decide which account survives.
-        let email_case_applied: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
-            params![EMAIL_LOWERCASE_MIGRATION],
-            |row| row.get(0),
-        )?;
-        if email_case_applied == 0 {
-            let mixed: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM users WHERE email <> lower(email)",
-                [],
-                |row| row.get(0),
-            )?;
-            if mixed > 0 {
-                conn.execute(
-                    "UPDATE users SET email = lower(email) WHERE email <> lower(email)",
-                    [],
-                )?;
-                info!("folded {mixed} account addresses to lower case");
-            }
-            conn.execute(
-                "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
-                params![EMAIL_LOWERCASE_MIGRATION, now()],
-            )?;
-        }
+        // The email lowercase migration was deleted on 2026-10-05, not completed.
+        // AUD-045.
+        //
+        // It ran `UPDATE users SET email = lower(email)` and folded nothing else,
+        // while six tables reference an account by `user_email`: api_keys,
+        // usage_records, webhooks, email_alerts, custom_anomaly_rules and
+        // alerts_anomaly. Folding a primary key without following its references
+        // orphans every row that pointed at the old spelling.
+        //
+        // It is deleted rather than fixed because it has never had anything to do
+        // and cannot acquire any. Measured on production 2026-09-23: zero
+        // addresses carried upper case and zero orphans existed across all six
+        // tables. And no new mixed-case row can appear, because every write and
+        // lookup path normalises first: `auth::normalise_email` at auth.rs
+        // register, login and forgot-password, and oauth.rs on the social path.
+        // Writing the reference-following version would have added code to a path
+        // that has never been taken.
+        //
+        // If address case ever does need normalising, it is a new migration with
+        // the six references folded in the same transaction. Do not revive this
+        // one: an `UPDATE users SET email = lower(email)` without that fold is
+        // precisely the defect AUD-045 records.
 
         // Rekey kp_forecast and relabel the rows that predate the horizon fix.
         //
@@ -1635,7 +1641,23 @@ impl Store {
             |row| row.get(0),
         )?;
         if rule_threshold_applied == 0 {
-            let existing: Vec<(String, String, f64)> = {
+            // A fresh database has no `threshold` column to read, because the DDL
+            // declares the scaled shape directly. Selecting it anyway made
+            // `Store::open` fail to bind on every new install, which is the
+            // defect the schema comparison fixture caught the moment it existed.
+            //
+            // Named `needs_*` so the rule in
+            // `every_migration_decision_propagates_its_query_error` covers it,
+            // and it propagates with `?` rather than defaulting, per AUD-049.
+            let needs_threshold_backfill: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM duckdb_columns()
+                 WHERE table_name = 'custom_anomaly_rules' AND column_name = 'threshold'",
+                [],
+                |row| row.get(0),
+            )?;
+            let existing: Vec<(String, String, f64)> = if needs_threshold_backfill == 0 {
+                Vec::new()
+            } else {
                 let mut stmt = conn.prepare(
                     "SELECT id, metric, threshold FROM custom_anomaly_rules
                      WHERE threshold IS NOT NULL",
