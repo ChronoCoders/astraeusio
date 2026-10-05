@@ -728,7 +728,7 @@ repeated here.
 
   Fail-closed delivery, loudly.
 
-  **Closed 2026-10-04**, commits `afe5b3e` for the fix and `beb4351` for the guard, split because
+  **Closed 2026-10-05**, commits `afe5b3e` for the fix and `beb4351` for the guard, split because
   stopping recurrence is separate work from the fix.
 
   `parse_event_filter` replaces both `unwrap_or_default` calls and is the only place the column is
@@ -900,6 +900,100 @@ repeated here.
   no live bypass today. The split is defence in depth, and specifically it is what stops a future
   `allow_credentials(true)` from turning into a vulnerability with no other edit. Closing it means the
   split, the enumerated list recorded, and the preflight test.
+
+  **Closed 2026-10-05**, commits `89a66a9` for the split and `316e6d1` for the guard.
+
+  **The rule that shipped is narrower than the one written above, and the reasoning is the part worth
+  keeping.** Two axes were measured over all 56 routes.
+
+  Axis A, does the route require a credential, is mechanical: `AuthClaims` is a `FromRequestParts`
+  extractor, so a handler requires one exactly when its signature names it. Forty of 56 do. The
+  control on that number is that the other 16 are exactly the seven public routes, the eight
+  unauthenticated auth endpoints and `/mcp`, which authenticates per tool inside the handler.
+
+  **Axis A is the wrong axis.** Thirty-four of those 40 are `/api/kp`, `/api/neo` and `/api/reports/*`.
+  The product is an API that third parties call, including from browsers with their own key, so an
+  origin allow-list there breaks the thing being sold rather than protecting it.
+
+  **CORS also protects nothing on a route that already requires a bearer token.** A page that does not
+  hold the caller's token cannot make an authenticated request whatever the origin policy says. What
+  the browser's origin check can protect is the narrow set that mints or accepts a credential with none
+  already present, because there the origin is the only check available. Six routes.
+
+  So the rule as shipped:
+
+  > A route goes on the strict layer when a password, a session token, a single-use email token, a TOTP
+  > secret or generated key material crosses the wire in either direction. Everything else keeps the
+  > wildcard, because it is an API for third parties to call.
+
+  **This supersedes the rule written above on one route.** `/api/user/plan` stays permissive. A plan
+  change is not a means of authentication, and the route already requires a token, so an allow-list
+  over it protects nothing. Billing state belongs to the authorization rules rather than to CORS.
+
+  The strict layer, 16 routes:
+
+  - **Real protection**, reachable with no credential, so the origin is the only check:
+    `/auth/register`, `/auth/login`, `/auth/2fa/login`, `/auth/forgot-password`,
+    `/auth/reset-password`, `/auth/verify-email/{token}`
+  - **Defence in depth** at no cost, since a token is already required: `/auth/change-password`,
+    `/auth/resend-verification`, `/auth/2fa/setup` which returns the TOTP secret, `/auth/2fa/verify`,
+    `/auth/2fa/disable`, `/api/keys` whose POST returns the raw key once, `/api/keys/{id}`,
+    `/api/webhooks` whose POST returns the signing secret
+  - **CORS does not reach them at all**: `/auth/oauth/{provider}/start` and
+    `/auth/oauth/{provider}/callback` are top-level navigations returning 302. Listed so the next
+    reader does not re-derive it.
+
+  The remaining 40 keep the wildcard, unchanged.
+
+  **`ALLOWED_ORIGINS`, comma separated, deliberately separate from `APP_URL`.** `APP_URL` means where
+  the frontend lives and is read for email links. Giving it a second meaning is the drift this project
+  has been removing. Production may need `astraeusio.com` and `www.astraeusio.com` both.
+
+  **Empty or unset closes rather than opens.** No origin matches, so every cross-origin request to a
+  credential route is refused. That costs the application nothing: nginx serves the dashboard and
+  proxies `/api/` and `/auth/` from the same origin, so the dashboard has never made a cross-origin
+  request. `an_empty_origin_list_refuses_every_cross_origin_credential_request` asserts it rather
+  than leaving it as a claim.
+
+  **A consequence accepted, not overlooked.** A CORS layer attaches per path and not per method, so
+  `GET /api/keys` and `GET /api/webhooks` ride into the strict layer with their POSTs. A third party
+  cannot list their own keys or webhooks cross-origin from a browser. A deliberate loss.
+
+  **The split introduced a regression, and measuring is what found it.** Under one layer the fallback
+  sat inside it, so an unmatched path answered 404 carrying the wildcard. After the split an unmatched
+  path matched neither sub-router and answered a CORS failure instead, turning a third party's mistyped
+  path into a CORS error rather than a 404. `.fallback(not_found)` inside the permissive layer restores
+  the old answer, with the same empty 404 body. Reasoning had not raised it; a probe did.
+
+  **One redundancy the mutation round exposed.** `parse_allowed_origins` refuses a literal `*` and also
+  refuses anything without a scheme, and neither check is individually observable, because `*` carries
+  no scheme and the scheme check drops it on its own. Disabling either alone leaves behaviour
+  unchanged. Both are kept, the wildcard branch for its clearer message, and the mutation removes both
+  together since that is what the property actually rests on.
+
+  **Six mutations, each caught by the test named for it:** the whole router tightened instead of split,
+  an empty list falling back to permissive, a credential route moved to the permissive layer, the
+  permissive layer applied after the merge instead of before, nothing stopping a wildcard reaching the
+  layer, and the fallback outside both layers. The third was moved rather than deleted on purpose:
+  deleting `/auth/login` answers 404 with no origin header, which the first leg would read as a refusal
+  and pass for the wrong reason.
+
+  The harness now declares which test should kill each mutation and reports WRONG GUARD when a
+  different one does, because a mutant killed by another layer says nothing about the layer under test.
+
+  **Three method errors of mine, recorded because this entry's own rule is to enumerate from the
+  asset.** A keyword scan called `/api/anomalies` credential-bearing, since its handler names `Claims`
+  to check auth, which is most authed routes, and it missed four others. A flat function-name index
+  then collided: `list_webhooks` and `get_user_me` exist both as route handlers and as `Store` methods
+  in `db.rs`, so eight plainly authed routes read as unauthenticated until the lookup resolved the
+  module. And I reported that `GET /api/webhooks` returns the signing secret, when the SELECT reads the
+  column and the response omits it.
+
+  **The worry that opened this entry is now fail-fast.** `allow_credentials` stays unset, and
+  tower-http asserts that credentials cannot combine with any wildcard in `Layer::layer`
+  (`cors/mod.rs:783`, called from line 494), which runs at router build. A later
+  `allow_credentials(true)` on the permissive layer panics at startup instead of shipping quietly.
+  Verified in the vendored source of 0.6.8, not from memory.
 
 - **AUD-051** 58 dash-like characters remain in tracked files. The rule is none.
 
