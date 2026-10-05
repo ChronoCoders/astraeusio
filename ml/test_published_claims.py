@@ -41,7 +41,7 @@ class PublishedForecastSkill(unittest.TestCase):
             f"the skill must state the fixed {seq_len}-reading window from train.py",
         )
         # The variable range this replaced, which came from a defect.
-        for stale in ("7-48", "7–48", "7 to 48"):
+        for stale in ("7-48", "7\u201348", "7 to 48"):
             self.assertNotIn(stale, self.text, "the variable window claim is back")
 
     def test_every_horizon_the_model_serves_is_stated(self):

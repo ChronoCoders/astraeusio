@@ -735,8 +735,8 @@ curl -X POST https://your-domain.com/api/email-alerts \\
           <Table
             headers={[t('docs.thParameter'), t('docs.thUnit'), t('docs.thRange'), t('docs.thDefault'), t('docs.thDesc')]}
             rows={[
-              ['kp_threshold',   'Kp',   '1.0 – 9.0',   '5.0', 'Alert when Kp reaches or exceeds this value'],
-              ['wind_threshold',  'km/s', '100 – 2000', '700',  'Alert when solar wind speed reaches or exceeds this value'],
+              ['kp_threshold',   'Kp',   '1.0 - 9.0',   '5.0', 'Alert when Kp reaches or exceeds this value'],
+              ['wind_threshold',  'km/s', '100 - 2000', '700',  'Alert when solar wind speed reaches or exceeds this value'],
             ]}
           />
 

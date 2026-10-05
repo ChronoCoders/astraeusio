@@ -1460,7 +1460,7 @@ async fn create_custom_rule(
     if name.is_empty() || name.len() > 80 {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({ "error": "name must be 1–80 characters" })),
+            Json(serde_json::json!({ "error": "name must be 1-80 characters" })),
         )
             .into_response();
     }

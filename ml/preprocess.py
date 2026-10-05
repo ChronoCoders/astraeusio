@@ -7,14 +7,14 @@ Output: data/kp_processed.parquet
 Schema
 ------
 timestamp       : datetime64[ns, UTC]  - period start (3-hour cadence)
-kp              : float32              - Kp index value (0–9, thirds)
+kp              : float32              - Kp index value (0-9, thirds)
 hour            : int8                 - 0 6 12 18 ... wait, 3-hourly so 0 3 6 9 12 15 18 21
-month           : int8                 - 1–12
-day_of_year     : int16                - 1–366
+month           : int8                 - 1-12
+day_of_year     : int16                - 1-366
 solar_cycle_phase_sin/cos : float32   - ~11-year cycle encoded cyclically
 hour_sin/cos    : float32             - hour of day encoded cyclically
 month_sin/cos   : float32            - month encoded cyclically
-lag_1..lag_7    : float32             - previous 1–7 periods (each = 3 hours)
+lag_1..lag_7    : float32             - previous 1-7 periods (each = 3 hours)
 kp_24h_max      : float32             - rolling max over prior 24 h (8 periods)
 kp_72h_mean     : float32            - rolling mean over prior 72 h (24 periods)
 f107_adj        : float32             - F10.7 cm solar radio flux, 1-AU adjusted (sfu)
@@ -226,7 +226,7 @@ def main() -> None:
     filled = fill_gaps(combined)
     log.info("Total periods after gap fill:  %d", len(filled))
 
-    log.info("Building features (lags 1–%d, rolling windows, cyclical encodings)", N_LAGS)
+    log.info("Building features (lags 1-%d, rolling windows, cyclical encodings)", N_LAGS)
     processed = build_features(filled)
 
     n_gaps = processed["gap_filled"].sum()

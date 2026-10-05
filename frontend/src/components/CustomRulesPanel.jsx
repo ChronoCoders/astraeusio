@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import UpgradePrompt from './UpgradePrompt'
 
 const METRICS = [
-  { value: 'kp',               label: 'Kp Index',          unit: '(0–9)' },
+  { value: 'kp',               label: 'Kp Index',          unit: '(0-9)' },
   { value: 'solar_wind_speed', label: 'Solar Wind Speed',  unit: 'km/s' },
   { value: 'xray_flux',        label: 'X-ray Flux',        unit: 'W/m²' },
   { value: 'dst',              label: 'Dst Index',         unit: 'nT' },

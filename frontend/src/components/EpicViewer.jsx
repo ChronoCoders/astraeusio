@@ -13,7 +13,7 @@ export default function EpicViewer({ data }) {
       <div className="flex items-baseline justify-between">
         <span className="text-zinc-500 text-xs uppercase tracking-widest">{t('epic.title')}</span>
         {img && (
-          <span className="text-zinc-600 text-xs font-mono" title="NASA publishes EPIC imagery with a 1–2 day processing delay">
+          <span className="text-zinc-600 text-xs font-mono" title="NASA publishes EPIC imagery with a 1-2 day processing delay">
             {img.date?.slice(0, 10)} · {t('epic.latestAvailable')}
           </span>
         )}

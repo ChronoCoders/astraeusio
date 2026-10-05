@@ -34,8 +34,8 @@ Returns the latest solar wind speed (km/s) and density (p/cm³).
 - Kp ≥ 5 = G1 geomagnetic storm (minor)
 - Kp ≥ 7 = G3 storm (strong) - aurora visible at 50° latitude
 - Solar wind speed > 700 km/s = elevated storm risk
-- IMF Bz < −10 nT = active energy coupling into magnetosphere
-- Dst < −50 nT = moderate storm; < −100 nT = intense storm
+- IMF Bz < -10 nT = active energy coupling into magnetosphere
+- Dst < -50 nT = moderate storm; < -100 nT = intense storm
 
 ## Service health
 

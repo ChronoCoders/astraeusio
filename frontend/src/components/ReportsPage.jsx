@@ -452,7 +452,7 @@ export default function ReportsPage({ onNavigate }) {
                       <td className="px-4 py-2 text-zinc-500 whitespace-nowrap">{r.date}</td>
                       <td className="px-4 py-2 text-right text-zinc-200 tabular-nums">{fmtNum(r.lunar, 2)}</td>
                       <td className="px-4 py-2 text-right text-zinc-400 whitespace-nowrap tabular-nums">
-                        {fmtNum(r.diamMin * 1000, 0)}–{fmtNum(r.diamMax * 1000, 0)} m
+                        {fmtNum(r.diamMin * 1000, 0)}-{fmtNum(r.diamMax * 1000, 0)} m
                       </td>
                       <td className="px-4 py-2">
                         {r.hazardous

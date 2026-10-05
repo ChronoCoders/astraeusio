@@ -80,6 +80,18 @@ step "advisories"     .        python advisory-check.py
 step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"
 step "naming rule"              .        bash scripts/lib/naming.sh --gate
 step "control: naming detector" .        bash scripts/lib/naming.sh --self-test
+# Counts three classes, not two: U+2013 en dash, U+2212 minus sign and U+2014 em
+# dash. U+2212 is in scope because a reader cannot tell it from an en dash on
+# screen. The target is zero, swept from a measured 58 on 2026-10-04, and the
+# step name carries that so nobody has to open the script to learn which
+# characters it counts. The control matters more than usual here: the first
+# version assembled its patterns as an escape around a variable, which this bash
+# leaves as the six ASCII bytes of the escape rather than the character, while
+# the same escape written literally expands. It therefore searched for a string
+# no file contains and passed on a tree holding all 58, and its own self test
+# passed alongside it because it planted the identical wrong string.
+step "dash sweep: U+2013 U+2212 U+2014, target 0" . bash scripts/lib/dashes.sh --gate
+step "control: dash detector"   .        bash scripts/lib/dashes.sh --self-test
 # The Rust version lives in backend/rust-toolchain.toml and nowhere else. The
 # Dockerfile used to carry its own, and the two drifted five minor versions
 # apart without anything noticing. The check refuses any version there, not

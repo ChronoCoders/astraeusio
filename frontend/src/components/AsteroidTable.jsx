@@ -101,7 +101,7 @@ export default function AsteroidTable({ data }) {
                   <td className="py-2 pr-4 text-zinc-400 font-mono text-xs whitespace-nowrap">{r.date}</td>
                   <td className="py-2 pr-4 text-zinc-200 font-mono text-xs text-right">{fmtNum(r.lunar, 2)}</td>
                   <td className="py-2 pr-4 text-zinc-400 font-mono text-xs text-right whitespace-nowrap">
-                    {fmtNum(r.diamMin * 1000, 0)}–{fmtNum(r.diamMax * 1000, 0)} m
+                    {fmtNum(r.diamMin * 1000, 0)}-{fmtNum(r.diamMax * 1000, 0)} m
                   </td>
                   <td className="py-2">
                     {r.hazardous

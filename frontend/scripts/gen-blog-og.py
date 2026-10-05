@@ -114,7 +114,7 @@ def main():
         out = OUT_DIR / f"og-{slug}.png"
         render(slug, title).save(out, "PNG", optimize=True)
         print(f"wrote {out.relative_to(ROOT)} ({title!r})")
-    print(f"\nDone — {len(posts)} OG images generated.")
+    print(f"\nDone: {len(posts)} OG images generated.")
 
 if __name__ == "__main__":
     main()

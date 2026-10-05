@@ -242,8 +242,8 @@ The scale is quasi-logarithmic. A Kp of 5 corresponds to roughly three times the
 
 | Kp | Condition | Effect |
 |----|-----------|--------|
-| 0–1 | Quiet | No significant activity |
-| 2–3 | Unsettled | Minor fluctuations |
+| 0-1 | Quiet | No significant activity |
+| 2-3 | Unsettled | Minor fluctuations |
 | 4 | Active | Aurora visible at high latitudes (>60°) |
 | 5 | G1 Minor Storm | Aurora at 60°+ latitude; minor power grid fluctuations possible |
 | 6 | G2 Moderate Storm | Aurora at 55°+ latitude; HF radio disruption at high latitudes |
@@ -298,8 +298,8 @@ Kp ölçeği 0'dan 9'a, üçte birlik adımlarla çalışır: 0, 0,33, 0,67, 1, 
 
 | Kp | Durum | Etki |
 |----|-------|------|
-| 0–1 | Sakin | Önemli aktivite yok |
-| 2–3 | Kararsız | Küçük dalgalanmalar |
+| 0-1 | Sakin | Önemli aktivite yok |
+| 2-3 | Kararsız | Küçük dalgalanmalar |
 | 4 | Aktif | Yüksek enlemlerde aurora görünür (>60°) |
 | 5 | G1 Hafif Fırtına | 60°+ enlemde aurora; küçük şebeke dalgalanmaları mümkün |
 | 6 | G2 Orta Fırtına | 55°+ enlemde aurora; yüksek enlemlerde KF radyo bozulması |
@@ -360,9 +360,9 @@ Earth sits inside this wind. Our magnetic field deflects most of it, carving out
 
 Astraeusio ingests one-minute solar wind data from NOAA's real-time feed. Three quantities carry almost all of the operational signal:
 
-- **Speed** (km/s). Quiet conditions run around 300–400 km/s. A fast stream can exceed 700 km/s, and the leading edge of a coronal mass ejection can top 1,000 km/s. Higher speed means more energy delivered to the magnetosphere per second.
+- **Speed** (km/s). Quiet conditions run around 300-400 km/s. A fast stream can exceed 700 km/s, and the leading edge of a coronal mass ejection can top 1,000 km/s. Higher speed means more energy delivered to the magnetosphere per second.
 - **Density** (protons/cm³). Typically a few particles per cubic centimetre. A sudden jump in density often marks the arrival of a CME's compressed leading edge.
-- **IMF Bz** (nanotesla). The north–south component of the interplanetary magnetic field. This is the one that decides whether a storm happens at all.
+- **IMF Bz** (nanotesla). The north-south component of the interplanetary magnetic field. This is the one that decides whether a storm happens at all.
 
 Speed and density set how much energy is available. Bz sets whether that energy can get in.
 
@@ -372,7 +372,7 @@ Earth's magnetic field points roughly northward at the dayside boundary of the m
 
 When Bz points northward, reconnection at the dayside is suppressed and the magnetosphere stays comparatively closed. You can have a fast, dense solar wind stream slam into Earth and produce only a modest disturbance - because Bz stayed positive. Conversely, a moderate stream with strongly negative Bz for several hours can drive a serious storm.
 
-This is why a single number - solar wind speed - is never enough. A 600 km/s stream with Bz at +5 nT is a non-event. The same stream with Bz at −15 nT is a G2 or G3 storm in the making.
+This is why a single number - solar wind speed - is never enough. A 600 km/s stream with Bz at +5 nT is a non-event. The same stream with Bz at -15 nT is a G2 or G3 storm in the making.
 
 ## The Warning Window: L1
 
@@ -382,7 +382,7 @@ At typical solar wind speeds, that buys 15 to 60 minutes of warning. It is not m
 
 ## Fast Streams and Corotating Interaction Regions
 
-Not all disturbances come from CMEs. Coronal holes - regions where the Sun's magnetic field opens to space - emit persistent high-speed streams. Because the Sun rotates roughly every 27 days, these streams sweep past Earth on a recurring schedule, producing what forecasters call corotating interaction regions (CIRs). They rarely cause severe storms, but they reliably elevate Kp to the G1–G2 range and can recur for several solar rotations. If you see a moderate storm arrive on a 27-day cadence, a coronal hole is usually the cause.
+Not all disturbances come from CMEs. Coronal holes - regions where the Sun's magnetic field opens to space - emit persistent high-speed streams. Because the Sun rotates roughly every 27 days, these streams sweep past Earth on a recurring schedule, producing what forecasters call corotating interaction regions (CIRs). They rarely cause severe storms, but they reliably elevate Kp to the G1-G2 range and can recur for several solar rotations. If you see a moderate storm arrive on a 27-day cadence, a coronal hole is usually the cause.
 
 ## What Astraeusio Shows
 
@@ -405,9 +405,9 @@ Dünya bu rüzgârın içinde durur. Manyetik alanımız çoğunu saptırarak ma
 
 Astraeusio, NOAA'nın gerçek zamanlı beslemesinden dakikalık güneş rüzgârı verisi alır. Operasyonel sinyalin neredeyse tamamını üç büyüklük taşır:
 
-- **Hız** (km/s). Sakin koşullar 300–400 km/s civarındadır. Hızlı bir akış 700 km/s'yi aşabilir ve bir koronal kütle atımının (CME) ön kenarı 1.000 km/s'yi geçebilir. Daha yüksek hız, saniye başına manyetosfere iletilen daha fazla enerji demektir.
+- **Hız** (km/s). Sakin koşullar 300-400 km/s civarındadır. Hızlı bir akış 700 km/s'yi aşabilir ve bir koronal kütle atımının (CME) ön kenarı 1.000 km/s'yi geçebilir. Daha yüksek hız, saniye başına manyetosfere iletilen daha fazla enerji demektir.
 - **Yoğunluk** (proton/cm³). Tipik olarak santimetreküp başına birkaç parçacık. Yoğunluktaki ani sıçrama çoğu zaman bir CME'nin sıkışmış ön kenarının gelişini işaret eder.
-- **IMF Bz** (nanotesla). Gezegenlerarası manyetik alanın kuzey–güney bileşeni. Bir fırtınanın gerçekleşip gerçekleşmeyeceğine karar veren budur.
+- **IMF Bz** (nanotesla). Gezegenlerarası manyetik alanın kuzey-güney bileşeni. Bir fırtınanın gerçekleşip gerçekleşmeyeceğine karar veren budur.
 
 Hız ve yoğunluk ne kadar enerji bulunduğunu belirler. Bz ise o enerjinin içeri girip giremeyeceğini belirler.
 
@@ -417,17 +417,17 @@ Dünya'nın manyetik alanı, manyetosferin gündüz tarafı sınırında kabaca 
 
 Bz kuzeye doğrultulduğunda gündüz tarafındaki yeniden bağlanma baskılanır ve manyetosfer görece kapalı kalır. Hızlı ve yoğun bir güneş rüzgârı akışı Dünya'ya çarpıp yalnızca mütevazı bir rahatsızlık üretebilir - çünkü Bz pozitif kaldı. Tersine, birkaç saat boyunca güçlü negatif Bz'ye sahip ılımlı bir akış ciddi bir fırtına sürebilir.
 
-İşte bu yüzden tek bir sayı - güneş rüzgârı hızı - asla yeterli değildir. Bz +5 nT iken 600 km/s'lik bir akış önemsizdir. Aynı akış Bz −15 nT iken oluşmakta olan bir G2 ya da G3 fırtınasıdır.
+İşte bu yüzden tek bir sayı - güneş rüzgârı hızı - asla yeterli değildir. Bz +5 nT iken 600 km/s'lik bir akış önemsizdir. Aynı akış Bz -15 nT iken oluşmakta olan bir G2 ya da G3 fırtınasıdır.
 
 ## Uyarı Penceresi: L1
 
-Güneş rüzgârının yalnızca bir *anlık-durum* değil bir *tahmin* aracı olmasının nedeni geometridir. NOAA, birinci Lagrange noktasında sürekli bir uzay aracı tutar; ilki DSCOVR'dı, bu görev o zamandan beri el değiştirdi. Görevi hangi araç üstlenirse üstlensin, Dünya'nın yaklaşık 1,5 milyon kilometre akış-üstünde - Güneş'e giden yolun kabaca %1'inde - birinci Güneş–Dünya Lagrange noktasında (L1) durur. Rüzgârı bize ulaşmadan önce ölçer.
+Güneş rüzgârının yalnızca bir *anlık-durum* değil bir *tahmin* aracı olmasının nedeni geometridir. NOAA, birinci Lagrange noktasında sürekli bir uzay aracı tutar; ilki DSCOVR'dı, bu görev o zamandan beri el değiştirdi. Görevi hangi araç üstlenirse üstlensin, Dünya'nın yaklaşık 1,5 milyon kilometre akış-üstünde - Güneş'e giden yolun kabaca %1'inde - birinci Güneş-Dünya Lagrange noktasında (L1) durur. Rüzgârı bize ulaşmadan önce ölçer.
 
 Tipik güneş rüzgârı hızlarında bu 15 ila 60 dakikalık uyarı kazandırır. Çok değil, ama hassas bir cihazı güvene almaya, bir uydu manevrasını ertelemeye veya şebeke operatörlerini güçlü güneye dönük Bz'nin yaklaştığı konusunda uyarmaya yeter. L1 beslemesinde Bz'nin sert biçimde negatife döndüğünü gördüğünüzde, manyetosferin yanıt vermek üzere olduğunu Kp hareket etmeden önce bilirsiniz.
 
 ## Hızlı Akışlar ve Birlikte Dönen Etkileşim Bölgeleri
 
-Tüm rahatsızlıklar CME'lerden gelmez. Koronal delikler - Güneş'in manyetik alanının uzaya açıldığı bölgeler - kalıcı yüksek hızlı akışlar yayar. Güneş yaklaşık her 27 günde bir döndüğünden, bu akışlar Dünya'nın yanından yinelenen bir programla geçer ve tahmincilerin birlikte dönen etkileşim bölgeleri (CIR) dediği şeyi üretir. Nadiren şiddetli fırtınalara yol açarlar ama Kp'yi güvenilir biçimde G1–G2 aralığına yükseltir ve birkaç güneş dönüşü boyunca yinelenebilirler. Ilımlı bir fırtınanın 27 günlük bir ritimde geldiğini görürseniz, neden genellikle bir koronal deliktir.
+Tüm rahatsızlıklar CME'lerden gelmez. Koronal delikler - Güneş'in manyetik alanının uzaya açıldığı bölgeler - kalıcı yüksek hızlı akışlar yayar. Güneş yaklaşık her 27 günde bir döndüğünden, bu akışlar Dünya'nın yanından yinelenen bir programla geçer ve tahmincilerin birlikte dönen etkileşim bölgeleri (CIR) dediği şeyi üretir. Nadiren şiddetli fırtınalara yol açarlar ama Kp'yi güvenilir biçimde G1-G2 aralığına yükseltir ve birkaç güneş dönüşü boyunca yinelenebilirler. Ilımlı bir fırtınanın 27 günlük bir ritimde geldiğini görürseniz, neden genellikle bir koronal deliktir.
 
 ## Astraeusio Ne Gösterir
 
@@ -462,7 +462,7 @@ The X-ray component is what we monitor most closely, because it is both a clean 
 
 ## The GOES X-ray Sensor
 
-Flare intensity is measured by the X-Ray Sensor (XRS) aboard NOAA's GOES satellites in geostationary orbit. It reports the solar X-ray flux in the 0.1–0.8 nanometre band, in watts per square metre, updated continuously. Astraeusio ingests the GOES primary feed and stores the flux as a scaled integer; the dashboard surfaces the current flux and its flare class.
+Flare intensity is measured by the X-Ray Sensor (XRS) aboard NOAA's GOES satellites in geostationary orbit. It reports the solar X-ray flux in the 0.1-0.8 nanometre band, in watts per square metre, updated continuously. Astraeusio ingests the GOES primary feed and stores the flux as a scaled integer; the dashboard surfaces the current flux and its flare class.
 
 Because the sensor sits above the atmosphere, it sees the X-rays directly - there is no transit delay beyond the eight-minute light travel time from the Sun.
 
@@ -473,9 +473,9 @@ Flares are classified by their peak X-ray flux on a letter scale, where each let
 | Class | Peak flux (W/m²) | Meaning |
 |-------|------------------|---------|
 | A | < 10⁻⁷ | Background level; no effect |
-| B | 10⁻⁷ – 10⁻⁶ | Minor; common, no impact |
-| C | 10⁻⁶ – 10⁻⁵ | Small flares, few noticeable effects |
-| M | 10⁻⁵ – 10⁻⁴ | Medium; can cause brief radio blackouts at the poles |
+| B | 10⁻⁷ - 10⁻⁶ | Minor; common, no impact |
+| C | 10⁻⁶ - 10⁻⁵ | Small flares, few noticeable effects |
+| M | 10⁻⁵ - 10⁻⁴ | Medium; can cause brief radio blackouts at the poles |
 | X | ≥ 10⁻⁴ | Large; planet-wide radio and navigation effects |
 
 Within each letter, a number gives the linear multiplier - an M5 is five times stronger than an M1, and X-class has no ceiling: the September 2017 event reached X9.3, and the famous 2003 flare saturated the sensors at roughly X28.
@@ -523,7 +523,7 @@ X-ışını bileşeni en yakından izlediğimiz şeydir, çünkü hem patlama yo
 
 ## GOES X-ışını Sensörü
 
-Patlama yoğunluğu, NOAA'nın jeostasyoner yörüngedeki GOES uydularındaki X-ışını Sensörü (XRS) tarafından ölçülür. Güneş X-ışını akısını 0,1–0,8 nanometre bandında, metrekare başına watt cinsinden, sürekli güncellenerek bildirir. Astraeusio GOES birincil beslemesini alır ve akıyı ölçekli bir tam sayı olarak saklar; gösterge paneli mevcut akıyı ve patlama sınıfını gösterir.
+Patlama yoğunluğu, NOAA'nın jeostasyoner yörüngedeki GOES uydularındaki X-ışını Sensörü (XRS) tarafından ölçülür. Güneş X-ışını akısını 0,1-0,8 nanometre bandında, metrekare başına watt cinsinden, sürekli güncellenerek bildirir. Astraeusio GOES birincil beslemesini alır ve akıyı ölçekli bir tam sayı olarak saklar; gösterge paneli mevcut akıyı ve patlama sınıfını gösterir.
 
 Sensör atmosferin üzerinde durduğundan X-ışınlarını doğrudan görür - Güneş'ten gelen sekiz dakikalık ışık yolculuğu süresinin ötesinde bir geçiş gecikmesi yoktur.
 
@@ -534,9 +534,9 @@ Patlamalar, her harfin on katlık (logaritmik) bir adım olduğu bir harf ölçe
 | Sınıf | Tepe akı (W/m²) | Anlamı |
 |-------|-----------------|--------|
 | A | < 10⁻⁷ | Arka plan seviyesi; etki yok |
-| B | 10⁻⁷ – 10⁻⁶ | Küçük; yaygın, etkisiz |
-| C | 10⁻⁶ – 10⁻⁵ | Küçük patlamalar, az fark edilir etki |
-| M | 10⁻⁵ – 10⁻⁴ | Orta; kutuplarda kısa radyo karartmalarına yol açabilir |
+| B | 10⁻⁷ - 10⁻⁶ | Küçük; yaygın, etkisiz |
+| C | 10⁻⁶ - 10⁻⁵ | Küçük patlamalar, az fark edilir etki |
+| M | 10⁻⁵ - 10⁻⁴ | Orta; kutuplarda kısa radyo karartmalarına yol açabilir |
 | X | ≥ 10⁻⁴ | Büyük; gezegen geneli radyo ve navigasyon etkileri |
 
 Her harfin içinde bir sayı doğrusal çarpanı verir - bir M5, bir M1'den beş kat güçlüdür ve X sınıfının tavanı yoktur: Eylül 2017 olayı X9.3'e ulaştı ve ünlü 2003 patlaması sensörleri kabaca X28'de doyurdu.
@@ -600,7 +600,7 @@ The one piece of electrical infrastructure that existed - the telegraph network 
 
 ## How Big Was It
 
-The storm's intensity is estimated from the few magnetometer records that existed and from later ice-core analysis. The Dst index - a measure of the storm-time ring current - is estimated to have reached somewhere between −850 and −1,760 nanotesla. For comparison, the 1989 storm that collapsed the Quebec power grid reached about −589 nT, and a "severe" G4 storm today is in the −200 to −300 nT range.
+The storm's intensity is estimated from the few magnetometer records that existed and from later ice-core analysis. The Dst index - a measure of the storm-time ring current - is estimated to have reached somewhere between -850 and -1,760 nanotesla. For comparison, the 1989 storm that collapsed the Quebec power grid reached about -589 nT, and a "severe" G4 storm today is in the -200 to -300 nT range.
 
 Carrington was not merely a strong storm. It was several times larger than anything the modern grid has ever experienced.
 
@@ -646,7 +646,7 @@ Var olan tek elektrik altyapısı - telgraf ağı - muhteşem biçimde çöktü.
 
 ## Ne Kadar Büyüktü
 
-Fırtınanın yoğunluğu, var olan birkaç manyetometre kaydından ve sonraki buz çekirdeği analizinden tahmin edilir. Fırtına zamanı halka akımının bir ölçüsü olan Dst endeksinin −850 ile −1.760 nanotesla arasında bir yere ulaştığı tahmin edilir. Karşılaştırma için, 1989'da Quebec elektrik şebekesini çökerten fırtına yaklaşık −589 nT'ye ulaştı ve bugün "şiddetli" bir G4 fırtınası −200 ila −300 nT aralığındadır.
+Fırtınanın yoğunluğu, var olan birkaç manyetometre kaydından ve sonraki buz çekirdeği analizinden tahmin edilir. Fırtına zamanı halka akımının bir ölçüsü olan Dst endeksinin -850 ile -1.760 nanotesla arasında bir yere ulaştığı tahmin edilir. Karşılaştırma için, 1989'da Quebec elektrik şebekesini çökerten fırtına yaklaşık -589 nT'ye ulaştı ve bugün "şiddetli" bir G4 fırtınası -200 ila -300 nT aralığındadır.
 
 Carrington yalnızca güçlü bir fırtına değildi. Modern şebekenin yaşadığı her şeyden birkaç kat daha büyüktü.
 

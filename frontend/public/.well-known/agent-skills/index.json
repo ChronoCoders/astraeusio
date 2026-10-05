@@ -6,7 +6,7 @@
       "type": "api",
       "description": "Retrieve real-time space weather data: Kp index, solar wind, X-ray flux, IMF Bz, Dst index, and NOAA alerts.",
       "url": "https://astraeusio.com/.well-known/agent-skills/get-space-weather/SKILL.md",
-      "sha256": "6f752551f548c720edf7a7b65be32b7e768351beabdefefd2fac1313cef0fdc2"
+      "sha256": "f2dc46d6fd886ec6b086b3bdc87237abc7d71cf2b8bcd08413c441a1e21ebec0"
     },
     {
       "name": "get-kp-forecast",

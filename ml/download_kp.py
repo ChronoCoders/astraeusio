@@ -1,6 +1,6 @@
 """
 Download 20 years of Kp index data from GFZ Niemegk (the authoritative source,
-referenced by NOAA). The dataset covers 1932–present in a single file.
+referenced by NOAA). The dataset covers 1932-present in a single file.
 We stream it, split by year, and save one file per year to data/kp_raw/.
 
 Column layout (space-separated, comment lines start with #):
@@ -81,14 +81,14 @@ def write_years(years: dict[int, list[str]]) -> None:
 
 
 def main() -> None:
-    log.info("Downloading Kp index data for %d–%d", START_YEAR, CURRENT_YEAR)
+    log.info("Downloading Kp index data for %d-%d", START_YEAR, CURRENT_YEAR)
     try:
         lines = download_raw(SOURCE_URL)
     except requests.RequestException as exc:
         log.error("Download failed: %s", exc)
         sys.exit(1)
 
-    log.info("Splitting by year (keeping %d–%d)", START_YEAR, CURRENT_YEAR)
+    log.info("Splitting by year (keeping %d-%d)", START_YEAR, CURRENT_YEAR)
     years = split_by_year(lines)
 
     if not years:
