@@ -726,7 +726,52 @@ repeated here.
   - a fixture row holding invalid JSON in `events`, asserting the condition is reported rather than
     absent, at both sites
 
-  Fail-closed delivery with a loud failure, not fail-open delivery.
+  Fail-closed delivery, loudly.
+
+  **Closed 2026-10-04**, commits `afe5b3e` for the fix and `beb4351` for the guard, split because
+  stopping recurrence is separate work from the fix.
+
+  `parse_event_filter` replaces both `unwrap_or_default` calls and is the only place the column is
+  read. On a parse failure it logs an `error!` carrying the webhook id, the owner and the first 120
+  characters of the stored value, and returns an empty filter paired with a flag.
+
+  **Neither SELECT read `user_email`, so the owner was not available to log.** That is why the finding
+  said two sites and the fix touched three things: `list_active_webhooks_for_event` now selects it as a
+  sixth column. The report named the silence and not the missing column, which only appeared once
+  there was a log line that needed an owner to name.
+
+  The two sites move in opposite directions on purpose. Delivery drops the row, unchanged, because
+  delivering every event to a customer who asked for none is the worse failure. The dashboard does the
+  opposite and still returns the row, flagged through `WebhookRow::events_malformed` and surfaced in
+  the webhook JSON, since hiding it from the only person who can repair it is the original defect in
+  different clothes.
+
+  The flag is carried rather than inferred from `events` being empty. An empty filter is a deliberate
+  subscription to nothing and is not a fault, so the two states have to stay distinguishable.
+
+  **Five mutations, all caught, and each by a different assertion:**
+
+  | mutation | killed by |
+  |---|---|
+  | both sites swallow the parse again | the owner sees no flag: `[]` against `["notjson", "wrongshape"]` |
+  | delivery stops failing closed | the delivery set grows to all three rows |
+  | the dashboard hides the broken rows | the owner sees 1 webhook of 3 |
+  | an empty filter is flagged as malformed | the empty-filter row is reported as a fault |
+  | a seeded row goes missing | the floor: the seed did not land |
+
+  **That the five died on five separate assertions is the part worth keeping.** The swallow mutation
+  was killed by the dashboard flag and not by the delivery list, which is the correct outcome and the
+  evidence the two halves are independently guarded: swallowing leaves delivery behaviour identical,
+  so only the flag can observe it. Had the delivery assertion answered for it, one assertion would
+  have been covering both halves and a later change to either would have gone unguarded.
+
+  **Three of the five mutations were wrong before they ran**, recorded because the harness is now
+  trusted with verdicts. One would not have compiled, so under the `ran == 0` rule adopted earlier
+  today it would have read as NOT EXERCISED rather than as a pass. One broke the seed's SQL instead of
+  the floor, which panics in the seed's own `expect` and is caught whether the floor exists or not: a
+  mutant killed by the wrong mechanism looks identical to one killed by the right one. One anchored
+  text the formatter had since joined onto a single line, and reported ANCHOR MISS. Only the first two
+  were caught by reading; the third needed the run.
 
 - **AUD-047** `unwrap()` in production code. `routes.rs:1606`.
 
