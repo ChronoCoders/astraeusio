@@ -7,13 +7,13 @@ use anyhow::anyhow;
 use axum::{
     Json, Router,
     extract::{FromRequestParts, Path, Query, State},
-    http::{HeaderValue, StatusCode, header, request::Parts},
+    http::{HeaderValue, Method, StatusCode, header, request::Parts},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-use tower_http::cors::{Any, CorsLayer};
-use tracing::{info, warn};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tracing::{error, info, warn};
 
 use dashmap::DashMap;
 
@@ -483,11 +483,100 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     .await
 }
 
-pub fn router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(health))
-        .route("/api/health", get(health))
-        .route("/api/health/uptime", get(uptime))
+/// Parses `ALLOWED_ORIGINS`, the origins allowed to reach a credential route
+/// from a browser on another origin.
+///
+/// Comma separated. An empty or absent value yields an empty list, which is the
+/// safe state and not the permissive one: the strict layer then matches no
+/// origin at all and every cross-origin request to a credential route is
+/// refused. The dashboard reaches the API same-origin through nginx, so that
+/// costs the application nothing. AUD-050.
+///
+/// A value that cannot be an origin is dropped with an `error!` rather than
+/// passed on. Dropping narrows what is allowed, which is the safe direction. A
+/// literal `*` is refused for the same reason and would otherwise panic inside
+/// `AllowOrigin::list`, turning the strict layer into a permissive one.
+pub fn parse_allowed_origins(raw: &str) -> Vec<HeaderValue> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|candidate| !candidate.is_empty())
+        .filter_map(|candidate| {
+            if candidate == "*" {
+                error!(
+                    "ALLOWED_ORIGINS contains `*`, which would allow any origin to reach a \
+                     credential route; it is ignored. List the origins instead."
+                );
+                return None;
+            }
+            if !candidate.starts_with("http://") && !candidate.starts_with("https://") {
+                error!(
+                    origin = candidate,
+                    "ALLOWED_ORIGINS entry has no scheme and can never match a browser Origin \
+                     header; it is ignored"
+                );
+                return None;
+            }
+            match HeaderValue::from_str(candidate) {
+                Ok(value) => Some(value),
+                Err(e) => {
+                    error!(
+                        origin = candidate,
+                        "ALLOWED_ORIGINS entry is not a valid header value ({e}); it is ignored"
+                    );
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// The layer for routes that carry a credential: an explicit origin list, never
+/// a wildcard.
+///
+/// No `allow_credentials`, because the API authenticates with a bearer token
+/// from `localStorage` rather than a cookie, and tower-http refuses to combine
+/// credentials with any wildcard.
+fn strict_cors(allowed_origins: &[HeaderValue]) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(allowed_origins.iter().cloned()))
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+}
+
+/// The layer for everything else, unchanged from when it covered the whole
+/// router.
+///
+/// The wildcard is deliberate here. These routes are the API product and third
+/// parties call them from browsers with their own API key, so an origin
+/// allow-list would break the thing being sold. CORS also protects nothing on
+/// them: a page that does not hold the caller's token cannot make an
+/// authenticated request whatever the origin policy says.
+fn permissive_cors() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any)
+}
+
+/// Answers an unmatched path, so the fallback sits inside the permissive CORS
+/// layer rather than outside both of them.
+async fn not_found() -> StatusCode {
+    StatusCode::NOT_FOUND
+}
+
+pub fn router(state: AppState, allowed_origins: &[HeaderValue]) -> Router {
+    // Routes where a password, a session token, a single-use email token, a TOTP
+    // secret or generated key material crosses the wire in either direction.
+    //
+    // Enumerated from the handlers rather than from the `/auth` prefix, which
+    // would have missed the three outside it. The six that need no credential to
+    // reach are where this is real protection, because the browser's origin is
+    // then the only check there is. The rest are defence in depth at no cost.
+    //
+    // A CORS layer attaches per path and not per method, so `GET /api/keys` and
+    // `GET /api/webhooks` come along with their POSTs. A third party cannot list
+    // their own keys or webhooks cross-origin from a browser. Deliberate.
+    let credential = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/change-password", post(auth::change_password))
@@ -504,6 +593,21 @@ pub fn router(state: AppState) -> Router {
             "/auth/oauth/{provider}/callback",
             get(crate::oauth::callback),
         )
+        .route(
+            "/api/keys",
+            get(api_keys::list_api_keys).post(api_keys::create_api_key),
+        )
+        .route("/api/keys/{id}", delete(api_keys::delete_api_key))
+        .route(
+            "/api/webhooks",
+            get(webhooks::list_webhooks).post(webhooks::create_webhook),
+        )
+        .layer(strict_cors(allowed_origins));
+
+    Router::new()
+        .route("/health", get(health))
+        .route("/api/health", get(health))
+        .route("/api/health/uptime", get(uptime))
         .route("/api/auth/providers", get(crate::oauth::list_providers))
         .route("/api/apod", get(get_apod))
         .route("/api/neo", get(get_neo))
@@ -534,15 +638,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/user/me", get(get_user_me))
         .route("/api/user/plan", post(update_user_plan))
         .route("/api/usage", get(get_usage))
-        .route(
-            "/api/keys",
-            get(api_keys::list_api_keys).post(api_keys::create_api_key),
-        )
-        .route("/api/keys/{id}", delete(api_keys::delete_api_key))
-        .route(
-            "/api/webhooks",
-            get(webhooks::list_webhooks).post(webhooks::create_webhook),
-        )
         .route("/api/webhooks/{id}", delete(webhooks::delete_webhook))
         .route(
             "/api/webhooks/{id}/deliveries",
@@ -559,12 +654,17 @@ pub fn router(state: AppState) -> Router {
         .route("/api/custom-rules/{id}", delete(delete_custom_rule))
         .route("/api/custom-rules/{id}/toggle", post(toggle_custom_rule))
         .route("/mcp", post(mcp_handler))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        // The fallback belongs inside the permissive layer. Under one layer
+        // covering the whole router an unmatched path answered 404 with the
+        // wildcard header; after the split it matched neither sub-router and a
+        // third party with a mistyped path saw a CORS error instead of the 404.
+        // The response is the same empty 404 as before, only the header returns.
+        .fallback(not_found)
+        // Layer before merge. A layer wraps the routes already on the router and
+        // not the ones added after it, so merging the credential router here
+        // leaves it carrying the strict layer it was built with.
+        .layer(permissive_cors())
+        .merge(credential)
         .with_state(state)
 }
 

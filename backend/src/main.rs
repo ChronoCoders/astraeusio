@@ -163,7 +163,24 @@ async fn main() -> Result<()> {
     );
     rate_limit::spawn_flush_task(state.usage_counter.clone(), writer);
 
-    let app = routes::router(state);
+    // An absent or empty list is the safe state, not a permissive one: no origin
+    // matches and every cross-origin request to a credential route is refused.
+    // The dashboard reaches the API same-origin through nginx, so nothing in the
+    // application depends on this being set. AUD-050.
+    let allowed_origins =
+        routes::parse_allowed_origins(&std::env::var("ALLOWED_ORIGINS").unwrap_or_default());
+    if allowed_origins.is_empty() {
+        warn!(
+            "ALLOWED_ORIGINS is empty: every cross-origin browser request to a credential route \
+             will be refused. Set it to the origins the dashboard is served from."
+        );
+    } else {
+        info!(
+            origins = allowed_origins.len(),
+            "credential routes restricted to the configured origins"
+        );
+    }
+    let app = routes::router(state, &allowed_origins);
 
     let addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&addr).await?;
