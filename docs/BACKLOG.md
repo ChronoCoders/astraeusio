@@ -111,6 +111,20 @@ or in the commit that created the deferral.
   comparison table, and the eight keys behind them are gone from both locales. The product applies
   no delay and no longer says it does. Serving two versions of the same series remains an option
   nobody has chosen, not an outstanding defect.
+- No ID. **Decided 2026-11-24: caddy comes off the host rather than staying disabled.** AUD-056
+  left it installed, disabled, holding an expired certificate it cannot renew. Disabled is one
+  `systemctl enable` away from repeating the outage, and nothing in this repository can see the
+  difference, so the package goes.
+
+  Two things happen before the removal, recorded here so the step is a lookup rather than a
+  rediscovery. Confirm `/etc/caddy/Caddyfile` defines no site other than `astraeusio.com`, because
+  removing the package takes every site it serves with it and this host was not surveyed for a
+  second one. Then copy the whole of `/etc/caddy` into the server's backup location, not only the
+  Caddyfile, since the certificate state and any drop-in under `conf.d` are part of what is being
+  destroyed.
+
+  That work is step 5 of the order recorded under Process and is not done here. Only the decision is.
+
 
 ## Measurement
 
@@ -1631,6 +1645,99 @@ repeated here.
   `strict-origin-when-cross-origin` in `security-headers.conf`, so the token in a verification or
   reset link cannot cross an origin boundary. What remains open under this ID is the report-only
   CSP above, which is a separate deferral.
+- **AUD-057** `get_token_version` turns a failing query into version 0, and the direction is fail
+  closed. `db.rs:3053`, with the `.unwrap_or(0)` at `db.rs:3061`.
+
+  The statement already reads `COALESCE(token_version, 0)`, so the `unwrap_or` is not catching a
+  NULL. What it catches is a query that failed or an account row that is not there. `auth.rs:1361`
+  compares `claims.ver != current`, so a zero rejects every session whose token carries a non-zero
+  version: a mass logout rather than a stale session accepted, and no line saying why.
+
+  Found 2026-11-24 in the crate-wide hunt recorded under AUD-052, where the table placed it at
+  `db.rs:3040`; the AUD-052 and AUD-053 commits moved the line. Identified here so each of the six
+  sites is decided on its own rather than as a row in another finding's table.
+
+- **AUD-058** `current_token_version` swallows the same error through `.unwrap_or_default()`.
+  `auth.rs:246`.
+
+  The same call, the same zero, the same fail-closed direction as AUD-057, spelled with
+  `unwrap_or_default` instead of `unwrap_or(0)`. Separate identifier because it is a separate call
+  site with its own caller, and fixing one says nothing about the other.
+
+- **AUD-059** `resolve_token_version` swallows the error and then caches the zero, so the effect
+  outlives the fault. `rate_limit.rs:279`.
+
+  The value is inserted into `UsageEntry.token_version` in the usage counter, which the function's
+  own doc comment describes as the hazard: every request takes the cached entry. So one failed query
+  logs the account out until the entry is evicted or `clear_user_cache` is called, where AUD-057 and
+  AUD-058 fail once per request. Same direction, different duration, which is why it is its own
+  finding.
+
+- **AUD-060** A database error stops threshold emails silently. `poller.rs:803`.
+
+  `list_enabled_email_alerts().unwrap_or_default()` turns a failing query into an empty subscriber
+  list, so `dispatch_email_alerts` iterates nothing, returns zero, and the cycle looks like a quiet
+  hour. Nothing distinguishes that from nobody having subscribed, and no line is written. This is
+  the only one of the six that is silent in both directions, which is why the order takes it first.
+
+- **AUD-061** The same cycle turns a failing reading query into "no reading". `poller.rs:801` and
+  `poller.rs:802`.
+
+  `latest_kp_raw().unwrap_or(None)` and `latest_solar_wind_speed_raw().unwrap_or(None)` give
+  `alert_lines` a `None`, which produces no lines, which means no alert for any subscriber whose
+  threshold the real reading would have crossed. Found only because they sit two lines above
+  AUD-060: a sweep written for `.unwrap_or(0)` and `.unwrap_or_default()` does not match
+  `.unwrap_or(None)`.
+
+- **AUD-062** A database error downgrades the caller to the free plan, and caches that too.
+  `rate_limit.rs:281`.
+
+  `get_user_plan(email).unwrap_or_else(|_| "free".to_string())` writes "free" into the same
+  `UsageEntry` as AUD-059, so the free quota and the free billing period apply to a paying account
+  until the entry is evicted. Fail closed for entitlements and wrong for the customer. The third
+  spelling the AUD-052 sweep did not look for.
+
+- **AUD-063** `ML_TIMEOUT` is read with two different defaults, so one variable means two things
+  depending on which path reads it. 10 seconds at `poller.rs:668`, 5 at `routes.rs:874`.
+
+  Both parse the same variable and both fall back to a literal. Unset, the poller waits twice as
+  long as the on-demand forecast handler for the same ML service. Found 2026-11-24 in the AUD-052
+  sweep, which recorded the second site at `routes.rs:774` before the AUD-052 commit moved it.
+  Neither default is documented as the default, and the project's own instruction file lists
+  `ML_TIMEOUT` once.
+
+- **AUD-064** The monitor saw the 2026-10-27 outage and the owner did not. Not a change to this
+  repository.
+
+  Carried out of AUD-056, where it is measured: UptimeRobot polled throughout and its 200s resume in
+  the access log at `01:00:49`, so the monitor had the outage from `08:12`, and the owner learned of
+  it 16 h 46 m later from a browser. What is not known is which link failed, whether the alert
+  contact, the notification channel or the monitor's own alerting configuration. Identified so that
+  the question has somewhere to be answered rather than living inside another finding's closing
+  paragraph.
+
+- **AUD-065** The `ml test` gate step cannot run on this machine, so it has never asserted anything
+  here. Measured 2026-11-24.
+
+  `python -m unittest discover -s ml -p "test_*.py"` runs 5 tests and errors on one:
+  `test_serve` fails at `import serve`, which fails at `import torch.nn` with
+  `ModuleNotFoundError: No module named 'torch.nn'`. The cause is more specific than a missing
+  install. `site-packages/torch` exists as a directory with no `__init__.py`, so `import torch`
+  succeeds as a namespace package with `__file__` of `None` while every submodule fails. numpy 2.2.6
+  is present; fastapi, uvicorn, pandas, sklearn and pydantic are not. The local interpreter is
+  Python 3.10.11 and `ml/requirements.txt` targets 3.11.
+
+  So the step is red for an environment reason, not a code one, and `test_published_claims` is the
+  only ML coverage the gate has actually been running.
+
+- **AUD-066** The `frontend test` gate step stopped running when Node moved to 24. Measured
+  2026-11-24.
+
+  `gate.sh:71` runs `node --test src/lib/`. Under Node v24.22.3 that path is resolved as a module
+  rather than expanded as a test directory, and the step exits 1 with
+  `Error: Cannot find module 'C:\astraeus\frontend\src\lib'`. No test in `src/lib` has run since
+  the upgrade, and the failure looks like a failing test rather than a runner that never started.
+
 
 ## Enumeration coverage
 
@@ -1821,6 +1928,26 @@ next to the next instance of it.
   **Preference: the bundle, with a push to `origin` on success.** It fixes the property rather than
   the prose, adds nothing to maintain, and the drift it introduces is the one risk in the list that
   a script can check for itself at the end of a run.
+- No ID. **The order of work, decided 2026-11-24.** Five items, in sequence, one round each.
+
+  1. The advisories, AUD-011.
+  2. The two other red gate steps, AUD-065 and AUD-066.
+  3. The swallowed errors from the AUD-052 hunt, AUD-060 first, then AUD-057, AUD-058, AUD-059,
+     AUD-061 and AUD-062.
+  4. Why the UptimeRobot alert for the 2026-10-27 outage never reached the owner, AUD-064.
+  5. Remove caddy from the host, per the decision recorded under Operational.
+
+  The sequence is not arbitrary. The advisories come first because `cargo audit` exiting non-zero
+  blocks the next phase by the standing rules, and AUD-011 exists because that noise was tolerated
+  once already. The two dead gate steps come next because a gate with three red steps trains
+  everyone to read red as normal, and a step that cannot run is worse than one that fails. The
+  swallowed errors come after, `poller.rs:803` first because it is the only one of the six that is
+  silent in both directions: no alert and no log line.
+
+  Written down because an order agreed in conversation and not written is an order that the next
+  session reconstructs from scratch, and because items 4 and 5 are host work that no gate can
+  prompt.
+
 
 ## History
 
