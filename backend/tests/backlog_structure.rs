@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 46] = [
+const FINDINGS: [&str; 49] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -190,6 +190,16 @@ const FINDINGS: [&str; 46] = [
     // runner stopped expanding a directory at Node 24. A step that cannot run
     // is worse than one that fails, because red reads the same either way.
     "AUD-065", "AUD-066",
+    // The gate reads the working tree, so a32835f passed its rust step and
+    // cannot compile its tests. Declared because a finding about the check
+    // belongs where the check is declared.
+    "AUD-067",
+    // A caret range on a crate whose version encodes a vendored C++ engine:
+    // `duckdb = "1"` spanned DuckDB 1.5.2 to 2.0.1.
+    "AUD-068",
+    // Two advisories allowlisted in backend/.cargo/audit.toml under the earlier
+    // rule, which the current one forbids. Recorded rather than decided.
+    "AUD-069",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.

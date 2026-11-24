@@ -1738,6 +1738,75 @@ repeated here.
   `Error: Cannot find module 'C:\astraeus\frontend\src\lib'`. No test in `src/lib` has run since
   the upgrade, and the failure looks like a failing test rather than a runner that never started.
 
+- **AUD-067** The gate measures the working tree, so a commit can pass it and not compile. Found
+  2026-11-24, and it had already happened.
+
+  `a32835f` was pushed and deployed on 2026-11-24 with twelve one-argument `Store::open(":memory:")`
+  calls still in it: four in `auth.rs`, two in `oauth.rs`, two in `poller.rs` and four in
+  `routes.rs`, all inside test modules. AUD-053 gave `Store::open` a second parameter, so `cargo test`
+  cannot compile that commit. The gate at that sha reported `rust test` passing in 97 seconds, and it
+  was telling the truth about the tree in front of it, which held the two-argument form uncommitted.
+
+  **The shipped binary is unaffected and that is not luck.** `cargo build --release` does not compile
+  `#[cfg(test)]` modules and the Dockerfile builds release, so the image carried the correct code and
+  the deploy's health checks measured something real. Only the test targets are broken, which is the
+  half nobody runs on the server.
+
+  **How the omission stayed silent.** The standing rule against `git add -A` means files are staged by
+  name. `6a96f6f` named `db.rs` and `main.rs`, the two files the fix was about, and the four files that
+  changed only because a signature moved were never named. The rule that stops an accidental commit
+  also makes an incomplete one quiet, and nothing between the edit and the push compares the staged
+  set against what the change needs.
+
+  **This is the AUD-054 shape for the sixth time.** Two artifacts, the working tree and the commit,
+  and the check reads the one that is not pushed.
+
+  Two repairs, neither written. A gate step that fails when `git status --porcelain` is not empty
+  before the Rust steps run: cheap, catches exactly this, and noisy during ordinary work because the
+  gate is run mid-change on purpose. Or run the Rust steps against a clean export of `HEAD`: correct
+  whatever the tree holds, and slower, because that export cannot share the warm target directory.
+
+  The twelve call sites are committed in `1ea602e`. The gate change is not written.
+
+- **AUD-068** `duckdb = "1"` lets a plain `cargo update` replace the database engine. Found
+  2026-11-24 while reading the version scheme for the zip advisories.
+
+  The duckdb-rs README states the scheme at its line 137: from DuckDB `v1.5.0` the crate version
+  encodes the engine in its second semver component, format `1.MAJOR_MINOR_PATCH.x`. So the locked
+  `1.10502.0` is DuckDB **1.5.2**, and the newest published `1.20001.0` is DuckDB **2.0.1**. Both
+  satisfy `^1`, which is what `duckdb = { version = "1", features = ["bundled"] }` in
+  `backend/Cargo.toml` asks for.
+
+  So one `cargo update` with no arguments moves the storage engine across a major version, and the
+  only visible trace is a line in `Cargo.lock`. DuckDB writes its own file format version into the
+  database, and a newer engine can read an older file while the reverse does not hold, so the step is
+  one way on a file that holds production data.
+
+  The requirement is the defect rather than the version. A caret range on a crate whose version
+  encodes a vendored C++ engine says "any engine" while reading like a normal Rust dependency bound.
+  Fixed in the same round by pinning `~1.10506`, which allows the patch component to move and refuses
+  the engine.
+
+- **AUD-069** Two advisories are allowlisted in `backend/.cargo/audit.toml`, which the standing rules
+  no longer permit. Found 2026-11-24 while reading that file for the jsonwebtoken bump.
+
+  The rule now reads that no advisory is ever accepted, allowlisted or ignored, and that each is fixed
+  at its source by a dependency update, a crate replacement or a fork. The file carries two `ignore`
+  entries written under the earlier rule, both with careful reachability arguments:
+
+  - `RUSTSEC-2023-0071`, rsa, reached through jsonwebtoken. The argument is behavioural rather than
+    graph based: rsa is compiled, and every mint site passes `Header::default()` while every verify
+    site builds on `Validation::default()`, both HS256 only, so an RSA algorithm is rejected before
+    any rsa code runs. The jsonwebtoken 12 bump in this round is the occasion to re-measure it.
+  - `RUSTSEC-2026-0235`, rkyv, reached through rust_decimal under duckdb. The argument is that
+    `cargo tree -i rkyv --target all` prints nothing, so it is not compiled, and the file says plainly
+    that this is the weaker of the two because rust_decimal is compiled and one feature change makes
+    rkyv live.
+
+  No decision taken and nothing changed. The entries are recorded here because a rule violation
+  sitting in a tracked file with a persuasive comment next to it is the kind of thing that survives
+  every future audit by looking already considered.
+
 
 ## Enumeration coverage
 
@@ -1947,6 +2016,56 @@ next to the next instance of it.
   Written down because an order agreed in conversation and not written is an order that the next
   session reconstructs from scratch, and because items 4 and 5 are host work that no gate can
   prompt.
+
+- No ID. **The advisory round, decisions of 2026-11-24.** Taken by the owner after the measurement in
+  the report of the same day, and written here because the reasoning for four of the five is a cost
+  that a commit message cannot carry.
+
+  **1. Disk.** `cargo clean -p libduckdb-sys` is authorised before any lock change that will rebuild
+  DuckDB, so orphaned build outputs never accumulate, and free space on C: is measured before and
+  after each clean. Nothing else in `target` or anywhere else is deleted without naming it first. The
+  first clean removed 23,429 files and 39.1 GiB, taking C: from 1.5 GB free to 31 GB.
+
+  Why it is needed at all: a gate run whose build script fingerprint changed compiles the bundled
+  amalgamation **twice**, once under clippy and once under `cargo test`, because the two produce
+  different fingerprints. Each output is about 4 GB and the previous pair is orphaned rather than
+  replaced. Sixteen such directories had reached 31.2 GB in a 55.3 GB `target`, and the `url` gate run
+  failed on `LNK1180: insufficient disk space to complete link` rather than on anything in the code.
+
+  **2. The gate runs after each upgrade, not once at the end.** Proposed as one run to save rebuilds
+  and refused: the clean in item 1 is what makes per-upgrade gating affordable, so a regression still
+  points at one crate.
+
+  **3. zip, seven advisories including the 9.1 critical.** Take `duckdb 1.10506.1` and pin it
+  `~1.10506` in `backend/Cargo.toml`. `libduckdb-sys 1.10506.1` requires `zip ^9`, which is the fix,
+  and the tilde keeps the engine where it is. See AUD-068 for what the old `"1"` allowed.
+
+  **The version scheme was read wrong in the report that preceded this decision, and the correction
+  belongs here rather than only in conversation.** The second semver component was treated as a flat
+  number, so `1.10502.0` was described as DuckDB 1.1.x and `1.20001.0` as 1.2.x. The duckdb-rs README
+  states at line 137 that from DuckDB `v1.5.0` the format is `1.MAJOR_MINOR_PATCH.x`. The locked
+  engine is **1.5.2**, the one being taken is **1.5.6**, and the one `"1"` would have allowed is
+  **2.0.1**. A patch level engine move was described as a minor one and a major engine move as a minor
+  one, which is exactly the misreading that would have made `cargo update` look harmless.
+
+  **4. crypto-bigint, one advisory.** Bump `jsonwebtoken` from 10 to 12 rather than chase the crate:
+  12.0.0 uses `p256 ^0.14`, which uses `elliptic-curve 0.14`, which has no crypto-bigint dependency at
+  all, so the crate leaves the tree. The advisory's own fix target 0.7.6 is yanked, as are 0.7.3
+  through 0.7.8. Every mint and verify site in `auth.rs` and `oauth.rs` gets a test that fails on a
+  wrong secret, a wrong algorithm and an expired token, enumerated from the code rather than from the
+  names. The `RUSTSEC-2023-0071` entry in `backend/.cargo/audit.toml` is re-measured under 12 and
+  rewritten or removed to match.
+
+  **5. chrono, unmaintained, no patched version. No decision yet, measurement only.** Asked whether
+  duckdb can be built with arrow disabled so chrono leaves the tree. It cannot.
+  `duckdb-1.10502.0/Cargo.toml` declares `[dependencies.arrow]` at version 58 with no
+  `optional = true`, so no feature combination removes it, and this crate already builds at the
+  minimum: duckdb's `default` feature set is empty and ours is `["bundled"]`. duckdb's own `chrono`
+  dependency is optional, and it is off.
+  `cargo tree -i chrono --target all -e normal` reports chrono reached through `arrow-arith`,
+  `arrow-array`, `arrow-cast` and the rest of the arrow family under `arrow 58.1.0`, plus this crate
+  directly. arrow 60.2.0, the newest, still requires `chrono ^0.4.40`, so upgrading arrow does not
+  help either. The remaining paths are a fork of arrow, replacing DuckDB, or upstream dropping it.
 
 
 ## History
