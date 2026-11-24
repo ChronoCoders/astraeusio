@@ -36,6 +36,18 @@ pub enum KeyError {
     SameAsJwtSecret,
 }
 
+/// Serialises every test that mutates `TOTP_ENCRYPTION_KEY`.
+///
+/// Three tests in two modules mutated that variable while each claimed to be
+/// single threaded. `cargo test` runs them on several threads inside one
+/// process, so they were racing over process-global state and the comments were
+/// wrong rather than reassuring. Taking this lock is what makes the claim true.
+///
+/// Poisoning is recovered from rather than propagated: one panicking test should
+/// not turn every other env test into a failure with an unrelated message.
+#[cfg(test)]
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[derive(Debug, thiserror::Error)]
 pub enum SealError {
     #[error("could not encrypt secret")]
@@ -180,8 +192,10 @@ mod tests {
 
     #[test]
     fn the_key_must_differ_from_the_jwt_secret() {
+        let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let shared = "a".repeat(64);
-        // SAFETY: single threaded test.
+        // SAFETY: the lock above is held, so no other test reads or writes the
+        // environment while this one does.
         unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", &shared) };
         assert!(matches!(
             SecretBox::from_env(&shared),

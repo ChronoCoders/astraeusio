@@ -5988,6 +5988,109 @@ mod tests {
         );
     }
 
+    /// The secret the guard compares against is the one passed in, both ways.
+    ///
+    /// `Store::open` and `try_clone` each read
+    /// `env::var("JWT_SECRET").unwrap_or_default()`, so an unset or blank
+    /// variable became an empty string and `TOTP_ENCRYPTION_KEY == jwt_secret`
+    /// was false for every real key. The guard could not fire in the one case it
+    /// exists for. AUD-053.
+    ///
+    /// Both directions, and the pair also proves the value arrives by parameter
+    /// rather than from the environment: `JWT_SECRET` is unset under `cargo
+    /// test`, so a site that still read the environment would compare the key
+    /// against an empty string and return `Ok` where this expects the refusal.
+    #[test]
+    fn the_totp_key_is_compared_against_the_secret_passed_in() {
+        let _env = crate::secretbox::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let key = "c".repeat(64);
+        let restore_jwt = std::env::var("JWT_SECRET").ok();
+        // SAFETY: the env lock above is held for the whole test.
+        unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", &key) };
+        // `JWT_SECRET` is set equal to the TOTP key on purpose, and it is what
+        // makes the two `is_ok` assertions below discriminating. With it unset,
+        // a site that read the environment would compare the key against an
+        // empty string, never match, and open successfully, so the test would
+        // pass whether the value came from the parameter or from the process.
+        // Equal to the key, any such site refuses instead.
+        unsafe { std::env::set_var("JWT_SECRET", &key) };
+
+        // Equal: refuse to open at all.
+        let same = Store::open(":memory:", &key);
+        assert!(
+            matches!(
+                same,
+                Err(DbError::EncryptionKey(
+                    crate::secretbox::KeyError::SameAsJwtSecret
+                ))
+            ),
+            "opening with the session secret equal to the TOTP key must be \
+             refused, got {:?}",
+            same.err()
+        );
+
+        // Distinct: open normally.
+        let distinct = Store::open(":memory:", "a-different-session-secret");
+        assert!(
+            distinct.is_ok(),
+            "two distinct keys must open, got {:?}",
+            distinct.err()
+        );
+
+        // And the clone keeps comparing against the same value rather than
+        // re-reading the environment, which is where the second site was.
+        let cloned = distinct.expect("opened").try_clone();
+        assert!(
+            cloned.is_ok(),
+            "try_clone must reuse the secret it was opened with, got {:?}",
+            cloned.err()
+        );
+
+        unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
+        match restore_jwt {
+            Some(v) => unsafe { std::env::set_var("JWT_SECRET", v) },
+            None => unsafe { std::env::remove_var("JWT_SECRET") },
+        }
+    }
+
+    /// This file does not read `JWT_SECRET` from the environment.
+    ///
+    /// The behavioural test above covers the two sites that existed. This covers
+    /// a third one being added later, which is the shape the local instruction
+    /// file's own note predicted: a function that reads its configuration
+    /// directly can only be steered by mutating the process. AUD-053.
+    #[test]
+    fn this_file_takes_the_session_secret_as_an_argument() {
+        let whole = include_str!("db.rs");
+        // Shipped code only, and anchored on the module rather than the
+        // attribute. The test above saves and restores `JWT_SECRET`, so a scan
+        // over the whole file counts its own fixture as a production reader.
+        // That is the second time in this change that a source scan read its own
+        // test code; the first was the sibling scan in main.rs.
+        let src = &whole[..whole
+            .find("\n#[cfg(test)]\nmod tests {")
+            .expect("this file has a test module")];
+        let code: String = src
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            code.contains("jwt_secret: &str"),
+            "the floor: Store::open should still take the secret by argument, \
+             so this scan is looking at the right file"
+        );
+        let hits = code.matches("env::var(\"JWT_SECRET\")").count();
+        assert_eq!(
+            hits, 0,
+            "db.rs reads JWT_SECRET from the environment in {hits} place(s). \
+             It must arrive as an argument, or the TOTP key comparison is \
+             against whatever the environment happens to hold."
+        );
+    }
+
     /// Every query in `Store::open` propagates its error, whatever its result is
     /// bound to.
     ///
@@ -6602,8 +6705,11 @@ mod tests {
     /// password hashes it sits next to.
     #[test]
     fn a_stored_second_factor_is_encrypted_at_rest() {
+        let _env = crate::secretbox::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let key = "1".repeat(64);
-        // SAFETY: single threaded test.
+        // SAFETY: the env lock above is held for the whole test.
         unsafe { std::env::set_var("TOTP_ENCRYPTION_KEY", &key) };
         let store = mem_store();
         store.create_user("tot@example.com", "hash").expect("user");
@@ -6648,7 +6754,10 @@ mod tests {
     /// storing the secret in the clear.
     #[test]
     fn without_a_key_a_second_factor_cannot_be_stored() {
-        // SAFETY: single threaded test.
+        let _env = crate::secretbox::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        // SAFETY: the env lock above is held for the whole test.
         unsafe { std::env::remove_var("TOTP_ENCRYPTION_KEY") };
         let store = mem_store();
         store

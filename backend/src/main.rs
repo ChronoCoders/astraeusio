@@ -250,6 +250,92 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
 
+    /// `JWT_SECRET` is required, and blank is not a value.
+    ///
+    /// The previous read was `env::var("JWT_SECRET").expect(..)`, which panicked
+    /// on a missing variable and accepted one set to nothing, because `Ok("")`
+    /// satisfies `expect`. An empty secret signs sessions and makes the
+    /// `TOTP_ENCRYPTION_KEY` comparison false for every real key, so blank was
+    /// the reachable half of AUD-053.
+    #[test]
+    fn a_blank_session_secret_is_refused_like_a_missing_one() {
+        let _env = crate::secretbox::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let restore = std::env::var("JWT_SECRET").ok();
+
+        // SAFETY: the env lock above is held for the whole test.
+        unsafe { std::env::remove_var("JWT_SECRET") };
+        assert!(
+            require_jwt_secret().is_err(),
+            "an unset secret must be refused"
+        );
+
+        for blank in ["", "   ", "\t\n"] {
+            unsafe { std::env::set_var("JWT_SECRET", blank) };
+            assert!(
+                require_jwt_secret().is_err(),
+                "a secret of {blank:?} must be refused, not accepted as a value"
+            );
+        }
+
+        unsafe { std::env::set_var("JWT_SECRET", "  a-real-secret  ") };
+        assert_eq!(
+            require_jwt_secret().expect("a real secret is accepted"),
+            "  a-real-secret  ",
+            "the value is validated trimmed and returned untrimmed, because \
+             trimming it would change what existing sessions were signed with"
+        );
+
+        match restore {
+            Some(v) => unsafe { std::env::set_var("JWT_SECRET", v) },
+            None => unsafe { std::env::remove_var("JWT_SECRET") },
+        }
+    }
+
+    /// The secret is validated before the database opens, not after.
+    ///
+    /// This was the whole of AUD-053: the store opened at line 92 and the secret
+    /// was required at line 136, so the two reads inside db.rs had nothing real
+    /// to compare the TOTP key against. Asserted on order in the source, because
+    /// the ordering is the defect and a running process cannot show it.
+    #[test]
+    fn the_secret_is_validated_before_the_store_opens() {
+        let whole = include_str!("main.rs");
+        // Shipped code only. This module saves and restores `JWT_SECRET` around
+        // the test above, and counting those made the assertion below read two
+        // readers where production has one.
+        // Anchored on the module itself, not on the attribute: this file's
+        // header comment quotes `#[cfg(test)]` while explaining the unsafe
+        // exemption, so slicing at the attribute cut the source off at line 18
+        // and the scan read almost nothing.
+        let src = &whole[..whole
+            .find("\n#[cfg(test)]\nmod tests {")
+            .expect("this file has a test module")];
+        let code: String = src
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let validated = code
+            .find("require_jwt_secret()?")
+            .expect("main must validate the secret");
+        let opened = code
+            .find("Store::open(&db_path")
+            .expect("main must open the store");
+        assert!(
+            validated < opened,
+            "main validates JWT_SECRET at byte {validated} and opens the store \
+             at {opened}; the validation has to come first or the store is \
+             handed whatever the environment holds"
+        );
+        assert_eq!(
+            code.matches("env::var(\"JWT_SECRET\")").count(),
+            1,
+            "exactly one place in main reads JWT_SECRET, and it is \
+             require_jwt_secret"
+        );
+    }
     use super::*;
 
     /// Every outbound client identifies itself, or is one of the two that
