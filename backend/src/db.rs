@@ -5972,6 +5972,80 @@ mod tests {
         );
     }
 
+    /// Every query in `Store::open` propagates its error, whatever its result is
+    /// bound to.
+    ///
+    /// The sibling test above enumerates by name, `needs_*` and `*_applied`, and
+    /// that is why it could not see the three AUD-052 sites: they bind
+    /// `expected`, `carried` and `before`. A rule written on a naming convention
+    /// only covers the names someone thought of. This one enumerates the queries,
+    /// which is the thing being protected.
+    ///
+    /// What the three did when they read zero: the era fix skipped its update and
+    /// still recorded the migration as applied, so nothing would ever retry it;
+    /// the xray rebuild compared `after != before` against a false zero and
+    /// logged that it had lost every row while having lost none; the
+    /// usage_records count only reached a log line. AUD-052.
+    ///
+    /// Scoped to statements containing `query_row(` on purpose. `Store::open`
+    /// holds two other `unwrap_or` calls that are not query results and must stay:
+    /// the `JWT_SECRET` read, and `scale_threshold`, which deliberately keeps the
+    /// nearest representable value rather than dropping a rule.
+    #[test]
+    fn every_query_in_store_open_propagates_its_error() {
+        let src = include_str!("db.rs");
+        let start = src
+            .find("\n    pub fn open(")
+            .expect("Store::open is where the migrations live");
+        let rest = &src[start + 20..];
+        let end = rest
+            .find("\n    pub fn ")
+            .or_else(|| rest.find("\n    fn "))
+            .unwrap_or(rest.len());
+        let body = &src[start..start + 20 + end];
+
+        // Comments are stripped before matching, because the comments added by
+        // this very fix quote `.unwrap_or(0)` and a raw scan would read the
+        // explanation as the defect. That has fooled four scans in this
+        // repository already.
+        let code: Vec<String> = body
+            .lines()
+            .map(|l| l.split("//").next().unwrap_or("").to_string())
+            .collect();
+
+        let mut checked = 0;
+        let mut bad: Vec<String> = Vec::new();
+        for (i, line) in code.iter().enumerate() {
+            if !line.contains("query_row(") {
+                continue;
+            }
+            checked += 1;
+            let mut stmt = String::new();
+            for l in code.iter().skip(i).take(14) {
+                stmt.push_str(l);
+                stmt.push(' ');
+                if l.trim_end().ends_with(';') {
+                    break;
+                }
+            }
+            if stmt.contains(".unwrap_or") || stmt.contains(".ok()") {
+                bad.push(stmt.split_whitespace().collect::<Vec<_>>().join(" "));
+            }
+        }
+
+        assert!(
+            checked >= 20,
+            "the scan found only {checked} queries in Store::open, too few for \
+             this file; the slice or the match is broken rather than the code"
+        );
+        assert!(
+            bad.is_empty(),
+            "these queries in Store::open swallow their error into a default: \
+             {bad:?}. Use `?`, so a count that cannot be read stops the open \
+             instead of being read as zero."
+        );
+    }
+
     /// The DDL declares the shape the code writes, not one a migration repairs.
     ///
     /// `a_new_database_and_a_migrated_one_agree_on_every_column` cannot catch
