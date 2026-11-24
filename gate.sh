@@ -21,35 +21,25 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 ROOT=$(pwd)
 
-# sccache, for the C++ half of the build rather than the Rust half.
+# No sccache here, and that is a measured decision rather than an omission.
 #
 # `reqwest` is a build dependency of `libduckdb-sys`, so bumping any crate
-# beneath it gives that build script a new fingerprint and recompiles the whole
-# bundled DuckDB amalgamation: 3,982 MB of objects and about 26 minutes. On
-# 2026-11-24 that happened four times in one hour while moving advisory crates in
-# the lock, and six copies of that output were sitting in `target` at 23.9 GB.
+# beneath it gives that build script a new fingerprint and recompiles the bundled
+# DuckDB amalgamation, about 10 minutes and 6 GB of objects. sccache looks like
+# the answer and is not: cc 1.2.60 does pick it up through `RUSTC_WRAPPER` in
+# `rustc_wrapper_fallback`, the wrapper does reach `cl.exe`, and sccache then
+# refuses the work. Measured on 2026-11-24 with `RUSTC_WRAPPER=sccache` set for a
+# full run: four C++ calls, zero cached, `Non-cacheable reasons: multiple input
+# files 4`. That build script passes many `.cpp` files to one `cl.exe`
+# invocation, and sccache cannot cache a compile with more than one input.
 #
-# `RUSTC_WRAPPER` rather than `CC` and `CXX`. cc 1.2.60 reads `RUSTC_WRAPPER` as
-# a fallback C and C++ wrapper in `rustc_wrapper_fallback`, so MSVC is still
-# located by vswhere. Setting `CXX` to `sccache cl.exe` would lose that lookup,
-# because `cl.exe` is not on PATH on this machine.
+# A single file probe crate cached correctly in the same session, which is the
+# trap: it proves the wrapper works and says nothing about this build.
 #
-# Verified rather than assumed, because a wrapper that silently passes
-# everything through looks identical to one that works: a cc based probe crate,
-# rebuilt after touching its build script, reported `Cache hits (C/C++) 1` and
-# went from 16.5 s to 4.5 s.
-#
-# Setting this changes cargo's fingerprint, so the first run after it lands
-# rebuilds everything once, including that 26 minute compile. Every run after
-# that serves the amalgamation from cache.
-#
-# Guarded: a machine without sccache still runs the gate, one step slower.
-if command -v sccache > /dev/null 2>&1; then
-  export RUSTC_WRAPPER=sccache
-  # Read when the sccache server starts, not per build, so raising it needs
-  # `sccache --stop-server` as well as this line.
-  export SCCACHE_CACHE_SIZE=${SCCACHE_CACHE_SIZE:-20G}
-fi
+# The lever that would change it is enabling cc's `parallel` feature so each file
+# gets its own invocation, which means adding `cc` to this crate's build
+# dependencies purely to unify a feature onto `libduckdb-sys`. Not done: it puts
+# a hack in the manifest that the production image build also reads.
 
 # Leave the machine usable while the gate runs.
 #
