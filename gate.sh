@@ -46,7 +46,23 @@ ROOT=$(pwd)
 # Guarded: a machine without sccache still runs the gate, one step slower.
 if command -v sccache > /dev/null 2>&1; then
   export RUSTC_WRAPPER=sccache
+  # Read when the sccache server starts, not per build, so raising it needs
+  # `sccache --stop-server` as well as this line.
   export SCCACHE_CACHE_SIZE=${SCCACHE_CACHE_SIZE:-20G}
+fi
+
+# Leave the machine usable while the gate runs.
+#
+# cargo runs one job per core and `cc` takes its parallelism from the same
+# jobserver through NUM_JOBS. On 2026-11-24 a cold rebuild on this 4 core laptop
+# put 15 compilers on those 4 cores, the desktop stopped responding, and the run
+# had to be killed half way, which is a worse outcome than a slower gate. Two
+# cores stay free unless the caller sets the variable.
+if [ -z "${CARGO_BUILD_JOBS:-}" ]; then
+  cores=$(nproc 2>/dev/null || echo 2)
+  if [ "$cores" -gt 2 ]; then
+    export CARGO_BUILD_JOBS=$((cores - 2))
+  fi
 fi
 
 FAILED=0
