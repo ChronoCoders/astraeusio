@@ -1415,13 +1415,16 @@ impl Store {
 
             // Counted before the update so the gate has something independent
             // to check the result against.
-            let expected: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM kp_forecast WHERE issued_at >= ? AND model_sha IS NULL",
-                    params![boundary],
-                    |row| row.get(0),
-                )
-                .unwrap_or(0);
+            // Propagated rather than defaulted. On `.unwrap_or(0)` a failing
+            // count read as zero, `expected > 0` was false, the update never
+            // ran, and the migration id was still written below. The era fix
+            // would have been recorded as applied while doing nothing, and
+            // nothing retries a migration that claims to be done. AUD-052.
+            let expected: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM kp_forecast WHERE issued_at >= ? AND model_sha IS NULL",
+                params![boundary],
+                |row| row.get(0),
+            )?;
 
             if expected > 0 {
                 // An explicit transaction, because DuckDB autocommits a bare
@@ -1708,9 +1711,12 @@ impl Store {
             |row| row.get(0),
         )?;
         if usage_history_applied == 0 {
-            let carried: i64 = conn
-                .query_row("SELECT COUNT(*) FROM usage_records", [], |row| row.get(0))
-                .unwrap_or(0);
+            // Only ever logged, so a default here cost a wrong number in one
+            // line rather than a wrong decision. Propagated anyway: a count that
+            // cannot be read means the table is not in the state this rebuild
+            // assumes, and that is worth stopping for. AUD-052.
+            let carried: i64 =
+                conn.query_row("SELECT COUNT(*) FROM usage_records", [], |row| row.get(0))?;
             conn.execute_batch(
                 "CREATE TABLE usage_records_new (
                      user_email    TEXT   NOT NULL,
@@ -1747,9 +1753,13 @@ impl Store {
             |row| row.get(0),
         )?;
         if xray_key_applied == 0 {
-            let before: i64 = conn
-                .query_row("SELECT COUNT(*) FROM xray", [], |row| row.get(0))
-                .unwrap_or(0);
+            // The row count the rebuild is checked against. On `.unwrap_or(0)` a
+            // failing count read as zero, so `after != before` held for any
+            // non-empty table and the rebuild logged that it had lost every row
+            // while having lost none. A false report of damage is worse than an
+            // error, because it sends the next person looking for a data loss
+            // that did not happen. AUD-052.
+            let before: i64 = conn.query_row("SELECT COUNT(*) FROM xray", [], |row| row.get(0))?;
             let started = std::time::Instant::now();
             conn.execute_batch(
                 "CREATE TABLE xray_new (

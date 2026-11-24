@@ -1124,10 +1124,6 @@ async fn get_report_summary(
 /// already promises Kp and solar wind data on the free tier and lists CSV
 /// export on no tier at all. Gating all four would take something away that the
 /// site currently offers, which is a pricing decision and not a fix.
-///
-/// The real free-versus-paid line the pricing page claims is `delay60`, a sixty
-/// second delay on free-tier data, and nothing in this service implements it.
-/// That is recorded in the backlog rather than invented here.
 async fn get_report_export(
     State(s): State<AppState>,
     _claims: AuthClaims,
