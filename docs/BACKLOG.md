@@ -513,6 +513,12 @@ repeated here.
   cost a full backend rebuild and container recreation on the host, which is not a price worth
   paying for prose. It goes with whatever changes `routes.rs` next.
 
+  **Closed 2026-11-24**, in `c01039b`, the AUD-052 fix. The three stale lines are gone from the
+  `get_report_export` doc comment and `delay60` now appears nowhere in `backend/src` or
+  `frontend/src`. It took two backend changes rather than one: `routes.rs` also changed under AUD-050
+  on 2026-10-05 and the comment was not carried then, which is what a rider on "the next change"
+  costs when nothing enforces it.
+
 - **AUD-009** No `limit_req_zone` exists in `frontend/nginx.conf`, so the sign in backoff added in
   `504bb5b` is per account only and an attacker spreading attempts across accounts from one address
   meets nothing at the edge.
@@ -1260,17 +1266,40 @@ repeated here.
 
   | line | binding | what reads it | what a failing count makes the code believe |
   |---|---|---|---|
-  | `db.rs:1418` | `expected` | `era_fix_is_verified(expected, updated, inconsistent)` at `db.rs:1452` | that the `kp_forecast` era fix touched rows it should not have. `expected` becomes 0, so `updated == expected` is false whenever real work happened, and it logs an error naming a mismatch that did not occur |
+  | `db.rs:1418` | `expected` | the `if expected > 0` gate above `era_fix_is_verified` | **corrected 2026-11-24.** Not a false alarm. `expected` becomes 0, so the gate is false, the whole repair block is skipped and `era_fix_is_verified` is never reached. The `INSERT INTO schema_migrations` sits outside that gate, so the era fix is recorded as applied having done nothing, and nothing retries a migration that claims to be done |
   | `db.rs:1730` | `before` | `error!(before, after, "xray rebuild did not preserve every row")` at `db.rs:1752` | that the `xray` rebuild lost every row. `before` becomes 0 and the comparison against `after` reports a rebuild that destroyed data |
   | `db.rs:1691` | `carried` | one `info!` at `db.rs:1711` and nothing else | nothing. No decision reads it. The log line claims 0 rows were carried when rows were, so only the record is wrong |
 
-  **Two of the three fail loud and one is cosmetic**, which is the opposite direction from AUD-049.
-  There the swallowed error made a migration check read as "already done" and skip work in silence.
-  Here a swallowed error raises a false alarm about data loss, or writes a misleading log. A false
-  alarm about a rebuild destroying rows is still expensive, because the next person reads it as real.
+  **That read was wrong on the first site, and the correction reverses the entry's conclusion.** This
+  was written as "two fail loud and one is cosmetic, the opposite direction from AUD-049". Reading the
+  control flow rather than the call site shows `expected` is the same class as AUD-049 and not its
+  opposite: a swallowed error makes a migration skip its work and still record itself as done. The
+  other two are a false alarm about data loss and a misleading log line. So one of the three is
+  silent and permanent, which is the worst of the three, and the entry had it as the mildest.
 
-  Closed by `?` at all three, which is what `every_migration_decision_propagates_its_query_error`
-  already requires of the decision bindings and does not yet require of these.
+  The mistake was reading what consumes the value and stopping there. `era_fix_is_verified` does
+  consume `expected`, which is what the table said, but it sits inside a gate that a zero closes, so
+  the consumer is never reached. Tracing to the consumer is not the same as tracing the control flow
+  that reaches it.
+
+  **AUD-052 closed 2026-11-24**, commit `c01039b` for the fix and `3b584e9` for the guard.
+
+  All three now use `?`. The guard is a new test, `every_query_in_store_open_propagates_its_error`,
+  because the existing one could not have caught them: it enumerates bindings named `needs_*` or
+  `*_applied`, and these bind `expected`, `carried` and `before`. A rule written on a naming
+  convention covers the names someone thought of. The new one enumerates the 28 `query_row` calls in
+  `Store::open` instead, so a count added later is covered whatever it is called.
+
+  It is scoped to statements holding `query_row(`, because two other `unwrap_or` calls in that
+  function are not query results and must stay: the `JWT_SECRET` read, which AUD-053 moves out
+  entirely, and `scale_threshold`, which deliberately keeps the nearest representable value rather
+  than dropping a user's rule.
+
+  **Six mutations, each caught by the message aimed at it:** each of the three sites swallowing again,
+  a query discarded with `.ok()` instead of a default, the scan matching no query at all so every
+  comparison below it would hold over an empty list, and the comment stripper removed so the comments
+  this fix added, which quote `.unwrap_or(0)`, read as the defect they describe. That last one is the
+  fifth time a scan in this repository has been at risk from its own documentation.
 
   **The hunt that found these was scoped to one file, and that is worth recording separately.** It
   scanned `Store::open` in `db.rs` and never left that function. Across shipped code there are 84
@@ -1290,7 +1319,44 @@ repeated here.
   expected case, not a swallowed error.
 
   One inconsistency the sweep did turn up: `ML_TIMEOUT` is read with different defaults in two places,
-  10 at `poller.rs:668` and 5 at `routes.rs:774`. One variable, two meanings depending on the path. Widening that test to
+  10 at `poller.rs:668` and 5 at `routes.rs:774`. One variable, two meanings depending on the path.
+
+  **The wider hunt, 2026-11-24.** Enumerated from the source across every module rather than one
+  function, which is what the scoping note above asked for. 36 shipped `.unwrap_or(0)` and
+  `.unwrap_or_default()` sites, test modules excluded by brace depth from `#[cfg(test)]` rather than by
+  name, because a name filter missed `mod mcp_tests` here once. A 37th match was this file's own doc
+  comment quoting the pattern, which is why the count is 36.
+
+  Real swallowed errors, none changed, each needing its own decision:
+
+  | site | what a database error makes it believe | direction |
+  |---|---|---|
+  | `db.rs:3040` `get_token_version` | token version 0. The SQL already `COALESCE`s NULL, so this only catches a query failure or a missing row | fail **closed**: `auth.rs:1361` compares `claims.ver != current`, so a fault rejects every session carrying a non-zero version rather than accepting a stale one. Mass logout, no security hole, nothing logged |
+  | `auth.rs:246` `current_token_version` | the same, through `.unwrap_or_default()` | the same |
+  | `rate_limit.rs:279` | the same, and it caches the 0 in the usage counter, so the effect outlives the fault until the entry ages out | the same, but persistent |
+  | `poller.rs:803` `list_enabled_email_alerts` | that nobody subscribed, so threshold emails stop | silent. No alert goes out and no line says why |
+
+  Legitimate NULL or absent-value defaults, no change: `db.rs:3339`, `3342`, `3343`, `3344` and
+  `db.rs:4871` all read `row.get::<_, Option<i64>>(n)?`, so the `?` carries any error and the
+  `unwrap_or(0)` only handles a SQL NULL from a `COUNT(*) FILTER` or `AVG` over an empty group;
+  `db.rs:3358` defaults an `Option` from `.find()`, and its comment says a horizon with no pairs must
+  read as zero rather than vanish; `db.rs:4008`, `4011`, `4012` turn an absent value into an empty CSV
+  cell; `routes.rs:1350` and `1365` default an absent billing period to zero after the query already
+  used `?`.
+
+  Clock defaults rather than query results, no change: `db.rs:1896`, `anomaly.rs:411`,
+  `db_writer.rs:511`, `poller.rs:712`, `poller.rs:977`, `routes.rs:223`, `894`, `961` and `1765` all
+  swallow `SystemTime::duration_since(UNIX_EPOCH)`, reachable only with a clock set before 1970, which
+  would then write a timestamp of 0. `db.rs:3677` and `3680` turn an out-of-range timestamp into an
+  empty date string, which the query would then match nothing against.
+
+  **The two forms named are not the whole shape, which the scope should say.** Restricting to
+  `.unwrap_or(0)` and `.unwrap_or_default()` misses the same defect spelled differently, and three
+  sites in the first list above were found only because they sat next to one that matched:
+  `poller.rs:801` and `802` use `.unwrap_or(None)` to turn a database error into "no reading", and
+  `rate_limit.rs:281` uses `.unwrap_or_else(|_| "free".to_string())` to turn one into a plan
+  downgrade. A sweep defined by spelling rather than by behaviour will keep finding only the
+  spellings it was given. Widening that test to
   every `query_row` in `Store::open` is the obvious move and needs one judgement first: whether any
   count in that function is legitimately optional, because the test would then need an exemption list
   and an exemption list is the thing that rots.
