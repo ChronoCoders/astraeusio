@@ -232,7 +232,7 @@ fn every_declared_finding_still_has_a_bullet() {
 ///
 /// A partial closure must not use this form. `AUD-027` shipped one half and kept
 /// the other open, and it says that in words instead.
-const CLOSED: [(&str, &str); 10] = [
+const CLOSED: [(&str, &str); 11] = [
     // Closed the other way: the claim came off rather than the delay going in.
     ("AUD-012", "2026-09-22"),
     ("AUD-036", "2026-10-04"),
@@ -250,6 +250,9 @@ const CLOSED: [(&str, &str); 10] = [
     // queries rather than the binding names, because the sibling rule test
     // keyed on names and these three were called something else.
     ("AUD-052", "2026-11-24"),
+    // The ordering defect. Closed by making the store take the secret rather
+    // than read it, which is the shape main.rs's own header had prescribed.
+    ("AUD-053", "2026-11-24"),
 ];
 
 /// Every closure marker in the file, as (identifier, date).

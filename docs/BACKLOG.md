@@ -1123,6 +1123,49 @@ repeated here.
   repository does not ship, so the rule is enforced in the gate and nowhere else. Recorded rather than
   widened into this change.
 
+  **AUD-053 closed 2026-11-24**, commit `6a96f6f` for the fix and `3b2c1ad` for the guard.
+
+  Fixed at the ordering rather than at the comparison. `Store::open` takes the secret as an argument,
+  `Store` keeps it so `try_clone` reuses the value it was opened with, neither site reads the
+  environment, and `main` validates before opening anything through `require_jwt_secret`, which
+  returns an error instead of panicking and refuses a blank value as well as a missing one.
+
+  This is the shape `main.rs`'s own header comment had already prescribed for the eleven environment
+  reads behind its unsafe-in-tests exemption: the logic takes the value rather than reading the
+  process. One of the eleven is now gone.
+
+  **Four tests.** Two behavioural, in `db.rs`: equal keys refuse to open, distinct keys open, and the
+  clone keeps comparing against the value it was given. Two scans: `db.rs` reads `JWT_SECRET` from the
+  environment nowhere, and `main` validates before it opens, asserted on source order because the
+  ordering is the defect and a running process cannot show it.
+
+  **The first version of the behavioural test could not tell the two apart, and the mutation round is
+  what found that.** It left `JWT_SECRET` unset, so a site that still read the environment compared
+  the TOTP key against an empty string, never matched, and opened successfully. Both `is_ok`
+  assertions held whether the value came from the argument or from the process, and the `try_clone`
+  mutation was caught only by the source scan, which the harness reported as WRONG GUARD rather than
+  as a pass. The test now sets `JWT_SECRET` equal to the TOTP key on purpose: any site reading the
+  environment then refuses, so the two assertions discriminate.
+
+  **Six mutations, each caught by the test aimed at it:** each of the two sites reading the
+  environment again, a blank secret accepted again, the validation moved back below the open, the
+  no-environment scan reading nothing, and the ordering scan no longer stripping comments.
+
+  **An unrelated defect this uncovered, and it had to be fixed for the new test to mean anything.**
+  Seven sites across `db.rs` and `secretbox.rs` mutate `TOTP_ENCRYPTION_KEY`, each carrying the
+  comment "SAFETY: single threaded test". None of them was: `cargo test` runs tests on several
+  threads inside one process, so three tests were already racing over one process-global variable and
+  the comments asserted the opposite. `secretbox::ENV_LOCK` now serialises them, and the pre-existing
+  sites take it too, because a lock only works if every participant does. Poisoning is recovered from
+  rather than propagated, so one panicking test does not fail the others with an unrelated message.
+
+  **Both source scans read their own test code first.** The `main` scan counted the fixture that saves
+  and restores `JWT_SECRET` as a second production reader, and after fixing that, the `db.rs` scan did
+  the same thing for the same reason. Both now slice at the test module, anchored on
+  `mod tests {` rather than on the attribute, because `main.rs`'s header comment quotes
+  `#[cfg(test)]` while explaining the unsafe exemption and slicing there cut the file off at line 18.
+  Three distinct ways for a scan to read the wrong text, in one change.
+
 - **AUD-054** Five checks in one session compared two artifacts and could not see both being wrong
   the same way. The fifth hid a live defect rather than merely failing to find one.
 
@@ -1391,9 +1434,24 @@ repeated here.
   start as intended. So the guard works in exactly the configuration it was written for, and is inert
   only when the other variable is missing.
 
-  **There is no live exposure**, and the entry says so rather than implying one. With `JWT_SECRET`
-  unset the process reaches `main.rs:136` and panics, so it never serves. The defect is that a
-  security guard's effectiveness depends on a variable checked later, in a different file, by a
+  **That "no live exposure" reading was wrong, corrected 2026-11-24.** It holds only for `JWT_SECRET`
+  being *unset*. The reachable case is the variable set to nothing: `std::env::var` returns `Ok("")`
+  for a set-but-empty variable, `Ok("")` satisfies `.expect`, so `main.rs:136` accepted it and the
+  process started. It then signed every session with an empty secret while the comparison at
+  `secretbox.rs:62` was false for any real key, so the guard was inert in a process that was serving.
+  A line of `JWT_SECRET=` in the environment file is all it takes, and production reads one.
+
+  Platform note, because it decides whether this was ever live here: on Linux, which production runs,
+  a set-but-empty variable stays set and empty. On Windows an empty assignment removes the variable
+  instead, so the same misconfiguration would have been the unset case and would have stopped the
+  process. The exposure was real on the host that matters and not reproducible on the development
+  machine, which is the worst combination for noticing it.
+
+  The old read also broke two other rules at once: `.expect` is a panic outside tests, and a
+  configuration fault should be an error rather than a crash.
+
+  The remaining defect, unchanged by the correction, is that a security guard's effectiveness depended
+  on a variable checked later, in a different file, by a
   different mechanism, and nothing records that dependency. It is the AUD-045 shape: the pattern, not
   the damage.
 
