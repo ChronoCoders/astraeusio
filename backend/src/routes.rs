@@ -1848,8 +1848,11 @@ mod mcp_tests {
         let client = reqwest::Client::new();
         AppState::new(
             client.clone(),
-            Store::open(":memory:").expect("in-memory store"),
-            crate::db_writer::spawn(Store::open(":memory:").expect("writer store"), client),
+            Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("in-memory store"),
+            crate::db_writer::spawn(
+                Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("writer store"),
+                client,
+            ),
             "http://ml".to_string(),
             SECRET.to_string(),
             None,
@@ -3246,9 +3249,10 @@ mod cors_tests {
         let client = reqwest::Client::new();
         let state = AppState::new(
             client.clone(),
-            Store::open(":memory:").expect("in-memory store"),
+            Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("in-memory store"),
             crate::db_writer::spawn(
-                Store::open(":memory:").expect("in-memory store for the writer"),
+                Store::open(":memory:", "test-jwt-secret-not-the-totp-key")
+                    .expect("in-memory store for the writer"),
                 client.clone(),
             ),
             String::new(),

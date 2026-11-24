@@ -1046,7 +1046,7 @@ mod tests {
         use crate::mailer::TestSender;
 
         async fn run(sender: std::sync::Arc<TestSender>) -> (usize, usize) {
-            let store = Store::open(":memory:").expect("store");
+            let store = Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("store");
             let email = "alerts@example.com";
             store.create_user(email, "hash").expect("user");
             // Kp far above the threshold, observed now so the freshness rule
@@ -1065,8 +1065,10 @@ mod tests {
 
             let client = reqwest::Client::new();
             let db = Arc::new(Mutex::new(store));
-            let writer =
-                crate::db_writer::spawn(Store::open(":memory:").expect("writer store"), client);
+            let writer = crate::db_writer::spawn(
+                Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("writer store"),
+                client,
+            );
             let notified = dispatch_email_alerts(&db, &writer, sender.as_ref()).await;
             (sender.count(), notified)
         }

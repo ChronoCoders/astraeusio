@@ -744,9 +744,10 @@ mod state_binding_tests {
         let client = reqwest::Client::new();
         let state = crate::routes::AppState::new(
             client.clone(),
-            crate::db::Store::open(":memory:").expect("store"),
+            crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("store"),
             crate::db_writer::spawn(
-                crate::db::Store::open(":memory:").expect("writer store"),
+                crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key")
+                    .expect("writer store"),
                 client,
             ),
             "http://ml".to_string(),

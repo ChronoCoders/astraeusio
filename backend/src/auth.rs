@@ -1385,10 +1385,12 @@ mod tests {
     const SECRET: &str = "test-secret-not-used-anywhere-real";
 
     fn test_state() -> AppState {
-        let db = crate::db::Store::open(":memory:").expect("in-memory store");
+        let db = crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key")
+            .expect("in-memory store");
         let client = reqwest::Client::new();
         let writer = crate::db_writer::spawn(
-            crate::db::Store::open(":memory:").expect("writer store"),
+            crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key")
+                .expect("writer store"),
             client.clone(),
         );
         AppState::new(
@@ -2138,9 +2140,10 @@ mod resend_tests {
         let client = reqwest::Client::new();
         AppState::new(
             client.clone(),
-            crate::db::Store::open(":memory:").expect("store"),
+            crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key").expect("store"),
             crate::db_writer::spawn(
-                crate::db::Store::open(":memory:").expect("writer store"),
+                crate::db::Store::open(":memory:", "test-jwt-secret-not-the-totp-key")
+                    .expect("writer store"),
                 client,
             ),
             "http://ml".to_string(),
