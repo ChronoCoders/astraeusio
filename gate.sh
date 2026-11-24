@@ -21,6 +21,34 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 ROOT=$(pwd)
 
+# sccache, for the C++ half of the build rather than the Rust half.
+#
+# `reqwest` is a build dependency of `libduckdb-sys`, so bumping any crate
+# beneath it gives that build script a new fingerprint and recompiles the whole
+# bundled DuckDB amalgamation: 3,982 MB of objects and about 26 minutes. On
+# 2026-11-24 that happened four times in one hour while moving advisory crates in
+# the lock, and six copies of that output were sitting in `target` at 23.9 GB.
+#
+# `RUSTC_WRAPPER` rather than `CC` and `CXX`. cc 1.2.60 reads `RUSTC_WRAPPER` as
+# a fallback C and C++ wrapper in `rustc_wrapper_fallback`, so MSVC is still
+# located by vswhere. Setting `CXX` to `sccache cl.exe` would lose that lookup,
+# because `cl.exe` is not on PATH on this machine.
+#
+# Verified rather than assumed, because a wrapper that silently passes
+# everything through looks identical to one that works: a cc based probe crate,
+# rebuilt after touching its build script, reported `Cache hits (C/C++) 1` and
+# went from 16.5 s to 4.5 s.
+#
+# Setting this changes cargo's fingerprint, so the first run after it lands
+# rebuilds everything once, including that 26 minute compile. Every run after
+# that serves the amalgamation from cache.
+#
+# Guarded: a machine without sccache still runs the gate, one step slower.
+if command -v sccache > /dev/null 2>&1; then
+  export RUSTC_WRAPPER=sccache
+  export SCCACHE_CACHE_SIZE=${SCCACHE_CACHE_SIZE:-20G}
+fi
+
 FAILED=0
 STEPS=0
 declare -a RESULTS=()
