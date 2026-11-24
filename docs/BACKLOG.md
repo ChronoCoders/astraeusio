@@ -1197,6 +1197,60 @@ repeated here.
   a convenience for this machine rather than enforcement. The gate stays the authority either way.
   Not built, because it is outside the step that found it.
 
+- **AUD-056** The site was down for 16 h 46 m on 2026-10-27 because two services wanted ports 80 and
+  443 and the winner was decided by boot order. Nothing in this repository could have caught it.
+
+  Measured during the incident. `uptime -s` gave the boot at `2026-10-27T08:12:05Z`, the recreated
+  frontend's `.State.StartedAt` gave `2026-10-28T00:58:21Z`, so the outage was 60,376 seconds.
+
+  **The sequence, and the second cause is the one worth keeping.**
+
+  1. The host rebooted for a kernel upgrade, `6.8.0-111` to `6.8.0-147` in `last -x reboot`. It was
+     the first reboot in 170 days: the previous boot was 2026-05-10 and ran `170+06:59`.
+  2. `caddy`, enabled since May and never able to bind while the container held the ports, started at
+     `08:12:11` and took 80 and 443. Docker started backend and ml at `08:12:14`.
+  3. The frontend container failed at the networking step. Its `.State.Error` read
+     `failed to set up container networking: driver failed programming external connectivity ...
+     failed to bind host port 0.0.0.0:80/tcp: address already in use`, exit 128. Because
+     `restart: unless-stopped` treats a stopped container as deliberate, nothing retried it.
+  4. Caddy answered 443 with a Let's Encrypt certificate that expired on `Aug 8 00:56:20 2026`, so
+     Cloudflare under Full (strict) returned **526** for every request. Its renewals could never
+     succeed: its own log says
+     `open /var/lib/caddy/.../astraeusio.com/astraeusio.com.key: no such file or directory`. The real
+     origin certificate was never involved and was valid throughout, `notAfter May 6 13:06:00 2041`.
+  5. Disabling caddy cleared the certificate error and revealed the consequence of step 3. The
+     container was left attached to **no network at all**: `.NetworkSettings.Networks` was empty while
+     backend and ml sat on `astraeusio_default` at `172.18.0.2` and `172.18.0.4`. With no network there
+     is no Docker DNS, so nginx aborted at config load with
+     `host not found in upstream "backend" in /etc/nginx/conf.d/default.conf:89` and the edge returned
+     **521** instead. The container crash-looped to 9 restarts.
+  6. `docker compose up -d frontend` **starts** an existing container, so it reused the broken,
+     network-less configuration. `docker compose up -d --force-recreate --no-deps frontend` rebuilt the
+     endpoint, the container joined `astraeusio_default` at `172.18.0.3`, and the site returned 200.
+
+  **A restart was the wrong instinct and would have failed.** It was the first assumption on both
+  sides, and it re-runs the race in step 2, which caddy wins by three seconds.
+
+  **Two failure shapes to carry forward.** A container whose start fails while binding a port is left
+  with no network, and that failure then presents as a name resolution error in a later start rather
+  than as the port conflict it actually is. And `up -d <service>` is not idempotent in the way it
+  reads: it will happily start a container whose recorded configuration is broken.
+
+  **What is enforced and what is not.** Nothing here. The gate reads this repository, and this was
+  host state: a second web server installed outside the repository, enabled, holding the ports the
+  compose file publishes. No tracked file could have expressed it. The honest mitigations are both
+  outside the gate: remove caddy rather than leave it disabled, or give the host a boot-time check
+  that the published ports belong to the containers that claim them.
+
+  Caddy is disabled and still installed, with an expired certificate it cannot renew and a config
+  pointing `reverse_proxy 127.0.0.1:8080` where nothing listens. Inert, and one `systemctl enable`
+  away from doing this again.
+
+  **The detection half is worse than the fault.** UptimeRobot polled throughout and its 200s resume in
+  the access log at `01:00:49`, so the monitor saw the outage start at 08:12 and the owner learned of
+  it 16 h 46 m later from a browser. Finding out why that alert did not arrive is worth more than
+  either fix, and it is not a change to this repository.
+
 - **AUD-052** Three counts in `Store::open` swallow a failing query, and each makes the code believe
   something different. None is the fail-open class AUD-049 was.
 

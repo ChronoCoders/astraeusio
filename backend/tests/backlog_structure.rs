@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 35] = [
+const FINDINGS: [&str; 36] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -170,6 +170,10 @@ const FINDINGS: [&str; 35] = [
     // rules this project follows are habits rather than gates. Read from the
     // hook files, not from the notes that describe them.
     "AUD-055",
+    // The 2026-10-27 outage. Recorded because nothing in this repository could
+    // have caught it: a second web server installed outside the repository held
+    // the ports the compose file publishes, and which one won was boot order.
+    "AUD-056",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.
