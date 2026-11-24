@@ -75,6 +75,27 @@ use anyhow::Result;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+/// Reads `JWT_SECRET` and refuses an absent or blank value.
+///
+/// Returns an error rather than panicking. The previous
+/// `env::var("JWT_SECRET").expect(..)` did two wrong things at once: it crashed
+/// the process on a configuration fault, and it accepted a variable set to
+/// nothing, since `Ok("")` satisfies `expect`. That second case is the reachable
+/// one, because an empty secret both signs sessions and makes
+/// `TOTP_ENCRYPTION_KEY == jwt_secret` false for every real key. AUD-053.
+///
+/// The value is validated on its trimmed form and returned untrimmed, because
+/// trimming it here would change what already-issued sessions were signed with.
+fn require_jwt_secret() -> Result<String> {
+    let raw = std::env::var("JWT_SECRET").map_err(|_| {
+        anyhow::anyhow!("JWT_SECRET is not set; the service will not start without it")
+    })?;
+    if raw.trim().is_empty() {
+        anyhow::bail!("JWT_SECRET is set to a blank value; supply the real secret");
+    }
+    Ok(raw)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -89,7 +110,14 @@ async fn main() -> Result<()> {
     // than surface as a dead route after a successful looking start.
     routes::init_mcp_tools()?;
 
-    let write_db = db::Store::open(&db_path)?;
+    // Read and checked before anything opens the database. Both reads inside
+    // db.rs used to take it from the environment themselves with
+    // `unwrap_or_default`, so an unset or blank value became an empty string and
+    // the `TOTP_ENCRYPTION_KEY` comparison in `SecretBox::from_env` could not
+    // fail whatever the two keys were. AUD-053.
+    let jwt_secret = require_jwt_secret()?;
+
+    let write_db = db::Store::open(&db_path, &jwt_secret)?;
     let read_db = write_db.try_clone()?;
     let http_timeout = std::env::var("HTTP_TIMEOUT")
         .ok()
@@ -133,7 +161,6 @@ async fn main() -> Result<()> {
     }
     let ml_url =
         std::env::var("ML_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     // One `Sender` for the whole process, behind the trait so tests can put a
     // different one in. `None` when no key is configured, exactly as before.
     let mailer_config: Option<std::sync::Arc<dyn mailer::Sender>> =
@@ -222,6 +249,7 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     /// Every outbound client identifies itself, or is one of the two that

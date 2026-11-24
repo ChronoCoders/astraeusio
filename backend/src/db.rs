@@ -1157,10 +1157,19 @@ pub struct Store {
     /// None when no key is configured, which is allowed only while no account
     /// has an encrypted second factor. `Store::open` enforces that.
     secret_box: Option<crate::secretbox::SecretBox>,
+    /// The session signing secret, passed in rather than read here.
+    ///
+    /// `TOTP_ENCRYPTION_KEY` must differ from it, and the comparison can only
+    /// mean anything if this is the real value. Both sites used to read
+    /// `env::var("JWT_SECRET").unwrap_or_default()`, which yields an empty
+    /// string when the variable is unset or set to nothing, and nothing equals
+    /// an empty string, so the guard passed whatever the keys were. `main`
+    /// validates it before opening the store and hands it over. AUD-053.
+    jwt_secret: String,
 }
 
 impl Store {
-    pub fn open(path: &str) -> Result<Self, DbError> {
+    pub fn open(path: &str, jwt_secret: &str) -> Result<Self, DbError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA)?;
         // Migrate existing DBs that pre-date the plan column.
@@ -1595,8 +1604,7 @@ impl Store {
         // turn that into logins failing one at a time, and disable_2fa would
         // appear to work while login_2fa failed, quietly pushing users off their
         // second factor. Refusing is loud and is fixed by supplying the key.
-        let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_default();
-        let secret_box = crate::secretbox::SecretBox::from_env(&jwt_secret)?;
+        let secret_box = crate::secretbox::SecretBox::from_env(jwt_secret)?;
 
         let totp_encryption_applied: i64 = conn.query_row(
             "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
@@ -1871,7 +1879,11 @@ impl Store {
             (Some(_), _) => {}
         }
 
-        Ok(Self { conn, secret_box })
+        Ok(Self {
+            conn,
+            secret_box,
+            jwt_secret: jwt_secret.to_string(),
+        })
     }
 
     pub fn begin(&self) -> Result<(), DbError> {
@@ -1891,9 +1903,8 @@ impl Store {
     pub fn try_clone(&self) -> Result<Self, DbError> {
         Ok(Self {
             conn: self.conn.try_clone()?,
-            secret_box: crate::secretbox::SecretBox::from_env(
-                &std::env::var("JWT_SECRET").unwrap_or_default(),
-            )?,
+            secret_box: crate::secretbox::SecretBox::from_env(&self.jwt_secret)?,
+            jwt_secret: self.jwt_secret.clone(),
         })
     }
 }
@@ -4963,8 +4974,13 @@ mod tests {
     use crate::noaa::{ImfRecord, Kp3hRecord, KpRecord, XRayRecord};
     use chrono::DateTime;
 
+    /// The secret every test store opens with. Distinct from any
+    /// `TOTP_ENCRYPTION_KEY` a test sets, so the AUD-053 guard stays quiet
+    /// unless a test means to trip it.
+    const TEST_JWT_SECRET: &str = "test-jwt-secret-not-the-totp-key";
+
     fn mem_store() -> Store {
-        Store::open(":memory:").expect("in-memory store")
+        Store::open(":memory:", TEST_JWT_SECRET).expect("in-memory store")
     }
 
     /// Pulls `[Min: n, Max: m]` out of a storage_info stats string.
@@ -6115,7 +6131,7 @@ mod tests {
     #[test]
     fn a_new_database_and_a_migrated_one_agree_on_every_column() {
         fn schema_of(path: &str) -> Vec<(String, String)> {
-            let store = Store::open(path).expect("open");
+            let store = Store::open(path, "test-jwt-secret-not-the-totp-key").expect("open");
             let mut stmt = store
                 .conn
                 .prepare(
@@ -6202,7 +6218,7 @@ mod tests {
         );
 
         // The seeded row survived the migration with a scaled value.
-        let store = Store::open(&legacy_path.to_string_lossy()).expect("reopen");
+        let store = Store::open(&legacy_path.to_string_lossy(), TEST_JWT_SECRET).expect("reopen");
         let scaled: Option<i64> = store
             .conn
             .query_row(
@@ -6872,7 +6888,8 @@ mod tests {
             .expect("seed");
         }
 
-        let store = Store::open(&path_str).expect("open through the migration");
+        let store = Store::open(&path_str, "test-jwt-secret-not-the-totp-key")
+            .expect("open through the migration");
         assert_eq!(
             store.get_user_plan("old@example.com").expect("plan"),
             "free"
@@ -7179,7 +7196,8 @@ mod tests {
             .expect("seed");
         }
 
-        let store = Store::open(&path_str).expect("open through the migration");
+        let store = Store::open(&path_str, "test-jwt-secret-not-the-totp-key")
+            .expect("open through the migration");
         let n: i64 = store
             .conn
             .query_row("SELECT COUNT(*) FROM xray", [], |r| r.get(0))
@@ -7760,7 +7778,7 @@ mod tests {
             }
         }
 
-        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+        let store = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET).expect("migrated open");
 
         let (threes, sixes, named, inconsistent): (i64, i64, i64, i64) = store
             .conn
@@ -7866,7 +7884,7 @@ mod tests {
             }
         }
 
-        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+        let store = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET).expect("migrated open");
         let corrected: Vec<i64> = {
             let mut stmt = store
                 .conn
@@ -7955,8 +7973,8 @@ mod tests {
             }
         }
 
-        let store =
-            Store::open(path.to_str().unwrap()).expect("the migration must not refuse this");
+        let store = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET)
+            .expect("the migration must not refuse this");
 
         let (threes, named, inconsistent, total): (i64, i64, i64, i64) = store
             .conn
@@ -8055,7 +8073,7 @@ mod tests {
             .expect("seed ordinary account");
         }
 
-        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+        let store = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET).expect("migrated open");
 
         for email in DEPLOY_ACCOUNTS {
             let verified: bool = store
@@ -8245,7 +8263,7 @@ mod tests {
             .collect();
         let path = old_shape_forecast_db("rekey-ok", &rows);
 
-        let store = Store::open(path.to_str().unwrap()).expect("migrated open");
+        let store = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET).expect("migrated open");
 
         let (n, sixes, with_sha): (i64, i64, i64) = store
             .conn
@@ -8305,7 +8323,7 @@ mod tests {
         ];
         let path = old_shape_forecast_db("rekey-collide", &rows);
 
-        let Err(err) = Store::open(path.to_str().unwrap()) else {
+        let Err(err) = Store::open(path.to_str().unwrap(), TEST_JWT_SECRET) else {
             panic!("a rekey that cannot complete must refuse to start");
         };
         assert!(
@@ -8898,7 +8916,7 @@ mod tests {
         }
 
         // Run the real migration path.
-        let store = Store::open(&path_str).unwrap();
+        let store = Store::open(&path_str, "test-jwt-secret-not-the-totp-key").unwrap();
 
         // Every row group's recorded statistics must bound the values it holds.
         // storage_info.start is segment local, so the global rowid offset of a
