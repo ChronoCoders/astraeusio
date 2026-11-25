@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 50] = [
+const FINDINGS: [&str; 51] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -204,6 +204,9 @@ const FINDINGS: [&str; 50] = [
     // AUD-036's shape in two tests its own fix did not convert: the fixture and
     // the handler each read the clock, so midnight between them fails the gate.
     "AUD-070",
+    // The same boundary once more, in the response cache: the key carries no UTC
+    // day, so the strip can be one cell out of step for the length of the TTL.
+    "AUD-071",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.
@@ -262,7 +265,7 @@ fn every_declared_finding_still_has_a_bullet() {
 ///
 /// A partial closure must not use this form. `AUD-027` shipped one half and kept
 /// the other open, and it says that in words instead.
-const CLOSED: [(&str, &str); 12] = [
+const CLOSED: [(&str, &str); 13] = [
     // Closed the other way: the claim came off rather than the delay going in.
     ("AUD-012", "2026-09-22"),
     ("AUD-036", "2026-10-04"),
@@ -286,6 +289,9 @@ const CLOSED: [(&str, &str); 12] = [
     // The last allowlisted advisory, closed by rkyv leaving the lockfile when
     // duckdb 1.10506.1 made rust_decimal optional, not by an argument.
     ("AUD-069", "2026-11-25"),
+    // The clock the uptime path reads is now the caller's, and the second read
+    // the enumeration found was in the query rather than the handler.
+    ("AUD-070", "2026-11-25"),
 ];
 
 /// Every closure marker in the file, as (identifier, date).

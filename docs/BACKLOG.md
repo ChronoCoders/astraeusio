@@ -1872,6 +1872,89 @@ repeated here.
   is exactly when a long gate run is most likely to have been left running unattended, and a gate that
   fails for the hour rather than for the change teaches everyone to re-run it instead of reading it.
 
+  **AUD-070 closed 2026-11-25**, commit `94b2ad4`, by the injectable clock. The owner took that side
+  of the choice on 2026-11-25: keep the database coverage and pay the production change.
+
+  **The clock reads were enumerated from the code, and there were two, not one.** `AppState` carries
+  `pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>`, `AppState::new` sets the real clock, and the
+  handler reads it once. The second read was not in the handler at all: `db::uptime_by_day` computed
+  its own ninety day window from `now()` in `db.rs`, so the window and the day arithmetic could
+  straddle a midnight even with the handler's read injected. It now takes `now` as a parameter from
+  the same read. `cached` reads `Instant::now()` for its five minute TTL, which is monotonic and
+  carries no UTC day, so it is not part of this and is left alone. Nothing else in the path reads a
+  clock: `health_interval_secs` reads an environment variable and `health_first_sample` reads a
+  `MIN(ts)`.
+
+  **Five tests had the defect, not two.** The gate failed on two of them, which is the hour deciding
+  which instance speaks rather than which instances exist. The shape is the literal pair
+  `let state = test_state();` followed by `let now_ts = chrono::Utc::now().timestamp();`, and it
+  appeared exactly five times: `a_component_with_no_history_reports_null_not_zero`,
+  `silence_counts_against_a_component_that_had_started_recording`,
+  `history_before_the_first_sample_is_not_held_against_a_component`,
+  `a_day_of_samples_fills_exactly_one_calendar_cell` and
+  `a_liveness_component_is_measured_by_presence`. All five now take `state_at(now)`.
+
+  **The fabricated day is 2024-10-04, and the date is doing work.** `FIXED_MIDNIGHT` is
+  `1_728_000_000`, which is `20000 * 86400` and so a UTC midnight, chosen far enough in the past that
+  `uptime_by_day`'s ninety day window ending at the real clock cannot contain it. A clock read that is
+  not the injected one therefore returns no rows at all and the assertions fail. Picking a day near
+  today would have left a mutant that survives for as long as the fabricated day stays inside the real
+  window, which is the kind of test that passes today and proves nothing in December.
+
+  **Two new tests.** `the_same_samples_report_the_same_uptime_from_both_sides_of_midnight` puts 288
+  operational samples in one fabricated day and asks the handler twice, at 23:59:40 and at 00:00:20,
+  through the real route, the real query and the database. Both sides must report 100 and one recorded
+  day, and the cell must move from index 89 to index 88 while the new day stays `no_data` because
+  twenty seconds is under one 300 second interval. The percentages are asserted against 100 and not
+  only against each other, because two nulls are equal and that comparison alone would pass with the
+  query returning nothing.
+
+  `the_default_clock_reads_the_real_time` asserts that `AppState::new` hands out a clock within two
+  seconds of the real one. Every other uptime test replaces the clock, so without this a wrong
+  production default would file the live strip under the wrong day and no test would notice. The rule
+  and its application, tested apart.
+
+  **Mutation round, five mutants, in a worktree created for it and removed after.** Each was run
+  against its declared guard alone, so nothing else could have done the killing.
+
+  | mutant | the defect planted | declared guard | result |
+  |---|---|---|---|
+  | M1 | the handler reads `Utc::now()` again instead of the injected clock | `..._from_both_sides_of_midnight` | CAUGHT |
+  | M2 | `uptime_by_day` is handed `Utc::now()` while the arithmetic gets the injected value | the same | CAUGHT |
+  | M3 | `let since = now - days * 86_400` becomes `let since = now` | the same | CAUGHT |
+  | M4 | `uptime_report` is handed `now + 86_400`, a day later than the window | the same | CAUGHT |
+  | M5 | `AppState::new` wires a clock a day ahead | `the_default_clock_reads_the_real_time` | CAUGHT |
+
+  All five compiled, so each measured something, and the baseline run showed both guards green before
+  any mutant was planted. The control at the end asked for a test name that does not exist and got
+  `0 passed; 0 failed`, which is the shape a silently empty filter leaves and is why the script treats
+  no result line as a failure rather than a pass.
+
+  One limit worth stating rather than leaving to be assumed: the second run for each mutant, the one
+  that reports what else noticed, filtered on `uptime` and so covered four tests, not the five
+  converted fixtures whose names do not contain that word. So `nothing else failed` is a statement
+  about those four.
+
+
+- **AUD-071** The uptime response is cached under a key that carries no UTC day, so the status strip
+  can show the wrong day for up to five minutes after midnight. Found 2026-11-25 while giving the
+  handler an injected clock: the two sided test asks the handler twice and only avoids the cache
+  because each side is a separate state with a cache of its own.
+
+  `routes.rs` wraps the handler in `cached(&s.cache, "uptime_90d", Duration::from_secs(300), ...)`.
+  The key is the literal `uptime_90d` and the entry lives for 300 seconds. A response computed at
+  23:59:50 is therefore served until 00:04:50, and in that window the ninety cells are yesterday's:
+  the last cell is the previous day and the new day has no cell at all. The percentages are right for
+  the day they were computed on, so nothing reads as an outage, and the strip is simply one place out
+  of step with the clock on the viewer's wall.
+
+  Small, and recorded rather than fixed because the fix is a choice: put the UTC day in the cache key,
+  which evicts once a day at the boundary, or shorten the TTL near midnight, which is worse. Neither
+  belongs in a round whose subject was the test clock, and a five minute lag on a ninety day strip is
+  not an incident.
+
+  It is the fourth instance of the day boundary shape, after AUD-036, AUD-070 and the `uptime_by_day`
+  window this round found inside the database layer.
 
 ## Enumeration coverage
 
@@ -2255,6 +2338,72 @@ next to the next instance of it.
 
   **Disk.** C: stood at 11.8 GB free when these were taken. `cargo clean -p libduckdb-sys` continues
   before any rebuild, and work stops with a report if free space falls under 5 GB.
+
+- No ID. **chrono, the advisory quoted rather than described, measured 2026-11-25.** The owner
+  searched RustSec for a chrono unmaintained advisory and could not find one, so this records the
+  source.
+
+  The identifier is **RUSTSEC-2026-0543**, kind **unmaintained**, which is informational and not a
+  vulnerability. It has no patched version: `patched = []`. The crate in the lockfile is chrono
+  0.4.44.
+
+  The advisory file, `crates/chrono/RUSTSEC-2026-0543.md` in the RustSec advisory database, in full:
+
+  ```toml
+  [advisory]
+  id = "RUSTSEC-2026-0543"
+  package = "chrono"
+  date = "2026-09-14"
+  informational = "unmaintained"
+  url = "https://github.com/chronotope/chrono/issues/1768"
+
+  [versions]
+  patched = []
+  ```
+
+  ```
+  # chrono is unmaintained
+
+  The chrono crate is unmaintained; all versions are affected.
+
+  Recommended alternatives:
+
+  - [jiff](https://crates.io/crates/jiff)
+  - [time](https://crates.io/crates/time)
+  ```
+
+  So the advisory names two successors, jiff and time, and neither is reachable from here while the
+  dependency comes through arrow under duckdb.
+
+  The `cargo audit --json` entry it came from, trimmed to the fields that matter and otherwise
+  verbatim:
+
+  ```json
+  "warnings": { "unmaintained": [ {
+    "kind": "unmaintained",
+    "package": { "name": "chrono", "version": "0.4.44",
+      "source": "registry+https://github.com/rust-lang/crates.io-index" },
+    "advisory": { "id": "RUSTSEC-2026-0543", "package": "chrono",
+      "title": "chrono is unmaintained",
+      "description": "The chrono crate is unmaintained; all versions are affected.\n\nRecommended alternatives:\n\n- [jiff](https://crates.io/crates/jiff)\n- [time](https://crates.io/crates/time)",
+      "date": "2026-09-14", "informational": "unmaintained",
+      "url": "https://github.com/chronotope/chrono/issues/1768", "withdrawn": null },
+    "versions": { "patched": [], "unaffected": [] } } ] }
+  ```
+
+  `withdrawn` is null, so it is live rather than retracted.
+
+  **Why a search may have missed it: it is eight days old in the database.** The local advisory
+  database is a git clone, and
+  `git log -1 -- crates/chrono/RUSTSEC-2026-0543.md` gives commit `233155b4`, author `djc`, dated
+  **2026-11-17**, while the advisory's own `date` field says 2026-09-14. The database head used for
+  this measurement is `10db6998`, 2026-11-24, with 1567 advisories. A file added to the database a
+  week ago can be ahead of what the website shows, and the `date` field is the day the advisory
+  describes rather than the day it was published.
+
+  That is also why the gate started reporting chrono only in this round. Nothing about this crate's
+  dependencies changed to pull it in: chrono has been in the lockfile all along, and the advisory
+  arrived.
 
 ## History
 
