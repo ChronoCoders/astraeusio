@@ -2039,6 +2039,32 @@ next to the next instance of it.
   proves nothing, so the wrong-secret pair was unexercised until it was replaced by a key built from
   the wrong source, which is the shape this codebase already had in AUD-053.
 
+  **The production database opens under DuckDB 1.5.6, measured 2026-11-25 on a copy.**
+  `astraeus_20261125.duckdb`, the 03:00 backup, 147,337,216 bytes, was copied from the host and opened
+  with the 1.10506.1 build through the real binary rather than a probe: `DB_PATH` pointed at the copy,
+  every poll interval was set to a day so the open was measured and not a fetch storm, and the reads
+  went through the actual handlers.
+
+  Twenty five authenticated read paths returned 200 and the log held no error or panic line. Three of
+  them returned an empty array, and the code agrees with itself about why: `/api/health` reports
+  `noaa_solar_wind`, `noaa_imf` and `noaa_xray` as degraded on this file while `noaa_kp`, `noaa_kp_3h`,
+  `noaa_dst` and `iss` are operational, so `series_is_current` is refusing a series whose newest row is
+  two hours old in a file frozen at 03:00. The rows themselves read correctly:
+  `/api/reports/solar-wind`, which carries no freshness guard, returned 73,809 bytes from the same
+  table. An earlier attempt measured sixteen 401s and proved only that the auth layer works, which is
+  why the second run minted a token.
+
+  **The engine writes to the file and does not upgrade its format.** The copy's sha256 changed from
+  `3497e0e6...` to `79fdcde3...` with a 7,827 byte `.wal` beside it, so opening is not read only:
+  migrations and the retention trim both write. The first 64 bytes are byte identical before and
+  after, including the `version_number` field at `0x40` and the version string `v1.5.2`. So 1.5.6
+  leaves a 1.5.2 file declaring 1.5.2, which is what `deploy.sh --rollback` would hand back to the
+  previous image.
+
+  That is inference from the file's own declared version, not a demonstration: no 1.5.2 build was run
+  against the written copy, because that meant another bundled DuckDB compile on a disk at 12 GB. The
+  header is the evidence, and it is the field the engine uses to decide whether it can open a file.
+
   **The `RUSTSEC-2023-0071` ignore is gone rather than rewritten.** jsonwebtoken 12 requires
   `rsa ^0.10` and the advisory is patched from 0.10.0, so the lockfile carries rsa 0.10.0 and
   `cargo audit` is silent about it with no entry telling it to be. Measured by removing the entry and
