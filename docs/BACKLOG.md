@@ -1807,6 +1807,37 @@ repeated here.
   sitting in a tracked file with a persuasive comment next to it is the kind of thing that survives
   every future audit by looking already considered.
 
+  **AUD-069 closed 2026-11-25**. Both entries are gone and the list is empty. Neither was argued
+  away: `RUSTSEC-2023-0071` went on 2026-11-24 when jsonwebtoken 12 brought `rsa 0.10.0`, the patched
+  version, and `RUSTSEC-2026-0235` goes now because rkyv is no longer a dependency at all.
+
+  **rkyv left the lockfile on 2026-11-25, measured rather than assumed.** `rkyv` is absent from
+  `backend/Cargo.lock`, and so are `bytecheck`, `rend`, `munge`, `ptr_meta` and `rancor`.
+  `cargo tree -i rkyv --target all -e normal` answers
+  `error: package ID specification 'rkyv' did not match any packages`, which is a different answer
+  from the `nothing to print` the 2026-09-04 measurement got: then it was in the graph and
+  unreachable, now it is not in the graph.
+
+  The positive control matters here, because a tool that cannot find anything looks the same as a
+  clean graph. The same command for `chrono` prints the arrow family and this crate, and for `rsa`
+  prints `rsa v0.10.0 -> jsonwebtoken v12.0.0 -> backend`, so the command works and the absence is
+  real.
+
+  **What removed it was `c122a18`, the duckdb engine pin, and the mechanism is in the two manifests.**
+  `duckdb-1.10502.0/Cargo.toml` line 221 declares `[dependencies.rust_decimal] version = "1.14"` with
+  no `optional = true`, so rust_decimal 1.41.0 was an unconditional dependency and its own optional
+  `rkyv` feature put rkyv 0.7.46 in the lockfile, a lockfile holding every optional dependency whether
+  the feature is on or not. `duckdb-1.10506.1/Cargo.toml` line 236 declares the same dependency with
+  `optional = true`, gated behind a `rust_decimal` feature that is also part of `extensions-full`.
+  This crate asks for `["bundled"]`, so the feature is off, rust_decimal left the lockfile, and rkyv
+  left with it.
+
+  So the question the decision asked, whether a semver compatible version of the parent drops rkyv 0.7
+  or moves to 0.8.17, has an answer that does not need either: the parent itself is gone.
+
+  **With the list empty, `cargo audit` reports 0 vulnerabilities and one warning, chrono.** Identical
+  to the run with the entry in place, which is what a dead entry means.
+
 - **AUD-070** Two uptime tests still take their day from the real clock, so the gate is unreliable
   around midnight UTC. Found 2026-11-25 when it failed the gate.
 

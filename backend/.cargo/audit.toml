@@ -1,47 +1,8 @@
+# No advisory is allowlisted. The list is empty and present rather than absent,
+# so an entry appearing here is a visible change in a tracked file.
+#
+# Both entries that used to sit here are gone because the advisories were fixed
+# rather than argued away, on 2026-11-24 and 2026-11-25. The reasoning each one
+# carried, and what replaced it, is in docs/BACKLOG.md under AUD-069.
 [advisories]
-ignore = [
-    # RUSTSEC-2023-0071, rsa, Marvin Attack timing side channel: the entry that
-    # stood here is gone because the advisory is fixed rather than argued away.
-    # jsonwebtoken 12 requires `rsa ^0.10` and the advisory is patched from
-    # 0.10.0, so the lockfile now carries rsa 0.10.0 and `cargo audit` is silent
-    # about it without being told to be. The reachability argument it rested on,
-    # that every mint passes `Header::default()` and every verify builds on
-    # `Validation::default()`, is now a test rather than a comment: the nine
-    # token tests in auth.rs and oauth.rs refuse a wrong secret, a wrong
-    # algorithm and an expired token at all three mint and verify pairs.
-
-    # rkyv 0.7.46 - out-of-bounds reads on archives containing Rc/Arc
-    # (RUSTSEC-2026-0235). Pulled in by rust_decimal 1.41.0 under duckdb.
-    #
-    # Not fixable here. The advisory wants >=0.8.17, a major version, and the
-    # choice belongs to duckdb and rust_decimal rather than to this crate. There
-    # is no feature or version of duckdb available to us that drops it.
-    #
-    # Not compiled, measured 2026-09-04 against the current lockfile:
-    # `cargo tree -i rkyv --target all` prints "nothing to print", while the
-    # same command for `rsa` prints a real tree, so the absence is the tool
-    # working rather than the tool failing. rust_decimal's own `rkyv` feature is
-    # what is off.
-    #
-    # This is the weaker of the two arguments in this file, and deliberately so.
-    # Unlike quinn-proto, whose parent `quinn` is absent from the graph
-    # entirely, rkyv's parent rust_decimal IS compiled under duckdb. A feature
-    # change in duckdb or rust_decimal, ours or theirs on a version bump, makes
-    # rkyv live without anything in this repository looking different. So this
-    # entry is the one to re-check after any dependency update, and the check is
-    # the cargo tree line above rather than a reread of this comment.
-    #
-    # Ignored so `cargo audit` returns green and the next HIGH is visible on its
-    # own rather than buried under a permanent red that everyone learns to scroll
-    # past.
-    "RUSTSEC-2026-0235",
-]
-
-# RUSTSEC-2026-0185, quinn-proto, CVSS 7.5: fixed rather than ignored on
-# 2026-09-04 by `cargo update -p quinn-proto`, 0.11.14 -> 0.11.17, lockfile
-# only. It had never been compiled either, by the same measurement, but a
-# lockfile line is cheaper than carrying a reachability argument into every
-# future audit run. That update added eight transitive crates, chacha20,
-# cpufeatures, getrandom 0.4.3, r-efi, rand 0.10.2, rand_core 0.10.1,
-# rand_pcg 0.10.2, and `cargo tree -i --target all` reports every one of them
-# unreachable too, so nothing new reaches the binary.
+ignore = []

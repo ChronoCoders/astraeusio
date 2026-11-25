@@ -198,7 +198,8 @@ const FINDINGS: [&str; 50] = [
     // `duckdb = "1"` spanned DuckDB 1.5.2 to 2.0.1.
     "AUD-068",
     // Two advisories allowlisted in backend/.cargo/audit.toml under the earlier
-    // rule, which the current one forbids. Recorded rather than decided.
+    // rule, which the current one forbids. Both are gone: one fixed by the
+    // jsonwebtoken bump, one by its crate leaving the lockfile.
     "AUD-069",
     // AUD-036's shape in two tests its own fix did not convert: the fixture and
     // the handler each read the clock, so midnight between them fails the gate.
@@ -261,7 +262,7 @@ fn every_declared_finding_still_has_a_bullet() {
 ///
 /// A partial closure must not use this form. `AUD-027` shipped one half and kept
 /// the other open, and it says that in words instead.
-const CLOSED: [(&str, &str); 11] = [
+const CLOSED: [(&str, &str); 12] = [
     // Closed the other way: the claim came off rather than the delay going in.
     ("AUD-012", "2026-09-22"),
     ("AUD-036", "2026-10-04"),
@@ -282,6 +283,9 @@ const CLOSED: [(&str, &str); 11] = [
     // The ordering defect. Closed by making the store take the secret rather
     // than read it, which is the shape main.rs's own header had prescribed.
     ("AUD-053", "2026-11-24"),
+    // The last allowlisted advisory, closed by rkyv leaving the lockfile when
+    // duckdb 1.10506.1 made rust_decimal optional, not by an argument.
+    ("AUD-069", "2026-11-25"),
 ];
 
 /// Every closure marker in the file, as (identifier, date).
