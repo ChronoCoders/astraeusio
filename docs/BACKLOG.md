@@ -1807,6 +1807,40 @@ repeated here.
   sitting in a tracked file with a persuasive comment next to it is the kind of thing that survives
   every future audit by looking already considered.
 
+- **AUD-070** Two uptime tests still take their day from the real clock, so the gate is unreliable
+  around midnight UTC. Found 2026-11-25 when it failed the gate.
+
+  The `rust test` step of the tokio gate run failed with two of 254 tests:
+  `routes::mcp_tests::a_component_with_no_history_reports_null_not_zero` at `routes.rs:2413`, which
+  wanted `recorded_days` 2 and got 1, and
+  `routes::mcp_tests::history_before_the_first_sample_is_not_held_against_a_component` at
+  `routes.rs:2609`, which wanted `uptime_pct` 100.0 and got `Null`. That step ran from about 23:45 to
+  00:03 UTC. The same tree, with the same lock, passed all 31 `mcp_tests` at 00:05 and the whole gate
+  at 00:07.
+
+  **The mechanism, read from the code rather than inferred from the timing.** Both fixtures call
+  `samples_within_today(now_ts, count)` with a `now_ts` they read themselves, then assert on the
+  `uptime` handler, which reads its own `chrono::Utc::now()`. Two clocks, so the day each one derives
+  differs whenever midnight falls between the fixture and the call. `samples_due` also skips a day
+  holding less than one poll interval, so the first 300 seconds of a UTC day cannot satisfy "samples
+  inside today" at all.
+
+  **This is AUD-036 surviving its own fix.** That fix introduced `uptime_report(now, interval, rows,
+  first)` with `now` as a parameter and converted three tests to a fabricated day, which is what
+  `the_uptime_day_boundary_holds_at_both_ends_of_a_fabricated_day` does and why its comment names
+  AUD-036. These two were left on the real clock through the handler, so the seam exists and they do
+  not use it.
+
+  **Not fixed in this round, and the reason is a choice rather than effort.** Converting them to
+  `uptime_report` takes the database aggregation out of their coverage, which is part of what they
+  assert. Keeping the database path means giving the handler an injectable clock, a production change
+  made for a test. Which of those to pay is the owner's call, and the round in progress is the
+  advisory round.
+
+  What makes it worth an identifier rather than a retry: the unreliable window is midnight UTC, which
+  is exactly when a long gate run is most likely to have been left running unattended, and a gate that
+  fails for the hour rather than for the change teaches everyone to re-run it instead of reading it.
+
 
 ## Enumeration coverage
 
@@ -1968,6 +2002,49 @@ next to the next instance of it.
   A partial closure does not use the form. `AUD-027` shipped one half and says so in words, because a
   word meaning finished should not sit on something that is not.
 
+- No ID. **The advisory round, outcome 2026-11-25.** `cargo audit` exits 0 and reports no
+  vulnerability. The gate is 3 of 17 failing: `frontend test` (AUD-066), `ml test` (AUD-065), and
+  `advisories`, which is red on chrono alone and is why nothing was deployed.
+
+  Twenty three vulnerabilities at the start, zero at the end, in eight lock commits and one code
+  commit: rustls and rustls-webpki (5), the two webpki trust stores (2), quinn-proto and quinn-udp
+  (6), openssl (1), url (1), tokio (informational), rustix (informational), the arrow family
+  (informational), duckdb for zip (6 of 7), zip itself (the 7th), jsonwebtoken for crypto-bigint (1).
+  Informational went 4 to 1.
+
+  **zip took two steps, and the first was not enough.** `duckdb 1.10506.1` brought `zip 9.0.0`, which
+  still carries `RUSTSEC-2026-0548`, whose floor is 9.0.5. Taking zip to 9.4.1 needed `libc` 0.2.191,
+  `nix` 0.31.3 and `typed-path` 0.13.0 to move with it, because `--precise` moves one package and
+  refuses rather than resolving. 9.8.2 is available and needs `zeroize` 1.9, which nothing asked for.
+
+  **jsonwebtoken 12 is a breaking change at six call sites.** `EncodingKey::from_secret` and
+  `DecodingKey::from_secret` now return `Result`, failing only on an empty secret. Each site got the
+  error channel it has rather than a blanket `?`: `purpose_token`, `session_jwt` and `sign_state`
+  propagate, `decode_purpose` returns a distinct "server token key is unusable" rather than reusing
+  the token message, the session extractor returns 500 rather than 401 because an unusable key is the
+  server's fault, and `verify_state` logs and returns `None` because it has no error channel. Every
+  one of those branches is unreachable while `require_jwt_secret` refuses a blank secret before the
+  store opens, which is AUD-053 still paying for itself.
+
+  **Nine tests and seven mutations.** Three mint and verify pairs, enumerated by reading every
+  `encode` and `decode` in `auth.rs` and `oauth.rs`, each covered against a wrong secret, a wrong
+  algorithm and an expired token. The algorithm case uses HS512 with the correct secret, so only the
+  algorithm check can refuse it, and an `alg: none` token assembled from a valid one, whose header
+  literal was decoded back to `{"alg":"none"}` before being written down. All seven mutations were
+  caught by the test declared for each.
+
+  **Two of the mutations as first written did not compile, and that is worth keeping.** They disabled
+  signature validation, which jsonwebtoken 12 has no way to do: no
+  `insecure_disable_signature_validation` and no `validate_signature` field. An unbuildable mutation
+  proves nothing, so the wrong-secret pair was unexercised until it was replaced by a key built from
+  the wrong source, which is the shape this codebase already had in AUD-053.
+
+  **The `RUSTSEC-2023-0071` ignore is gone rather than rewritten.** jsonwebtoken 12 requires
+  `rsa ^0.10` and the advisory is patched from 0.10.0, so the lockfile carries rsa 0.10.0 and
+  `cargo audit` is silent about it with no entry telling it to be. Measured by removing the entry and
+  running the tool, not by reading the comment. The reachability argument it rested on now lives in
+  the nine tests. The rkyv entry stays, undecided, under AUD-069.
+
 - No ID. **Every security fix is public before it is live.** `deploy.sh` deploys what it finds at
   `origin/main`: it runs `git fetch origin`, selects services from `git diff HEAD..origin/main`,
   then `git pull --ff-only`. So the push to a public GitHub repository is a precondition of the
@@ -2048,9 +2125,13 @@ next to the next instance of it.
   **2.0.1**. A patch level engine move was described as a minor one and a major engine move as a minor
   one, which is exactly the misreading that would have made `cargo update` look harmless.
 
-  **4. crypto-bigint, one advisory.** Bump `jsonwebtoken` from 10 to 12 rather than chase the crate:
-  12.0.0 uses `p256 ^0.14`, which uses `elliptic-curve 0.14`, which has no crypto-bigint dependency at
-  all, so the crate leaves the tree. The advisory's own fix target 0.7.6 is yanked, as are 0.7.3
+  **4. crypto-bigint, one advisory.** Bump `jsonwebtoken` from 10 to 12 rather than chase the crate.
+
+  **Corrected 2026-11-25: the crate did not leave the tree.** The decision was taken on the reading
+  that `elliptic-curve 0.14` has no crypto-bigint dependency, which the index does show. The resolve
+  brought crypto-bigint in anyway, at **0.7.11**, through the rest of the 0.14 crypto stack. The
+  advisory is cleared because 0.7.11 is past the patched floor of 0.7.6 and is not yanked, not because
+  the dependency is gone. A fix by upgrade, then, and not the removal the decision described. The advisory's own fix target 0.7.6 is yanked, as are 0.7.3
   through 0.7.8. Every mint and verify site in `auth.rs` and `oauth.rs` gets a test that fails on a
   wrong secret, a wrong algorithm and an expired token, enumerated from the code rather than from the
   names. The `RUSTSEC-2023-0071` entry in `backend/.cargo/audit.toml` is re-measured under 12 and
