@@ -268,7 +268,7 @@ fn every_declared_finding_still_has_a_bullet() {
 ///
 /// A partial closure must not use this form. `AUD-027` shipped one half and kept
 /// the other open, and it says that in words instead.
-const CLOSED: [(&str, &str); 13] = [
+const CLOSED: [(&str, &str); 14] = [
     // Closed the other way: the claim came off rather than the delay going in.
     ("AUD-012", "2026-09-22"),
     ("AUD-036", "2026-10-04"),
@@ -295,6 +295,9 @@ const CLOSED: [(&str, &str); 13] = [
     // The clock the uptime path reads is now the caller's, and the second read
     // the enumeration found was in the query rather than the handler.
     ("AUD-070", "2026-11-25"),
+    // Closed by the environment, not the code: the ML step had never had an
+    // interpreter that could import torch until the venv on the move to WSL.
+    ("AUD-065", "2026-11-25"),
 ];
 
 /// Every closure marker in the file, as (identifier, date).

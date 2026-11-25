@@ -1730,6 +1730,17 @@ repeated here.
   So the step is red for an environment reason, not a code one, and `test_published_claims` is the
   only ML coverage the gate has actually been running.
 
+  **AUD-065 closed 2026-11-25**, commit `843d8b0`, by the move to WSL. The gate's Python steps now run
+  on a venv at `.venv`, built with Python 3.11.18 from `ml/requirements.txt`, which matches the
+  `python:3.11-slim` base of `ml/Dockerfile`. Its `torch` is `2.10.0+cpu` with a real `__init__.py`,
+  and fastapi, uvicorn, pandas and pyarrow are installed. The gate run of 2026-11-25T18:12:37Z at
+  `20f74ae` reported `PASS ml test`, with the venv change in the tree and not yet committed.
+  `843d8b0` commits it. Run directly, `.venv/bin/python -m unittest discover -s ml -p "test_*.py"`
+  runs 11 tests and reports `OK`, against 5 tests and one import error before. A missing venv now
+  fails all three Python steps with a message that names the path and the build command. That was
+  shown in a scratch clone with no venv, where removing the check turned the message back into a bare
+  `No such file or directory`.
+
 - **AUD-066** The `frontend test` gate step stopped running when Node moved to 24. Measured
   2026-11-24.
 
