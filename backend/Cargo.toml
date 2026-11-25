@@ -13,7 +13,12 @@ thiserror = "2"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-duckdb = { version = "1", features = ["bundled"] }
+# Tilde, not caret. duckdb-rs encodes the engine in its second semver
+# component, `1.MAJOR_MINOR_PATCH.x` from DuckDB 1.5.0, so `"1"` spanned DuckDB
+# 1.5.2 to 2.0.1 and one argument-free `cargo update` would have replaced the
+# storage engine. `~1.10506` allows crate patch releases for DuckDB 1.5.6 and
+# refuses any engine move. AUD-068.
+duckdb = { version = "~1.10506", features = ["bundled"] }
 dotenvy = "0.15"
 chrono = "0.4"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
