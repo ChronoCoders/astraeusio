@@ -2175,6 +2175,56 @@ next to the next instance of it.
   help either. The remaining paths are a fork of arrow, replacing DuckDB, or upstream dropping it.
 
 
+- No ID. **Decisions of 2026-11-25.** Taken by the owner after the advisory round report of the same
+  day. Each one is here because the reasoning is a cost or a rule change that a commit message
+  cannot carry.
+
+  **1. The deploy rule changes, and this round deploys.** An informational advisory that is already
+  present in the production build does not block a deploy. A vulnerability advisory still blocks, and
+  so does an informational advisory that a change introduces.
+
+  The reason is what the old rule cost on 2026-11-24. Nine commits took twenty three vulnerabilities
+  to zero, and the `advisories` step stayed red on chrono, which is unmaintained with no patched
+  version and no way out while duckdb is a dependency. The rule as written held the rustls,
+  quinn-proto, zip and jsonwebtoken fixes off production while changing nothing at all about chrono:
+  the running build already carried chrono, and carried it before the round started. So the rule
+  protected nothing and kept known, fixed vulnerabilities live on the server. The new wording keeps
+  the part that matters, which is that a change may not introduce an advisory and may not leave a
+  vulnerability unfixed.
+
+  This does not relax the standing rule that no advisory is accepted or allowlisted. chrono stays
+  open, stays counted, and stays reported red by the gate.
+
+  Before deploying, a fresh backup through the existing backup path, confirmed landed. The new build
+  writes the database under DuckDB 1.5.6, and a rollback must have a file the previous image can
+  open. After deploying, the checks of the last deploy: exit code, restart counts, health, ERROR
+  lines, 200 on `/`, `/api/health` and `/pricing`, and the AUD-050 CORS split.
+
+  **2. chrono, measurement only, no change.** The owner searched RustSec and could not find a chrono
+  unmaintained advisory, so the record must quote the source rather than describe it: the exact
+  RUSTSEC id, its kind, the advisory text, any successor crate the advisory names, and the
+  `cargo audit --json` entry it came from.
+
+  **3. AUD-069, the rkyv ignore. Measurement before any change.** Whether rkyv is compiled into the
+  shipped binary, which crate and feature pulls it into the lock, and whether any semver compatible
+  version of that crate drops rkyv 0.7 or moves to 0.8.17 or later. A clean path is taken in one
+  commit with a gate after it and the ignore removed. No clean path means nothing changes and the
+  paths are reported with their cost.
+
+  **4. AUD-070, the two clock dependent uptime tests.** The uptime handler gets an injectable clock,
+  so the tests choose their day and keep their database coverage. The alternative, dropping to a pure
+  unit test over a fabricated row set, was refused because it would lose the coverage the failure
+  exposed. Every clock read in the handler is enumerated from the code and takes the injected clock.
+  Tests cover the midnight crossing on both sides plus each existing case, and the mutation round
+  names the killing assertion for each mutant.
+
+  **5. Deletions, authorised by name.** The local copy of the production database in the session
+  scratchpad, `prod_copy.duckdb` and its `.wal`, which holds real accounts, and the prunable worktree
+  registration left by an earlier session, through `git worktree prune`. Nothing else.
+
+  **Disk.** C: stood at 11.8 GB free when these were taken. `cargo clean -p libduckdb-sys` continues
+  before any rebuild, and work stops with a report if free space falls under 5 GB.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
