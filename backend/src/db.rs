@@ -4867,8 +4867,17 @@ impl Store {
     /// samples that *should* be there, which is why this no longer computes one:
     /// dividing operational rows by rows present made absence invisible, and
     /// absence is the only evidence an outage leaves.
-    pub fn uptime_by_day(&self, days: i64) -> Result<Vec<(String, i64, i64, i64)>, DbError> {
-        let since = now() - days * 86_400;
+    ///
+    /// `now` comes from the caller and is not read here. The handler reads one
+    /// clock and hands the same value to this window and to the day arithmetic
+    /// in `uptime_report`, because two reads can fall either side of a midnight
+    /// and then disagree about which day a sample belongs to: AUD-070.
+    pub fn uptime_by_day(
+        &self,
+        now: i64,
+        days: i64,
+    ) -> Result<Vec<(String, i64, i64, i64)>, DbError> {
+        let since = now - days * 86_400;
         let mut stmt = self.conn.prepare(
             // `//` and not `/`. DuckDB's `/` is float division, so
             // `CAST(ts / 86400 AS BIGINT)` rounded, and every sample after

@@ -64,6 +64,20 @@ where
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+/// Wall clock seconds, supplied by the caller rather than read where it is used.
+///
+/// `/api/health/uptime` answers in UTC days, so which day `now` falls in decides
+/// `recorded_days` and which of the ninety cells a sample occupies. Five tests
+/// built their fixtures from one `Utc::now()` and then let the handler read the
+/// clock a second time, and a midnight between the two reads put the samples in
+/// yesterday while the handler counted today. Two of them failed the gate that
+/// way on 2026-11-25 just after 00:00 UTC and passed again at 00:07: AUD-070.
+///
+/// One clock, chosen by the caller, is what lets a test pin a UTC day and still
+/// exercise the handler, the query and the database rather than the arithmetic
+/// alone.
+pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub client: reqwest::Client,
@@ -79,6 +93,7 @@ pub struct AppState {
     pub mailer: Option<Arc<dyn mailer::Sender>>,
     pub app_url: String,
     pub oauth: crate::oauth::OAuthConfig,
+    pub clock: Clock,
 }
 
 impl AppState {
@@ -105,6 +120,7 @@ impl AppState {
             mailer,
             app_url,
             oauth,
+            clock: Arc::new(|| chrono::Utc::now().timestamp()),
         }
     }
 }
@@ -473,10 +489,10 @@ async fn uptime(State(s): State<AppState>) -> Result<impl IntoResponse, AppError
     cached(&s.cache, "uptime_90d", Duration::from_secs(300), || async {
         const DAYS: i64 = 90;
         let interval = crate::poller::health_interval_secs().max(1) as i64;
-        let now = chrono::Utc::now().timestamp();
+        let now = (s.clock)();
         let (rows, first_seen) = {
             let db = lock_db(&s.db).await;
-            (db.uptime_by_day(DAYS)?, db.health_first_sample()?)
+            (db.uptime_by_day(now, DAYS)?, db.health_first_sample()?)
         };
         Ok(uptime_report(now, interval, &rows, &first_seen))
     })
@@ -1865,6 +1881,23 @@ mod mcp_tests {
         )
     }
 
+    /// A UTC midnight, 20000 * 86400 exactly, used as the day the clock-injected
+    /// tests live in.
+    ///
+    /// It is deliberately far in the past. `uptime_by_day` keeps a ninety day
+    /// window, so a clock read that is not the injected one returns no rows at
+    /// all for this day and the assertions fail. That is what pins the injection
+    /// instead of trusting it.
+    const FIXED_MIDNIGHT: i64 = 1_728_000_000;
+
+    /// `test_state` with the clock pinned, so a fixture and the handler agree on
+    /// which UTC day it is. AUD-070.
+    fn state_at(now: i64) -> AppState {
+        let mut state = test_state();
+        state.clock = Arc::new(move || now);
+        state
+    }
+
     /// Calls the real MCP handler for a tool, with an optional bearer token,
     /// and returns the decoded JSON-RPC response.
     async fn call_tool(state: &AppState, tool: &str, token: Option<&str>) -> serde_json::Value {
@@ -2380,8 +2413,8 @@ mod mcp_tests {
     /// like three months of outage rather than an absence of records.
     #[tokio::test]
     async fn a_component_with_no_history_reports_null_not_zero() {
-        let state = test_state();
-        let now_ts = chrono::Utc::now().timestamp();
+        let now_ts = FIXED_MIDNIGHT + 43_200;
+        let state = state_at(now_ts);
         {
             let db = state.db.lock().await;
             // Two days of history for one component, all healthy. Today's
@@ -2467,12 +2500,11 @@ mod mcp_tests {
     /// survived. With `now` a parameter both ends are reachable at any hour.
     #[test]
     fn the_uptime_day_boundary_holds_at_both_ends_of_a_fabricated_day() {
-        const MIDNIGHT: i64 = 1_788_480_000; // 20700 * 86400, a UTC midnight
         const INTERVAL: i64 = 300;
-        let today = MIDNIGHT / 86_400;
+        let today = FIXED_MIDNIGHT / 86_400;
 
         // One component, samples only in the fabricated today.
-        let first = vec![("backend_api".to_string(), MIDNIGHT)];
+        let first = vec![("backend_api".to_string(), FIXED_MIDNIGHT)];
         let rows = vec![("backend_api".to_string(), today, 288i64, 288i64)];
 
         let pct = |v: &serde_json::Value| v["components"]["backend_api"].clone();
@@ -2481,7 +2513,7 @@ mod mcp_tests {
         // nothing, contributes no recorded day, and the percentage is null
         // rather than zero. This is the case that failed at 00:03 and cleared
         // by 00:07 before it could be captured.
-        let early = uptime_report(MIDNIGHT + 180, INTERVAL, &rows, &first);
+        let early = uptime_report(FIXED_MIDNIGHT + 180, INTERVAL, &rows, &first);
         let e = pct(&early);
         assert_eq!(
             e["recorded_days"], 0,
@@ -2494,7 +2526,7 @@ mod mcp_tests {
 
         // 23:59:40. 86340 seconds is 287 intervals, so today counts and the
         // component reports a real figure over one day.
-        let late = uptime_report(MIDNIGHT + 86_340, INTERVAL, &rows, &first);
+        let late = uptime_report(FIXED_MIDNIGHT + 86_340, INTERVAL, &rows, &first);
         let l = pct(&late);
         assert_eq!(
             l["recorded_days"], 1,
@@ -2522,10 +2554,9 @@ mod mcp_tests {
     /// forty minutes, which is exactly when nobody is running it.
     #[test]
     fn a_fixture_run_stays_inside_one_utc_day() {
-        const MIDNIGHT: i64 = 1_788_480_000; // 20700 * 86400, a UTC midnight
         for offset in [0i64, 3, 7, 60, 300, 780, 1_200, 2_400, 43_200, 86_399] {
             for count in [5i64, 8] {
-                let now = MIDNIGHT + offset;
+                let now = FIXED_MIDNIGHT + offset;
                 let times = samples_within_today(now, count);
                 assert_eq!(times.len() as i64, count, "at +{offset}s");
                 // Distinct instants, not one instant repeated. Without this the
@@ -2555,6 +2586,83 @@ mod mcp_tests {
         }
     }
 
+    /// The midnight crossing, from both sides, through the handler and the
+    /// database rather than through `uptime_report` alone.
+    ///
+    /// This is AUD-070 itself. The same 288 samples have to report the same
+    /// percentage whether the clock stands twenty seconds before the boundary or
+    /// twenty seconds after it. Only the cell they occupy may move, by exactly
+    /// one place, and the new day holds less than one poll interval so it is due
+    /// nothing and stays `no_data` rather than reading as an outage.
+    ///
+    /// The percentages are asserted against 100, not only against each other.
+    /// Two nulls are equal, so comparing the two sides alone would pass with the
+    /// query returning nothing at all.
+    #[tokio::test]
+    async fn the_same_samples_report_the_same_uptime_from_both_sides_of_midnight() {
+        // The day that ends at the fabricated midnight.
+        const DAY: i64 = FIXED_MIDNIGHT - 86_400;
+        let before = state_at(FIXED_MIDNIGHT - 20);
+        let after = state_at(FIXED_MIDNIGHT + 20);
+
+        for state in [&before, &after] {
+            let db = state.db.lock().await;
+            for k in 0..288i64 {
+                db.insert_health_snapshot("noaa_kp", DAY + k * 300, Some("operational"))
+                    .expect("snapshot");
+            }
+        }
+
+        let b = call_uptime(&before).await;
+        let a = call_uptime(&after).await;
+        let bc = &b["components"]["noaa_kp"];
+        let ac = &a["components"]["noaa_kp"];
+
+        assert_eq!(
+            bc["uptime_pct"], 100.0,
+            "a complete day before midnight: {bc}"
+        );
+        assert_eq!(ac["uptime_pct"], 100.0, "the same day after midnight: {ac}");
+        assert_eq!(
+            bc["recorded_days"], 1,
+            "one day recorded before midnight: {bc}"
+        );
+        assert_eq!(
+            ac["recorded_days"], 1,
+            "one day recorded after midnight: {ac}"
+        );
+
+        let bd = bc["days"].as_array().expect("days");
+        let ad = ac["days"].as_array().expect("days");
+        assert_eq!(
+            bd[89]["status"], "operational",
+            "before midnight the samples are today, cell 89"
+        );
+        assert_eq!(
+            ad[88]["status"], "operational",
+            "after midnight the same samples are yesterday, cell 88"
+        );
+        assert_eq!(
+            ad[89]["status"], "no_data",
+            "twenty seconds of a new day is under one interval, so nothing is due yet"
+        );
+    }
+
+    /// The clock `AppState::new` hands out is the real one.
+    ///
+    /// Every other uptime test replaces it, so this is the only thing standing
+    /// between a wrong default and a production strip filed under the wrong day.
+    /// The rule and its application, tested apart.
+    #[tokio::test]
+    async fn the_default_clock_reads_the_real_time() {
+        let state = test_state();
+        let drift = ((state.clock)() - chrono::Utc::now().timestamp()).abs();
+        assert!(
+            drift <= 2,
+            "the default clock is {drift}s from the real time"
+        );
+    }
+
     /// A gap in the record is downtime, not an absence of record.
     ///
     /// This is the whole of AUD-021. Dividing operational samples by samples
@@ -2564,8 +2672,8 @@ mod mcp_tests {
     /// samples followed by half a day of silence has to read as about half.
     #[tokio::test]
     async fn silence_counts_against_a_component_that_had_started_recording() {
-        let state = test_state();
-        let now_ts = chrono::Utc::now().timestamp();
+        let now_ts = FIXED_MIDNIGHT + 43_200;
+        let state = state_at(now_ts);
         {
             let db = state.db.lock().await;
             // Twelve hours of samples ending twelve hours ago, then nothing.
@@ -2594,8 +2702,8 @@ mod mcp_tests {
     /// only keeps that decision because expectation starts at the first sample.
     #[tokio::test]
     async fn history_before_the_first_sample_is_not_held_against_a_component() {
-        let state = test_state();
-        let now_ts = chrono::Utc::now().timestamp();
+        let now_ts = FIXED_MIDNIGHT + 43_200;
+        let state = state_at(now_ts);
         {
             let db = state.db.lock().await;
             for ts in samples_within_today(now_ts, 8) {
@@ -2627,8 +2735,8 @@ mod mcp_tests {
     /// page was loaded. A full UTC day of samples has to fill exactly one cell.
     #[tokio::test]
     async fn a_day_of_samples_fills_exactly_one_calendar_cell() {
-        let state = test_state();
-        let now_ts = chrono::Utc::now().timestamp();
+        let now_ts = FIXED_MIDNIGHT + 43_200;
+        let state = state_at(now_ts);
         let yesterday = now_ts / 86_400 - 1;
         {
             let db = state.db.lock().await;
@@ -2678,8 +2786,8 @@ mod mcp_tests {
     /// `backend_api` used to write the literal "operational" forever.
     #[tokio::test]
     async fn a_liveness_component_is_measured_by_presence() {
-        let state = test_state();
-        let now_ts = chrono::Utc::now().timestamp();
+        let now_ts = FIXED_MIDNIGHT + 43_200;
+        let state = state_at(now_ts);
         {
             let db = state.db.lock().await;
             for k in 0..8i64 {
