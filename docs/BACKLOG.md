@@ -1956,6 +1956,47 @@ repeated here.
   It is the fourth instance of the day boundary shape, after AUD-036, AUD-070 and the `uptime_by_day`
   window this round found inside the database layer.
 
+- **AUD-072** The git hooks AUD-055 describes no longer exist, so nothing checks a commit or a push
+  when it is made. Found 2026-11-25 while moving the project from the Windows checkout to WSL.
+
+  Measured 2026-11-25 on both machines. `core.hooksPath` is not set in the global, system or
+  repository scope. In WSL `git config --show-origin --get-all core.hooksPath` prints nothing. On
+  Windows the user `.gitconfig`, the Git for Windows system `gitconfig` and the `.git/config` of the
+  Windows checkout were read directly, and none of them contains `hooksPath`. Neither checkout has
+  anything in `.git/hooks` except the `.sample` files git creates. A search by file name for
+  `naming_delegate` over both home directories finds nothing. The Windows search skipped `AppData`,
+  `node_modules`, `target`, `.rustup` and `.cargo`. Each search had a positive control. The same
+  expression found a file planted in a scratch directory, and on Windows it found the deploy key and
+  the hook sample files across 96,594 files.
+
+  The function is still in tracked code. `scripts/lib/naming.sh` line 82 defines `naming_delegate`.
+  The hook files that called it and the configuration that pointed git at them are what is gone.
+
+  **What still holds.** The `naming rule` gate step and its control run on every gate. That step is
+  `naming.sh --gate`, which scans tracked paths and tracked content only. It does not read commit
+  messages, author or committer identity, or tag annotations, which the `pre-push` hook covered. So a
+  banned name in a tracked file is still stopped by a gate run before a push. A banned name in a
+  commit message, a trailer, a wrong identity, a dash in a subject or a missing prefix is stopped by
+  nothing, at commit time or at push time.
+
+  **When.** The date is bounded, not known. AUD-055 read the three hook files on 2026-10-05. A local decision
+  record in another project, which is not in this repository, records an edit to the shared
+  `pre-push` on 2026-10-15, and records on 2026-10-23 that the shared hooks directory under the
+  Windows user profile was missing and that no scope set `core.hooksPath`. By that record the hooks
+  went between 2026-10-15 and 2026-10-23. It is a secondary source for this repository.
+
+  **What the gap already let through, audited backward on 2026-11-25.** 31 commits in this repository
+  are dated after 2026-10-15. The first of them is `310ac28` on 2026-11-24, so none falls inside the
+  window and every one of the 31 was made with no hook. All 31 have a one line message with a
+  conventional prefix, no trailer, no en dash, em dash or minus sign, no banned name in the message
+  or the identity, and the identity `ChronoCoders <altug@bytus.io>` as both author and committer. A
+  keyword scan for cleanup subjects (format, whitespace, punctuation, dash, typo, tidy) found none.
+  No tag was created after 2026-05-31. Each filter was shown to fire on a planted message before its
+  empty result was trusted. So the gap has cost nothing yet, and only habit has held it.
+
+  The hooks are not rebuilt here, because they are shared across projects and rebuilding them is a
+  separate task.
+
 ## Enumeration coverage
 
 Found 2026-08-30 while checking whether the shape that let `poller/anomaly` sit unmapped appears
