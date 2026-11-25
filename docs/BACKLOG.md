@@ -2339,6 +2339,54 @@ next to the next instance of it.
   **Disk.** C: stood at 11.8 GB free when these were taken. `cargo clean -p libduckdb-sys` continues
   before any rebuild, and work stops with a report if free space falls under 5 GB.
 
+- No ID. **Decisions of 2026-11-25, the second set.** Taken by the owner after the measurement
+  report of the same day, so they answer what the first set asked to be measured.
+
+  **1. Deploy the three commits the gate tested.** `6ff464e`, `94b2ad4` and `926762c`, so production
+  runs what was measured rather than the commit before them. A fresh backup through `backup.sh`
+  first, then the post deploy checks of the last deploy, each one reported.
+
+  **2. chrono, now decided rather than measured.** Four parts.
+
+  Our own code moves from chrono to jiff. That is the part of this advisory that sits at our source,
+  and it is the next code round, not this one. Measured today: `chrono` is a direct dependency in
+  `backend/Cargo.toml` line 23 and appears 30 times across seven files in `backend/src`, which
+  `grep -rn chrono --include=*.rs src/` lists as `api_keys.rs`, `auth.rs`, `db.rs`, `oauth.rs`,
+  `poller.rs`, `rate_limit.rs` and `routes.rs`.
+
+  DuckDB is not replaced for an unmaintained notice with no vulnerability. The cost of replacing the
+  storage engine is the whole schema, every query, the scaled integer encoding and the backup path,
+  against a notice that says the crate is no longer maintained and names no defect. If a vulnerability
+  advisory is ever published against chrono, this decision reopens.
+
+  The `advisories` step stays red on chrono until arrow drops it. This is a known red step the owner
+  has accepted, and the reason is that the dependency is not ours to move: `cargo tree -i chrono -e
+  normal --target all` gives four paths, our own crate plus `arrow-arith`, `arrow-array` and
+  `arrow-cast` at 58.4.2, all three under `arrow` under `duckdb` 1.10506.1. Moving our own code to
+  jiff therefore shortens the list by one path and does not clear the advisory. Under the deploy rule
+  taken earlier today it does not block a deploy, because the advisory is informational and was
+  already in the production build.
+
+  Upstream, asked for and found rather than opened. **apache/arrow-rs#9183, `Replace chrono w/ jiff`,
+  open, filed 2026-01-15 by crepererum**, https://github.com/apache/arrow-rs/issues/9183. It quotes
+  the chrono maintainer's own announcement of winding down maintenance, and a comment of 2026-11-18
+  by RemiBardon names `RUSTSEC-2026-0543` directly, so the advisory and the upstream work are already
+  joined there. The thread's current state, from comments of 2026-11-17 to 2026-11-23: the jiff work
+  is being taken crate by crate behind an opt in feature, a public API survey found chrono types in
+  `arrow-array`'s `temporal_conversions` among others, and switching the default and removing chrono
+  are stated as separate later decisions. So there is no date to wait for. No issue was opened, as
+  instructed.
+
+  One nearby issue that does not help us, recorded so it is not mistaken for a fix:
+  **apache/arrow-rs#12343**, `parquet: drop the required chrono dependency`, closed as completed
+  2026-11-23 by PR #12345. It removes chrono from `parquet` only, and `cargo tree -i parquet` answers
+  that parquet is not in our graph at all.
+
+  **3. The project moves from the Windows checkout at `C:/astraeus` to WSL after this round.** No
+  build is started after the deploy, so the move is not racing a target directory being written. The
+  closing report lists git status, unpushed commits and every untracked or ignored file in the
+  checkout outside `target/` and `node_modules/` with its size, so the owner can decide what moves.
+
 - No ID. **chrono, the advisory quoted rather than described, measured 2026-11-25.** The owner
   searched RustSec for a chrono unmaintained advisory and could not find one, so this records the
   source.
