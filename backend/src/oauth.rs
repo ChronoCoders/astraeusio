@@ -141,7 +141,7 @@ pub(crate) fn sign_state(
             exp,
             aud: AUD_OAUTH_STATE.to_string(),
         },
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(secret.as_bytes())?,
     )?;
     Ok((token, nonce))
 }
@@ -157,14 +157,21 @@ fn verify_state(token: &str, provider: &str, secret: &str) -> Option<String> {
     let mut validation = Validation::default();
     validation.set_audience(&[AUD_OAUTH_STATE]);
     validation.set_required_spec_claims(&["exp", "aud"]);
-    decode::<StateClaims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )
-    .ok()
-    .filter(|d| d.claims.provider == provider)
-    .map(|d| d.claims.nonce)
+    // An unusable key is logged rather than folded into the `None` that means
+    // "this state token is not valid", because the two have nothing to do with
+    // each other and this function has no error channel. Unreachable while
+    // `require_jwt_secret` refuses an empty secret at startup.
+    let key = match DecodingKey::from_secret(secret.as_bytes()) {
+        Ok(key) => key,
+        Err(e) => {
+            warn!(source = "oauth", "state key unusable: {e}");
+            return None;
+        }
+    };
+    decode::<StateClaims>(token, &key, &validation)
+        .ok()
+        .filter(|d| d.claims.provider == provider)
+        .map(|d| d.claims.nonce)
 }
 
 /// `Set-Cookie` for the flow's nonce.
@@ -830,6 +837,73 @@ mod state_binding_tests {
         assert!(
             loc.contains("error=provider_unavailable"),
             "and then fail for the reason this test state actually has, got {loc}"
+        );
+    }
+
+    /// The state pair: `sign_state` at `oauth.rs` 130 and `verify_state` at
+    /// 153. Three cases, the same three every other token pair gets.
+    ///
+    /// `verify_state` returns `Option`, so a refusal is `None` and there is no
+    /// message to assert on. That is why each case carries its own test rather
+    /// than one test with three assertions.
+    #[test]
+    fn a_state_token_signed_with_another_secret_is_refused() {
+        let (token, _nonce) = sign_state("github", "a-different-secret").expect("mint");
+        assert!(
+            verify_state(&token, "github", "the-real-secret").is_none(),
+            "a state token signed with another secret must not verify"
+        );
+    }
+
+    #[test]
+    fn a_state_token_signed_with_another_algorithm_is_refused() {
+        const SECRET: &str = "the-real-secret";
+        let claims = StateClaims {
+            provider: "github".to_string(),
+            nonce: "0123456789abcdef".to_string(),
+            exp: (chrono::Utc::now().timestamp() + 600) as u64,
+            aud: AUD_OAUTH_STATE.to_string(),
+        };
+        let hs512 = encode(
+            &Header::new(jsonwebtoken::Algorithm::HS512),
+            &claims,
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
+        )
+        .expect("mint");
+        assert!(
+            verify_state(&hs512, "github", SECRET).is_none(),
+            "HS512 must be refused even though its signature is valid"
+        );
+
+        // base64url of {"alg":"none"}, decoded and checked before it was
+        // written here. An unsigned token must fail on the algorithm.
+        let (signed, _) = sign_state("github", SECRET).expect("mint");
+        let body = signed.split('.').nth(1).expect("claims segment");
+        let unsigned = format!("eyJhbGciOiJub25lIn0.{body}.");
+        assert!(
+            verify_state(&unsigned, "github", SECRET).is_none(),
+            "an unsigned alg:none state token must be refused"
+        );
+    }
+
+    #[test]
+    fn an_expired_state_token_is_refused() {
+        const SECRET: &str = "the-real-secret";
+        let claims = StateClaims {
+            provider: "github".to_string(),
+            nonce: "0123456789abcdef".to_string(),
+            exp: (chrono::Utc::now().timestamp() - 3600) as u64,
+            aud: AUD_OAUTH_STATE.to_string(),
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
+        )
+        .expect("mint");
+        assert!(
+            verify_state(&token, "github", SECRET).is_none(),
+            "a state token that expired an hour ago must not verify"
         );
     }
 

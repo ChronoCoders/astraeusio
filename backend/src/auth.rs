@@ -229,7 +229,7 @@ pub(crate) fn purpose_token(
             aud: purpose.aud().to_string(),
             ver,
         },
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(secret.as_bytes())?,
     )
 }
 
@@ -268,13 +268,15 @@ fn decode_purpose(
     purpose: TokenPurpose,
     secret: &str,
 ) -> Result<(String, i64), &'static str> {
-    let claims = decode::<PurposeClaims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation_for(purpose.aud()),
-    )
-    .map_err(|_| "invalid or expired token")?
-    .claims;
+    // `from_secret` is fallible from jsonwebtoken 12 and refuses an empty
+    // secret. It gets its own message rather than the token one: an unusable
+    // key is a configuration fault and says nothing about the token. Unreachable
+    // while `require_jwt_secret` refuses a blank secret before the store opens.
+    let key =
+        DecodingKey::from_secret(secret.as_bytes()).map_err(|_| "server token key is unusable")?;
+    let claims = decode::<PurposeClaims>(token, &key, &validation_for(purpose.aud()))
+        .map_err(|_| "invalid or expired token")?
+        .claims;
     Ok((claims.sub, claims.ver))
 }
 
@@ -1243,7 +1245,7 @@ pub(crate) fn session_jwt(
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(secret.as_bytes())?,
     )
 }
 
@@ -1325,20 +1327,27 @@ impl FromRequestParts<AppState> for AuthClaims {
         // JWT path. Only a token minted with the session audience is a session.
         // A 2FA partial, an email verification link or a password reset link is
         // signed with the same secret and would otherwise be accepted here.
-        let claims = decode::<AuthClaims>(
-            token,
-            &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-            &validation_for(AUD_SESSION),
-        )
-        .map(|data| data.claims)
-        .map_err(|e| {
-            warn!(source = "auth", "session token rejected: {e}");
+        // A 500 rather than a 401, because an unusable key is this server's
+        // fault and the caller's token was never read. Unreachable while
+        // `require_jwt_secret` refuses an empty secret at startup.
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes()).map_err(|e| {
+            warn!(source = "auth", "session key unusable: {e}");
             (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({ "error": "invalid or expired token" })),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "server configuration error" })),
             )
                 .into_response()
         })?;
+        let claims = decode::<AuthClaims>(token, &key, &validation_for(AUD_SESSION))
+            .map(|data| data.claims)
+            .map_err(|e| {
+                warn!(source = "auth", "session token rejected: {e}");
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({ "error": "invalid or expired token" })),
+                )
+                    .into_response()
+            })?;
 
         // Session requests are deliberately not counted. The quota is the thing
         // being sold and the dashboard is the product, so a user browsing their
@@ -1427,6 +1436,144 @@ mod tests {
         TokenPurpose::ResetPassword,
     ];
 
+    /// The three ways a purpose token must fail, against `purpose_token` and
+    /// `decode_purpose` at `auth.rs` 216 and 266.
+    ///
+    /// Enumerated from the call sites rather than from a list of names: every
+    /// `encode` and `decode` in this file and in `oauth.rs` was read, and the
+    /// three pairs each got these three cases.
+    #[test]
+    fn a_purpose_token_signed_with_another_secret_is_refused() {
+        for purpose in EVERY_PURPOSE {
+            let token = purpose_token("user@example.com", purpose, 600, "a-different-secret", 0)
+                .expect("mint");
+            assert_eq!(
+                decode_purpose(&token, purpose, SECRET).err(),
+                Some("invalid or expired token"),
+                "a {purpose:?} token signed with another secret must not verify"
+            );
+        }
+    }
+
+    /// HS512 carries a real signature made with the right secret, so only the
+    /// algorithm check can reject it. `alg: none` is the other half: a token
+    /// with no signature at all must be refused before the signature is read.
+    #[test]
+    fn a_purpose_token_signed_with_another_algorithm_is_refused() {
+        for purpose in EVERY_PURPOSE {
+            let claims = PurposeClaims {
+                sub: "user@example.com".to_string(),
+                exp: (chrono::Utc::now().timestamp() + 600) as u64,
+                aud: purpose.aud().to_string(),
+                ver: 0,
+            };
+            let hs512 = encode(
+                &Header::new(jsonwebtoken::Algorithm::HS512),
+                &claims,
+                &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
+            )
+            .expect("mint");
+            assert_eq!(
+                decode_purpose(&hs512, purpose, SECRET).err(),
+                Some("invalid or expired token"),
+                "HS512 must be refused even though its signature is valid"
+            );
+
+            let signed = purpose_token("user@example.com", purpose, 600, SECRET, 0).expect("mint");
+            let body = signed.split('.').nth(1).expect("claims segment");
+            let unsigned = format!("eyJhbGciOiJub25lIn0.{body}.");
+            assert_eq!(
+                decode_purpose(&unsigned, purpose, SECRET).err(),
+                Some("invalid or expired token"),
+                "an unsigned alg:none token must be refused"
+            );
+        }
+    }
+
+    /// `Validation::default` allows 60 seconds of leeway, so the fixture is an
+    /// hour past rather than a minute, which would pass and read as a bug here.
+    #[test]
+    fn an_expired_purpose_token_is_refused() {
+        for purpose in EVERY_PURPOSE {
+            let token = purpose_token("user@example.com", purpose, -3600, SECRET, 0).expect("mint");
+            assert_eq!(
+                decode_purpose(&token, purpose, SECRET).err(),
+                Some("invalid or expired token"),
+                "a {purpose:?} token that expired an hour ago must not verify"
+            );
+        }
+    }
+
+    /// The session pair: `session_jwt` at `auth.rs` 1230 and the extractor's
+    /// `decode` at 1341, reached through the real `from_request_parts`.
+    #[tokio::test]
+    async fn a_session_token_signed_with_another_secret_is_refused() {
+        let state = test_state();
+        let token = session_jwt("user@example.com", "a-different-secret", 0).expect("mint");
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "a session token signed with another secret must not be accepted"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_session_token_signed_with_another_algorithm_is_refused() {
+        let state = test_state();
+        let claims = AuthClaims {
+            sub: "user@example.com".to_string(),
+            exp: (chrono::Utc::now().timestamp() + 600) as u64,
+            aud: AUD_SESSION.to_string(),
+            ver: 0,
+            auth_type: AuthType::Jwt,
+        };
+        let hs512 = encode(
+            &Header::new(jsonwebtoken::Algorithm::HS512),
+            &claims,
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
+        )
+        .expect("mint");
+        assert_eq!(
+            extract(&state, &hs512).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "HS512 must be refused even though its signature is valid"
+        );
+
+        let signed = session_jwt("user@example.com", SECRET, 0).expect("mint");
+        let body = signed.split('.').nth(1).expect("claims segment");
+        let unsigned = format!("eyJhbGciOiJub25lIn0.{body}.");
+        assert_eq!(
+            extract(&state, &unsigned).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "an unsigned alg:none session token must be refused"
+        );
+    }
+
+    /// `session_jwt` fixes its own 24 hour expiry, so an expired one is minted
+    /// here instead. The expiry check belongs to the verify side anyway.
+    #[tokio::test]
+    async fn an_expired_session_token_is_refused() {
+        let state = test_state();
+        let claims = AuthClaims {
+            sub: "user@example.com".to_string(),
+            exp: (chrono::Utc::now().timestamp() - 3600) as u64,
+            aud: AUD_SESSION.to_string(),
+            ver: 0,
+            auth_type: AuthType::Jwt,
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
+        )
+        .expect("mint");
+        assert_eq!(
+            extract(&state, &token).await.err(),
+            Some(StatusCode::UNAUTHORIZED),
+            "a session token that expired an hour ago must not be accepted"
+        );
+    }
+
     /// A 2FA partial, an email verification link and a password reset link are
     /// all signed with the same secret as a session. Each one used to be a
     /// working session token, which made TOTP a formality and turned every
@@ -1486,7 +1633,7 @@ mod tests {
                     ver: 0,
                     auth_type: AuthType::Jwt,
                 },
-                &EncodingKey::from_secret(SECRET.as_bytes()),
+                &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
             )
             .expect("mint");
 
@@ -1934,7 +2081,7 @@ mod tests {
                 sub: "user@example.com".to_string(),
                 exp: (chrono::Utc::now().timestamp() + 300) as u64,
             },
-            &EncodingKey::from_secret(SECRET.as_bytes()),
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
         )
         .expect("mint");
         let state = test_state();
@@ -1963,7 +2110,7 @@ mod tests {
                 exp: (chrono::Utc::now().timestamp() + 300) as u64,
                 purpose: "2fa_partial".to_string(),
             },
-            &EncodingKey::from_secret(SECRET.as_bytes()),
+            &EncodingKey::from_secret(SECRET.as_bytes()).expect("key"),
         )
         .expect("mint");
         let state = test_state();

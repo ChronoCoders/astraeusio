@@ -21,7 +21,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 duckdb = { version = "~1.10506", features = ["bundled"] }
 dotenvy = "0.15"
 chrono = "0.4"
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+# 12 rather than 10 to remove crypto-bigint from the tree rather than patch it:
+# 12 takes p256 0.14, which takes elliptic-curve 0.14, which has no
+# crypto-bigint dependency at all. RUSTSEC-2026-0387, and its own fix target
+# 0.7.6 is yanked. `rust_crypto` keeps the pure Rust backend rather than
+# aws-lc-rs, which would add a C build to the image.
+jsonwebtoken = { version = "12", features = ["rust_crypto"] }
 bcrypt = "0.15"
 rand = "0.8"
 sha2 = "0.10"
