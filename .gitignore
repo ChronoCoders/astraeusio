@@ -10,4 +10,5 @@ ml/models/*
 *.log
 *.err
 __pycache__/
+.venv/
 frontend/content.md
