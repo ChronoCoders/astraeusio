@@ -55,6 +55,26 @@ if [ -z "${CARGO_BUILD_JOBS:-}" ]; then
   fi
 fi
 
+# The interpreter for the Python steps, named rather than found on PATH. WSL has
+# no `python` command, and the ML tests need torch and fastapi, so the steps use
+# the venv at .venv, built from ml/requirements.txt on Python 3.11 to match
+# ml/Dockerfile. It sits at the root because ml/ is a Docker build context. A
+# missing venv fails these steps with a message saying how to build it, instead
+# of falling back to another interpreter or failing as a bare "No such file".
+PY="$ROOT/.venv/bin/python"
+# The linter sees no direct call because every caller passes the name to step,
+# which runs it through "$@". The function is called, by the three Python steps.
+# shellcheck disable=SC2329
+venv_python() {
+  if [ ! -x "$PY" ]; then
+    echo "gate: no Python venv at $PY" >&2
+    echo "gate: build it from the repository root with" >&2
+    echo "gate:   python3.11 -m venv .venv && .venv/bin/python -m pip install -r ml/requirements.txt" >&2
+    return 127
+  fi
+  "$PY" "$@"
+}
+
 FAILED=0
 STEPS=0
 declare -a RESULTS=()
@@ -94,7 +114,7 @@ step "rust clippy"    backend  cargo clippy --all-targets -- -D warnings
 # check that was skipped.
 step "rust fmt"       backend  cargo fmt --all --check
 step "rust test"      backend  cargo test
-# No --workspace flag: it errors on cargo-audit 0.22.1, and plain `cargo audit`
+# No --workspace flag: it errors on cargo-audit 0.22.0, and plain `cargo audit`
 # already covers the whole workspace through Cargo.lock.
 step "cargo audit"    backend  cargo audit
 step "frontend lint"  frontend npx eslint src
@@ -109,9 +129,9 @@ step "frontend test"  frontend node --test src/lib/
 step "skill hashes"   .        bash skill-hashes.sh
 # Standard library unittest, discovered from the repository root exactly as
 # ml/test_serve.py documents. No pytest, no dev requirements file.
-step "advisory tests" .        python -m unittest test_advisory_check
-step "advisories"     .        python advisory-check.py
-step "ml test"        .        python -m unittest discover -s ml -p "test_*.py"
+step "advisory tests" .        venv_python -m unittest test_advisory_check
+step "advisories"     .        venv_python advisory-check.py
+step "ml test"        .        venv_python -m unittest discover -s ml -p "test_*.py"
 step "naming rule"              .        bash scripts/lib/naming.sh --gate
 step "control: naming detector" .        bash scripts/lib/naming.sh --self-test
 # Counts three classes, not two: U+2013 en dash, U+2212 minus sign and U+2014 em
