@@ -21,25 +21,30 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 ROOT=$(pwd)
 
-# No sccache here, and that is a measured decision rather than an omission.
+# sccache, set here rather than inherited from the shell, so the gate compiles
+# the same way whatever the caller's environment exports. Decided by the owner on
+# 2026-11-26 and measured on WSL the same day.
 #
 # `reqwest` is a build dependency of `libduckdb-sys`, so bumping any crate
 # beneath it gives that build script a new fingerprint and recompiles the bundled
-# DuckDB amalgamation, about 10 minutes and 6 GB of objects. sccache looks like
-# the answer and is not: cc 1.2.60 does pick it up through `RUSTC_WRAPPER` in
-# `rustc_wrapper_fallback`, the wrapper does reach `cl.exe`, and sccache then
-# refuses the work. Measured on 2026-11-24 with `RUSTC_WRAPPER=sccache` set for a
-# full run: four C++ calls, zero cached, `Non-cacheable reasons: multiple input
-# files 4`. That build script passes many `.cpp` files to one `cl.exe`
-# invocation, and sccache cannot cache a compile with more than one input.
+# DuckDB amalgamation. cc 1.2.60 picks sccache up through `RUSTC_WRAPPER` in
+# `rustc_wrapper_fallback`, so the wrapper reaches the C++ compiler as well as
+# rustc.
 #
-# A single file probe crate cached correctly in the same session, which is the
-# trap: it proves the wrapper works and says nothing about this build.
+# Linux, measured 2026-11-26 on WSL with a private, empty sccache cache and
+# `CARGO_BUILD_JOBS=2`. `cargo clean -p libduckdb-sys`, then `cargo test
+# --no-run`, twice. The first build took 2129 s with 280 C/C++ misses and no
+# hits. The second took 479 s with 277 C/C++ hits and 3 misses, and both Rust
+# compiles hit. No compile was refused as non-cacheable for having several
+# inputs: on Linux cc compiles each `.cpp` file in its own call.
 #
-# The lever that would change it is enabling cc's `parallel` feature so each file
-# gets its own invocation, which means adding `cc` to this crate's build
-# dependencies purely to unify a feature onto `libduckdb-sys`. Not done: it puts
-# a hack in the manifest that the production image build also reads.
+# Windows, kept as history. Measured on 2026-11-24 with `RUSTC_WRAPPER=sccache`
+# set for a full run: four C++ calls, zero cached, `Non-cacheable reasons:
+# multiple input files 4`. There the build script passes many `.cpp` files to one
+# `cl.exe` invocation, and sccache cannot cache a compile with more than one
+# input. A single file probe crate cached correctly in the same session, which
+# was the trap: it proved the wrapper works and said nothing about this build.
+export RUSTC_WRAPPER=sccache
 
 # Leave the machine usable while the gate runs.
 #
