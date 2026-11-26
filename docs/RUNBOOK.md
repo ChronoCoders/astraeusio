@@ -311,6 +311,30 @@ differ, and a pull is the whole of the deployment.
 
 ---
 
+## Purging the CDN after a deploy
+
+Every deploy ends with a full purge of the Cloudflare cache for the
+`astraeusio.com` zone. Since 2026-11-26 it goes through the Cloudflare MCP
+server connected to the agent session (`plugin:cloudflare`,
+`https://mcp.cloudflare.com/mcp`), which authenticates as the owner's own
+session. No API key is read from a file and none is passed on a command line.
+
+1. Find the zone: `GET /zones?name=astraeusio.com`. The result must be one zone
+   with status `active`.
+2. Purge it: `POST /zones/<zone id>/purge_cache` with the body
+   `{"purge_everything": true}`. The response must have `success: true` and an
+   empty `errors`.
+3. Check through Cloudflare, not the origin: a page and a static file, with
+   `curl -sSI https://astraeusio.com/<path>`, read for the status code and
+   `cf-cache-status`.
+
+If the MCP server cannot purge, the owner purges in the Cloudflare dashboard
+(Caching, Configuration, Purge Everything). Do not fall back to the account's
+Global API Key. It grants far more than a cache purge, and before 2026-11-26 it
+was used for this from a plain text note.
+
+---
+
 ## Rolling back a deploy
 
 Images are tagged with the commit they were built from, so a rollback is a
