@@ -2505,6 +2505,37 @@ next to the next instance of it.
   dependencies changed to pull it in: chrono has been in the lockfile all along, and the advisory
   arrived.
 
+- No ID. **Decisions of 2026-11-26.** Taken by the owner after the report that finished the move to
+  WSL, which found that the gate runs Rust through sccache on WSL because the owner's shell exports
+  `RUSTC_WRAPPER=sccache`, while the gate's own comment says it does not.
+
+  **1. sccache.** The gate stops inheriting `RUSTC_WRAPPER` from the shell and sets it itself, so it
+  runs the same way on every machine. The direction is decided by a measurement on WSL, not by the
+  Windows result, because the Windows refusal came from `cl.exe` taking many `.cpp` files in one call
+  and Linux may compile them one per call. The measurement starts from an empty sccache cache with
+  zeroed stats, cleans `libduckdb-sys`, and builds twice with `RUSTC_WRAPPER=sccache`, cleaning
+  `libduckdb-sys` between. After each build it records the C and C++ hits and misses, the
+  non-cacheable reasons, and the wall time. If the second DuckDB build hits the cache and is
+  materially faster, the gate sets `RUSTC_WRAPPER=sccache`. Otherwise it unsets it. The comment in
+  `gate.sh` is rewritten to carry the Linux numbers and keeps the Windows measurement as history. The
+  `~/.bashrc` line is the owner's and is not edited.
+
+  **2. AUD-066.** Find the cause of the `frontend test` failure under Node 24 and fix it at the
+  source. The step must fail if the tests stop being discovered, so a run that finds zero tests is a
+  failure. The test files are enumerated from the tree, and the count the runner reports must match.
+
+  **3. The mutation that the AUD-065 closure did not run.** Plant defects in the `CLOSED` half of the
+  backlog structure test, at least a closure marker for an identifier that is not declared and a
+  declared identifier marked closed twice, and show that each is caught by its named assertion.
+
+  **4. `frontend/public/.well-known/security.txt`.** Read it, check every field against RFC 9116
+  (`Contact`, `Expires` in the future, `Canonical` matching the URL it is served at), and track it in
+  its own commit. Compare it with the file the server serves and report any difference without
+  changing the server.
+
+  Order: this record, then 1, 2, 3 and 4. The gate runs through `gate.sh` after each change. Push
+  when done, no deploy, and report whether anything in the round changes the shipped image.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
