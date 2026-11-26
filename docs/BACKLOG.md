@@ -2906,6 +2906,50 @@ next to the next instance of it.
   Dst over 7 days and the ISS position all matched exactly. The findings of the walk through are
   around that data, not in it.
 
+- No ID. **Decisions of 2026-11-26, the third set.** Taken by the owner after the APOD round report,
+  implemented as one round under AUD-074.
+
+  **1. Source.** APOD moves from `api.nasa.gov/planetary/apod` to NASA's own feed,
+  `https://science.nasa.gov/feed/apod-basic/`. The owner checked it the same day: 30 items, newest
+  2026-11-26 `Eye in the Sky: The Milky Way over Lençóis`, oldest 2026-10-28, each with `apod:url`
+  (the article page), `apod:hdurl` (the image), `apod:explanation`, `apod:credit` and
+  `apod:copyright`. It is measured here before any code, including how the date is carried, since
+  `pubDate` is 05:05 or 04:05 UTC and the APOD date must be derived the way NASA dates it, and how
+  video days appear. The feed is parsed as XML with a maintained crate, not with regex. A new
+  dependency has its reason recorded, the smallest feature set, and `cargo audit` and the
+  advisories step clean. Explanation and credit carry HTML and are stored and served as plain text:
+  tags stripped, entities decoded, whitespace collapsed, and links in the credit dropped with their
+  text kept. A test with the real 2026-11-26 item as fixture shows no tag or entity survives. The
+  image the dashboard shows is the `apod:hdurl` asset, not the article page in `apod:url`. The
+  existing validator applies unchanged to every record from the new source.
+
+  **2. Backfill.** On first run every item in the feed is written through `insert_apod`, so the
+  stored broken rows for those dates are replaced by the full row update. The dates replaced are
+  reported.
+
+  **3. Read path.** `get_apod_latest` and every other read of `apod` serve only rows that pass the
+  validator, so a broken row still stored is never shown. Test: a newer broken row and an older good
+  one, and the good one is served.
+
+  **4. The remaining broken rows, 2026-09-30 to 2026-10-27.** Measure whether NASA's archive
+  (`science.nasa.gov/apod/archive/` and the per day image article pages) gives the same structured
+  fields. If it does, propose a backfill; if not, list the dates. No row is deleted; the owner
+  decides.
+
+  **5. Credit.** Most APOD images belong to their photographers. The dashboard card shows the credit
+  line under the image, from `apod:credit` as plain text, and `apod:copyright` too when present. The
+  store gains the column it needs, and the migration fails closed.
+
+  **6. Freshness.** With a working source `nasa_apod` stays operational. Its threshold is not
+  changed.
+
+  **7. Housekeeping.** The extra `libduckdb-sys` build outputs `2bdfce...` and `daaee94...` may be
+  removed.
+
+  Tests cover every branch, enumerated from the code, with real feed items as fixtures. A mutation
+  round names the assertion that kills each mutant. The gate runs after each change, then push and
+  report, and no deploy until the owner says.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
