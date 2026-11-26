@@ -2471,6 +2471,12 @@ next to the next instance of it.
   closing report lists git status, unpushed commits and every untracked or ignored file in the
   checkout outside `target/` and `node_modules/` with its size, so the owner can decide what moves.
 
+  **The Windows checkout was deleted on 2026-11-26 by the owner**, after the first deploy from WSL,
+  `db9cbba` to `c4f5efc`, succeeded. Before deleting it, the owner's final check found no unpushed
+  commits, no modified tracked files, and no file newer than the move. From WSL the same day,
+  `/mnt/c/astraeus` no longer exists. The check itself was the owner's and is recorded here as
+  reported. It could not be repeated once the checkout was gone.
+
 - No ID. **chrono, the advisory quoted rather than described, measured 2026-11-25.** The owner
   searched RustSec for a chrono unmaintained advisory and could not find one, so this records the
   source.
