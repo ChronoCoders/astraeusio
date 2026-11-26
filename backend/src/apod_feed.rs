@@ -595,7 +595,8 @@ mod tests {
                 .to_owned(),
             discussion("26112"),
             discussion("2611260"),
-            discussion("26+126"),
+            // Decodes to `26+126`, and `u32` parsing accepts a leading `+`.
+            discussion("26%2B126"),
             discussion("261131"),
         ] {
             assert!(
