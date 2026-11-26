@@ -606,6 +606,21 @@ mod tests {
         }
     }
 
+    /// Opening and closing tags that are not inline both end a line, so the
+    /// next day's line is found after either.
+    #[test]
+    fn the_mark_after_any_block_tag_opens_a_line() {
+        for html in [
+            "Text.<br>Tomorrow's picture: x",
+            "Text.<p>Tomorrow's picture: x",
+            "<p>Text.</p>Tomorrow's picture: x",
+            "Text.<br/><b>Tomorrow's picture:</b> x",
+        ] {
+            let lines = html_lines(html, "apod:explanation").unwrap();
+            assert_eq!(collapse(before_next_day(&lines)), "Text.", "{html}");
+        }
+    }
+
     #[test]
     fn only_a_line_that_opens_with_the_mark_ends_the_text() {
         assert_eq!(before_next_day("a\nTomorrow's picture: x\nfooter"), "a\n");
