@@ -2113,6 +2113,76 @@ repeated here.
   mutant. Report every stored APOD row that fails the new validator by date and reason, and change
   none of them.
 
+  **Measured 2026-11-26, and the feed is broken for every date, not one.** The APOD API asked for
+  2026-08-29 to 2026-11-26 returned 90 records, every one `media_type` image, url
+  `science.nasa.gov/wp-content/themes/...nasa-logo@2x.png`, title `NASA Science`, and the same 922
+  character explanation. Single date requests for 2026-11-26, 2026-11-25, 2026-08-29, 2026-06-01,
+  2025-11-26 and 2024-01-01 return the same logo and title, with one of two explanations. The cause
+  is APOD's move from apod.nasa.gov to science.nasa.gov: every `apod.nasa.gov/apod/apYYMMDD.html`
+  tried for 2026 redirects to the one landing page `https://science.nasa.gov/apod/`, and the API
+  reads that page. Its first image is the site logo, its title is the site name, its explanation
+  block holds whatever it features at that moment, `Beauty is in the eye of the beholder...` on
+  2026-11-26 and the video fallback sentence earlier that day, and its subtext is `Discover the
+  cosmos! Each day...`. So NASA does not return the real explanation for 2026-11-26 or for any other
+  date. The text that changed during the day changed on the landing page.
+
+  Public reports on nasa/apod-api, all open on 2026-11-26: #172 of 2026-08-28, `APOD's main NASA site
+  is moving`, quoting the notice of the move. #175 of 2026-09-11, `Is API broken?`. #181 of
+  2026-10-01, `API ignores date and count parameters`. #184 of 2026-10-05, `API returning default
+  NASA logo instead of APOD image in url and hdurl`, https://github.com/nasa/apod-api/issues/184.
+
+  **Our stored rows date the onset.** 202 rows from 2026-05-09 to 2026-11-26. The last real one is
+  2026-09-29. The first broken one is 2026-09-30, fetched at 2026-09-30 23:33 UTC, and all 58 from
+  2026-09-30 to 2026-11-26 are broken. Each has title `NASA Science`, url and hdurl under
+  `/wp-content/themes/`, and `media_type` image. Their explanations are the landing page's text at
+  fetch time, so consecutive dates repeat each other, and 2026-10-17, 2026-10-29 and 2026-11-26 hold
+  the fallback sentence, stored as 114 characters with five tabs mid sentence and cut off at `HTML5
+  vide`.
+
+  **The rule, `backend/src/apod_check.rs`, derived from those 202 rows.** A record fails if a
+  required field is empty, if `url` or `hdurl` is a WordPress theme or plugin asset or a file named
+  as a logo, if the title is the site name or a page title ending in it, if the explanation holds a
+  browser fallback phrase after whitespace is collapsed, or if the explanation is under 200
+  characters, against a shortest real one of 658. The file itself, compiled into a scratch crate,
+  passes all 144 real rows and fails all 58 broken ones. Counted one rule at a time, the chrome url,
+  the chrome hdurl and the site title each catch all 58 alone and none of the 144, and the fallback
+  phrase and the length floor each catch the 3 fallback rows.
+
+  **Enforced where every write passes.** `Store::insert_apod` refuses a failing record and returns
+  `ApodWrite::Rejected`, so no caller can write one, and the writer logs it at WARN with the date
+  and the reason. An accepted record now replaces every content column on conflict. Three invariants
+  are in its doc comment and each has a test against a real store: a rejected record creates no row,
+  a rejected record leaves the stored row untouched with `fetched_at` included, and an accepted
+  record replaces title, explanation, url, media type and hdurl. The validator has one test per
+  branch read from the code, with the stored 2026-11-26 record and the stored fallback text as
+  fixtures. The WARN line itself has no test.
+
+  **Mutation round, 2026-11-26, in a temporary worktree at `19d0884`.** 17 mutants, all killed, each
+  by the test aimed at it and by no other test. Removing the empty field check,
+  `each_required_field_left_empty_is_named`. Removing the theme path, the plugin path or the logo
+  file check, the test for that one. Matching `logo` on the whole path,
+  `logo_outside_the_file_name_is_not_chrome`. Removing the hdurl check,
+  `a_chrome_hdurl_is_rejected_even_when_url_is_real`. A case sensitive title compare,
+  `the_site_name_as_title_is_rejected_in_any_case`. Removing the page title suffix,
+  `a_page_title_ending_in_the_site_name_is_rejected`, and widening it to contains,
+  `a_title_that_mentions_nasa_passes`. Removing the fallback rule, both fallback tests. Dropping the
+  whitespace collapse, `each_fallback_phrase_rejects_on_its_own`. The floor off by one and the length
+  in bytes, `an_explanation_one_short_of_the_floor_is_rejected_and_the_floor_passes`. Skipping the
+  check in `insert_apod`, both rejection tests. An upsert of `fetched_at` only, or one without
+  `hdurl`, `an_accepted_apod_record_replaces_every_content_column`. A rejection that still refreshes
+  `fetched_at`, `a_rejected_apod_record_leaves_the_stored_row_untouched`.
+
+  **Stored rows that fail, reported and not changed.** All 58 from 2026-09-30 to 2026-11-26, each
+  with the first reason `url is a site asset, not an image`. Not one row was deleted or altered.
+
+  **Open for the owner.** The read path serves `ORDER BY date DESC LIMIT 1`, so while the 58 rows
+  stay, the page keeps showing the 2026-11-26 chrome row after this deploys, and the last good record
+  is not the one served. Either the rows go, or the read path skips what the validator rejects. And
+  since the feed fails for every date, nothing new will be written until NASA fixes the API or the
+  ingest moves to another source, so `nasa_apod` will go stale six hours after the deploy and stay
+  stale. A comment on #184 says the replacement is a new API that does not yet behave like the old
+  one, and one on #181 names an `/apod-basic/{YYMMDD}` form. Neither was evaluated here.
+
 - **AUD-075** The people in space list counts two entries that are not people. Found by the owner
   2026-11-26, verified the same day.
 
