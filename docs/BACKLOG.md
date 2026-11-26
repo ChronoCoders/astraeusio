@@ -2414,6 +2414,40 @@ repeated here.
   survivors, because the script's test name filter did not select their tests. Rerun with the
   filter fixed, each was killed by its test and by no other.
 
+  **The apostrophe, `c5efd2d`.** `Tomorrow's` occurs 841 times in the 2026 feed across all fields,
+  713 written as `'` and 128 as `&#039;`, and never with U+2019 in any encoding. A curly apostrophe
+  would still have let the whole tail through, so the cut matches both forms, with one test case
+  for each of the four marks. Two mutants, each dropping one curly mark, were killed by
+  `each_mark_ends_the_text_with_either_apostrophe` and by no other test.
+
+  **Deployed 2026-11-26, approved by the owner.** `backup.sh` ran at 20:55 UTC, 141M, 24 tables.
+  It names its file by date, so it replaced the 10:07 backup of the same day. `deploy.sh` moved
+  `992a7ce` to `c5efd2d` at 21:26:58, rebuilt backend and frontend, and its own checks passed:
+  frontend 200, backend API 200, TLS handshake, and 0 backend ERROR lines in the last 5 minutes.
+  The CDN was purged through the Cloudflare MCP. The zone lookup found one active zone, and
+  `POST /zones/3b1e9376.../purge_cache` with `purge_everything` returned success with no errors.
+
+  On production. The poller's first run logged, at 21:27:45, `apod backfill: days replaced
+  count=28` with every date from 2026-09-30 to 2026-10-27, and then `poller/apod: 30 records` with
+  no WARN. That line counts the 30 feed items and does not list their dates. The dates come from
+  the rows, every row in the range having a `fetched_at` after the deploy. `schema_migrations`
+  holds `2026-11-26-apod-backfill-2026-09-30-to-2026-10-27`, applied 21:27:45. A read only query
+  on a temporary copy of the live file and its `.wal` applied the validator's rules in SQL. All 58
+  rows from 2026-09-30 to 2026-11-26 pass, all were written after the deploy, all carry a credit
+  and an `assets.science.nasa.gov` image. The 144 rows before 2026-09-30 are untouched, the newest
+  `fetched_at` among them still 2026-09-29 21:01:50. The same SQL over the 2026-11-25 backup fails
+  57 of 57 rows in the range, with `url chrome`, so it detects what it looks for. Both copies were
+  removed from the host.
+
+  `/api/apod`, signed in as the free verification account, returns 2026-11-26 `Eye in the Sky: The
+  Milky Way over Lençóis`, url and hdurl on `assets.science.nasa.gov`, credit and copyright
+  `Ignacio Fernández`, and an 884 character explanation with no tag, entity or double space. It
+  ends `Is this eye in the sky looking back at you?`, with no `Tomorrow's picture`. Through
+  Cloudflare the response is byte identical to the origin's. The dashboard, loaded through
+  Cloudflare in headless Chromium as the same account, shows the card with that date, title and
+  image, the line `Image credit and copyright: Ignacio Fernández` under the image, and the same
+  explanation.
+
 - **AUD-075** The people in space list counts two entries that are not people. Found by the owner
   2026-11-26, verified the same day.
 
