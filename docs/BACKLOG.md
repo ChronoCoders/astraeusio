@@ -85,8 +85,9 @@ or in the commit that created the deferral.
   that back.** The thirteen scripts lived on the host at mode 700 before they were tracked in
   `1bbf5c5` and `c4182bd`. Git records one bit, executable or not, so a tracked file arrives at 755
   under the default umask and every pull restores 755. Nothing in them is secret: the per-file audit
-  on 2026-09-01 found no embedded credential, every one reads from `.cloudflare-key`, `.r2-s3-key`
-  or `backend/.env`, all of which stay untracked at 600. So this is not an exposure, it is a
+  on 2026-09-01 found no embedded credential, every one reads from `.r2-s3-key` or `backend/.env`,
+  both of which stay untracked at 600. This sentence also named `.cloudflare-key` until 2026-11-26,
+  when AUD-073 found that no tracked script reads it. So this is not an exposure, it is a
   property that changed quietly as a side effect of a change made for a different reason, and it is
   recorded because nobody chose it.
   If 700 is the mode these should have, the tracked copy cannot enforce it and something else has
@@ -2039,6 +2040,49 @@ repeated here.
 
   The hooks are not rebuilt here, because they are shared across projects and rebuilding them is a
   separate task.
+
+- **AUD-073** A Cloudflare Global API Key and a DNS token sat in plain text in a local agent memory
+  note outside this repository, and the Global API Key had been used from it to purge the cache.
+  Found 2026-11-26 while looking for how the post deploy purge of 2026-11-25 was done.
+
+  The session log of the Windows checkout shows that on 2026-11-25 at 09:38Z a session read the note
+  `reference_cloudflare.md` in the agent memory for that checkout, wrote a `purge.sh` into its
+  scratchpad, and called `purge_cache` with `X-Auth-Email` and `X-Auth-Key`, which is Global API Key
+  authentication. The note also held a DNS only token. Searching that log printed both values in full
+  into the 2026-11-26 session, so they also reached that session's transcript.
+
+  **AUD-073 closed 2026-11-26**, by the owner rotating and cleaning, with this evidence as the owner
+  reported it. The Global API Key was changed in the dashboard, and `GET /user` with the old key now
+  returns 9103, `Unknown X-Auth-Key or X-Auth-Email`. The DNS only token was already dead:
+  `/user/tokens/verify` and `/accounts/<id>/tokens/verify` both return 1000, `Invalid API Token`, so
+  there was nothing to rotate. The note was kept for its zone facts, with every string of 30 or more
+  key characters masked, and the scratchpad `purge.sh` was deleted. The other agent memory notes were
+  scanned for long key shaped strings and none holds a live secret.
+
+  The purge no longer needs a key at all. Since 2026-11-26 it goes through the Cloudflare MCP server
+  connected to the agent session, as `docs/RUNBOOK.md` describes, and that section says not to fall
+  back to the Global API Key.
+
+  **`/opt/astraeusio/.cloudflare-key` on the host, deleted 2026-11-26 by the owner's decision.** Its
+  contents were never read. Before deletion it was mode 600, 142 bytes, modified
+  `2026-05-31 21:45:37 UTC`, and nothing referenced it. The root crontab, the systemd unit
+  directories and `/etc` do not name it, no tracked file outside `docs/` names it, and no process held
+  it open. The positive control for the same search found the three tracked scripts that read the
+  sibling `.r2-s3-key`. Whatever it held was either the rotated key or unknown, and neither belongs on
+  the host. It was removed with `rm` on that path and the path was then confirmed absent. Two
+  untracked root scripts from the 2026-10-04 history rewrite listed it among the files that cannot be
+  recreated, and both lists now omit it: `/root/align_clone.sh` lines 8, 74 and 75, where five became
+  four, and the `grep -E` pattern on line 40 of `/root/untracked_backup.sh`. Both still pass
+  `bash -n` and keep their modes.
+
+  **Still on the host.** Two copies with the same size, mode and mtime remain, not hashed, in
+  `/root/astraeusio-untracked-backup/` and `/root/astraeusio-untracked-20261004T005000Z/files/`, both
+  made by `untracked_backup.sh` before the history rewrite. They were not named for deletion and are
+  left for the owner. The same reason applies to them, so until they go the credential is still on
+  the host.
+
+  **The correction.** The 2026-09-01 entry under Operational said every ops script reads from
+  `.cloudflare-key`. No tracked script does, and that sentence now says so.
 
 ## Enumeration coverage
 

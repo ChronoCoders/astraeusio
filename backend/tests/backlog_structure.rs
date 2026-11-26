@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 52] = [
+const FINDINGS: [&str; 53] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -210,6 +210,9 @@ const FINDINGS: [&str; 52] = [
     // The shared git hooks are gone and no scope sets core.hooksPath, so the gate
     // is the only enforcement left and it does not read commit messages.
     "AUD-072",
+    // A Global API Key in a plain text agent note, used for the cache purge.
+    // Closed by rotation, and the host's key file deleted with it.
+    "AUD-073",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.
@@ -268,7 +271,7 @@ fn every_declared_finding_still_has_a_bullet() {
 ///
 /// A partial closure must not use this form. `AUD-027` shipped one half and kept
 /// the other open, and it says that in words instead.
-const CLOSED: [(&str, &str); 15] = [
+const CLOSED: [(&str, &str); 16] = [
     // Closed the other way: the claim came off rather than the delay going in.
     ("AUD-012", "2026-09-22"),
     ("AUD-036", "2026-10-04"),
@@ -301,6 +304,8 @@ const CLOSED: [(&str, &str); 15] = [
     // The runner is given the files by name and every one must report, so a
     // runner that finds nothing can no longer pass.
     ("AUD-066", "2026-11-26"),
+    // Closed by the owner rotating the key, with the evidence quoted in the file.
+    ("AUD-073", "2026-11-26"),
 ];
 
 /// Every closure marker in the file, as (identifier, date).
