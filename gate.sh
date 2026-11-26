@@ -124,10 +124,12 @@ step "rust test"      backend  cargo test
 step "cargo audit"    backend  cargo audit
 step "frontend lint"  frontend npx eslint src
 step "frontend build" frontend npm run build
-# Node's own test runner over the pure helpers in src/lib. No vitest and no
-# jsdom: the repository already sets "type": "module", so these import directly
-# and nothing was added to package.json to run them.
-step "frontend test"  frontend node --test src/lib/
+# Node's own test runner over the test files under src. No vitest and no jsdom:
+# the repository already sets "type": "module", so these import directly and
+# nothing was added to package.json to run them. The script passes the files by
+# name and fails unless the runner reports every one of them, because a directory
+# argument stopped working under Node 24 (AUD-066) and zero tests exits 0.
+step "frontend test"  frontend bash ../scripts/lib/frontend-test.sh
 # The published agent-skill hashes. A Rust test cannot reach
 # frontend/public, and the frontend test runner covers src/lib only, so this
 # manifest had nothing checking it and all four values were wrong.
