@@ -2145,6 +2145,12 @@ repeated here.
   The count of 80 was not confirmed from data. The neo insert has the same `ON CONFLICT ... DO UPDATE
   SET fetched_at` shape as the second APOD defect, so a corrected NEO record is never stored either.
 
+  Confirmed from data by the owner the same day. `/api/neo` returned `element_count` 80, by approach
+  date 2026-11-19 7, 11-20 4, 11-21 3, 11-22 2, 11-23 1, 11-24 7, 11-25 9, 11-26 4, 11-27 7, 11-28 6,
+  11-29 6, 11-30 10, 12-01 4, 12-02 2 and 12-03 8. NASA's feed for 2026-11-19 to 2026-11-26 gives the
+  same counts per day. So the rows are correct, and the window is today minus 7 to today plus 7, as
+  the code says.
+
 - **AUD-078** Times are shown in the viewer's zone in some places, in UTC in others, and once labelled
   UTC while in the viewer's zone. Found by the owner 2026-11-26 on the ISS card, enumerated from the
   code the same day.
@@ -2197,6 +2203,23 @@ repeated here.
   more, not storms. Forecasts are written every 30 minutes, so one storm period can count several
   times, and the label `Storms in window` does not describe what is counted.
 
+  **Measured 2026-11-26, and the count was right.** Read only queries on a scratch copy of the 10:07
+  backup on the host, touching `kp_forecast` alone, with the observed values taken from NOAA's
+  public `noaa-planetary-k-index.json`. NOAA's official 3 hour Kp for 2026-11-19 has one storm
+  period, 00:00 to 03:00 UTC at Kp 5.0. Every other period that day is 3.0 or below. The 3 hour
+  forecasts paired with that period target 2026-11-18 22:44 to 2026-11-19 01:14, all of them before
+  2026-11-19 10:40, where a 7 day window viewed at 10:40 on 2026-11-26 begins. Every one of them
+  carries a `model_sha`, and none in the last 14 days lacks one. So `0` was the correct count for
+  that window, and the storm was outside it.
+
+  **A real defect found on the way, in both queries.** `get_forecast_history` and
+  `get_forecast_metrics` pair a forecast with the `kp_3h` row whose `time_tag` is nearest, within
+  5400 s. That `time_tag` is the start of a three hour period, which is how `utils.js:111` reads it
+  too. So a forecast in the second half of a period is closer to the next period's start, and is
+  scored against the next period's Kp. A forecast for 02:14 lies in the 00:00 to 03:00 period but is
+  8040 s from its start and 2760 s from 03:00. About half of all pairs therefore compare a forecast
+  with the wrong observation, in the chart and in RMSE, MAE, the hit rate and the storm count alike.
+
 - **AUD-081** One event raises many anomaly alerts, and X-ray alerts appear three hours after their
   readings. Found by the owner 2026-11-26. The cause is read from the code, and the stored
   `detected_at` values were not queried to confirm it.
@@ -2209,6 +2232,14 @@ repeated here.
   window starts at 13:24, so the decaying readings from 13:25 to 13:59 each became the window maximum
   in turn, one per minute. That is the eight flare alerts a minute apart, and it is also why they are
   dated three hours after their readings. One mechanism, with no detection lag.
+
+  **Confirmed from data 2026-11-26**, by a read only query on a scratch copy of the 10:07 backup,
+  `alerts_anomaly` alone, the built in types alone. On 2026-11-19 `xray_flare` raised 10 alerts. The
+  first two came on time: the 13:23 and 13:24 readings, detected at 13:27:07 and 13:29:07, while the
+  flare rose to M2.4. Then the readings from 13:25 to 13:31, falling from M2.4 to M1.1, were detected
+  one a minute from 16:24:22 to 16:30:23, each 179 minutes after its reading. Then the 13:59 reading
+  at M1.1 at 16:31:23, once 13:31 had left the window. `kp_storm` raised 15 alerts, detected from
+  01:15:26 to 03:00:31 for readings from 01:12 to 02:57, one per qualifying one minute reading.
 
 - **AUD-082** Every NOAA space weather alert is shown as INFO under its raw product code. Found by the
   owner 2026-11-26, verified the same day.
@@ -2798,6 +2829,12 @@ next to the next instance of it.
   the owner says: APOD first. Then AUD-075, AUD-076, AUD-077, AUD-078, AUD-079 and AUD-080. Then
   AUD-081 and AUD-082. Then AUD-083 and AUD-084. Then chrono to jiff, AUD-067, and the gate step for
   the `forbid(unsafe_code)` attribute, as already decided.
+
+  **4. The core data was checked and is correct.** On 2026-11-26 between about 10:30 and 10:51 UTC
+  the owner compared this site's API with NOAA and NASA at the same time tags. Kp one minute, Kp three
+  hour (2026-11-19 included), solar wind speed and density, IMF Bt and Bz, GOES X-ray in both bands,
+  Dst over 7 days and the ISS position all matched exactly. The findings of the walk through are
+  around that data, not in it.
 
 ## History
 
