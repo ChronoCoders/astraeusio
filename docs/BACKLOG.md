@@ -1749,6 +1749,25 @@ repeated here.
   `Error: Cannot find module 'C:\astraeus\frontend\src\lib'`. No test in `src/lib` has run since
   the upgrade, and the failure looks like a failing test rather than a runner that never started.
 
+  **AUD-066 closed 2026-11-26**, commit `0d4b18e`. Node reads each argument to `node --test` as a
+  glob pattern, so `src/lib/` matched the directory itself and Node loaded it as a module. Reproduced
+  on WSL under Node v24.22.1 with the same `MODULE_NOT_FOUND`. A quoted glob ran the 8 tests, and a
+  glob that matched nothing reported `tests 0` and exited 0, so a glob alone would have turned a
+  runner that finds nothing into a pass.
+
+  The step is now `scripts/lib/frontend-test.sh`. It enumerates the test files under `src` from the
+  tree, fails when there are none, passes them to Node by name, and fails unless the files that the
+  junit reporter names equal that list. A file that loads and declares no test is reported by Node as
+  one synthetic case named after its own path, so such cases do not count as a file having run.
+
+  Mutants, each in a throwaway clone, each against the script and then against the script with its
+  guard removed. No test files fails on the empty list check and passes without it. A test file that
+  declares no test fails on the file comparison and passes without it. The old directory argument
+  fails with the comparison naming `src/lib/utils.test.js` as unreported. A second test file in the
+  tree that Node is not given fails, naming that file. The unmutated script reports 1 test file in
+  the tree and 1 reported, and the gate at `9cd7d27` with the change in the tree went from 2 of 17
+  failing to 1 of 17, with `advisories` the one left.
+
 - **AUD-067** The gate measures the working tree, so a commit can pass it and not compile. Found
   2026-11-24, and it had already happened.
 
