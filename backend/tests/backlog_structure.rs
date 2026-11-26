@@ -131,7 +131,7 @@ fn no_declared_section_is_empty() {
 /// Only `AUD-0NN` entries are covered. The `No ID` bullets are not, because
 /// they have nothing stable to key on, which is a real gap and is why new
 /// findings worth tracking should get an identifier rather than a description.
-const FINDINGS: [&str; 53] = [
+const FINDINGS: [&str; 64] = [
     "AUD-009", "AUD-011", "AUD-012", "AUD-013", "AUD-014", "AUD-015",
     // Closed as a vulnerability; the bullet that remains is the deferred PKCE
     // half, so the identifier stays declared while that text does.
@@ -213,6 +213,11 @@ const FINDINGS: [&str; 53] = [
     // A Global API Key in a plain text agent note, used for the cache purge.
     // Closed by rotation, and the host's key file deleted with it.
     "AUD-073",
+    // The owner's walk through the logged in site on 2026-11-26, the APOD
+    // record first and then one finding per item, each verified before it
+    // was written down.
+    "AUD-074", "AUD-075", "AUD-076", "AUD-077", "AUD-078", "AUD-079", "AUD-080", "AUD-081",
+    "AUD-082", "AUD-083", "AUD-084",
 ];
 
 /// Identifiers of every finding bullet in the file, in order, duplicates kept.

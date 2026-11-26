@@ -2084,6 +2084,162 @@ repeated here.
   **The correction.** The 2026-09-01 entry under Operational said every ops script reads from
   `.cloudflare-key`. No tracked script does, and that sentence now says so.
 
+- **AUD-074** The APOD panel shows NASA's site logo and a video fallback sentence as the picture of
+  the day, and nothing on our side can reject that record or replace it once NASA corrects it. Found
+  by the owner 2026-11-26.
+
+  NASA's APOD API returned a broken record for 2026-11-26: title `NASA Science`, and `url` and
+  `hdurl` both `https://science.nasa.gov/wp-content/themes/nasa-child/assets/images/nasa-logo@2x.png`,
+  the site logo. The live dashboard shows that title, and as the explanation the text `To view this
+  video please enable JavaScript, and consider upgrading to a web browser that supports HTML5 video`.
+  NASA's API now returns the real explanation for that date, with `url` and title still the logo and
+  `NASA Science`, so the stored row was written from an earlier, worse response.
+
+  Two defects on our side. First, `fetch_apod` accepts any record, and nothing checks that it is a
+  real picture of the day. Second, `insert_apod` updates only `fetched_at` on `ON CONFLICT (date)`, so
+  a record NASA corrects later never replaces the one stored. The live dashboard is the evidence.
+
+  The round, decided by the owner the same day. Measure first: fetch the last 90 days with
+  `start_date` and `end_date` and report per day the media type, the url host and path prefix, and
+  whether title, url or explanation look like site chrome rather than content. Find when the broken
+  records started and how many there are, and look for a public report such as an issue on NASA's
+  apod-api repository. Derive the validation rule from that data, because a rule that only matches
+  `NASA Science` or this one URL is not the fix. Validate at ingest: a failing record is not
+  written, it is logged at WARN with the date and the reason, and the last good record stays the one
+  served. The `nasa_apod` freshness check then goes stale on its own if the feed stays broken, and
+  its threshold is not changed. `insert_apod` updates every content column on conflict. Every branch
+  of the validator gets its own test, enumerated from the code, with the 2026-11-26 record and the
+  video fallback explanation as fixtures, and a mutation round names the killing assertion for each
+  mutant. Report every stored APOD row that fails the new validator by date and reason, and change
+  none of them.
+
+- **AUD-075** The people in space list counts two entries that are not people. Found by the owner
+  2026-11-26, verified the same day.
+
+  `astros.rs` asks Launch Library 2 for `astronaut/?in_space=true&limit=20` and maps every result
+  through without reading its `type`, and passes LL2's own `count` on as the head count. Live on
+  2026-11-26 the response held 15 entries, two of type `Non-Human`: `Starman` (SpX, status Active),
+  the mannequin in the Tesla Roadster, and `Laika` (CCCP, status Deceased). So 13 people are shown as
+  15. The `limit=20` page also truncates the list silently once more than 20 are in space, while the
+  count stays whole.
+
+- **AUD-076** Two i18n keys the dashboard uses exist in no locale, so the Kp 3 hour card shows the raw
+  keys. Found by the owner 2026-11-26, verified the same day.
+
+  Enumerated from the code: 570 distinct literal keys in `t('...')` calls under `frontend/src`,
+  checked against both locales, with i18next plural forms (`_one`, `_other`) counted as present.
+  Exactly two are missing, from `en` and `tr` alike: `metrics.kp3h` (`App.jsx:195`) and
+  `metrics.kp3hPeriod` (`App.jsx:198`). `e8078d1` of 2026-09-21 introduced both calls, and no
+  commit has ever added `kp3hPeriod` to a locale file, so the card has shown raw keys since then. The
+  two locales carry the same 843 keys. Not checkable by this method: 48 template literal keys and two
+  string concatenations (`apiKeys.state.` and `pricing.tv.`), which the check must resolve from the
+  values the code can produce.
+
+- **AUD-077** The NEO list labelled as a 7 day window serves two weeks, centred on today. Found by the
+  owner 2026-11-26, verified in the code the same day.
+
+  `get_neo_recent` keeps rows whose `fetched_at` is within 7 days, not rows whose approach date is in
+  a window. Each poll fetches today to today plus 7 and refreshes `fetched_at` on every row it sees,
+  so a passed approach stays until its last fetch is a week old. The served span is therefore today
+  minus 7 to today plus 7, which on 2026-11-26 is 2026-11-19 to 2026-12-03, the span the owner saw.
+  The count of 80 was not confirmed from data. The neo insert has the same `ON CONFLICT ... DO UPDATE
+  SET fetched_at` shape as the second APOD defect, so a corrected NEO record is never stored either.
+
+- **AUD-078** Times are shown in the viewer's zone in some places, in UTC in others, and once labelled
+  UTC while in the viewer's zone. Found by the owner 2026-11-26 on the ISS card, enumerated from the
+  code the same day.
+
+  Every place `frontend/src` formats a time, and what it shows:
+
+  | place | zone | says so |
+  |---|---|---|
+  | ISS `Updated` (`IssPanel.jsx:118`) | viewer's, `toLocaleTimeString` | labelled `UTC` by `iss.updated`, which is wrong |
+  | Billing reset (`BillingPage.jsx:8`) | viewer's | no |
+  | NOAA alert times (`AlertsList.jsx:21`) | viewer's, and a `T` form with no zone is read as local | no |
+  | Status page `Updated at` (`StatusPage.jsx:281`) | viewer's | no |
+  | Anomaly times (`AnomalyPanel.jsx:14`) | UTC | yes |
+  | Event times (`EventsPage.jsx:11`) | UTC | yes |
+  | API key times (`ApiKeysPage.jsx:14`) | UTC | yes |
+  | Reports times (`ReportsPage.jsx:129`) | UTC | yes |
+  | Header clock (`App.jsx:39`) | UTC | yes |
+  | Kp 3 hour period end (`utils.js:111`) | UTC | yes |
+  | Forecast chart axis (`ForecastPage.jsx:221`) | UTC | no |
+  | Reports chart axis (`ReportsPage.jsx:37`) | wrong | no |
+
+  The last row is a wrong value, not a missing label. The API sends `time_tag` with no zone, for
+  example `2026-11-26T10:45:00`, and `new Date(time_tag)` reads that as the viewer's local time.
+  `ReportsPage.jsx:221` parses it that way and the axis then prints UTC hours, so a viewer at UTC
+  minus 5 sees every tick five hours late. The four live charts parse the same way but print no time
+  axis, so there it only shifts a window that is relative anyway.
+
+- **AUD-079** Ten published places say the forecast model was trained on NOAA data, and it was trained
+  on GFZ data. Found by the owner 2026-11-26 on the forecast page, swept the same day. It is finding
+  C-1 of the 2026-09 audit again.
+
+  `ml/download_kp.py` downloads one file, `Kp_ap_Ap_SN_F107_since_1932.txt` from GFZ Potsdam, which
+  holds Kp, sunspot number and F10.7. Nothing under `ml/` fetches from NOAA or SWPC. Still claiming
+  NOAA: `forecastPage.modelDesc`, `about.missionP3` and `landing.techTrainingVal` in `en.json` and `tr.json`
+  (six), the blog post in both languages at `posts.js:27` and `:73`, which also says the data was
+  downloaded from SWPC archives, `agent-skills/index.json:14`, and `README.md:123`, which says
+  `GFZ Potsdam / NOAA`. Correct already: the agent skill's `SKILL.md` and `webmcp-init.js`.
+  `ml/test_published_claims.py` guards `SKILL.md` alone, which is how the others drifted.
+
+- **AUD-080** The forecast page showed `Storms in window 0` while its chart showed the Kp 6 storm of
+  2026-11-19. Found by the owner 2026-11-26. Not confirmed or refuted: it needs the stored forecast
+  rows, which were not queried.
+
+  What the code shows. The count and the chart ask for the same range (7 days by default) and the
+  same horizon (3 h), and pair forecasts with `kp_3h` the same way. The one difference is that the
+  metrics query keeps only rows with a `model_sha`, and every forecast written now carries one. NOAA's
+  feed dates the storm's K5 warning and alert at 01:00 and 01:08 UTC on 2026-11-19, so a 7 day
+  window viewed around 10:40 UTC on 2026-11-26 starts after them, and the storm may sit at or past
+  the window edge. Separately, `n_storms` counts forecast rows paired with an observed Kp of 5 or
+  more, not storms. Forecasts are written every 30 minutes, so one storm period can count several
+  times, and the label `Storms in window` does not describe what is counted.
+
+- **AUD-081** One event raises many anomaly alerts, and X-ray alerts appear three hours after their
+  readings. Found by the owner 2026-11-26. The cause is read from the code, and the stored
+  `detected_at` values were not queried to confirm it.
+
+  Every check in `anomaly.rs` keys its alert on `(anomaly_type, source_ref)` with `source_ref` the
+  `time_tag` of the triggering reading. While Kp stays at or above 5, each new one minute reading is a
+  new key, so a storm raises one alert per reading: about fifteen in two hours on 2026-11-19.
+  `check_xray` takes the peak over a sliding 3 hour window. Once the true peak leaves the window, the
+  highest remaining reading becomes the new peak, a new `time_tag` and a new alert. At 16:24 the
+  window starts at 13:24, so the decaying readings from 13:25 to 13:59 each became the window maximum
+  in turn, one per minute. That is the eight flare alerts a minute apart, and it is also why they are
+  dated three hours after their readings. One mechanism, with no detection lag.
+
+- **AUD-082** Every NOAA space weather alert is shown as INFO under its raw product code. Found by the
+  owner 2026-11-26, verified the same day.
+
+  `AlertsList.jsx` grades severity by testing `product_id` against `/WAR/`, `/ALT/` and `/SUM/`.
+  NOAA's live feed on 2026-11-26 held 61 alerts with ids such as `EF3A`, `K04W`, `A20F`, `K05A`,
+  `K05W`, `K06W` and `TIIA`, and none contains those letters. They belong to the message codes inside
+  the text, such as `WARK05`, `ALTK05` and `WATA20`. So every alert falls through to INFO, the K5 and
+  K6 warnings included, and the card prints the raw id beside the raw message code.
+
+- **AUD-083** Three pieces of copy describe something other than what is served. Found by the owner
+  2026-11-26, verified the same day.
+
+  The API key page lists `/api/kp-forecast` as `ML Kp forecast (+3 h, LSTM)` at `ApiKeysPage.jsx:33`,
+  while four horizons are served. The docs page (`docs.epForecast`) and the 3 hour label
+  `forecast.predictedKp` are correct. The exoplanet card's `Total` is `planets.length`, and the query
+  is `ORDER BY disc_year DESC LIMIT 100`, so it is the 100 most recently discovered and not a total.
+  Its `Sample - closest orbits` table is `planets.slice(0, 8)` of that list, the newest discoveries,
+  not sorted by orbital period.
+
+- **AUD-084** The Enterprise plan advertises dedicated infrastructure and a custom SLA, and the service
+  runs on one shared host with no SLA. A claim on a sold plan that is not true. Found by the owner
+  2026-11-26, swept the same day.
+
+  `lib/plans.js:23` gives Enterprise `dedicated` (`Dedicated infrastructure`), `customModels`,
+  `slaOnboarding` (`Custom SLA + onboarding`) and `dedicatedSupport`. The pricing comparison has a
+  `dedicated` row (`PricingPage.jsx:30`). `LandingPage.jsx:725` and `:726` say dedicated
+  infrastructure, custom anomaly models, dedicated support and a custom SLA. `public/index.md:57`
+  says custom SLAs, and `en.json` lines 808 and 809 offer SLA, self hosting and private deployments.
+  The Turkish strings carry the same claims.
+
 ## Enumeration coverage
 
 Found 2026-08-30 while checking whether the shape that let `poller/anomaly` sit unmapped appears
@@ -2625,6 +2781,23 @@ next to the next instance of it.
   `backup.sh`. After it, the origin must answer `/.well-known/security.txt` with 200 and
   `Content-Type: text/plain; charset=utf-8`, the CDN is purged, and the same URL is checked through
   Cloudflare. The Windows checkout is deleted only if this deploy succeeds.
+
+- No ID. **Decisions of 2026-11-26, the second set.** Taken by the owner after walking through the
+  logged in site.
+
+  **1. The APOD round**, recorded as AUD-074 with its measurement plan and its fix. Added to it: the
+  live dashboard's explanation for 2026-11-26 is the video fallback sentence, while NASA's API now
+  returns the real explanation for that date, which is the production evidence of the second defect.
+  The validator must also reject that explanation text, and it is one of the fixtures.
+
+  **2. Ten findings from the walk through**, each verified in the code and the live API before it was
+  recorded, AUD-075 to AUD-084. Two could not be confirmed from code alone and say so: AUD-080 and
+  the data half of AUD-081.
+
+  **3. Order of rounds**, one round each, the gate after each, a push after each, and no deploy until
+  the owner says: APOD first. Then AUD-075, AUD-076, AUD-077, AUD-078, AUD-079 and AUD-080. Then
+  AUD-081 and AUD-082. Then AUD-083 and AUD-084. Then chrono to jiff, AUD-067, and the gate step for
+  the `forbid(unsafe_code)` attribute, as already decided.
 
 ## History
 
