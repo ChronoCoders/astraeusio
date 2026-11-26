@@ -40,7 +40,17 @@ const EXPLANATION_LABEL: &str = "Explanation";
 /// every labelled section after the text and nothing from the line that opens
 /// with one of these: the next day's teaser and, on 2026-04-04, the page footer.
 /// That line always starts after a line break or a paragraph. AUD-074.
-const NEXT_DAY_MARKS: [&str; 2] = ["Tomorrow's picture", "Tomorrow's APOD"];
+///
+/// `Tomorrow's` occurs 841 times in the 2026 feed across all fields, every one
+/// with a straight apostrophe, 128 of them as `&#039;`. A curly one from NASA's
+/// editor would otherwise let the whole tail through, so both forms end the
+/// text.
+const NEXT_DAY_MARKS: [&str; 4] = [
+    "Tomorrow's picture",
+    "Tomorrow's APOD",
+    "Tomorrow\u{2019}s picture",
+    "Tomorrow\u{2019}s APOD",
+];
 
 /// Marks an Adobe rendition of an asset. Six of 330 `apod:hdurl` values were
 /// the 48 pixel thumbnail rendition, and the path before this is the image.
@@ -618,6 +628,22 @@ mod tests {
         ] {
             let lines = html_lines(html, "apod:explanation").unwrap();
             assert_eq!(collapse(before_next_day(&lines)), "Text.", "{html}");
+        }
+    }
+
+    #[test]
+    fn each_mark_ends_the_text_with_either_apostrophe() {
+        for line in [
+            "Tomorrow's picture: x",
+            "Tomorrow's APOD: x",
+            "Tomorrow\u{2019}s picture: x",
+            "Tomorrow\u{2019}s APOD: x",
+        ] {
+            assert_eq!(
+                before_next_day(&format!("Text.\n{line}")),
+                "Text.\n",
+                "{line}"
+            );
         }
     }
 
