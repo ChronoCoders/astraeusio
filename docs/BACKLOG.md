@@ -2239,6 +2239,77 @@ repeated here.
   touches either layer. The query string of `apod:discussion` is read with `reqwest::Url`, already
   in the tree.
 
+  **The feed round, `d396345` and `451c046`.** `backend/src/apod_feed.rs` reads the feed into
+  `Apod` records, and `nasa::fetch_apod` now fetches it instead of the API, so APOD no longer uses
+  `NASA_API_KEY`. Every poll writes every item through `insert_apod`. An item that cannot be read is
+  logged at WARN with its position and reason and left out, and the poll outcome counts it. The
+  record's `url` and `hdurl` are both the `apod:hdurl` asset, `media_type` is always `image`, and
+  explanation, credit and copyright are plain text. A label repeated at the start, as on 2026-10-19,
+  is dropped too. `apod` gained `credit` and `copyright`, NULL on every row written from the API.
+  After the column migrations, startup checks both are VARCHAR and stops otherwise, because the
+  migration loop accepts "already exists" and would pass a column of the right name and the wrong
+  type. `get_apod_latest` reads newest first and serves the first row `apod_check::check` accepts,
+  so a stored chrome row is never served. No other code reads `apod` rows for display. The
+  dashboard card shows the credit under the image, one line when credit and copyright are the same
+  name and two when they differ. `/api/apod` returns both fields. The `nasa_apod` threshold is not
+  changed.
+
+  The dependency. `quick-xml` 0.42.0 with `escape-html` only. `cargo audit` passes. The advisories
+  step still fails on RUSTSEC-2026-0543 alone, chrono unmaintained, as it did before this round, and
+  reports nothing for `quick-xml`. The parser uses chrono, which adds five names (`DateTime`,
+  `NaiveDate`, `NaiveTime`, `TimeDelta`, `Utc`) to the chrono to jiff round.
+
+  Real data. The parser, run in a temporary worktree over the feed and the `?year=2026` feed
+  fetched at 17:07 UTC, read 30 of 30 and 330 of 330 items, every record passed the validator,
+  all 6 renditions resolved to their asset, and every day from 2026-01-01 to 2026-11-26 came out
+  once. The fixture `backend/tests/fixtures/apod-feed-2026-11-26.xml` is the feed header and five
+  items, copied unedited and scanned for dashes and the banned name before it was added.
+
+  **Tests.** 28 in `apod_feed`, one per branch read from the code, with the real items as
+  fixtures. Among them, the 2026-11-26 item leaves no tag, entity or double space in explanation,
+  credit or copyright. Others cover: the image is the hdurl asset with `&#038;` decoded, the
+  rendition, the video day, the Eastern day window at both edges, the identifier deciding over the
+  UTC day, and the wrong century. In `db`, three read path tests, including a newer broken row and
+  an older good one where the good one is served. Also the credit columns in the full row update,
+  the migration of a table without them, and a wrong column type stopping startup for each
+  column. In the frontend, four tests of the credit lines. Untested: the HTTP fetch and its WARN
+  line in `nasa::fetch_apod`.
+
+  **Mutation round, 2026-11-26, in temporary worktrees at `d396345` and `451c046`.** 52 mutants,
+  38 in the parser, 10 in the store and 4 in the credit lines. 51 were killed at `d396345`, each
+  by its intended test, and where others failed too they were tests that read the same field or
+  the same fixture. One survived: removing the digits only check on the
+  `date=YYMMDD` identifier. The test value `26+126` never reached it, because query decoding turns
+  `+` into a space and the parse failed anyway. A `+` arrives as `%2B`, and `u32` parsing accepts a
+  leading `+`, so `26%2B126` would have read as 2026-01-26. The test now uses that value, and at
+  `451c046` the mutant is killed by `a_discussion_link_without_a_usable_date_is_refused` and by no
+  other test.
+
+  **The backfill on first run.** The feed holds 2026-10-28 to 2026-11-26, and all 30 of those
+  dates are among the 58 stored chrome rows, so the first poll after a deploy replaces those 30.
+  This is read from the feed and the stored rows. It is confirmed on production only after the
+  deploy.
+
+  **Decision 4, the 28 rows left, 2026-09-30 to 2026-10-27.** The archive pages do not need to be
+  read: `?year=2026` on the same feed carries those 28 days with the same structured fields, and
+  all 28 read and pass the validator. Proposed: a one shot backfill that fetches `?year=2026` once,
+  keeps only the dates from 2026-09-30 to 2026-10-27, writes them through `insert_apod`, and is
+  recorded in `schema_migrations` so a redeploy cannot repeat it. It is limited to those dates
+  because the earlier rows came from the API and are real, and because the feed's placeholders for
+  19 video days before August pass the validator. No row was deleted or changed.
+
+  **Open for the owner, found by the real data run.** 190 of the 330 explanations carry sections
+  after the explanation itself, each a `<br>` and a bold label, and the plain text keeps them. The
+  labels are `Tomorrow's picture:` 74 times, notices of the site move 26, gallery and jigsaw
+  promotions, and a few that may be content, such as `Note:`, `Tonight:` and `March 3:`. On
+  2026-04-04 the whole page footer follows, with the navigation bar outside any bold label. The
+  2026-11-26 explanation ends with `Tomorrow's picture: what's next?`. The API's
+  explanation held none of this. A cut at the first `<br>` followed by a bold label separates 190
+  items, leaves 3 with a `<br>` inside the text, and would not remove the 2026-04-04 footer. The
+  card clamps the explanation to four lines, so the tail rarely shows there, while `/api/apod`
+  returns all of it. Whether to cut, and where, decides what counts as the explanation, so it waits
+  for the owner. The video on video days is not ingested either.
+
 - **AUD-075** The people in space list counts two entries that are not people. Found by the owner
   2026-11-26, verified the same day.
 
