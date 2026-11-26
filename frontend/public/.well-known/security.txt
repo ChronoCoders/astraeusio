@@ -1,0 +1,4 @@
+Contact: mailto:altug@bytus.io
+Expires: 2027-05-10T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://astraeusio.com/.well-known/security.txt
