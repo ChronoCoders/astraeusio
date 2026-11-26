@@ -2183,6 +2183,62 @@ repeated here.
   stale. A comment on #184 says the replacement is a new API that does not yet behave like the old
   one, and one on #181 names an `/apod-basic/{YYMMDD}` form. Neither was evaluated here.
 
+  **The new source, measured 2026-11-26 at 17:07 UTC before any code.** The owner's third set of
+  decisions moves the ingest to `https://science.nasa.gov/feed/apod-basic/`. It answered 200,
+  `application/rss+xml`, 410,718 bytes, with or without a User-Agent. It holds 30 items, one per day
+  from 2026-10-28 to 2026-11-26 with no gap. `?paged=2` and `?m=202610` return the same 30.
+  `?year=2026` returns 330 items, every day from 2026-01-01 to 2026-11-26, in 4,612,710 bytes. The
+  survey below ran over those 330 with Python's XML parser.
+
+  Fields. Every item has a non empty `title`, `pubDate`, `apod:url`, `apod:hdurl`,
+  `apod:discussion`, `apod:credit`, `apod:copyright` and `apod:explanation`, besides `link`, `guid`,
+  `apod:alt`, `description` and `content:encoded`, which holds a whole HTML page in the old APOD
+  layout. `apod:url` is always the article page, the same as `link`.
+
+  The date. `pubDate` is midnight US Eastern on the APOD day for 319 items: 04:00 or 04:05 UTC
+  under daylight time and 05:00 or 05:05 UTC under standard time, switching exactly on 2026-03-08
+  and 2026-11-01. 11 items were published later in their day, between 08:19 and 20:46 UTC, on
+  2026-07-22 to 2026-07-29, 2026-08-12, 2026-09-28 and 2026-10-25. The UTC day of `pubDate` alone
+  is ambiguous: 04:05 UTC is 00:05 on day D under daylight time and 23:05 on day D minus 1 under
+  standard time. `apod:discussion` carries `date=YYMMDD`, APOD's own day identifier, the `apYYMMDD`
+  of its old page names, and on all 330 items it is the Eastern day of `pubDate`. The article slug
+  is no use: 2026-10-29 is `apod-29-october-2026-...` while the others are `apod-2026-october-30-...`.
+  So the date is taken from `date=YYMMDD` and checked against `pubDate`, which must fall inside that
+  Eastern day at its widest, from D 04:00 UTC to D plus 1 05:00 UTC, whichever offset applied. An
+  item that fails is not written. The check also catches a wrong century, since `YY` is read as
+  20YY.
+
+  HTML. Across explanation, credit and copyright of all 330 items the tags are `a` 12,814, `strong`
+  1,052, `b` 1,046, `br` 650, `i` 76, `em` 50, `p` 6 and one comment. The entities are `amp`,
+  `quot`, `gt`, `apos` and `lt` only, with no bare `&` and no bare `<`. 328 explanations start with
+  the label `Explanation:` in bold, which is dropped. Credit and copyright are the same text on all
+  330 once tags are stripped. Titles carry no markup.
+
+  The image. 324 `apod:hdurl` values are `assets.science.nasa.gov/dynamicimage/...?w=..&h=..&fit=clip`
+  and serve the image. 6 are a 48 by 48 thumbnail, `.../<file>.jpg/jcr:content/renditions/cq5dam.thumbnail.48.48.png`,
+  on 2026-09-01, 2026-09-15, 2026-10-11, 2026-10-12, 2026-11-03 and 2026-11-08. The path before
+  `/jcr:content/` is the asset itself: for 2026-11-08 it answered 200 `image/jpeg` with 218,175
+  bytes, against 4,307 bytes for the thumbnail. So the image stored is that asset.
+
+  Video days. No structured field marks them. 30 of the 330 have a `<video>` or a YouTube `<iframe>`
+  in `content:encoded` above the explanation. Their `apod:hdurl` is a still frame of the video from
+  August on, and before that a generic placeholder: `news-thumbnail.png` on 18 days from 2026-01-13
+  to 2026-07-13, and `NASA-Meatball-Feature5.png`, the NASA insignia, on 2026-07-26. The validator
+  does not catch those two names. Both video days in today's 30 items, 2026-10-28 and 2026-11-25,
+  carry a real still frame. So the card shows the still frame as an image, and the video itself is
+  not ingested, because finding it means reading the HTML page in `content:encoded`.
+
+  The archive. `science.nasa.gov/apod/archive/` renders 15 entries in its HTML, back to 2026-11-12,
+  and loads the rest by script from `wp-json/smd/v1/content-list` over 766 pages. It is not needed
+  for decision 4: `?year=2026` carries the 28 days from 2026-09-30 to 2026-10-27 with the same
+  structured fields as the default feed.
+
+  The parser. `quick-xml` 0.42.0, MIT, no default features, with `escape-html` only, for the HTML5
+  named entities. It reads the feed with namespace resolution and CDATA. With end name checks off,
+  it also tokenizes the HTML fragments inside the CDATA, so tags are dropped by event and no regex
+  touches either layer. The query string of `apod:discussion` is read with `reqwest::Url`, already
+  in the tree.
+
 - **AUD-075** The people in space list counts two entries that are not people. Found by the owner
   2026-11-26, verified the same day.
 
