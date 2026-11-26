@@ -1,9 +1,9 @@
 use reqwest::Client;
 use tokio::sync::{mpsc, oneshot};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
-    db::{DbError, Store},
+    db::{ApodWrite, DbError, Store},
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
     noaa::{
@@ -465,11 +465,13 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
                 error!(source = "db_writer", "epic: {e}");
             }
         }
-        WriteCmd::Apod(apod) => {
-            if let Err(e) = db.insert_apod(&apod) {
-                error!(source = "db_writer", "apod: {e}");
+        WriteCmd::Apod(apod) => match db.insert_apod(&apod) {
+            Ok(ApodWrite::Written) => {}
+            Ok(ApodWrite::Rejected(reason)) => {
+                warn!(source = "poller/apod", date = %apod.date, %reason, "apod: record rejected, not written");
             }
-        }
+            Err(e) => error!(source = "db_writer", "apod: {e}"),
+        },
         WriteCmd::Exoplanets(planets) => {
             if let Err(e) = db.insert_exoplanet_batch(&planets) {
                 error!(source = "db_writer", "exoplanets: {e}");

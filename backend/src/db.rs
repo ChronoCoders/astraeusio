@@ -11,6 +11,13 @@ use crate::{
     starlink::StarlinkSat,
 };
 
+/// What `Store::insert_apod` did with a record.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ApodWrite {
+    Written,
+    Rejected(crate::apod_check::ApodReject),
+}
+
 #[derive(Error, Debug)]
 pub enum DbError {
     #[error("database error: {0}")]
@@ -1936,11 +1943,28 @@ fn parse_f64(field: &'static str, s: &str) -> Result<f64, DbError> {
 // ── NASA inserts ──────────────────────────────────────────────────────────────
 
 impl Store {
-    pub fn insert_apod(&self, a: &Apod) -> Result<(), DbError> {
+    /// Writes one APOD record, or refuses it.
+    ///
+    /// Three invariants. A record `apod_check::check` rejects is never written,
+    /// so no row is created and no stored row changes, `fetched_at` included,
+    /// which lets the `nasa_apod` freshness check go stale while the feed only
+    /// serves chrome. An accepted record for a date already stored replaces
+    /// every content column, so a record NASA corrects later reaches the page.
+    /// The same record written twice is one row.
+    pub fn insert_apod(&self, a: &Apod) -> Result<ApodWrite, DbError> {
+        if let Err(reason) = crate::apod_check::check(a) {
+            return Ok(ApodWrite::Rejected(reason));
+        }
         self.conn.execute(
             "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (date) DO UPDATE SET fetched_at = excluded.fetched_at",
+             ON CONFLICT (date) DO UPDATE SET
+                 title       = excluded.title,
+                 explanation = excluded.explanation,
+                 url         = excluded.url,
+                 media_type  = excluded.media_type,
+                 hdurl       = excluded.hdurl,
+                 fetched_at  = excluded.fetched_at",
             params![
                 a.date,
                 a.title,
@@ -1951,7 +1975,7 @@ impl Store {
                 now()
             ],
         )?;
-        Ok(())
+        Ok(ApodWrite::Written)
     }
 
     pub fn insert_epic_batch(&self, images: &[EpicImage]) -> Result<(), DbError> {
@@ -7345,12 +7369,114 @@ mod tests {
     fn test_apod(date: &str) -> crate::nasa::Apod {
         crate::nasa::Apod {
             date: date.to_owned(),
-            title: "Test".into(),
-            explanation: "Test".into(),
+            title: "Test Nebula".into(),
+            explanation: "A test explanation long enough to pass the length floor. ".repeat(5),
             url: "https://example.invalid/a.jpg".into(),
             media_type: "image".into(),
             hdurl: None,
         }
+    }
+
+    /// The record the API returned for 2026-11-26: the site logo, the site name
+    /// and the landing page's video fallback sentence.
+    fn chrome_apod(date: &str) -> crate::nasa::Apod {
+        let logo =
+            "https://science.nasa.gov/wp-content/themes/nasa-child/assets/images/nasa-logo@2x.png";
+        crate::nasa::Apod {
+            date: date.to_owned(),
+            title: "NASA Science".into(),
+            explanation: "To view this video please enable JavaScript, and consider upgrading \
+                to a web browser that \t\t\t\t\tsupports HTML5 vide"
+                .into(),
+            url: logo.into(),
+            media_type: "image".into(),
+            hdurl: Some(logo.into()),
+        }
+    }
+
+    type ApodRow = (String, String, String, String, Option<String>, i64);
+
+    fn apod_rows(store: &Store) -> Vec<ApodRow> {
+        let mut stmt = store
+            .conn
+            .prepare(
+                "SELECT title, explanation, url, media_type, hdurl, fetched_at FROM apod ORDER BY date",
+            )
+            .unwrap();
+        stmt.query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+    }
+
+    #[test]
+    fn a_rejected_apod_record_creates_no_row() {
+        let store = mem_store();
+        let outcome = store.insert_apod(&chrome_apod("2026-11-26")).unwrap();
+        assert!(matches!(outcome, ApodWrite::Rejected(_)), "{outcome:?}");
+        assert!(
+            apod_rows(&store).is_empty(),
+            "a rejected record must not be written"
+        );
+    }
+
+    /// The stored row keeps every column, `fetched_at` included. If a rejected
+    /// poll still moved `fetched_at`, a feed serving only chrome would read as
+    /// fresh and the `nasa_apod` check could never go stale.
+    #[test]
+    fn a_rejected_apod_record_leaves_the_stored_row_untouched() {
+        let store = mem_store();
+        assert_eq!(
+            store.insert_apod(&test_apod("2026-11-26")).unwrap(),
+            ApodWrite::Written
+        );
+        store
+            .conn
+            .execute_batch("UPDATE apod SET fetched_at = fetched_at - 100000")
+            .unwrap();
+        let before = apod_rows(&store);
+
+        let outcome = store.insert_apod(&chrome_apod("2026-11-26")).unwrap();
+
+        assert!(matches!(outcome, ApodWrite::Rejected(_)), "{outcome:?}");
+        assert_eq!(apod_rows(&store), before);
+    }
+
+    /// The live defect: a record NASA corrects later must replace the one stored,
+    /// in every content column, not only in `fetched_at`.
+    #[test]
+    fn an_accepted_apod_record_replaces_every_content_column() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-11-26")).unwrap();
+        let corrected = crate::nasa::Apod {
+            title: "Corrected Title".into(),
+            explanation: "The corrected explanation, which is long enough to be accepted. "
+                .repeat(4),
+            url: "https://example.invalid/corrected.mp4".into(),
+            media_type: "video".into(),
+            hdurl: Some("https://example.invalid/corrected_hd.jpg".into()),
+            ..test_apod("2026-11-26")
+        };
+
+        assert_eq!(store.insert_apod(&corrected).unwrap(), ApodWrite::Written);
+
+        let rows = apod_rows(&store);
+        assert_eq!(rows.len(), 1);
+        let (title, explanation, url, media_type, hdurl, _) = &rows[0];
+        assert_eq!(title, &corrected.title);
+        assert_eq!(explanation, &corrected.explanation);
+        assert_eq!(url, &corrected.url);
+        assert_eq!(media_type, &corrected.media_type);
+        assert_eq!(hdurl, &corrected.hdurl);
     }
 
     fn test_epic(identifier: &str) -> crate::nasa::EpicImage {

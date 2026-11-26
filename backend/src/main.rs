@@ -32,6 +32,7 @@
 
 mod anomaly;
 mod api_keys;
+mod apod_check;
 mod astros;
 mod auth;
 mod db;
