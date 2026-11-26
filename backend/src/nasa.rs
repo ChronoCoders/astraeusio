@@ -46,11 +46,11 @@ pub struct Apod {
     pub copyright: Option<String>,
 }
 
-/// Every item of the APOD feed. An item that cannot be read is logged with its
-/// position and reason and left out, and the outcome counts it.
-pub async fn fetch_apod(client: &Client) -> Result<Fetched<Apod>, NasaError> {
+/// Every item of the APOD feed at `url`. An item that cannot be read is logged
+/// with its position and reason and left out, and the outcome counts it.
+pub async fn fetch_apod(client: &Client, url: &str) -> Result<Fetched<Apod>, NasaError> {
     let body = client
-        .get(crate::apod_feed::FEED_URL)
+        .get(url)
         .send()
         .await?
         .error_for_status()?

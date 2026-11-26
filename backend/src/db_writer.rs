@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 
 use crate::{
-    db::{ApodWrite, DbError, Store},
+    db::{ApodBackfill, ApodWrite, DbError, Store},
     iss::IssPosition,
     nasa::{Apod, EpicImage, Exoplanet, NeoFeed},
     noaa::{
@@ -154,6 +154,13 @@ pub enum WriteCmd {
         user_email: String,
         enabled: bool,
         reply: oneshot::Sender<Result<bool, DbError>>,
+    },
+    ApodGapBackfilled {
+        reply: oneshot::Sender<Result<bool, DbError>>,
+    },
+    ApodGapBackfill {
+        records: Vec<Apod>,
+        reply: oneshot::Sender<Result<ApodBackfill, DbError>>,
     },
 }
 
@@ -404,6 +411,24 @@ impl DbWriterHandle {
                 enabled,
                 reply: tx,
             })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn apod_gap_backfilled(&self) -> Result<bool, DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::ApodGapBackfilled { reply: tx })
+            .await
+            .map_err(|_| DbError::WriterClosed)?;
+        rx.await.map_err(|_| DbError::WriterClosed)?
+    }
+
+    pub async fn backfill_apod_gap(&self, records: Vec<Apod>) -> Result<ApodBackfill, DbError> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(WriteCmd::ApodGapBackfill { records, reply: tx })
             .await
             .map_err(|_| DbError::WriterClosed)?;
         rx.await.map_err(|_| DbError::WriterClosed)?
@@ -692,6 +717,12 @@ fn process(db: &Store, client: &Client, writer: &DbWriterHandle, cmd: WriteCmd) 
             reply,
         } => {
             let _ = reply.send(db.toggle_custom_rule(&id, &user_email, enabled));
+        }
+        WriteCmd::ApodGapBackfilled { reply } => {
+            let _ = reply.send(db.apod_gap_backfilled());
+        }
+        WriteCmd::ApodGapBackfill { records, reply } => {
+            let _ = reply.send(db.backfill_apod_gap(&records));
         }
     }
 }

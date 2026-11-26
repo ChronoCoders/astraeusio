@@ -21,6 +21,10 @@ use std::fmt;
 
 pub const FEED_URL: &str = "https://science.nasa.gov/feed/apod-basic/";
 
+/// The same feed filtered to 2026, every day from 2026-01-01, for the one time
+/// backfill of the days the default 30 items no longer reach.
+pub const YEAR_2026_FEED_URL: &str = "https://science.nasa.gov/feed/apod-basic/?year=2026";
+
 const APOD_NS: &str = "https://science.nasa.gov/apod/";
 
 /// Tags that sit inside a line of text. Every other tag separates words, so
@@ -31,6 +35,12 @@ const INLINE_TAGS: [&str; 8] = ["a", "b", "strong", "i", "em", "span", "sup", "s
 /// carries it twice, the second time as `Explanation :`. It is page layout,
 /// not part of the text.
 const EXPLANATION_LABEL: &str = "Explanation";
+
+/// Where the explanation ends. The 144 rows stored from the APOD API kept
+/// every labelled section after the text and nothing from the line that opens
+/// with one of these: the next day's teaser and, on 2026-04-04, the page footer.
+/// That line always starts after a line break or a paragraph. AUD-074.
+const NEXT_DAY_MARKS: [&str; 2] = ["Tomorrow's picture", "Tomorrow's APOD"];
 
 /// Marks an Adobe rendition of an asset. Six of 330 `apod:hdurl` values were
 /// the 48 pixel thumbnail rendition, and the path before this is the image.
@@ -133,11 +143,11 @@ impl RawItem {
             &required(self.pub_date, "pubDate")?,
         )?;
         let image = image_asset(&required(self.hdurl, "apod:hdurl")?)?;
-        let explanation = html_text(
+        let explanation = html_lines(
             &required(self.explanation, "apod:explanation")?,
             "apod:explanation",
         )?;
-        let explanation = without_label(&explanation).to_owned();
+        let explanation = without_label(&collapse(before_next_day(&explanation))).to_owned();
         Ok(Apod {
             date: date.format("%Y-%m-%d").to_string(),
             title,
@@ -197,6 +207,20 @@ pub fn parse(xml: &str) -> Result<Vec<Result<Apod, ItemError>>, FeedError> {
         }
     }
     Ok(items)
+}
+
+fn before_next_day(text: &str) -> &str {
+    let mut end = 0;
+    for line in text.split_inclusive('\n') {
+        if NEXT_DAY_MARKS
+            .iter()
+            .any(|m| line.trim_start().starts_with(m))
+        {
+            return &text[..end];
+        }
+        end += line.len();
+    }
+    text
 }
 
 fn without_label(mut text: &str) -> &str {
@@ -276,6 +300,12 @@ fn image_asset(hdurl: &str) -> Result<String, ItemError> {
 /// An HTML fragment as plain text: tags dropped, entities decoded, whitespace
 /// collapsed. The text of a link is kept and its target is not.
 fn html_text(fragment: &str, field: &'static str) -> Result<String, ItemError> {
+    Ok(collapse(&html_lines(fragment, field)?))
+}
+
+/// The text of an HTML fragment with a line break wherever a tag that is not
+/// inline stood, before whitespace is collapsed.
+fn html_lines(fragment: &str, field: &'static str) -> Result<String, ItemError> {
     let markup = |reason: String| ItemError::Markup { field, reason };
     let mut reader = Reader::from_str(fragment);
     let config = reader.config_mut();
@@ -288,14 +318,14 @@ fn html_text(fragment: &str, field: &'static str) -> Result<String, ItemError> {
             Event::GeneralRef(r) => push_ref(&mut out, &r, resolve_html5_entity)
                 .map_err(|name| markup(format!("undefined entity &{name};")))?,
             Event::Start(e) | Event::Empty(e) if !is_inline(e.local_name().as_ref()) => {
-                out.push(' ')
+                out.push('\n')
             }
-            Event::End(e) if !is_inline(e.local_name().as_ref()) => out.push(' '),
+            Event::End(e) if !is_inline(e.local_name().as_ref()) => out.push('\n'),
             Event::Eof => break,
             _ => {}
         }
     }
-    Ok(collapse(&out))
+    Ok(out)
 }
 
 fn is_inline(tag: &str) -> bool {
@@ -456,6 +486,135 @@ mod tests {
         }
         assert_eq!(a.credit.as_deref(), Some("Ignacio Fernández"));
         assert_eq!(a.copyright.as_deref(), Some("Ignacio Fernández"));
+        assert!(
+            a.explanation
+                .ends_with("Is this eye in the sky looking back at you?"),
+            "{}",
+            a.explanation
+        );
+    }
+
+    /// Eleven 2026 items verbatim, chosen for the kind of tail each carries.
+    const REFERENCE_FEED: &str = include_str!("../tests/fixtures/apod-feed-reference-days.xml");
+
+    /// The explanations the APOD API returned for eight of those days, exactly
+    /// as stored before 2026-09-30. Where the explanation ends is taken from
+    /// these, not from the feed's labels.
+    const API_EXPLANATIONS: &str = include_str!("../tests/fixtures/apod-api-explanations.json");
+
+    fn reference_day(date: &str) -> String {
+        parse(REFERENCE_FEED)
+            .expect("well formed")
+            .into_iter()
+            .map(|e| e.expect("every reference item reads"))
+            .find(|a| a.date == date)
+            .unwrap_or_else(|| panic!("no reference item for {date}"))
+            .explanation
+    }
+
+    fn api_explanation(date: &str) -> String {
+        let all: serde_json::Value = serde_json::from_str(API_EXPLANATIONS).expect("json");
+        collapse(
+            all[date]
+                .as_str()
+                .unwrap_or_else(|| panic!("no API text for {date}")),
+        )
+    }
+
+    fn no_spaces(s: &str) -> String {
+        s.split_whitespace().collect()
+    }
+
+    /// One day for each kind of tail that matched the API exactly: the
+    /// `Tomorrow's APOD` label, `Tomorrow's picture` with and without a space
+    /// inside the bold, and each of those after a labelled section the API
+    /// kept.
+    #[test]
+    fn the_explanation_ends_where_the_api_ended_it() {
+        for date in [
+            "2026-07-22",
+            "2026-07-23",
+            "2026-07-27",
+            "2026-08-11",
+            "2026-08-13",
+        ] {
+            assert_eq!(reference_day(date), api_explanation(date), "{date}");
+        }
+    }
+
+    /// 2026-05-09 has no tail. NASA's migrated text has a space after some
+    /// links, `dark</a> , smooth`, that the API's did not, so it is compared
+    /// without whitespace.
+    #[test]
+    fn a_day_without_a_tail_keeps_its_whole_explanation() {
+        let date = "2026-05-09";
+        assert_eq!(
+            no_spaces(&reference_day(date)),
+            no_spaces(&api_explanation(date))
+        );
+    }
+
+    /// 2026-07-29 has a line break inside the explanation, then the next day's
+    /// line. NASA later changed `Perseid` to `Perseids` in it, so the day is
+    /// compared by its last sentence, which the API also ended on.
+    #[test]
+    fn a_line_break_inside_the_text_is_not_its_end() {
+        let feed = reference_day("2026-07-29");
+        let api = api_explanation("2026-07-29");
+        let ending = "meteor shower uninhibited by the Moon!";
+        assert!(api.ends_with(ending), "{api}");
+        assert!(feed.ends_with(ending), "{feed}");
+        assert!(!feed.contains("Tomorrow"), "{feed}");
+    }
+
+    /// 2026-08-16: NASA added a gallery line after the API had fetched the day.
+    /// A labelled section before the next day's line is kept, as the API kept
+    /// every such section.
+    #[test]
+    fn a_section_added_later_is_kept() {
+        let feed = reference_day("2026-08-16");
+        assert!(no_spaces(&feed).starts_with(&no_spaces(&api_explanation("2026-08-16"))));
+        assert!(
+            feed.ends_with("Growing Gallery: Solar Eclipse of 2026 August 12"),
+            "{feed}"
+        );
+    }
+
+    /// Days outside the stored range, each a different form of the next day's
+    /// line: not bold on 2026-10-06, opening a paragraph before the whole page
+    /// footer on 2026-04-04, and after two breaks on 2026-03-23.
+    #[test]
+    fn the_next_day_line_is_cut_in_every_form() {
+        for (date, last) in [
+            (
+                "2026-10-06",
+                "ground-based electrical grids from solar storms.",
+            ),
+            ("2026-04-04", "immersed in a faint band of zodiacal light.)"),
+            (
+                "2026-03-23",
+                "taken in Mohe, the northernmost city in China.",
+            ),
+        ] {
+            let e = reference_day(date);
+            assert!(e.ends_with(last), "{date}: {e}");
+            assert!(!e.contains("Tomorrow"), "{date}");
+        }
+        let footer_day = reference_day("2026-04-04");
+        for chrome in ["Archive", "Authors", "NASA Official", "Michigan Tech"] {
+            assert!(!footer_day.contains(chrome), "{chrome}");
+        }
+    }
+
+    #[test]
+    fn only_a_line_that_opens_with_the_mark_ends_the_text() {
+        assert_eq!(before_next_day("a\nTomorrow's picture: x\nfooter"), "a\n");
+        assert_eq!(before_next_day("a\n \u{a0}Tomorrow's APOD: y"), "a\n");
+        assert_eq!(
+            before_next_day("compare tomorrow's picture with Tomorrow's picture: z"),
+            "compare tomorrow's picture with Tomorrow's picture: z"
+        );
+        assert_eq!(before_next_day("no mark\nat all"), "no mark\nat all");
     }
 
     /// The image shown is the `apod:hdurl` asset, with the XML `&#038;`

@@ -11,6 +11,25 @@ use crate::{
     starlink::StarlinkSat,
 };
 
+/// What `Store::backfill_apod_gap` did.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ApodBackfill {
+    AlreadyApplied,
+    /// Every day of the range was written. The dates, in order.
+    Applied(Vec<String>),
+    /// Nothing was written and nothing recorded, so the next attempt runs again.
+    Incomplete {
+        missing: Vec<String>,
+        rejected: Vec<String>,
+    },
+}
+
+/// The days the APOD API served site chrome for and the feed's default 30
+/// items no longer reach, first and last. AUD-074.
+pub const APOD_GAP: (&str, &str) = ("2026-09-30", "2026-10-27");
+
+const APOD_GAP_BACKFILL_MIGRATION: &str = "2026-11-26-apod-backfill-2026-09-30-to-2026-10-27";
+
 /// What `Store::insert_apod` did with a record.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ApodWrite {
@@ -1963,6 +1982,21 @@ fn parse_f64(field: &'static str, s: &str) -> Result<f64, DbError> {
     })
 }
 
+fn apod_gap_days() -> Result<Vec<String>, DbError> {
+    let day = |value: &'static str| {
+        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| DbError::Parse {
+            field: "APOD_GAP",
+            value: value.to_owned(),
+        })
+    };
+    let (first, last) = (day(APOD_GAP.0)?, day(APOD_GAP.1)?);
+    Ok(first
+        .iter_days()
+        .take_while(|d| *d <= last)
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .collect())
+}
+
 // ── NASA inserts ──────────────────────────────────────────────────────────────
 
 impl Store {
@@ -2003,6 +2037,84 @@ impl Store {
             ],
         )?;
         Ok(ApodWrite::Written)
+    }
+
+    pub fn apod_gap_backfilled(&self) -> Result<bool, DbError> {
+        let n: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM schema_migrations WHERE id = ?",
+            params![APOD_GAP_BACKFILL_MIGRATION],
+            |row| row.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Writes the days of [`APOD_GAP`] from `records`, once, all or none.
+    ///
+    /// Invariants. Records dated outside the range are ignored, so no row
+    /// outside it changes. Every write goes through `insert_apod` and its
+    /// check. The backfill is recorded in `schema_migrations` in the same
+    /// transaction as its writes, and only when every day of the range was
+    /// present and written; otherwise all of it rolls back and nothing is
+    /// recorded, so the next attempt starts from the same rows. Once recorded
+    /// it never runs again.
+    pub fn backfill_apod_gap(&self, records: &[Apod]) -> Result<ApodBackfill, DbError> {
+        if self.apod_gap_backfilled()? {
+            return Ok(ApodBackfill::AlreadyApplied);
+        }
+        let (first, last) = APOD_GAP;
+        let in_range: Vec<&Apod> = records
+            .iter()
+            .filter(|a| a.date.as_str() >= first && a.date.as_str() <= last)
+            .collect();
+        let missing: Vec<String> = apod_gap_days()?
+            .into_iter()
+            .filter(|day| !in_range.iter().any(|a| &a.date == day))
+            .collect();
+        if !missing.is_empty() {
+            return Ok(ApodBackfill::Incomplete {
+                missing,
+                rejected: Vec::new(),
+            });
+        }
+        self.begin()?;
+        match self.write_apod_gap(&in_range) {
+            Ok(ApodBackfill::Applied(dates)) => {
+                self.commit()?;
+                Ok(ApodBackfill::Applied(dates))
+            }
+            Ok(other) => {
+                self.rollback();
+                Ok(other)
+            }
+            Err(e) => {
+                self.rollback();
+                Err(e)
+            }
+        }
+    }
+
+    fn write_apod_gap(&self, records: &[&Apod]) -> Result<ApodBackfill, DbError> {
+        let mut written = Vec::new();
+        let mut rejected = Vec::new();
+        for a in records {
+            match self.insert_apod(a)? {
+                ApodWrite::Written => written.push(a.date.clone()),
+                ApodWrite::Rejected(reason) => rejected.push(format!("{}: {reason}", a.date)),
+            }
+        }
+        if !rejected.is_empty() {
+            return Ok(ApodBackfill::Incomplete {
+                missing: Vec::new(),
+                rejected,
+            });
+        }
+        self.conn.execute(
+            "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
+            params![APOD_GAP_BACKFILL_MIGRATION, now()],
+        )?;
+        written.sort();
+        written.dedup();
+        Ok(ApodBackfill::Applied(written))
     }
 
     pub fn insert_epic_batch(&self, images: &[EpicImage]) -> Result<(), DbError> {
@@ -7595,6 +7707,138 @@ mod tests {
         store_unchecked(&store, &chrome_apod("2026-11-26"));
 
         assert!(store.get_apod_latest().unwrap().is_null());
+    }
+
+    fn gap_records() -> Vec<crate::nasa::Apod> {
+        apod_gap_days()
+            .unwrap()
+            .iter()
+            .map(|d| crate::nasa::Apod {
+                title: format!("Gap {d}"),
+                ..test_apod(d)
+            })
+            .collect()
+    }
+
+    fn apod_titles(store: &Store) -> Vec<(String, String)> {
+        let mut stmt = store
+            .conn
+            .prepare("SELECT date, title FROM apod ORDER BY date")
+            .unwrap();
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn the_gap_is_the_28_days_from_2026_09_30_to_2026_10_27() {
+        let days = apod_gap_days().unwrap();
+        assert_eq!(days.len(), 28);
+        assert_eq!(days.first().map(String::as_str), Some("2026-09-30"));
+        assert_eq!(days.last().map(String::as_str), Some("2026-10-27"));
+    }
+
+    /// The stored chrome rows of the range are replaced, the days either side
+    /// are ignored even when the feed carries them, and the run is recorded.
+    #[test]
+    fn the_backfill_replaces_exactly_the_gap() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-09-29")).unwrap();
+        for day in apod_gap_days().unwrap() {
+            store_unchecked(&store, &chrome_apod(&day));
+        }
+        let mut records = gap_records();
+        records.push(crate::nasa::Apod {
+            title: "Outside before".into(),
+            ..test_apod("2026-09-29")
+        });
+        records.push(test_apod("2026-10-28"));
+
+        let outcome = store.backfill_apod_gap(&records).unwrap();
+
+        assert_eq!(outcome, ApodBackfill::Applied(apod_gap_days().unwrap()));
+        let titles = apod_titles(&store);
+        assert_eq!(titles.len(), 29, "no row outside the gap may be created");
+        assert_eq!(titles[0], ("2026-09-29".into(), "Test Nebula".into()));
+        assert!(
+            titles[1..].iter().all(|(d, t)| t == &format!("Gap {d}")),
+            "{titles:?}"
+        );
+        assert!(store.apod_gap_backfilled().unwrap());
+    }
+
+    /// Once recorded it never writes again, even given different records.
+    #[test]
+    fn the_backfill_runs_once() {
+        let store = mem_store();
+        store.backfill_apod_gap(&gap_records()).unwrap();
+        let before = apod_rows(&store);
+        let changed: Vec<_> = gap_records()
+            .into_iter()
+            .map(|a| crate::nasa::Apod {
+                title: "Changed".into(),
+                ..a
+            })
+            .collect();
+
+        assert_eq!(
+            store.backfill_apod_gap(&changed).unwrap(),
+            ApodBackfill::AlreadyApplied
+        );
+        assert_eq!(apod_rows(&store), before);
+    }
+
+    #[test]
+    fn a_missing_day_writes_nothing_and_records_nothing() {
+        let store = mem_store();
+        let mut records = gap_records();
+        records.retain(|a| a.date != "2026-10-11");
+
+        assert_eq!(
+            store.backfill_apod_gap(&records).unwrap(),
+            ApodBackfill::Incomplete {
+                missing: vec!["2026-10-11".into()],
+                rejected: Vec::new(),
+            }
+        );
+        assert!(apod_rows(&store).is_empty());
+        assert!(!store.apod_gap_backfilled().unwrap());
+    }
+
+    /// A rejected record late in the range rolls back the days already written
+    /// before it, so no part of the backfill is visible, and a later complete
+    /// attempt then applies.
+    #[test]
+    fn a_rejected_day_rolls_back_every_write_and_a_retry_applies() {
+        let store = mem_store();
+        for day in apod_gap_days().unwrap() {
+            store_unchecked(&store, &chrome_apod(&day));
+        }
+        let before = apod_rows(&store);
+        let mut records = gap_records();
+        let last = records.len() - 1;
+        records[last] = chrome_apod("2026-10-27");
+
+        let outcome = store.backfill_apod_gap(&records).unwrap();
+
+        assert!(
+            matches!(&outcome, ApodBackfill::Incomplete { missing, rejected }
+                if missing.is_empty() && rejected.len() == 1 && rejected[0].starts_with("2026-10-27: ")),
+            "{outcome:?}"
+        );
+        assert_eq!(
+            apod_rows(&store),
+            before,
+            "a partial backfill must not remain"
+        );
+        assert!(!store.apod_gap_backfilled().unwrap());
+
+        assert!(matches!(
+            store.backfill_apod_gap(&gap_records()).unwrap(),
+            ApodBackfill::Applied(_)
+        ));
+        assert!(store.apod_gap_backfilled().unwrap());
     }
 
     fn legacy_apod_db(name: &str, ddl: &str) -> (std::path::PathBuf, String) {

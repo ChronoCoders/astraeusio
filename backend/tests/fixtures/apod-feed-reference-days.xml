@@ -1,0 +1,1188 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:apod="https://science.nasa.gov/apod/">
+<channel>
+	<title>APOD Basic - 2026</title>
+	<description>APOD Basic markup feed.</description>
+	<link>https://science.nasa.gov/</link>
+	<atom:link href="https://science.nasa.gov/feed/apod-basic/?year=2026" rel="self" type="application/rss+xml" />
+	<language>en-us</language>
+	<item>
+		<title>Light Pillars and Orion over Mohe</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-march-23-light-pillars-and-orion-over-mohe/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-march-23-light-pillars-and-orion-over-mohe/</guid>
+		<pubDate>Mon, 23 Mar 2026 04:00:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-march-23-light-pillars-and-orion-over-mohe/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260323</apod:discussion>
+		<apod:credit><![CDATA[<b> Image Credit &amp; Copyright: </b> Jeff Dai ( <a href="http://www.twanight.org/" target="_blank">TWAN</a> )]]></apod:credit>
+		<apod:copyright><![CDATA[<b> Image Credit &amp; Copyright: </b> Jeff Dai ( <a href="http://www.twanight.org/" target="_blank">TWAN</a> )]]></apod:copyright>
+		<apod:alt>A starry sky appears above a snowy street with a house on the right. The constellation of Orion is visible on the left. Up from the ground many pillars of light are seen. Two people stand watching the pillars on the street in the foreground. Please see the explanation for more detailed information.</apod:alt>
+		<apod:primary_image_alt>A starry sky appears above a snowy street with a house on the right. The constellation of Orion is visible on the left. Up from the ground many pillars of light are seen. Two people stand watching the pillars on the street in the foreground. Please see the explanation for more detailed information.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> What's happening at the end of that street? Pictured here are not <a href="https://science.nasa.gov/sun/auroras/" target="_blank">auroras</a> but <a href="https://en.wikipedia.org/wiki/Light_pillar" target="_blank">light pillar</a> s, a phenomenon typically much closer. In most places on <a href="https://apod.nasa.gov/apod/ap260422.html">Earth</a> , a lucky viewer can see a <a href="https://apod.nasa.gov/apod/ap010313.html">Sun pillar</a> , a column of light appearing to extend up from the <a href="https://science.nasa.gov/sun/" target="_blank">Sun</a> caused by flat fluttering <a href="https://atoptics.co.uk/blog/real-crystals/" target="_blank">ice-crystals</a> reflecting sunlight from the <a href="https://www.nasa.gov/image-article/earths-upper-atmosphere/" target="_blank">upper atmosphere</a> . Usually, these ice <a href="https://en.wikipedia.org/wiki/Crystal" target="_blank">crystal</a> s evaporate before reaching the ground. During <a href="https://www.reddit.com/r/aww/comments/726otg/my_cat_likes_being_bundled_up/#lightbox" target="_blank">freezing temperatures, however, </a><a href="https://imgur.com/cat-is-rectangle-ELtLVZy" target="_blank">flat</a> fluttering <a href="https://www.lwpetersen.com/atmospheric-optics/light-pillars/" target="_blank">ice crystals</a> may form near the ground and are sometimes known as a <a href="https://apod.nasa.gov/apod/ap231220.html">crystal fog</a>. These small <a href="https://en.wikipedia.org/wiki/Ice_crystal" target="_blank">ice crystal</a>s may then reflect not the Sun but <a href="https://apod.nasa.gov/apod/ap060305.html">ground lights</a>. The featured image captured not only <a href="https://apod.nasa.gov/apod/ap160208.html">numerous light pillars</a> but also the iconic constellation of Orion, and was taken in <a href="https://www.youtube.com/shorts/gwa4n5zwnZs" target="_blank">Mohe</a>, the northernmost city in <a href="https://en.wikipedia.org/wiki/China" target="_blank">China</a>. <br><br><b>Tomorrow's picture: </b>lumpy Earth]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> What's happening at the end of that street? Pictured here are not <a href="https://science.nasa.gov/sun/auroras/" target="_blank">auroras</a> but <a href="https://en.wikipedia.org/wiki/Light_pillar" target="_blank">light pillar</a> s, a phenomenon typically much closer. In most places on <a href="https://apod.nasa.gov/apod/ap260422.html">Earth</a> , a lucky viewer can see a <a href="https://apod.nasa.gov/apod/ap010313.html">Sun pillar</a> , a column of light appearing to extend up from the <a href="https://science.nasa.gov/sun/" target="_blank">Sun</a> caused by flat fluttering <a href="https://atoptics.co.uk/blog/real-crystals/" target="_blank">ice-crystals</a> reflecting sunlight from the <a href="https://www.nasa.gov/image-article/earths-upper-atmosphere/" target="_blank">upper atmosphere</a> . Usually, these ice <a href="https://en.wikipedia.org/wiki/Crystal" target="_blank">crystal</a> s evaporate before reaching the ground. During <a href="https://www.reddit.com/r/aww/comments/726otg/my_cat_likes_being_bundled_up/#lightbox" target="_blank">freezing temperatures, however, </a><a href="https://imgur.com/cat-is-rectangle-ELtLVZy" target="_blank">flat</a> fluttering <a href="https://www.lwpetersen.com/atmospheric-optics/light-pillars/" target="_blank">ice crystals</a> may form near the ground and are sometimes known as a <a href="https://apod.nasa.gov/apod/ap231220.html">crystal fog</a>. These small <a href="https://en.wikipedia.org/wiki/Ice_crystal" target="_blank">ice crystal</a>s may then reflect not the Sun but <a href="https://apod.nasa.gov/apod/ap060305.html">ground lights</a>. The featured image captured not only <a href="https://apod.nasa.gov/apod/ap160208.html">numerous light pillars</a> but also the iconic constellation of Orion, and was taken in <a href="https://www.youtube.com/shorts/gwa4n5zwnZs" target="_blank">Mohe</a>, the northernmost city in <a href="https://en.wikipedia.org/wiki/China" target="_blank">China</a>. <br><br><b>Tomorrow's picture: </b>lumpy Earth]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 March 23 - Light Pillars and Orion over Mohe</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-march-23-light-pillars-and-orion-over-mohe/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: What&#039;s happening at the end of that street? Pictured here are not auroras but light pillar s, a phenomenon typically much closer. In most places on Earth , a lucky viewer can see a Sun pillar , a column of light appearing to extend up from the Sun caused by flat fluttering ice-crystals reflecting sunlight from the upper atmosphere . Usually, these ice crystal s evaporate before reaching the ground. During freezing temperatures, however, flat fluttering ice crystals may form near the ground and are sometimes known as a crystal fog. These small ice crystals may then reflect not the Sun but ground lights. The featured image captured not only numerous light pillars but also the iconic constellation of Orion, and was taken in Mohe, the northernmost city in China. Tomorrow&#039;s picture: lumpy Earth">
+<!-- -->
+<meta name="keywords" content="light pillars and orion over mohe">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Light Pillars and Orion over Mohe">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-march-23-light-pillars-and-orion-over-mohe/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg">
+<meta property="og:image:alt" content="A starry sky appears above a snowy street with a house on the right. The constellation of Orion is visible on the left. Up from the ground many pillars of light are seen. Two people stand watching the pillars on the street in the foreground. Please see the explanation for more detailed information.">
+<meta property="article:published_time" content="2026-03-23T00:00:00-04:00">
+<meta property="article:modified_time" content="2026-10-06T15:57:00-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Light Pillars and Orion over Mohe">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 March 23<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/march/LightPillarsMohe_Dai_2000.jpg" alt="A starry sky appears above a snowy street with a house on the right. The constellation of Orion is visible on the left. Up from the ground many pillars of light are seen. Two people stand watching the pillars on the street in the foreground. Please see the explanation for more detailed information."></a>
+</center>
+
+<center>
+<b> Light Pillars and Orion over Mohe </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<b> Image Credit &amp; Copyright: </b> Jeff Dai ( <a href="http://www.twanight.org/" target="_blank">TWAN</a> )
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> What's happening at the end of that street? Pictured here are not <a href="https://science.nasa.gov/sun/auroras/" target="_blank">auroras</a> but <a href="https://en.wikipedia.org/wiki/Light_pillar" target="_blank">light pillar</a> s, a phenomenon typically much closer. In most places on <a href="https://apod.nasa.gov/apod/ap260422.html">Earth</a> , a lucky viewer can see a <a href="https://apod.nasa.gov/apod/ap010313.html">Sun pillar</a> , a column of light appearing to extend up from the <a href="https://science.nasa.gov/sun/" target="_blank">Sun</a> caused by flat fluttering <a href="https://atoptics.co.uk/blog/real-crystals/" target="_blank">ice-crystals</a> reflecting sunlight from the <a href="https://www.nasa.gov/image-article/earths-upper-atmosphere/" target="_blank">upper atmosphere</a> . Usually, these ice <a href="https://en.wikipedia.org/wiki/Crystal" target="_blank">crystal</a> s evaporate before reaching the ground. During <a href="https://www.reddit.com/r/aww/comments/726otg/my_cat_likes_being_bundled_up/#lightbox" target="_blank">freezing temperatures, however, </a><a href="https://imgur.com/cat-is-rectangle-ELtLVZy" target="_blank">flat</a> fluttering <a href="https://www.lwpetersen.com/atmospheric-optics/light-pillars/" target="_blank">ice crystals</a> may form near the ground and are sometimes known as a <a href="https://apod.nasa.gov/apod/ap231220.html">crystal fog</a>. These small <a href="https://en.wikipedia.org/wiki/Ice_crystal" target="_blank">ice crystal</a>s may then reflect not the Sun but <a href="https://apod.nasa.gov/apod/ap060305.html">ground lights</a>. The featured image captured not only <a href="https://apod.nasa.gov/apod/ap160208.html">numerous light pillars</a> but also the iconic constellation of Orion, and was taken in <a href="https://www.youtube.com/shorts/gwa4n5zwnZs" target="_blank">Mohe</a>, the northernmost city in <a href="https://en.wikipedia.org/wiki/China" target="_blank">China</a>. <br><br><b>Tomorrow's picture: </b>lumpy Earth
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-march-24-a-gravity-map-of-earth/">APOD: 2026 March 24 &#8211; A Gravity Map of Earth</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-march-22-leaving-earth/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260323">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-march-24-a-gravity-map-of-earth/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+<a href="https://www.mtu.edu/physics/department/faculty/nemiroff/" target="_blank">Robert Nemiroff</a> (<a href="https://www.mtu.edu/physics/" target="_blank">MTU</a>) &amp; <a href="https://inspirehep.net/authors/1073087" target="_blank">Jerry Bonnell</a> (<a href="https://www.astro.umd.edu/" target="_blank">UMCP</a>)<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Hello World</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-april-4-hello-world/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-april-4-hello-world/</guid>
+		<pubDate>Sat, 04 Apr 2026 04:00:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-april-4-hello-world/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/april/art002e000192.jpg?w=5568&#038;h=3712&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260404</apod:discussion>
+		<apod:credit><![CDATA[<b>Image Credit: </b> <a href="https://www.nasa.gov/" target="_blank">NASA</a> , <a href="https://www.nasa.gov/feature/our-artemis-crew/" target="_blank">Reid Wiseman, Artemis II</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<b>Image Credit: </b> <a href="https://www.nasa.gov/" target="_blank">NASA</a> , <a href="https://www.nasa.gov/feature/our-artemis-crew/" target="_blank">Reid Wiseman, Artemis II</a>]]></apod:copyright>
+		<apod:alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:alt>
+		<apod:primary_image_alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> <a href="https://www.nasa.gov/image-detail/fd02_for-pao/" target="_blank">From pole to pole</a> our fair planet is captured in this snapshot from space, an evocative image from a window of the Orion spacecraft Integrity. <a href="https://www.nasa.gov/missions/artemis-ii/arow/" target="_blank">From<a> the <a href="https://apod.nasa.gov/apod/ap230513.html">spacecraft's perspective</a> the Sun is moving behind Earth's bright limb along the lower right. Africa and the Iberian peninsula are in view on the pale blue planet's surface, while aurorae crown Earth's <a href="https://apod.nasa.gov/apod/ap240913.html">south</a> and <a href="https://apod.nasa.gov/apod/ap240118.html">north</a> poles at top right and bottom left. Commander Reid Wiseman took the historic picture on Artemis II <a href="https://www.nasa.gov/blogs/missions/2026/04/02/artemis-ii-flight-day-2-orion-completes-tli-burn-crew-begins-journey-to-the-moon/" target="_blank">mission flight day 2</a> (April 2), after the completion of the planned translunar injection burn. That burn boosted the spacecraft <a href="https://www.nasa.gov/" target="_blank">out of Earth orbit</a>, sending Integrity and crew on a trajectory that will take them <a href="https://apod.nasa.gov/apod/ap051210.html">around the Moon</a> and back again. <a href="https://www.nasa.gov/humans-in-space/artemis/" target="_blank">That's a journey</a> humans last made over <a href="https://www.nasa.gov/the-apollo-program/" target="_blank">50 years ago</a>. (<i>Editor's note:</i> Venus is photobombing Wiseman's historic pic. Currently appearing in our western skies after sunset, the inner planet is in the frame below and right of Earth's bright limb, immersed in a faint band of zodiacal light.) <p>  <b> Tomorrow's picture: </b><a href="https://apod.nasa.gov/apod/ap260405.html">starburst spiral</a> <p>  <a href="https://apod.nasa.gov/apod/ap260403.html">&lt;</a> | <a href="https://apod.nasa.gov/apod/archivepix.html">Archive</a> | <a href="https://apod.nasa.gov/apod/lib/apsubmit2015.html">Submissions</a> | <a href="https://apod.nasa.gov/apod/lib/aptree.html">Index</a> | <a href="https://antwrp.gsfc.nasa.gov/cgi-bin/apod/apod_search" target="_blank">Search</a> | <a href="https://apod.nasa.gov/apod/calendar/allyears.html">Calendar</a> | <a href="https://apod.com/feed.rss" target="_blank">RSS</a> | <a href="https://apod.nasa.gov/apod/lib/edlinks.html">Education</a> | <a href="https://apod.nasa.gov/apod/lib/about_apod.html">About APOD</a> | Discuss | <a href="https://apod.nasa.gov/apod/ap260405.html">&gt;</a> <p> <b> Authors &amp; editors: </b> <a href="http://www.phy.mtu.edu/faculty/Nemiroff.html" target="_blank">Robert Nemiroff</a> (<a href="http://www.phy.mtu.edu/" target="_blank">MTU</a>) &amp; <a href="https://antwrp.gsfc.nasa.gov/htmltest/jbonnell/www/bonnell.html" target="_blank">Jerry Bonnell</a> (<a href="http://www.astro.umd.edu/" target="_blank">UMCP</a>)<br /> <b>NASA Official: </b> Amber Straughn <a href="https://apod.nasa.gov/apod/lib/about_apod.html#srapply">Specific rights apply</a>.<br /> <a href="https://www.nasa.gov/about/highlights/HP_Privacy.html" target="_blank">NASA Web Privacy</a>, <a href="https://www.nasa.gov/general/accessibility/" target="_blank">Accessibility</a>, <a href="https://www.nasa.gov/privacy/" target="_blank">Notices</a>; <br /> <b>A service of:</b> <a href="https://astrophysics.gsfc.nasa.gov/" target="_blank">ASD</a> at <a href="https://www.nasa.gov/" target="_blank">NASA</a> / <a href="https://www.nasa.gov/centers/goddard/" target="_blank">GSFC</a>, <br /> <a href="https://science.nasa.gov/learners" target="_blank">NASA Science Activation</a> <br /><b>&amp;</b> <a href="http://www.mtu.edu/" target="_blank">Michigan Tech. U.</a><br /> </p></p> <!-- Parse.ly JavaScript Snippet -->  </p></a></a>]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> <a href="https://www.nasa.gov/image-detail/fd02_for-pao/" target="_blank">From pole to pole</a> our fair planet is captured in this snapshot from space, an evocative image from a window of the Orion spacecraft Integrity. <a href="https://www.nasa.gov/missions/artemis-ii/arow/" target="_blank">From<a> the <a href="https://apod.nasa.gov/apod/ap230513.html">spacecraft's perspective</a> the Sun is moving behind Earth's bright limb along the lower right. Africa and the Iberian peninsula are in view on the pale blue planet's surface, while aurorae crown Earth's <a href="https://apod.nasa.gov/apod/ap240913.html">south</a> and <a href="https://apod.nasa.gov/apod/ap240118.html">north</a> poles at top right and bottom left. Commander Reid Wiseman took the historic picture on Artemis II <a href="https://www.nasa.gov/blogs/missions/2026/04/02/artemis-ii-flight-day-2-orion-completes-tli-burn-crew-begins-journey-to-the-moon/" target="_blank">mission flight day 2</a> (April 2), after the completion of the planned translunar injection burn. That burn boosted the spacecraft <a href="https://www.nasa.gov/" target="_blank">out of Earth orbit</a>, sending Integrity and crew on a trajectory that will take them <a href="https://apod.nasa.gov/apod/ap051210.html">around the Moon</a> and back again. <a href="https://www.nasa.gov/humans-in-space/artemis/" target="_blank">That's a journey</a> humans last made over <a href="https://www.nasa.gov/the-apollo-program/" target="_blank">50 years ago</a>. (<i>Editor's note:</i> Venus is photobombing Wiseman's historic pic. Currently appearing in our western skies after sunset, the inner planet is in the frame below and right of Earth's bright limb, immersed in a faint band of zodiacal light.) <p>  <b> Tomorrow's picture: </b><a href="https://apod.nasa.gov/apod/ap260405.html">starburst spiral</a> <p>  <a href="https://apod.nasa.gov/apod/ap260403.html">&lt;</a> | <a href="https://apod.nasa.gov/apod/archivepix.html">Archive</a> | <a href="https://apod.nasa.gov/apod/lib/apsubmit2015.html">Submissions</a> | <a href="https://apod.nasa.gov/apod/lib/aptree.html">Index</a> | <a href="https://antwrp.gsfc.nasa.gov/cgi-bin/apod/apod_search" target="_blank">Search</a> | <a href="https://apod.nasa.gov/apod/calendar/allyears.html">Calendar</a> | <a href="https://apod.com/feed.rss" target="_blank">RSS</a> | <a href="https://apod.nasa.gov/apod/lib/edlinks.html">Education</a> | <a href="https://apod.nasa.gov/apod/lib/about_apod.html">About APOD</a> | Discuss | <a href="https://apod.nasa.gov/apod/ap260405.html">&gt;</a> <p> <b> Authors &amp; editors: </b> <a href="http://www.phy.mtu.edu/faculty/Nemiroff.html" target="_blank">Robert Nemiroff</a> (<a href="http://www.phy.mtu.edu/" target="_blank">MTU</a>) &amp; <a href="https://antwrp.gsfc.nasa.gov/htmltest/jbonnell/www/bonnell.html" target="_blank">Jerry Bonnell</a> (<a href="http://www.astro.umd.edu/" target="_blank">UMCP</a>)<br /> <b>NASA Official: </b> Amber Straughn <a href="https://apod.nasa.gov/apod/lib/about_apod.html#srapply">Specific rights apply</a>.<br /> <a href="https://www.nasa.gov/about/highlights/HP_Privacy.html" target="_blank">NASA Web Privacy</a>, <a href="https://www.nasa.gov/general/accessibility/" target="_blank">Accessibility</a>, <a href="https://www.nasa.gov/privacy/" target="_blank">Notices</a>; <br /> <b>A service of:</b> <a href="https://astrophysics.gsfc.nasa.gov/" target="_blank">ASD</a> at <a href="https://www.nasa.gov/" target="_blank">NASA</a> / <a href="https://www.nasa.gov/centers/goddard/" target="_blank">GSFC</a>, <br /> <a href="https://science.nasa.gov/learners" target="_blank">NASA Science Activation</a> <br /><b>&amp;</b> <a href="http://www.mtu.edu/" target="_blank">Michigan Tech. U.</a><br /> </p></p> <!-- Parse.ly JavaScript Snippet -->  </p></a></a>]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 April 4 - Hello World</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-april-4-hello-world/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: From pole to pole our fair planet is captured in this snapshot from space, an evocative image from a window of the Orion spacecraft Integrity. From the spacecraft&#039;s perspective the Sun is moving behind Earth&#039;s bright limb along the lower right. Africa and the Iberian peninsula are in view on the pale blue planet&#039;s surface, while aurorae crown Earth&#039;s south and north poles at top right and bottom left. Commander Reid Wiseman took the historic picture on Artemis II mission flight day 2 (April 2), after the completion of the planned translunar injection burn. That burn boosted the spacecraft out of Earth orbit, sending Integrity and crew on a trajectory that will take them around the Moon and back again. That&#039;s a journey humans last made over 50 years ago. (Editor&#039;s note: Venus is photobombing Wiseman&#039;s historic pic. Currently appearing in our western skies after sunset, the inner planet is in the frame below and right of Earth&#039;s bright limb, immersed in a faint band of zodiacal light.)    Tomorrow&#039;s picture: starburst spiral   &lt; | Archive | Submissions | Index | Search | Calendar | RSS | Education | About APOD | Discuss | &gt;   Authors &amp; editors:  Robert Nemiroff (MTU) &amp; Jerry Bonnell (UMCP) NASA Official:  Amber Straughn Specific rights apply. NASA Web Privacy, Accessibility, Notices;  A service of: ASD at NASA / GSFC,  NASA Science Activation &amp; Michigan Tech. U.">
+<!-- -->
+<meta name="keywords" content="hello world">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hello World">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-april-4-hello-world/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/april/art002e000192.jpg?w=5568&#038;h=3712&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/april/art002e000192.jpg?w=5568&#038;h=3712&#038;fit=clip">
+<meta property="og:image:alt" content="See Explanation. Clicking on the picture will download the highest resolution version available.">
+<meta property="article:published_time" content="2026-04-04T00:00:00-04:00">
+<meta property="article:modified_time" content="2026-07-29T14:17:19-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Hello World">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/april/art002e000192.jpg?w=5568&#038;h=3712&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 April 4<br>
+
+<a href="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/april/art002e000192.jpg">
+<IMG SRC="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/april/art002e000192.jpg" alt="See Explanation. Clicking on the picture will download the highest resolution version available."></a>
+</center>
+
+<center>
+<b> Hello World </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<b>Image Credit: </b> <a href="https://www.nasa.gov/" target="_blank">NASA</a> , <a href="https://www.nasa.gov/feature/our-artemis-crew/" target="_blank">Reid Wiseman, Artemis II</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> <a href="https://www.nasa.gov/image-detail/fd02_for-pao/" target="_blank">From pole to pole</a> our fair planet is captured in this snapshot from space, an evocative image from a window of the Orion spacecraft Integrity. <a href="https://www.nasa.gov/missions/artemis-ii/arow/" target="_blank">From<a> the <a href="https://apod.nasa.gov/apod/ap230513.html">spacecraft's perspective</a> the Sun is moving behind Earth's bright limb along the lower right. Africa and the Iberian peninsula are in view on the pale blue planet's surface, while aurorae crown Earth's <a href="https://apod.nasa.gov/apod/ap240913.html">south</a> and <a href="https://apod.nasa.gov/apod/ap240118.html">north</a> poles at top right and bottom left. Commander Reid Wiseman took the historic picture on Artemis II <a href="https://www.nasa.gov/blogs/missions/2026/04/02/artemis-ii-flight-day-2-orion-completes-tli-burn-crew-begins-journey-to-the-moon/" target="_blank">mission flight day 2</a> (April 2), after the completion of the planned translunar injection burn. That burn boosted the spacecraft <a href="https://www.nasa.gov/" target="_blank">out of Earth orbit</a>, sending Integrity and crew on a trajectory that will take them <a href="https://apod.nasa.gov/apod/ap051210.html">around the Moon</a> and back again. <a href="https://www.nasa.gov/humans-in-space/artemis/" target="_blank">That's a journey</a> humans last made over <a href="https://www.nasa.gov/the-apollo-program/" target="_blank">50 years ago</a>. (<i>Editor's note:</i> Venus is photobombing Wiseman's historic pic. Currently appearing in our western skies after sunset, the inner planet is in the frame below and right of Earth's bright limb, immersed in a faint band of zodiacal light.) <p>  <b> Tomorrow's picture: </b><a href="https://apod.nasa.gov/apod/ap260405.html">starburst spiral</a> <p>  <a href="https://apod.nasa.gov/apod/ap260403.html">&lt;</a> | <a href="https://apod.nasa.gov/apod/archivepix.html">Archive</a> | <a href="https://apod.nasa.gov/apod/lib/apsubmit2015.html">Submissions</a> | <a href="https://apod.nasa.gov/apod/lib/aptree.html">Index</a> | <a href="https://antwrp.gsfc.nasa.gov/cgi-bin/apod/apod_search" target="_blank">Search</a> | <a href="https://apod.nasa.gov/apod/calendar/allyears.html">Calendar</a> | <a href="https://apod.com/feed.rss" target="_blank">RSS</a> | <a href="https://apod.nasa.gov/apod/lib/edlinks.html">Education</a> | <a href="https://apod.nasa.gov/apod/lib/about_apod.html">About APOD</a> | Discuss | <a href="https://apod.nasa.gov/apod/ap260405.html">&gt;</a> <p> <b> Authors &amp; editors: </b> <a href="http://www.phy.mtu.edu/faculty/Nemiroff.html" target="_blank">Robert Nemiroff</a> (<a href="http://www.phy.mtu.edu/" target="_blank">MTU</a>) &amp; <a href="https://antwrp.gsfc.nasa.gov/htmltest/jbonnell/www/bonnell.html" target="_blank">Jerry Bonnell</a> (<a href="http://www.astro.umd.edu/" target="_blank">UMCP</a>)<br /> <b>NASA Official: </b> Amber Straughn <a href="https://apod.nasa.gov/apod/lib/about_apod.html#srapply">Specific rights apply</a>.<br /> <a href="https://www.nasa.gov/about/highlights/HP_Privacy.html" target="_blank">NASA Web Privacy</a>, <a href="https://www.nasa.gov/general/accessibility/" target="_blank">Accessibility</a>, <a href="https://www.nasa.gov/privacy/" target="_blank">Notices</a>; <br /> <b>A service of:</b> <a href="https://astrophysics.gsfc.nasa.gov/" target="_blank">ASD</a> at <a href="https://www.nasa.gov/" target="_blank">NASA</a> / <a href="https://www.nasa.gov/centers/goddard/" target="_blank">GSFC</a>, <br /> <a href="https://science.nasa.gov/learners" target="_blank">NASA Science Activation</a> <br /><b>&amp;</b> <a href="http://www.mtu.edu/" target="_blank">Michigan Tech. U.</a><br /> </p></p> <!-- Parse.ly JavaScript Snippet -->  </p></a></a>
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-april-5-ngc-3310-a-starburst-spiral-galaxy/">APOD: 2026 April 5 &#8211; NGC 3310: A Starburst Spiral Galaxy</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-april-caught-in-the-web/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260404">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-april-5-ngc-3310-a-starburst-spiral-galaxy/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+<a href="https://www.mtu.edu/physics/department/faculty/nemiroff/" target="_blank">Robert Nemiroff</a> (<a href="https://www.mtu.edu/physics/" target="_blank">MTU</a>) &amp; <a href="https://inspirehep.net/authors/1073087" target="_blank">Jerry Bonnell</a> (<a href="https://www.astro.umd.edu/" target="_blank">UMCP</a>)<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Messier Craters in Stereo</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-may-9-messier-craters-in-stereo/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-may-9-messier-craters-in-stereo/</guid>
+		<pubDate>Sat, 09 May 2026 04:00:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-may-9-messier-craters-in-stereo/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg?w=3200&#038;h=3358&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260509</apod:discussion>
+		<apod:credit><![CDATA[<b> Image Credit: </b> <a href="http://nssdc.gsfc.nasa.gov/planetary/lunar/apollo11info.html" target="_blank">Apollo 11</a> , <a href="http://www.nasa.gov/" target="_blank">NASA</a> ; Stereo Image Copyright <a href="https://apollojournals.org/alsj/ApAnPaVa.html" target="_blank">Patrick Vantuyne</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<b> Image Credit: </b> <a href="http://nssdc.gsfc.nasa.gov/planetary/lunar/apollo11info.html" target="_blank">Apollo 11</a> , <a href="http://www.nasa.gov/" target="_blank">NASA</a> ; Stereo Image Copyright <a href="https://apollojournals.org/alsj/ApAnPaVa.html" target="_blank">Patrick Vantuyne</a>]]></apod:copyright>
+		<apod:alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:alt>
+		<apod:primary_image_alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> Many bright nebulae and star clusters in planet Earth's sky are associated with the name of <a href="https://science.nasa.gov/people/explore-the-night-sky-hubbleatms-messier-catalog-bio/" target="_blank">astronomer Charles Messier</a> from his famous 18th century catalog. His name is also given to these two large and remarkable craters on the Moon. <a href="http://lroc.sese.asu.edu/posts/383" target="_blank">Standouts in the dark</a> , smooth lunar Sea of Fertility or Mare Fecunditatis, Messier (left) and Messier A have dimensions of 15 by 8 and 16 by 11 kilometers respectively. Their elongated shapes are explained by the extremely shallow-angle trajectory followed by an impactor, moving left to right, that gouged out the craters. The shallow impact also resulted in two <a href="http://lunarnetworks.blogspot.com/2012/04/lroc-rays-of-messier.html" target="_blank">bright rays of material</a> extending along the surface to the right, beyond the picture. Intended to be viewed with red/blue glasses (red for the left eye), this striking stereo picture of the crater pair was recently created from high resolution scans of two images ( <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6304" target="_blank">AS11-42-6304</a> , <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6305" target="_blank">AS11-42-6305</a> ) taken during the Apollo 11 mission to the Moon.]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> Many bright nebulae and star clusters in planet Earth's sky are associated with the name of <a href="https://science.nasa.gov/people/explore-the-night-sky-hubbleatms-messier-catalog-bio/" target="_blank">astronomer Charles Messier</a> from his famous 18th century catalog. His name is also given to these two large and remarkable craters on the Moon. <a href="http://lroc.sese.asu.edu/posts/383" target="_blank">Standouts in the dark</a> , smooth lunar Sea of Fertility or Mare Fecunditatis, Messier (left) and Messier A have dimensions of 15 by 8 and 16 by 11 kilometers respectively. Their elongated shapes are explained by the extremely shallow-angle trajectory followed by an impactor, moving left to right, that gouged out the craters. The shallow impact also resulted in two <a href="http://lunarnetworks.blogspot.com/2012/04/lroc-rays-of-messier.html" target="_blank">bright rays of material</a> extending along the surface to the right, beyond the picture. Intended to be viewed with red/blue glasses (red for the left eye), this striking stereo picture of the crater pair was recently created from high resolution scans of two images ( <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6304" target="_blank">AS11-42-6304</a> , <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6305" target="_blank">AS11-42-6305</a> ) taken during the Apollo 11 mission to the Moon.]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 May 9 - Messier Craters in Stereo</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-may-9-messier-craters-in-stereo/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Many bright nebulae and star clusters in planet Earth&#039;s sky are associated with the name of astronomer Charles Messier from his famous 18th century catalog. His name is also given to these two large and remarkable craters on the Moon. Standouts in the dark , smooth lunar Sea of Fertility or Mare Fecunditatis, Messier (left) and Messier A have dimensions of 15 by 8 and 16 by 11 kilometers respectively. Their elongated shapes are explained by the extremely shallow-angle trajectory followed by an impactor, moving left to right, that gouged out the craters. The shallow impact also resulted in two bright rays of material extending along the surface to the right, beyond the picture. Intended to be viewed with red/blue glasses (red for the left eye), this striking stereo picture of the crater pair was recently created from high resolution scans of two images ( AS11-42-6304 , AS11-42-6305 ) taken during the Apollo 11 mission to the Moon.">
+<!-- -->
+<meta name="keywords" content="messier craters in stereo">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Messier Craters in Stereo">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-may-9-messier-craters-in-stereo/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg?w=3200&#038;h=3358&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg?w=3200&#038;h=3358&#038;fit=clip">
+<meta property="og:image:alt" content="See Explanation. Clicking on the picture will download the highest resolution version available.">
+<meta property="article:published_time" content="2026-05-09T00:00:00-04:00">
+<meta property="article:modified_time" content="2026-07-29T14:17:31-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Messier Craters in Stereo">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg?w=3200&#038;h=3358&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 May 9<br>
+
+<a href="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg">
+<IMG SRC="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/may/MessierCrater3d_vantuyne.jpg" alt="See Explanation. Clicking on the picture will download the highest resolution version available."></a>
+</center>
+
+<center>
+<b> Messier Craters in Stereo </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<b> Image Credit: </b> <a href="http://nssdc.gsfc.nasa.gov/planetary/lunar/apollo11info.html" target="_blank">Apollo 11</a> , <a href="http://www.nasa.gov/" target="_blank">NASA</a> ; Stereo Image Copyright <a href="https://apollojournals.org/alsj/ApAnPaVa.html" target="_blank">Patrick Vantuyne</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> Many bright nebulae and star clusters in planet Earth's sky are associated with the name of <a href="https://science.nasa.gov/people/explore-the-night-sky-hubbleatms-messier-catalog-bio/" target="_blank">astronomer Charles Messier</a> from his famous 18th century catalog. His name is also given to these two large and remarkable craters on the Moon. <a href="http://lroc.sese.asu.edu/posts/383" target="_blank">Standouts in the dark</a> , smooth lunar Sea of Fertility or Mare Fecunditatis, Messier (left) and Messier A have dimensions of 15 by 8 and 16 by 11 kilometers respectively. Their elongated shapes are explained by the extremely shallow-angle trajectory followed by an impactor, moving left to right, that gouged out the craters. The shallow impact also resulted in two <a href="http://lunarnetworks.blogspot.com/2012/04/lroc-rays-of-messier.html" target="_blank">bright rays of material</a> extending along the surface to the right, beyond the picture. Intended to be viewed with red/blue glasses (red for the left eye), this striking stereo picture of the crater pair was recently created from high resolution scans of two images ( <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6304" target="_blank">AS11-42-6304</a> , <a href="http://www.lpi.usra.edu/resources/apollo/frame/?AS11-42-6305" target="_blank">AS11-42-6305</a> ) taken during the Apollo 11 mission to the Moon.
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-may-10-comet-r3-panstarrs-and-orion/">APOD: 2026 May 10 &#8211; Comet R3 PanSTARRS and Orion</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-may-8-comet-r3-panstarrs-before-rigel/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260509">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-may-10-comet-r3-panstarrs-and-orion/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+<a href="https://www.mtu.edu/physics/department/faculty/nemiroff/" target="_blank">Robert Nemiroff</a> (<a href="https://www.mtu.edu/physics/" target="_blank">MTU</a>) &amp; <a href="https://inspirehep.net/authors/1073087" target="_blank">Jerry Bonnell</a> (<a href="https://www.astro.umd.edu/" target="_blank">UMCP</a>)<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>The Corona Australis Molecular Cloud and the Chandelier Cluster</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/</guid>
+		<pubDate>Wed, 22 Jul 2026 16:31:18 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg?w=1024&#038;h=624&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260722</apod:discussion>
+		<apod:credit><![CDATA[DES/DOE/FNAL/DECam/CTIO/NOIRLab/NSF/AURA; Processing:<strong> </strong>T.A. Rector (UAA/NOIRLab), R. Colombari &amp; M. Zamani (NOIRLab)]]></apod:credit>
+		<apod:copyright><![CDATA[DES/DOE/FNAL/DECam/CTIO/NOIRLab/NSF/AURA; Processing:<strong> </strong>T.A. Rector (UAA/NOIRLab), R. Colombari &amp; M. Zamani (NOIRLab)]]></apod:copyright>
+		<apod:alt>Both dense and whispy clouds streak across the left side of the image with bright stars peaking through. A few stars stand out as brighter than the rest. A tight cluster of stars sits to the top right of the image. The background is covered with stars.</apod:alt>
+		<apod:primary_image_alt>Both dense and whispy clouds streak across the left side of the image with bright stars peaking through. A few stars stand out as brighter than the rest. A tight cluster of stars sits to the top right of the image. The background is covered with stars.</apod:primary_image_alt>
+		<apod:secondary_image_alt>Both dense and whispy clouds streak across the left side of the image with bright stars peaking through. A few stars stand out as brighter than the rest. A tight cluster of stars sits to the top right of the image. The background is covered with stars. Astronomical objects are labeled.</apod:secondary_image_alt>
+		<apod:explanation><![CDATA[<b>Explanation</b>: The Southern Crown (Corona Australis) dazzles with young and ancient celestial jewels. <a href="https://apod.nasa.gov/apod/ap181129.html">The Corona Australis Cloud</a> is a collage of <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">reflection and emission nebulae</a> on the left of <a href="https://noirlab.edu/public/news/noirlab2617/?lang">today’s image</a>. At 430 light years away, this cloud is one of the closest <a href="https://science.nasa.gov/mission/webb/science-overview/science-explainers/webbs-star-formation-discoveries/">star-forming regions</a> to Earth. It contains gas cool enough (-260 Celsius or -440 Fahrenheit) to collapse into <a href="https://lco.global/spacebook/stars/protostar/">protostars</a>. Recently formed stars paint blue hues across the cloud as their light reflects off surrounding material. The waltz of the R Coronae Australis <a href="https://apod.nasa.gov/apod/ap970219.html">binary system</a> stirs up the nebula <a href="https://app.astrobin.com/i/2hti5p">NGC 6729</a>. The younger of the pair <a href="https://astronomy.swin.edu.au/cosmos/*/Ionisation">ionizes</a> nearby gas with its ultraviolet light, causing it to glow. <a href="https://science.nasa.gov/missions/hubble/hubble-spies-starry-chandelier/">The Chandelier Cluster</a> (NGC 6723) dangles from the top right, but is actually tens of thousands of light years farther away than its apparent star-forming neighbor. While NGC 6723 experienced multiple periods of star formation creating <a href="https://esahubble.org/images/potm2606a/"><em>slightly</em> younger</a> stars, the chandelier twinkles with stars almost as old as the universe.<br><br><strong>Tomorrow's APOD:</strong> a friendly neighborhood galaxy]]></apod:explanation>
+		<description><![CDATA[<b>Explanation</b>: The Southern Crown (Corona Australis) dazzles with young and ancient celestial jewels. <a href="https://apod.nasa.gov/apod/ap181129.html">The Corona Australis Cloud</a> is a collage of <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">reflection and emission nebulae</a> on the left of <a href="https://noirlab.edu/public/news/noirlab2617/?lang">today’s image</a>. At 430 light years away, this cloud is one of the closest <a href="https://science.nasa.gov/mission/webb/science-overview/science-explainers/webbs-star-formation-discoveries/">star-forming regions</a> to Earth. It contains gas cool enough (-260 Celsius or -440 Fahrenheit) to collapse into <a href="https://lco.global/spacebook/stars/protostar/">protostars</a>. Recently formed stars paint blue hues across the cloud as their light reflects off surrounding material. The waltz of the R Coronae Australis <a href="https://apod.nasa.gov/apod/ap970219.html">binary system</a> stirs up the nebula <a href="https://app.astrobin.com/i/2hti5p">NGC 6729</a>. The younger of the pair <a href="https://astronomy.swin.edu.au/cosmos/*/Ionisation">ionizes</a> nearby gas with its ultraviolet light, causing it to glow. <a href="https://science.nasa.gov/missions/hubble/hubble-spies-starry-chandelier/">The Chandelier Cluster</a> (NGC 6723) dangles from the top right, but is actually tens of thousands of light years farther away than its apparent star-forming neighbor. While NGC 6723 experienced multiple periods of star formation creating <a href="https://esahubble.org/images/potm2606a/"><em>slightly</em> younger</a> stars, the chandelier twinkles with stars almost as old as the universe.<br><br><strong>Tomorrow's APOD:</strong> a friendly neighborhood galaxy]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 July 22 - The Corona Australis Molecular Cloud and the Chandelier Cluster</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: The Southern Crown (Corona Australis) dazzles with young and ancient celestial jewels. The Corona Australis Cloud is a collage of reflection and emission nebulae on the left of today’s image. At 430 light years away, this cloud is one of the closest star-forming regions to Earth. It contains gas cool enough (-260 Celsius or -440 Fahrenheit) to collapse into protostars. Recently formed stars paint blue hues across the cloud as their light reflects off surrounding material. The waltz of the R Coronae Australis binary system stirs up the nebula NGC 6729. The younger of the pair ionizes nearby gas with its ultraviolet light, causing it to glow. The Chandelier Cluster (NGC 6723) dangles from the top right, but is actually tens of thousands of light years farther away than its apparent star-forming neighbor. While NGC 6723 experienced multiple periods of star formation creating slightly younger stars, the chandelier twinkles with stars almost as old as the universe.Tomorrow&#039;s APOD: a friendly neighborhood galaxy">
+<!-- -->
+<meta name="keywords" content="the corona australis molecular cloud and the chandelier cluster">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The Corona Australis Molecular Cloud and the Chandelier Cluster">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg?w=1024&#038;h=624&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg?w=1024&#038;h=624&#038;fit=clip">
+<meta property="og:image:alt" content="Both dense and whispy clouds streak across the left side of the image with bright stars peaking through. A few stars stand out as brighter than the rest. A tight cluster of stars sits to the top right of the image. The background is covered with stars.">
+<meta property="article:published_time" content="2026-07-22T12:31:18-04:00">
+<meta property="article:modified_time" content="2026-07-30T17:06:55-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Corona Australis Molecular Cloud and the Chandelier Cluster">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg?w=1024&#038;h=624&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 July 22<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg" onMouseOver="if (document.images) document.imagename1.src='https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024_labels.jpg';"
+onMouseOut="if (document.images) document.imagename1.src='https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg';">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/corona_australis_1024.jpg" name=imagename1 alt="Both dense and whispy clouds streak across the left side of the image with bright stars peaking through. A few stars stand out as brighter than the rest. A tight cluster of stars sits to the top right of the image. The background is covered with stars."></a>
+</center>
+
+<center>
+<b> The Corona Australis Molecular Cloud and the Chandelier Cluster </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+DES/DOE/FNAL/DECam/CTIO/NOIRLab/NSF/AURA; Processing:<strong> </strong>T.A. Rector (UAA/NOIRLab), R. Colombari &amp; M. Zamani (NOIRLab)
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<b>Explanation</b>: The Southern Crown (Corona Australis) dazzles with young and ancient celestial jewels. <a href="https://apod.nasa.gov/apod/ap181129.html">The Corona Australis Cloud</a> is a collage of <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">reflection and emission nebulae</a> on the left of <a href="https://noirlab.edu/public/news/noirlab2617/?lang">today’s image</a>. At 430 light years away, this cloud is one of the closest <a href="https://science.nasa.gov/mission/webb/science-overview/science-explainers/webbs-star-formation-discoveries/">star-forming regions</a> to Earth. It contains gas cool enough (-260 Celsius or -440 Fahrenheit) to collapse into <a href="https://lco.global/spacebook/stars/protostar/">protostars</a>. Recently formed stars paint blue hues across the cloud as their light reflects off surrounding material. The waltz of the R Coronae Australis <a href="https://apod.nasa.gov/apod/ap970219.html">binary system</a> stirs up the nebula <a href="https://app.astrobin.com/i/2hti5p">NGC 6729</a>. The younger of the pair <a href="https://astronomy.swin.edu.au/cosmos/*/Ionisation">ionizes</a> nearby gas with its ultraviolet light, causing it to glow. <a href="https://science.nasa.gov/missions/hubble/hubble-spies-starry-chandelier/">The Chandelier Cluster</a> (NGC 6723) dangles from the top right, but is actually tens of thousands of light years farther away than its apparent star-forming neighbor. While NGC 6723 experienced multiple periods of star formation creating <a href="https://esahubble.org/images/potm2606a/"><em>slightly</em> younger</a> stars, the chandelier twinkles with stars almost as old as the universe.<br><br><strong>Tomorrow's APOD:</strong> a friendly neighborhood galaxy
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/">APOD: 2026 July 23 &#8211; The Large Magellanic Cloud</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-july-21-turtle-rock-on-mars/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260722">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Keighley Rockcliffe, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>The Large Magellanic Cloud</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/</guid>
+		<pubDate>Thu, 23 Jul 2026 20:46:19 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg?w=2048&#038;h=1603&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260723</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.instagram.com/monimesita/">Monica Mesa</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.instagram.com/monimesita/">Monica Mesa</a>]]></apod:copyright>
+		<apod:alt>A galaxy with stars and colorful clouds of gas.. The background is a dark field of stars.</apod:alt>
+		<apod:primary_image_alt>A galaxy with stars and colorful clouds of gas.. The background is a dark field of stars.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation: </strong>Have you ever seen <a href="https://www.youcanseethemilkyway.com/blog/what-galaxies-can-you-see-with-the-naked-eye">another galaxy</a> with your own eyes? The <a href="https://www.instagram.com/p/Da5kVNrkSwA/?img_index=1">featured image</a> shows the <a href="https://en.wikipedia.org/wiki/Large_Magellanic_Cloud">Large Magellanic Cloud</a> (LMC), one of the closest neighbors of our <a href="https://imagine.gsfc.nasa.gov/science/objects/milkyway1.html">Milky Way</a>. If you are anywhere south of <a href="https://oceanservice.noaa.gov/facts/latitude.html">latitude</a> 20° N (but the further south, the better), you can see it <a href="https://www.astronomy.com/observing/take-a-closer-look-at-the-large-magellanic-cloud/">with the unaided eye</a> if you go to a dark sky location, away from big cities and <a href="https://apod.nasa.gov/apod/ap200408.html">light polution</a>. It is a <a href="https://esahubble.org/wordbank/dwarf-galaxy/">dwarf</a> <a href="https://science.nasa.gov/universe/galaxies/types/#irregular-galaxies">irregular galaxy</a> about 163,000 light-years away, and a member of our <a href="http://www.atlasoftheuniverse.com/localgr.html">Local Group</a> of galaxies. Despite being small, with a total mass approximately equivalent to <a href="https://iopscience.iop.org/article/10.3847/1538-4357/ad1f58/pdf">10% - 20%</a> of the mass of the Milky Way, the LMC is very actively <a href="https://apod.nasa.gov/apod/ap260219.html">forming stars</a>. This is likely due in part to the gravitational <a href="https://images.unsplash.com/photo-1687425961065-46efeb465c66">push and pull</a> of tides caused by the Milky Way on the LMC. Some astronomers have predicted that it will <a href="https://www.sci.news/astronomy/large-magellanic-cloud-milky-way-collision-06788.html">collide</a> with the Milky Way in in about 2 billion years.<br><br><strong>Tomorrow's picture: </strong>185 AD]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation: </strong>Have you ever seen <a href="https://www.youcanseethemilkyway.com/blog/what-galaxies-can-you-see-with-the-naked-eye">another galaxy</a> with your own eyes? The <a href="https://www.instagram.com/p/Da5kVNrkSwA/?img_index=1">featured image</a> shows the <a href="https://en.wikipedia.org/wiki/Large_Magellanic_Cloud">Large Magellanic Cloud</a> (LMC), one of the closest neighbors of our <a href="https://imagine.gsfc.nasa.gov/science/objects/milkyway1.html">Milky Way</a>. If you are anywhere south of <a href="https://oceanservice.noaa.gov/facts/latitude.html">latitude</a> 20° N (but the further south, the better), you can see it <a href="https://www.astronomy.com/observing/take-a-closer-look-at-the-large-magellanic-cloud/">with the unaided eye</a> if you go to a dark sky location, away from big cities and <a href="https://apod.nasa.gov/apod/ap200408.html">light polution</a>. It is a <a href="https://esahubble.org/wordbank/dwarf-galaxy/">dwarf</a> <a href="https://science.nasa.gov/universe/galaxies/types/#irregular-galaxies">irregular galaxy</a> about 163,000 light-years away, and a member of our <a href="http://www.atlasoftheuniverse.com/localgr.html">Local Group</a> of galaxies. Despite being small, with a total mass approximately equivalent to <a href="https://iopscience.iop.org/article/10.3847/1538-4357/ad1f58/pdf">10% - 20%</a> of the mass of the Milky Way, the LMC is very actively <a href="https://apod.nasa.gov/apod/ap260219.html">forming stars</a>. This is likely due in part to the gravitational <a href="https://images.unsplash.com/photo-1687425961065-46efeb465c66">push and pull</a> of tides caused by the Milky Way on the LMC. Some astronomers have predicted that it will <a href="https://www.sci.news/astronomy/large-magellanic-cloud-milky-way-collision-06788.html">collide</a> with the Milky Way in in about 2 billion years.<br><br><strong>Tomorrow's picture: </strong>185 AD]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 July 23 - The Large Magellanic Cloud</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Have you ever seen another galaxy with your own eyes? The featured image shows the Large Magellanic Cloud (LMC), one of the closest neighbors of our Milky Way. If you are anywhere south of latitude 20° N (but the further south, the better), you can see it with the unaided eye if you go to a dark sky location, away from big cities and light polution. It is a dwarf irregular galaxy about 163,000 light-years away, and a member of our Local Group of galaxies. Despite being small, with a total mass approximately equivalent to 10% - 20% of the mass of the Milky Way, the LMC is very actively forming stars. This is likely due in part to the gravitational push and pull of tides caused by the Milky Way on the LMC. Some astronomers have predicted that it will collide with the Milky Way in in about 2 billion years.Tomorrow&#039;s picture: 185 AD">
+<!-- -->
+<meta name="keywords" content="the large magellanic cloud">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The Large Magellanic Cloud">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-july-23-the-large-magellanic-cloud/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg?w=2048&#038;h=1603&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg?w=2048&#038;h=1603&#038;fit=clip">
+<meta property="og:image:alt" content="A galaxy with stars and colorful clouds of gas.. The background is a dark field of stars.">
+<meta property="article:published_time" content="2026-07-23T16:46:19-04:00">
+<meta property="article:modified_time" content="2026-07-30T17:08:29-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Large Magellanic Cloud">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg?w=2048&#038;h=1603&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 July 23<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/LMC.jpg" alt="A galaxy with stars and colorful clouds of gas.. The background is a dark field of stars."></a>
+</center>
+
+<center>
+<b> The Large Magellanic Cloud </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.instagram.com/monimesita/">Monica Mesa</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation: </strong>Have you ever seen <a href="https://www.youcanseethemilkyway.com/blog/what-galaxies-can-you-see-with-the-naked-eye">another galaxy</a> with your own eyes? The <a href="https://www.instagram.com/p/Da5kVNrkSwA/?img_index=1">featured image</a> shows the <a href="https://en.wikipedia.org/wiki/Large_Magellanic_Cloud">Large Magellanic Cloud</a> (LMC), one of the closest neighbors of our <a href="https://imagine.gsfc.nasa.gov/science/objects/milkyway1.html">Milky Way</a>. If you are anywhere south of <a href="https://oceanservice.noaa.gov/facts/latitude.html">latitude</a> 20° N (but the further south, the better), you can see it <a href="https://www.astronomy.com/observing/take-a-closer-look-at-the-large-magellanic-cloud/">with the unaided eye</a> if you go to a dark sky location, away from big cities and <a href="https://apod.nasa.gov/apod/ap200408.html">light polution</a>. It is a <a href="https://esahubble.org/wordbank/dwarf-galaxy/">dwarf</a> <a href="https://science.nasa.gov/universe/galaxies/types/#irregular-galaxies">irregular galaxy</a> about 163,000 light-years away, and a member of our <a href="http://www.atlasoftheuniverse.com/localgr.html">Local Group</a> of galaxies. Despite being small, with a total mass approximately equivalent to <a href="https://iopscience.iop.org/article/10.3847/1538-4357/ad1f58/pdf">10% - 20%</a> of the mass of the Milky Way, the LMC is very actively <a href="https://apod.nasa.gov/apod/ap260219.html">forming stars</a>. This is likely due in part to the gravitational <a href="https://images.unsplash.com/photo-1687425961065-46efeb465c66">push and pull</a> of tides caused by the Milky Way on the LMC. Some astronomers have predicted that it will <a href="https://www.sci.news/astronomy/large-magellanic-cloud-milky-way-collision-06788.html">collide</a> with the Milky Way in in about 2 billion years.<br><br><strong>Tomorrow's picture: </strong>185 AD
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-2026-july-24-rcw-86-historical-supernova-remnant/">APOD: 2026 July 24 &#8211; RCW 86: Historical Supernova Remnant</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-july-22-the-corona-australis-molecular-cloud-and-the-chandelier-cluster/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260723">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-2026-july-24-rcw-86-historical-supernova-remnant/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Keighley Rockcliffe, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>NGC 7635: The Bubble Nebula</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-july-27-ngc-7635-the-bubble-nebula/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-july-27-ngc-7635-the-bubble-nebula/</guid>
+		<pubDate>Mon, 27 Jul 2026 16:30:52 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-july-27-ngc-7635-the-bubble-nebula/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg?w=1616&#038;h=1312&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260727</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://app.astrobin.com/u/pawelp">Paweł Piechnik</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://app.astrobin.com/u/pawelp">Paweł Piechnik</a>]]></apod:copyright>
+		<apod:alt>A starfield is shown with a big light bubble in  the center. To some, the bubble may resemble a skull. Please see the explanation for more detailed information.</apod:alt>
+		<apod:primary_image_alt>A starfield is shown with a big light bubble in  the center. To some, the bubble may resemble a skull. Please see the explanation for more detailed information.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong>  What created this huge space bubble? Blown by the wind from a star, this <a href="https://www.exploratorium.edu/snacks/tag/bubbles">tantalizing</a>, head-like apparition is cataloged as NGC 7635, but known simply as the <a href="https://en.wikipedia.org/wiki/Bubble_Nebula">Bubble Nebula</a>. Taken from <a href="https://youtu.be/2CHS7fdbX6o">Krakow</a>, <a href="https://en.wikipedia.org/wiki/Poland">Poland</a>, the <a href="https://www.flickr.com/photos/181668516@N04/54784480055/">featured view</a> utilizes a long exposure to reveal the intricate details of <a href="https://apod.nasa.gov/apod/ap030617.html">this cosmic bubble</a> and its environment. Although it looks delicate, the 10 <a href="http://chandra.harvard.edu/photo/cosmic_distance.html">light-year</a> diameter bubble offers evidence of <a href="https://apod.nasa.gov/apod/ap260715.html">violent processes</a> at work. Seen here right of <a href="https://apod.nasa.gov/apod/ap170531.html">the Bubble</a>'s center, a bright hot star is embedded in the nebula's <a href="https://en.wikipedia.org/wiki/Reflection_nebula">reflecting</a> dust. A fierce <a href="http://en.wikipedia.org/wiki/Stellar_wind">stellar wind</a> and intense radiation from the <a href="https://science.nasa.gov/universe/stars/">star</a>, which likely has a mass 10 to 20 times that of the <a href="https://science.nasa.gov/sun/">Sun</a>, has blasted out the <a href="https://ui.adsabs.harvard.edu/abs/1995A%26A...295..509C/abstract">structure of glowing gas</a> against denser material in a surrounding <a href="https://apod.nasa.gov/apod/ap230129.html">molecular cloud</a>. The intriguing <a href="https://science.nasa.gov/image-detail/37893980612-307324af83-o/">Bubble Nebula</a> lies a mere 11,000 <a href="https://spaceplace.nasa.gov/light-year/">light-year</a>s away toward the <a href="https://media.istockphoto.com/id/159176199/photo/cat.jpg?s=612x612&amp;w=0&amp;k=20&amp;c=U34AGa5EN0xuBbrzpSygVHcR7RHuwWAivyH7hpHw_m0=">boastful</a> constellation <a href="http://en.wikipedia.org/wiki/Cassiopeia_%28constellation%29">Cassiopeia</a>.<br><br><strong>Tomorrow's picture:</strong> volcanic connection]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong>  What created this huge space bubble? Blown by the wind from a star, this <a href="https://www.exploratorium.edu/snacks/tag/bubbles">tantalizing</a>, head-like apparition is cataloged as NGC 7635, but known simply as the <a href="https://en.wikipedia.org/wiki/Bubble_Nebula">Bubble Nebula</a>. Taken from <a href="https://youtu.be/2CHS7fdbX6o">Krakow</a>, <a href="https://en.wikipedia.org/wiki/Poland">Poland</a>, the <a href="https://www.flickr.com/photos/181668516@N04/54784480055/">featured view</a> utilizes a long exposure to reveal the intricate details of <a href="https://apod.nasa.gov/apod/ap030617.html">this cosmic bubble</a> and its environment. Although it looks delicate, the 10 <a href="http://chandra.harvard.edu/photo/cosmic_distance.html">light-year</a> diameter bubble offers evidence of <a href="https://apod.nasa.gov/apod/ap260715.html">violent processes</a> at work. Seen here right of <a href="https://apod.nasa.gov/apod/ap170531.html">the Bubble</a>'s center, a bright hot star is embedded in the nebula's <a href="https://en.wikipedia.org/wiki/Reflection_nebula">reflecting</a> dust. A fierce <a href="http://en.wikipedia.org/wiki/Stellar_wind">stellar wind</a> and intense radiation from the <a href="https://science.nasa.gov/universe/stars/">star</a>, which likely has a mass 10 to 20 times that of the <a href="https://science.nasa.gov/sun/">Sun</a>, has blasted out the <a href="https://ui.adsabs.harvard.edu/abs/1995A%26A...295..509C/abstract">structure of glowing gas</a> against denser material in a surrounding <a href="https://apod.nasa.gov/apod/ap230129.html">molecular cloud</a>. The intriguing <a href="https://science.nasa.gov/image-detail/37893980612-307324af83-o/">Bubble Nebula</a> lies a mere 11,000 <a href="https://spaceplace.nasa.gov/light-year/">light-year</a>s away toward the <a href="https://media.istockphoto.com/id/159176199/photo/cat.jpg?s=612x612&amp;w=0&amp;k=20&amp;c=U34AGa5EN0xuBbrzpSygVHcR7RHuwWAivyH7hpHw_m0=">boastful</a> constellation <a href="http://en.wikipedia.org/wiki/Cassiopeia_%28constellation%29">Cassiopeia</a>.<br><br><strong>Tomorrow's picture:</strong> volcanic connection]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 July 27 - NGC 7635: The Bubble Nebula</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-july-27-ngc-7635-the-bubble-nebula/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation:  What created this huge space bubble? Blown by the wind from a star, this tantalizing, head-like apparition is cataloged as NGC 7635, but known simply as the Bubble Nebula. Taken from Krakow, Poland, the featured view utilizes a long exposure to reveal the intricate details of this cosmic bubble and its environment. Although it looks delicate, the 10 light-year diameter bubble offers evidence of violent processes at work. Seen here right of the Bubble&#039;s center, a bright hot star is embedded in the nebula&#039;s reflecting dust. A fierce stellar wind and intense radiation from the star, which likely has a mass 10 to 20 times that of the Sun, has blasted out the structure of glowing gas against denser material in a surrounding molecular cloud. The intriguing Bubble Nebula lies a mere 11,000 light-years away toward the boastful constellation Cassiopeia.Tomorrow&#039;s picture: volcanic connection">
+<!-- -->
+<meta name="keywords" content="ngc 7635: the bubble nebula">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NGC 7635: The Bubble Nebula">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-july-27-ngc-7635-the-bubble-nebula/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg?w=1616&#038;h=1312&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg?w=1616&#038;h=1312&#038;fit=clip">
+<meta property="og:image:alt" content="A starfield is shown with a big light bubble in  the center. To some, the bubble may resemble a skull. Please see the explanation for more detailed information.">
+<meta property="article:published_time" content="2026-07-27T12:30:52-04:00">
+<meta property="article:modified_time" content="2026-07-30T17:11:05-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NGC 7635: The Bubble Nebula">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg?w=1616&#038;h=1312&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 July 27<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/july/Bubble_Piechnik_1616.jpg" alt="A starfield is shown with a big light bubble in  the center. To some, the bubble may resemble a skull. Please see the explanation for more detailed information."></a>
+</center>
+
+<center>
+<b> NGC 7635: The Bubble Nebula </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://app.astrobin.com/u/pawelp">Paweł Piechnik</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong>  What created this huge space bubble? Blown by the wind from a star, this <a href="https://www.exploratorium.edu/snacks/tag/bubbles">tantalizing</a>, head-like apparition is cataloged as NGC 7635, but known simply as the <a href="https://en.wikipedia.org/wiki/Bubble_Nebula">Bubble Nebula</a>. Taken from <a href="https://youtu.be/2CHS7fdbX6o">Krakow</a>, <a href="https://en.wikipedia.org/wiki/Poland">Poland</a>, the <a href="https://www.flickr.com/photos/181668516@N04/54784480055/">featured view</a> utilizes a long exposure to reveal the intricate details of <a href="https://apod.nasa.gov/apod/ap030617.html">this cosmic bubble</a> and its environment. Although it looks delicate, the 10 <a href="http://chandra.harvard.edu/photo/cosmic_distance.html">light-year</a> diameter bubble offers evidence of <a href="https://apod.nasa.gov/apod/ap260715.html">violent processes</a> at work. Seen here right of <a href="https://apod.nasa.gov/apod/ap170531.html">the Bubble</a>'s center, a bright hot star is embedded in the nebula's <a href="https://en.wikipedia.org/wiki/Reflection_nebula">reflecting</a> dust. A fierce <a href="http://en.wikipedia.org/wiki/Stellar_wind">stellar wind</a> and intense radiation from the <a href="https://science.nasa.gov/universe/stars/">star</a>, which likely has a mass 10 to 20 times that of the <a href="https://science.nasa.gov/sun/">Sun</a>, has blasted out the <a href="https://ui.adsabs.harvard.edu/abs/1995A%26A...295..509C/abstract">structure of glowing gas</a> against denser material in a surrounding <a href="https://apod.nasa.gov/apod/ap230129.html">molecular cloud</a>. The intriguing <a href="https://science.nasa.gov/image-detail/37893980612-307324af83-o/">Bubble Nebula</a> lies a mere 11,000 <a href="https://spaceplace.nasa.gov/light-year/">light-year</a>s away toward the <a href="https://media.istockphoto.com/id/159176199/photo/cat.jpg?s=612x612&amp;w=0&amp;k=20&amp;c=U34AGa5EN0xuBbrzpSygVHcR7RHuwWAivyH7hpHw_m0=">boastful</a> constellation <a href="http://en.wikipedia.org/wiki/Cassiopeia_%28constellation%29">Cassiopeia</a>.<br><br><strong>Tomorrow's picture:</strong> volcanic connection
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-2026-july-28-barnards-loop-over-twin-volcanoes/">APOD: 2026 July 28 &#8211; Barnards Loop over Twin Volcanoes</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-july-26-simulation-tng50-a-galaxy-cluster-forms/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260727">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-2026-july-28-barnards-loop-over-twin-volcanoes/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Keighley Rockcliffe, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Psyche Receives Gravity Assist from Mars</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-july-29-psyche-receives-gravity-assist-from-mars/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-july-29-psyche-receives-gravity-assist-from-mars/</guid>
+		<pubDate>Wed, 29 Jul 2026 15:25:54 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-july-29-psyche-receives-gravity-assist-from-mars/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia26/pia26586/PIA26586.png?w=1648&#038;h=1080&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260729</apod:discussion>
+		<apod:credit><![CDATA[NASA/JPL-Caltech/ASU/True Story Films]]></apod:credit>
+		<apod:copyright><![CDATA[NASA/JPL-Caltech/ASU/True Story Films]]></apod:copyright>
+		<apod:alt>A time-lapse composite against a black background shows a series of concentric, glowing orange crescent planetary horizons that expand outward from a small central point, illustrating a spacecraft&#039;s approach during a Mars flyby.</apod:alt>
+		<apod:primary_image_alt>A time-lapse composite against a black background shows a series of concentric, glowing orange crescent planetary horizons that expand outward from a small central point, illustrating a spacecraft&#039;s approach during a Mars flyby.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> Solar System bodies make deep space exploration more fuel efficient! <a href="https://science.nasa.gov/blogs/psyche/2026/07/17/nasas-psyche-mission-delivers-mars-flyby-data-time-lapse-video/">Today’s video</a> shows <a href="https://science.nasa.gov/mission/psyche/">the Psyche spacecraft</a> gaining speed and changing its trajectory with minimal fuel spent due to a <a href="https://science.nasa.gov/learn/basics-of-space-flight/primer/">gravity assist</a> from Mars in May 2026. Mars has an average orbital speed of almost 87,000 km/h (54,000 mph) around the Sun. Its orbital motion and its gravity allowed Mars to pull Psyche along with it, increasing the spacecraft’s speed. Gravity assists have been used since 1959’s <a href="https://en.wikipedia.org/wiki/Luna_3">Luna 3 mission</a> to allow for spacecraft (<a href="https://www.youtube.com/watch?v=l8TA7BU2Bvo">the Voyagers</a>, <a href="https://apod.nasa.gov/apod/ap990826.html">Cassini</a>) to reach farther than they could with fuel alone. This assist helped the Psyche spacecraft on its journey to the Psyche asteroid, which it will reach in 2029. While passing Mars, the spacecraft tested instruments that will analyze the asteroid’s composition and magnetic field. This is the first mission to an asteroid <a href="https://www.planetary.org/space-missions/psyche">thought to be largely made of metal</a>, an essential building block for planets, rather than rock or ice.<br><br>Find dark skies and look up this August to witness <a href="https://science.nasa.gov/solar-system/meteors-meteorites/perseids/">the Perseids meteor shower</a> uninhibited by the Moon!<br><br><strong>Tomorrow's picture:</strong> a red Sun]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> Solar System bodies make deep space exploration more fuel efficient! <a href="https://science.nasa.gov/blogs/psyche/2026/07/17/nasas-psyche-mission-delivers-mars-flyby-data-time-lapse-video/">Today’s video</a> shows <a href="https://science.nasa.gov/mission/psyche/">the Psyche spacecraft</a> gaining speed and changing its trajectory with minimal fuel spent due to a <a href="https://science.nasa.gov/learn/basics-of-space-flight/primer/">gravity assist</a> from Mars in May 2026. Mars has an average orbital speed of almost 87,000 km/h (54,000 mph) around the Sun. Its orbital motion and its gravity allowed Mars to pull Psyche along with it, increasing the spacecraft’s speed. Gravity assists have been used since 1959’s <a href="https://en.wikipedia.org/wiki/Luna_3">Luna 3 mission</a> to allow for spacecraft (<a href="https://www.youtube.com/watch?v=l8TA7BU2Bvo">the Voyagers</a>, <a href="https://apod.nasa.gov/apod/ap990826.html">Cassini</a>) to reach farther than they could with fuel alone. This assist helped the Psyche spacecraft on its journey to the Psyche asteroid, which it will reach in 2029. While passing Mars, the spacecraft tested instruments that will analyze the asteroid’s composition and magnetic field. This is the first mission to an asteroid <a href="https://www.planetary.org/space-missions/psyche">thought to be largely made of metal</a>, an essential building block for planets, rather than rock or ice.<br><br>Find dark skies and look up this August to witness <a href="https://science.nasa.gov/solar-system/meteors-meteorites/perseids/">the Perseids meteor shower</a> uninhibited by the Moon!<br><br><strong>Tomorrow's picture:</strong> a red Sun]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 July 29 - Psyche Receives Gravity Assist from Mars</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-july-29-psyche-receives-gravity-assist-from-mars/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff, Jerry Bonnell">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Solar System bodies make deep space exploration more fuel efficient! Today’s video shows the Psyche spacecraft gaining speed and changing its trajectory with minimal fuel spent due to a gravity assist from Mars in May 2026. Mars has an average orbital speed of almost 87,000 km/h (54,000 mph) around the Sun. Its orbital motion and its gravity allowed Mars to pull Psyche along with it, increasing the spacecraft’s speed. Gravity assists have been used since 1959’s Luna 3 mission to allow for spacecraft (the Voyagers, Cassini) to reach farther than they could with fuel alone. This assist helped the Psyche spacecraft on its journey to the Psyche asteroid, which it will reach in 2029. While passing Mars, the spacecraft tested instruments that will analyze the asteroid’s composition and magnetic field. This is the first mission to an asteroid thought to be largely made of metal, an essential building block for planets, rather than rock or ice.Find dark skies and look up this August to witness the Perseids meteor shower uninhibited by the Moon!Tomorrow&#039;s picture: a red Sun">
+<!-- -->
+<meta name="keywords" content="psyche receives gravity assist from mars">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Psyche Receives Gravity Assist from Mars">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-july-29-psyche-receives-gravity-assist-from-mars/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia26/pia26586/PIA26586.png?w=1648&#038;h=1080&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia26/pia26586/PIA26586.png?w=1648&#038;h=1080&#038;fit=clip">
+<meta property="og:image:alt" content="A time-lapse composite against a black background shows a series of concentric, glowing orange crescent planetary horizons that expand outward from a small central point, illustrating a spacecraft&#039;s approach during a Mars flyby.">
+<meta property="article:published_time" content="2026-07-29T11:25:54-04:00">
+<meta property="article:modified_time" content="2026-08-05T14:07:34-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Psyche Receives Gravity Assist from Mars">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/psd/photojournal/pia/pia26/pia26586/PIA26586.png?w=1648&#038;h=1080&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 July 29<br>
+
+<iframe width="960" height="540" src="//www.youtube.com/embed/6_cH5-daLjg?rel=0" frameborder="0" allowfullscreen></iframe>
+</center>
+
+<center>
+<b> Psyche Receives Gravity Assist from Mars </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+NASA/JPL-Caltech/ASU/True Story Films
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> Solar System bodies make deep space exploration more fuel efficient! <a href="https://science.nasa.gov/blogs/psyche/2026/07/17/nasas-psyche-mission-delivers-mars-flyby-data-time-lapse-video/">Today’s video</a> shows <a href="https://science.nasa.gov/mission/psyche/">the Psyche spacecraft</a> gaining speed and changing its trajectory with minimal fuel spent due to a <a href="https://science.nasa.gov/learn/basics-of-space-flight/primer/">gravity assist</a> from Mars in May 2026. Mars has an average orbital speed of almost 87,000 km/h (54,000 mph) around the Sun. Its orbital motion and its gravity allowed Mars to pull Psyche along with it, increasing the spacecraft’s speed. Gravity assists have been used since 1959’s <a href="https://en.wikipedia.org/wiki/Luna_3">Luna 3 mission</a> to allow for spacecraft (<a href="https://www.youtube.com/watch?v=l8TA7BU2Bvo">the Voyagers</a>, <a href="https://apod.nasa.gov/apod/ap990826.html">Cassini</a>) to reach farther than they could with fuel alone. This assist helped the Psyche spacecraft on its journey to the Psyche asteroid, which it will reach in 2029. While passing Mars, the spacecraft tested instruments that will analyze the asteroid’s composition and magnetic field. This is the first mission to an asteroid <a href="https://www.planetary.org/space-missions/psyche">thought to be largely made of metal</a>, an essential building block for planets, rather than rock or ice.<br><br>Find dark skies and look up this August to witness <a href="https://science.nasa.gov/solar-system/meteors-meteorites/perseids/">the Perseids meteor shower</a> uninhibited by the Moon!<br><br><strong>Tomorrow's picture:</strong> a red Sun
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-july-30-red-sun-trough-wildfire-smoke/">APOD: 2026 July 30 &#8211; Red Sun through Wildfire Smoke</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-july-28-barnards-loop-over-twin-volcanoes/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260729">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-july-30-red-sun-trough-wildfire-smoke/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Keighley Rockcliffe, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Six Moons of Saturn</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-august-11-six-moons-of-saturn/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-august-11-six-moons-of-saturn/</guid>
+		<pubDate>Tue, 11 Aug 2026 04:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-august-11-six-moons-of-saturn/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg?w=1000&#038;h=896&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260811</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://app.astrobin.com/u/Trentini">Alexandre Trentini</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://app.astrobin.com/u/Trentini">Alexandre Trentini</a>]]></apod:copyright>
+		<apod:alt>A telescopic image of Saturn with rings and six moons.</apod:alt>
+		<apod:primary_image_alt>A telescopic image of Saturn with rings and six moons.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn">How many moons does Saturn have?</a> While the total will likely continue to grow, as of June 2026 the ringed gas giant had 293 confirmed moons. That's easily more <a href="http://ssd.jpl.nasa.gov/?sat_discovery">than any other planet</a> of the Solar System, including ruling gas giant Jupiter with a mere 115 confirmed moons. Most of Saturn's known moons are small, irregular satellites. Many are only few kilometers to a fraction of a kilometer across and <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn#Irregular_moons">grouped in</a> tilted outer orbits. Six of its largest satellites can be seen here, though, in this sharp telescopic <a href="https://app.astrobin.com/i/ztmhhp">Saturnian family portrait</a> taken on August 5. Larger than Earth's Moon and even slightly larger than inner planet Mercury, <a href="http://solarsystem.nasa.gov/planets/profile.cfm?Object=Sat_Titan">Titan</a>, with a diameter of 5,150 kilometers, is at lower right. You can also spot icy major moons <a href="https://apod.nasa.gov/apod/fap/ap100511.html">Mimas</a>, <a href="https://apod.nasa.gov/apod/fap/ap091208.html">Tethys</a>, <a href="https://apod.nasa.gov/apod/fap/ap120208.html">Enceladus</a>, <a href="https://apod.nasa.gov/apod/fap/ap070801.html">Dione</a>, and <a href="https://apod.nasa.gov/apod/fap/ap080513.html">Rhea</a> in the frame. Saturn's first known natural satellite, Titan was <a href="https://apod.nasa.gov/apod/fap/ap050325.html">discovered in 1655</a> by Dutch astronomer Christiaan Huygens. During the space age Voyager and <a href="https://science.nasa.gov/mission/cassini/science/moons/">Cassini discoveries</a> have added to the <a href="https://ui.adsabs.harvard.edu/abs/2025PSJ.....6..283A/abstract">swelling ranks</a> of Saturnian moons.<br><br><strong>NASA Stream:</strong> <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/">August 12 Total Solar Eclipse</a>.<br><strong>Tomorrow's picture: </strong>pixels in space<br>]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn">How many moons does Saturn have?</a> While the total will likely continue to grow, as of June 2026 the ringed gas giant had 293 confirmed moons. That's easily more <a href="http://ssd.jpl.nasa.gov/?sat_discovery">than any other planet</a> of the Solar System, including ruling gas giant Jupiter with a mere 115 confirmed moons. Most of Saturn's known moons are small, irregular satellites. Many are only few kilometers to a fraction of a kilometer across and <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn#Irregular_moons">grouped in</a> tilted outer orbits. Six of its largest satellites can be seen here, though, in this sharp telescopic <a href="https://app.astrobin.com/i/ztmhhp">Saturnian family portrait</a> taken on August 5. Larger than Earth's Moon and even slightly larger than inner planet Mercury, <a href="http://solarsystem.nasa.gov/planets/profile.cfm?Object=Sat_Titan">Titan</a>, with a diameter of 5,150 kilometers, is at lower right. You can also spot icy major moons <a href="https://apod.nasa.gov/apod/fap/ap100511.html">Mimas</a>, <a href="https://apod.nasa.gov/apod/fap/ap091208.html">Tethys</a>, <a href="https://apod.nasa.gov/apod/fap/ap120208.html">Enceladus</a>, <a href="https://apod.nasa.gov/apod/fap/ap070801.html">Dione</a>, and <a href="https://apod.nasa.gov/apod/fap/ap080513.html">Rhea</a> in the frame. Saturn's first known natural satellite, Titan was <a href="https://apod.nasa.gov/apod/fap/ap050325.html">discovered in 1655</a> by Dutch astronomer Christiaan Huygens. During the space age Voyager and <a href="https://science.nasa.gov/mission/cassini/science/moons/">Cassini discoveries</a> have added to the <a href="https://ui.adsabs.harvard.edu/abs/2025PSJ.....6..283A/abstract">swelling ranks</a> of Saturnian moons.<br><br><strong>NASA Stream:</strong> <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/">August 12 Total Solar Eclipse</a>.<br><strong>Tomorrow's picture: </strong>pixels in space<br>]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 August 11 - Six Moons of Saturn</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-august-11-six-moons-of-saturn/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: How many moons does Saturn have? While the total will likely continue to grow, as of June 2026 the ringed gas giant had 293 confirmed moons. That&#039;s easily more than any other planet of the Solar System, including ruling gas giant Jupiter with a mere 115 confirmed moons. Most of Saturn&#039;s known moons are small, irregular satellites. Many are only few kilometers to a fraction of a kilometer across and grouped in tilted outer orbits. Six of its largest satellites can be seen here, though, in this sharp telescopic Saturnian family portrait taken on August 5. Larger than Earth&#039;s Moon and even slightly larger than inner planet Mercury, Titan, with a diameter of 5,150 kilometers, is at lower right. You can also spot icy major moons Mimas, Tethys, Enceladus, Dione, and Rhea in the frame. Saturn&#039;s first known natural satellite, Titan was discovered in 1655 by Dutch astronomer Christiaan Huygens. During the space age Voyager and Cassini discoveries have added to the swelling ranks of Saturnian moons.NASA Stream: August 12 Total Solar Eclipse.Tomorrow&#039;s picture: pixels in space">
+<!-- -->
+<meta name="keywords" content="six moons of saturn">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Six Moons of Saturn">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-august-11-six-moons-of-saturn/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg?w=1000&#038;h=896&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg?w=1000&#038;h=896&#038;fit=clip">
+<meta property="og:image:alt" content="A telescopic image of Saturn with rings and six moons.">
+<meta property="article:published_time" content="2026-08-11T00:05:00-04:00">
+<meta property="article:modified_time" content="2026-08-10T17:23:18-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Six Moons of Saturn">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg?w=1000&#038;h=896&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 August 11<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/2026-08-05-0609_7-SaturnSystem_c.jpg" alt="A telescopic image of Saturn with rings and six moons."></a>
+</center>
+
+<center>
+<b> Six Moons of Saturn </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://app.astrobin.com/u/Trentini">Alexandre Trentini</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn">How many moons does Saturn have?</a> While the total will likely continue to grow, as of June 2026 the ringed gas giant had 293 confirmed moons. That's easily more <a href="http://ssd.jpl.nasa.gov/?sat_discovery">than any other planet</a> of the Solar System, including ruling gas giant Jupiter with a mere 115 confirmed moons. Most of Saturn's known moons are small, irregular satellites. Many are only few kilometers to a fraction of a kilometer across and <a href="https://en.wikipedia.org/wiki/Moons_of_Saturn#Irregular_moons">grouped in</a> tilted outer orbits. Six of its largest satellites can be seen here, though, in this sharp telescopic <a href="https://app.astrobin.com/i/ztmhhp">Saturnian family portrait</a> taken on August 5. Larger than Earth's Moon and even slightly larger than inner planet Mercury, <a href="http://solarsystem.nasa.gov/planets/profile.cfm?Object=Sat_Titan">Titan</a>, with a diameter of 5,150 kilometers, is at lower right. You can also spot icy major moons <a href="https://apod.nasa.gov/apod/fap/ap100511.html">Mimas</a>, <a href="https://apod.nasa.gov/apod/fap/ap091208.html">Tethys</a>, <a href="https://apod.nasa.gov/apod/fap/ap120208.html">Enceladus</a>, <a href="https://apod.nasa.gov/apod/fap/ap070801.html">Dione</a>, and <a href="https://apod.nasa.gov/apod/fap/ap080513.html">Rhea</a> in the frame. Saturn's first known natural satellite, Titan was <a href="https://apod.nasa.gov/apod/fap/ap050325.html">discovered in 1655</a> by Dutch astronomer Christiaan Huygens. During the space age Voyager and <a href="https://science.nasa.gov/mission/cassini/science/moons/">Cassini discoveries</a> have added to the <a href="https://ui.adsabs.harvard.edu/abs/2025PSJ.....6..283A/abstract">swelling ranks</a> of Saturnian moons.<br><br><strong>NASA Stream:</strong> <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/">August 12 Total Solar Eclipse</a>.<br><strong>Tomorrow's picture: </strong>pixels in space<br>
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-2026-august-12-perseids-over-a-little-planet/">APOD: 2026 August 12 &#8211; Perseids over a Little Planet</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-august-10-three-galaxy-pairs/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260811">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-12-perseids-over-a-little-planet/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Jerry Bonnell, Cecilia Chirenti, Robert Nemiroff, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Total Solar Eclipse Over Spain</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-august-13-total-solar-eclipse-over-spain/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-august-13-total-solar-eclipse-over-spain/</guid>
+		<pubDate>Thu, 13 Aug 2026 04:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-august-13-total-solar-eclipse-over-spain/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg?w=1708&#038;h=2560&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260813</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.instagram.com/duskpiper/">Ruiyu Zhang</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.instagram.com/duskpiper/">Ruiyu Zhang</a>]]></apod:copyright>
+		<apod:alt>The Moon covers the Sun in the middle of the sky above an ornate church. A ring of bright whisps from the Sun&#039;s corona surrounds the Moon. In front of the church is a river that shows ripples across the eclipse&#039;s reflection. Some people are boating in the river.</apod:alt>
+		<apod:primary_image_alt>The Moon covers the Sun in the middle of the sky above an ornate church. A ring of bright whisps from the Sun&#039;s corona surrounds the Moon. In front of the church is a river that shows ripples across the eclipse&#039;s reflection. Some people are boating in the river.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> On August 12th, 2026, the Moon <a href="https://science.nasa.gov/eclipses/geometry/">totally eclipsed</a> the Sun and <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/#total-eclipse:~:text=In%20the%20Moon%27s%20Shadow">cast its shadow</a> across Siberia, Greenland, Iceland, Spain, and Portugal. <a href="https://www.instagram.com/p/Db81h60gMAP/">Today’s image</a> features two <a href="https://science.nasa.gov/image-article/apod-2025-june-12-solar-eclipse/">total solar eclipses</a> viewed from <a href="https://youtu.be/muBCArUO_s4?si=MyAU1VKgRYqBqgah">Zaragoza, Spain</a>, one over the Cathedral-Basilica of Our Lady of the Pillar and the other reflecting in the Ebro River. For a few moments, Spain saw its first major total solar eclipse since 1905. Those witnessing totality may experience a chill in the air, the quieting of birds, the confused chirps of insects, and the shared awe of many. It’s <a href="https://spaceplace.nasa.gov/sun-corona/en/">the corona</a>’s time to shine as the Sun’s bright disk is blocked by the Moon. Among other <a href="https://science.nasa.gov/eclipses/nasa-research/">reasons to study eclipses</a>, they help scientists understand why the corona is millions of degrees hotter than the Sun’s surface. <a href="https://science.nasa.gov/eclipses/citizen-science/">Enthusiastic citizens</a> can contribute to these studies by recording how wildlife responds, imaging the corona, and monitoring air temperature and clouds.<br><br><strong>More spectacular eclipse images:</strong> <a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture:</strong> a mystery]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> On August 12th, 2026, the Moon <a href="https://science.nasa.gov/eclipses/geometry/">totally eclipsed</a> the Sun and <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/#total-eclipse:~:text=In%20the%20Moon%27s%20Shadow">cast its shadow</a> across Siberia, Greenland, Iceland, Spain, and Portugal. <a href="https://www.instagram.com/p/Db81h60gMAP/">Today’s image</a> features two <a href="https://science.nasa.gov/image-article/apod-2025-june-12-solar-eclipse/">total solar eclipses</a> viewed from <a href="https://youtu.be/muBCArUO_s4?si=MyAU1VKgRYqBqgah">Zaragoza, Spain</a>, one over the Cathedral-Basilica of Our Lady of the Pillar and the other reflecting in the Ebro River. For a few moments, Spain saw its first major total solar eclipse since 1905. Those witnessing totality may experience a chill in the air, the quieting of birds, the confused chirps of insects, and the shared awe of many. It’s <a href="https://spaceplace.nasa.gov/sun-corona/en/">the corona</a>’s time to shine as the Sun’s bright disk is blocked by the Moon. Among other <a href="https://science.nasa.gov/eclipses/nasa-research/">reasons to study eclipses</a>, they help scientists understand why the corona is millions of degrees hotter than the Sun’s surface. <a href="https://science.nasa.gov/eclipses/citizen-science/">Enthusiastic citizens</a> can contribute to these studies by recording how wildlife responds, imaging the corona, and monitoring air temperature and clouds.<br><br><strong>More spectacular eclipse images:</strong> <a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture:</strong> a mystery]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 August 13 - Total Solar Eclipse Over Spain</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-august-13-total-solar-eclipse-over-spain/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Keighley Rockcliffe">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: On August 12th, 2026, the Moon totally eclipsed the Sun and cast its shadow across Siberia, Greenland, Iceland, Spain, and Portugal. Today’s image features two total solar eclipses viewed from Zaragoza, Spain, one over the Cathedral-Basilica of Our Lady of the Pillar and the other reflecting in the Ebro River. For a few moments, Spain saw its first major total solar eclipse since 1905. Those witnessing totality may experience a chill in the air, the quieting of birds, the confused chirps of insects, and the shared awe of many. It’s the corona’s time to shine as the Sun’s bright disk is blocked by the Moon. Among other reasons to study eclipses, they help scientists understand why the corona is millions of degrees hotter than the Sun’s surface. Enthusiastic citizens can contribute to these studies by recording how wildlife responds, imaging the corona, and monitoring air temperature and clouds.More spectacular eclipse images: Solar Eclipse of 2026 August 12Tomorrow&#039;s picture: a mystery">
+<!-- -->
+<meta name="keywords" content="total solar eclipse over spain">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Total Solar Eclipse Over Spain">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-august-13-total-solar-eclipse-over-spain/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg?w=1708&#038;h=2560&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg?w=1708&#038;h=2560&#038;fit=clip">
+<meta property="og:image:alt" content="The Moon covers the Sun in the middle of the sky above an ornate church. A ring of bright whisps from the Sun&#039;s corona surrounds the Moon. In front of the church is a river that shows ripples across the eclipse&#039;s reflection. Some people are boating in the river.">
+<meta property="article:published_time" content="2026-08-13T00:05:00-04:00">
+<meta property="article:modified_time" content="2026-08-12T21:14:52-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Total Solar Eclipse Over Spain">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg?w=1708&#038;h=2560&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 August 13<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/total_eclipse_spain26.jpg" alt="The Moon covers the Sun in the middle of the sky above an ornate church. A ring of bright whisps from the Sun&#039;s corona surrounds the Moon. In front of the church is a river that shows ripples across the eclipse&#039;s reflection. Some people are boating in the river."></a>
+</center>
+
+<center>
+<b> Total Solar Eclipse Over Spain </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.instagram.com/duskpiper/">Ruiyu Zhang</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> On August 12th, 2026, the Moon <a href="https://science.nasa.gov/eclipses/geometry/">totally eclipsed</a> the Sun and <a href="https://science.nasa.gov/eclipses/future-eclipses/total-solar-eclipse-on-august-12-2026/#total-eclipse:~:text=In%20the%20Moon%27s%20Shadow">cast its shadow</a> across Siberia, Greenland, Iceland, Spain, and Portugal. <a href="https://www.instagram.com/p/Db81h60gMAP/">Today’s image</a> features two <a href="https://science.nasa.gov/image-article/apod-2025-june-12-solar-eclipse/">total solar eclipses</a> viewed from <a href="https://youtu.be/muBCArUO_s4?si=MyAU1VKgRYqBqgah">Zaragoza, Spain</a>, one over the Cathedral-Basilica of Our Lady of the Pillar and the other reflecting in the Ebro River. For a few moments, Spain saw its first major total solar eclipse since 1905. Those witnessing totality may experience a chill in the air, the quieting of birds, the confused chirps of insects, and the shared awe of many. It’s <a href="https://spaceplace.nasa.gov/sun-corona/en/">the corona</a>’s time to shine as the Sun’s bright disk is blocked by the Moon. Among other <a href="https://science.nasa.gov/eclipses/nasa-research/">reasons to study eclipses</a>, they help scientists understand why the corona is millions of degrees hotter than the Sun’s surface. <a href="https://science.nasa.gov/eclipses/citizen-science/">Enthusiastic citizens</a> can contribute to these studies by recording how wildlife responds, imaging the corona, and monitoring air temperature and clouds.<br><br><strong>More spectacular eclipse images:</strong> <a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture:</strong> a mystery
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/apod-2026-august-14-total-solar-eclipse-from-greenland/">APOD: 2026 August 14 &#8211; Total Solar Eclipse from Greenland</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-august-12-perseids-over-a-little-planet/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260813">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-14-total-solar-eclipse-from-greenland/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Keighley Rockcliffe, Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Milky Way over Yellowstone</title>
+		<link>https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/</guid>
+		<pubDate>Sun, 16 Aug 2026 04:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg?w=1800&#038;h=1200&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=260816</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.davelaneastrophotography.com/about/">Dave Lane</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.davelaneastrophotography.com/about/">Dave Lane</a>]]></apod:copyright>
+		<apod:alt>A composite image of the night sky above the old faithful guyser in Yelowstone National Park.</apod:alt>
+		<apod:primary_image_alt>A composite image of the night sky above the old faithful guyser in Yelowstone National Park.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> The Milky Way was not created by an evaporating lake. The colorful pool of water, about 10 meters across, is known as <a href="https://www.nps.gov/features/yell/tours/fountainpaint/silexspring.htm">Silex Spring</a> and is located in <a href="http://www.yellowstone.co/pdfs/ytsummer2011.pdf">Yellowstone National Park</a> in <a href="https://en.wikipedia.org/wiki/Wyoming">Wyoming</a>, <a href="https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States">USA</a>. Illuminated artificially, the colors are caused by layers of <a href="https://oceanservice.noaa.gov/facts/extremophile.html">bacteria</a> that grow in the <a href="https://goo.gl/maps/ZcydY">hot spring</a>. Steam rises off <a href="https://youtu.be/9jQNg_q-KzY">the spring</a>, heated by underground <a href="https://astrobiology.nasa.gov/news/the-magma-ocean-and-us/">magma</a> associated with the <a href="https://en.wikipedia.org/wiki/Yellowstone_hotspot">Yellowstone Hotspot</a>. Unrelated and far in the distance, the <a href="https://apod.nasa.gov/apod/ap110710.html">central band</a> of our <a href="https://science.nasa.gov/resource/the-milky-way-galaxy/">Milky Way Galaxy</a> arches high overhead, a band lit by billions of stars. The picture features a 16-image panorama taken in 2014. If the <a href="https://www.usgs.gov/observatories/yvo/news/just-how-long-has-yellowstone-hotspot-been-around">Yellowstone Hotspot</a> causes <a href="https://imgur.com/EzwC34o">another supervolcanic eruption</a> as it did about <a href="https://en.wikipedia.org/wiki/Lava_Creek_Tuff">640,000 years ago</a>, a <a href="https://www.usgs.gov/faqs/what-would-happen-if-a-supervolcano-eruption-occurred-again-yellowstone">large part of North America</a> would be affected.<br><br><strong>Growing Gallery: </strong><a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture: </strong>a golden crown]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> The Milky Way was not created by an evaporating lake. The colorful pool of water, about 10 meters across, is known as <a href="https://www.nps.gov/features/yell/tours/fountainpaint/silexspring.htm">Silex Spring</a> and is located in <a href="http://www.yellowstone.co/pdfs/ytsummer2011.pdf">Yellowstone National Park</a> in <a href="https://en.wikipedia.org/wiki/Wyoming">Wyoming</a>, <a href="https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States">USA</a>. Illuminated artificially, the colors are caused by layers of <a href="https://oceanservice.noaa.gov/facts/extremophile.html">bacteria</a> that grow in the <a href="https://goo.gl/maps/ZcydY">hot spring</a>. Steam rises off <a href="https://youtu.be/9jQNg_q-KzY">the spring</a>, heated by underground <a href="https://astrobiology.nasa.gov/news/the-magma-ocean-and-us/">magma</a> associated with the <a href="https://en.wikipedia.org/wiki/Yellowstone_hotspot">Yellowstone Hotspot</a>. Unrelated and far in the distance, the <a href="https://apod.nasa.gov/apod/ap110710.html">central band</a> of our <a href="https://science.nasa.gov/resource/the-milky-way-galaxy/">Milky Way Galaxy</a> arches high overhead, a band lit by billions of stars. The picture features a 16-image panorama taken in 2014. If the <a href="https://www.usgs.gov/observatories/yvo/news/just-how-long-has-yellowstone-hotspot-been-around">Yellowstone Hotspot</a> causes <a href="https://imgur.com/EzwC34o">another supervolcanic eruption</a> as it did about <a href="https://en.wikipedia.org/wiki/Lava_Creek_Tuff">640,000 years ago</a>, a <a href="https://www.usgs.gov/faqs/what-would-happen-if-a-supervolcano-eruption-occurred-again-yellowstone">large part of North America</a> would be affected.<br><br><strong>Growing Gallery: </strong><a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture: </strong>a golden crown]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 August 16 - Milky Way over Yellowstone</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: The Milky Way was not created by an evaporating lake. The colorful pool of water, about 10 meters across, is known as Silex Spring and is located in Yellowstone National Park in Wyoming, USA. Illuminated artificially, the colors are caused by layers of bacteria that grow in the hot spring. Steam rises off the spring, heated by underground magma associated with the Yellowstone Hotspot. Unrelated and far in the distance, the central band of our Milky Way Galaxy arches high overhead, a band lit by billions of stars. The picture features a 16-image panorama taken in 2014. If the Yellowstone Hotspot causes another supervolcanic eruption as it did about 640,000 years ago, a large part of North America would be affected.Growing Gallery: Solar Eclipse of 2026 August 12Tomorrow&#039;s picture: a golden crown">
+<!-- -->
+<meta name="keywords" content="milky way over yellowstone">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Milky Way over Yellowstone">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg?w=1800&#038;h=1200&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg?w=1800&#038;h=1200&#038;fit=clip">
+<meta property="og:image:alt" content="A composite image of the night sky above the old faithful guyser in Yelowstone National Park.">
+<meta property="article:published_time" content="2026-08-16T00:05:00-04:00">
+<meta property="article:modified_time" content="2026-08-16T11:24:53-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Milky Way over Yellowstone">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg?w=1800&#038;h=1200&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 August 16<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/august/mwyellowstone_lane_1800.jpg" alt="A composite image of the night sky above the old faithful guyser in Yelowstone National Park."></a>
+</center>
+
+<center>
+<b> Milky Way over Yellowstone </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.davelaneastrophotography.com/about/">Dave Lane</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> The Milky Way was not created by an evaporating lake. The colorful pool of water, about 10 meters across, is known as <a href="https://www.nps.gov/features/yell/tours/fountainpaint/silexspring.htm">Silex Spring</a> and is located in <a href="http://www.yellowstone.co/pdfs/ytsummer2011.pdf">Yellowstone National Park</a> in <a href="https://en.wikipedia.org/wiki/Wyoming">Wyoming</a>, <a href="https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States">USA</a>. Illuminated artificially, the colors are caused by layers of <a href="https://oceanservice.noaa.gov/facts/extremophile.html">bacteria</a> that grow in the <a href="https://goo.gl/maps/ZcydY">hot spring</a>. Steam rises off <a href="https://youtu.be/9jQNg_q-KzY">the spring</a>, heated by underground <a href="https://astrobiology.nasa.gov/news/the-magma-ocean-and-us/">magma</a> associated with the <a href="https://en.wikipedia.org/wiki/Yellowstone_hotspot">Yellowstone Hotspot</a>. Unrelated and far in the distance, the <a href="https://apod.nasa.gov/apod/ap110710.html">central band</a> of our <a href="https://science.nasa.gov/resource/the-milky-way-galaxy/">Milky Way Galaxy</a> arches high overhead, a band lit by billions of stars. The picture features a 16-image panorama taken in 2014. If the <a href="https://www.usgs.gov/observatories/yvo/news/just-how-long-has-yellowstone-hotspot-been-around">Yellowstone Hotspot</a> causes <a href="https://imgur.com/EzwC34o">another supervolcanic eruption</a> as it did about <a href="https://en.wikipedia.org/wiki/Lava_Creek_Tuff">640,000 years ago</a>, a <a href="https://www.usgs.gov/faqs/what-would-happen-if-a-supervolcano-eruption-occurred-again-yellowstone">large part of North America</a> would be affected.<br><br><strong>Growing Gallery: </strong><a href="https://www.facebook.com/media/set/?set=a.1048378671224043&amp;type=3">Solar Eclipse of 2026 August 12</a><br><strong>Tomorrow's picture: </strong>a golden crown
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-august-17-a-golden-corona-eclipse/">APOD: 2026 August 17 &#8211; A Golden Corona Eclipse</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod/apod-2026-august-15-bright-perseids-from-sweden/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=260816">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-august-17-a-golden-corona-eclipse/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>A Complete Auroral Oval from SMILE</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-october-6-a-complete-auroral-oval-from-smile/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-october-6-a-complete-auroral-oval-from-smile/</guid>
+		<pubDate>Tue, 06 Oct 2026 04:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-october-6-a-complete-auroral-oval-from-smile/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/Smile_s_first_ultraviolet_footage_shows_auroral_substorm-1.jpeg?w=512&#038;h=512&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261006</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.esa.int/">ESA</a>, <a href="https://english.cas.cn/">CAS</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile">SMILE</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_s_ultraviolet_vision">UVI</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.esa.int/">ESA</a>, <a href="https://english.cas.cn/">CAS</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile">SMILE</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_s_ultraviolet_vision">UVI</a>]]></apod:copyright>
+		<apod:alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:alt>
+		<apod:primary_image_alt>See Explanation. Clicking on the picture will download the highest resolution version available.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> Have you ever seen a complete auroral oval? You can't see one from the ground because it makes too <a href="https://science.nasa.gov/apod/?date=ap970402.html">large a circle</a> around one of <a href="https://science.nasa.gov/image-article/apod-2004-september-19-earths-north-magnetic-pole/">Earth's magnetic pole</a>s. But spacecraft high above <a href="https://science.nasa.gov/earth/facts/">the Earth</a> can see them. The <a href="https://www.esa.int/ESA_Multimedia/Images/2026/09/Smile_s_first_ultraviolet_footage_shows_auroral_substorm">featured video</a> from <a href="https://www.esa.int/">ESA</a> and <a href="https://english.cas.cn/">CAS</a>'s robotic <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_factsheet2">SMILE spacecraft</a> shows not only a <a href="https://science.nasa.gov/image-article/apod-2021-march-24-aurorae-and-lightning-on-jupiter/">full auroral oval</a>, but using <a href="https://science.nasa.gov/ems/10_ultravioletwaves/">ultraviolet light</a>, one that occurred during the day. The time-lapse covers about an hour in late July and shows visually how <a href="https://science.nasa.gov/image-article/apod-2015-june-1-pulsating-aurora-over-iceland/">variable</a> and turbulent <a href="https://spaceplace.nasa.gov/aurora/en/">auroras</a> really are. The points of light on the sides are <a href="https://science.nasa.gov/image-article/apod-2022-april-6-earendel-a-star-in-the-early-universe/">distant star</a>s that appear to move only because <a href="https://sci.esa.int/web/smile/-/59194-ultra-violet-imager">SMILE's camera</a> view shifts as the spacecraft <a href="https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/">orbits</a> the Earth. A goal of SMILE is to <a href="https://unsplash.com/photos/calico-kitten-standing-in-front-of-macbook-pro-g3B53PbBfwU">better understand</a> how the Sun's wind interacts with the <a href="https://science.nasa.gov/science-research/earth-science/earths-magnetosphere-protecting-our-planet-from-harmful-space-energy/">Earth's magnetosphere</a> -- and so better understand how to protect astronauts, spacecraft, and ground-based <a href="https://www.spaceweather.gov/impacts/electric-power-transmission">electrical grids</a> from <a href="https://science.nasa.gov/image-article/apod/apod-2025-september-15-earth-during-a-powerful-solar-storm/">solar storms</a>.<br><br>Tomorrow's picture: a supernova's pearls]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> Have you ever seen a complete auroral oval? You can't see one from the ground because it makes too <a href="https://science.nasa.gov/apod/?date=ap970402.html">large a circle</a> around one of <a href="https://science.nasa.gov/image-article/apod-2004-september-19-earths-north-magnetic-pole/">Earth's magnetic pole</a>s. But spacecraft high above <a href="https://science.nasa.gov/earth/facts/">the Earth</a> can see them. The <a href="https://www.esa.int/ESA_Multimedia/Images/2026/09/Smile_s_first_ultraviolet_footage_shows_auroral_substorm">featured video</a> from <a href="https://www.esa.int/">ESA</a> and <a href="https://english.cas.cn/">CAS</a>'s robotic <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_factsheet2">SMILE spacecraft</a> shows not only a <a href="https://science.nasa.gov/image-article/apod-2021-march-24-aurorae-and-lightning-on-jupiter/">full auroral oval</a>, but using <a href="https://science.nasa.gov/ems/10_ultravioletwaves/">ultraviolet light</a>, one that occurred during the day. The time-lapse covers about an hour in late July and shows visually how <a href="https://science.nasa.gov/image-article/apod-2015-june-1-pulsating-aurora-over-iceland/">variable</a> and turbulent <a href="https://spaceplace.nasa.gov/aurora/en/">auroras</a> really are. The points of light on the sides are <a href="https://science.nasa.gov/image-article/apod-2022-april-6-earendel-a-star-in-the-early-universe/">distant star</a>s that appear to move only because <a href="https://sci.esa.int/web/smile/-/59194-ultra-violet-imager">SMILE's camera</a> view shifts as the spacecraft <a href="https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/">orbits</a> the Earth. A goal of SMILE is to <a href="https://unsplash.com/photos/calico-kitten-standing-in-front-of-macbook-pro-g3B53PbBfwU">better understand</a> how the Sun's wind interacts with the <a href="https://science.nasa.gov/science-research/earth-science/earths-magnetosphere-protecting-our-planet-from-harmful-space-energy/">Earth's magnetosphere</a> -- and so better understand how to protect astronauts, spacecraft, and ground-based <a href="https://www.spaceweather.gov/impacts/electric-power-transmission">electrical grids</a> from <a href="https://science.nasa.gov/image-article/apod/apod-2025-september-15-earth-during-a-powerful-solar-storm/">solar storms</a>.<br><br>Tomorrow's picture: a supernova's pearls]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 October 6 - A Complete Auroral Oval from SMILE</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-october-6-a-complete-auroral-oval-from-smile/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Have you ever seen a complete auroral oval? You can&#039;t see one from the ground because it makes too large a circle around one of Earth&#039;s magnetic poles. But spacecraft high above the Earth can see them. The featured video from ESA and CAS&#039;s robotic SMILE spacecraft shows not only a full auroral oval, but using ultraviolet light, one that occurred during the day. The time-lapse covers about an hour in late July and shows visually how variable and turbulent auroras really are. The points of light on the sides are distant stars that appear to move only because SMILE&#039;s camera view shifts as the spacecraft orbits the Earth. A goal of SMILE is to better understand how the Sun&#039;s wind interacts with the Earth&#039;s magnetosphere -- and so better understand how to protect astronauts, spacecraft, and ground-based electrical grids from solar storms.Tomorrow&#039;s picture: a supernova&#039;s pearls">
+<!-- -->
+<meta name="keywords" content="a complete auroral oval from smile">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A Complete Auroral Oval from SMILE">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-october-6-a-complete-auroral-oval-from-smile/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/Smile_s_first_ultraviolet_footage_shows_auroral_substorm-1.jpeg?w=512&#038;h=512&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/Smile_s_first_ultraviolet_footage_shows_auroral_substorm-1.jpeg?w=512&#038;h=512&#038;fit=clip">
+<meta property="og:image:alt" content="A round Earth takes up most of the video. The dayside and nightside are visible. A full auroral oval is visible surrounding Earth&#039;s North Pole. There are some bright objects that speckle the background.">
+<meta property="article:published_time" content="2026-10-06T00:05:00-04:00">
+<meta property="article:modified_time" content="2026-10-06T21:34:46-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A Complete Auroral Oval from SMILE">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/october/Smile_s_first_ultraviolet_footage_shows_auroral_substorm-1.jpeg?w=512&#038;h=512&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 October 6<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2013/october/n891_block.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2013/october/n891_block.jpg" alt="See Explanation. Clicking on the picture will download the highest resolution version available."></a>
+</center>
+
+<center>
+<b> A Complete Auroral Oval from SMILE </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.esa.int/">ESA</a>, <a href="https://english.cas.cn/">CAS</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile">SMILE</a>, <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_s_ultraviolet_vision">UVI</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> Have you ever seen a complete auroral oval? You can't see one from the ground because it makes too <a href="https://science.nasa.gov/apod/?date=ap970402.html">large a circle</a> around one of <a href="https://science.nasa.gov/image-article/apod-2004-september-19-earths-north-magnetic-pole/">Earth's magnetic pole</a>s. But spacecraft high above <a href="https://science.nasa.gov/earth/facts/">the Earth</a> can see them. The <a href="https://www.esa.int/ESA_Multimedia/Images/2026/09/Smile_s_first_ultraviolet_footage_shows_auroral_substorm">featured video</a> from <a href="https://www.esa.int/">ESA</a> and <a href="https://english.cas.cn/">CAS</a>'s robotic <a href="https://www.esa.int/Science_Exploration/Space_Science/Smile/Smile_factsheet2">SMILE spacecraft</a> shows not only a <a href="https://science.nasa.gov/image-article/apod-2021-march-24-aurorae-and-lightning-on-jupiter/">full auroral oval</a>, but using <a href="https://science.nasa.gov/ems/10_ultravioletwaves/">ultraviolet light</a>, one that occurred during the day. The time-lapse covers about an hour in late July and shows visually how <a href="https://science.nasa.gov/image-article/apod-2015-june-1-pulsating-aurora-over-iceland/">variable</a> and turbulent <a href="https://spaceplace.nasa.gov/aurora/en/">auroras</a> really are. The points of light on the sides are <a href="https://science.nasa.gov/image-article/apod-2022-april-6-earendel-a-star-in-the-early-universe/">distant star</a>s that appear to move only because <a href="https://sci.esa.int/web/smile/-/59194-ultra-violet-imager">SMILE's camera</a> view shifts as the spacecraft <a href="https://science.nasa.gov/earth/earth-observatory/catalog-of-earth-satellite-orbits/">orbits</a> the Earth. A goal of SMILE is to <a href="https://unsplash.com/photos/calico-kitten-standing-in-front-of-macbook-pro-g3B53PbBfwU">better understand</a> how the Sun's wind interacts with the <a href="https://science.nasa.gov/science-research/earth-science/earths-magnetosphere-protecting-our-planet-from-harmful-space-energy/">Earth's magnetosphere</a> -- and so better understand how to protect astronauts, spacecraft, and ground-based <a href="https://www.spaceweather.gov/impacts/electric-power-transmission">electrical grids</a> from <a href="https://science.nasa.gov/image-article/apod/apod-2025-september-15-earth-during-a-powerful-solar-storm/">solar storms</a>.<br><br>Tomorrow's picture: a supernova's pearls
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-october-7-supernova-remnant-pa-30/">APOD: 2026 October 7 &#8211; Supernova Remnant Pa 30</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-october-5-m104-the-sombrero-galaxys-tidal-streams/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261006">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-october-7-supernova-remnant-pa-30/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+</channel>
+</rss>

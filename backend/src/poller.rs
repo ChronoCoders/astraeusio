@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 use tracing::{error, info, warn};
 
 use crate::{
-    anomaly,
-    db::Store,
+    anomaly, apod_feed,
+    db::{ApodBackfill, Store},
     db_writer::{DbWriterHandle, WriteCmd},
     fetch::PollOutcome,
     iss, mailer, nasa, noaa, retry, starlink,
@@ -576,14 +576,72 @@ async fn poll_apod(
     policy: retry::Policy,
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
+    let mut gap_pending = true;
     loop {
-        if let Some(feed) = retry::run(&policy, || nasa::fetch_apod(&client)).await {
+        if gap_pending {
+            gap_pending = !backfill_apod_gap(&client, &writer, &policy).await;
+        }
+        if let Some(feed) =
+            retry::run(&policy, || nasa::fetch_apod(&client, apod_feed::FEED_URL)).await
+        {
             log_poll("poller/apod", "records", feed.outcome);
             for apod in feed.items {
                 writer.fire(WriteCmd::Apod(apod));
             }
         }
         tokio::time::sleep(policy.budget).await;
+    }
+}
+
+/// The one time backfill of AUD-074. True once it is applied, now or before,
+/// and false to try again on the next poll.
+async fn backfill_apod_gap(
+    client: &reqwest::Client,
+    writer: &DbWriterHandle,
+    policy: &retry::Policy,
+) -> bool {
+    match writer.apod_gap_backfilled().await {
+        Ok(true) => return true,
+        Ok(false) => {}
+        Err(e) => {
+            error!(
+                source = "poller/apod",
+                "apod backfill: migration state unreadable: {e}"
+            );
+            return false;
+        }
+    }
+    let Some(feed) = retry::run(policy, || {
+        nasa::fetch_apod(client, apod_feed::YEAR_2026_FEED_URL)
+    })
+    .await
+    else {
+        return false;
+    };
+    match writer.backfill_apod_gap(feed.items).await {
+        Ok(ApodBackfill::Applied(dates)) => {
+            info!(
+                source = "poller/apod",
+                count = dates.len(),
+                ?dates,
+                "apod backfill: days replaced"
+            );
+            true
+        }
+        Ok(ApodBackfill::AlreadyApplied) => true,
+        Ok(ApodBackfill::Incomplete { missing, rejected }) => {
+            error!(
+                source = "poller/apod",
+                ?missing,
+                ?rejected,
+                "apod backfill: not every day could be written, so none was"
+            );
+            false
+        }
+        Err(e) => {
+            error!(source = "poller/apod", "apod backfill: {e}");
+            false
+        }
     }
 }
 
