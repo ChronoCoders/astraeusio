@@ -2310,6 +2310,110 @@ repeated here.
   returns all of it. Whether to cut, and where, decides what counts as the explanation, so it waits
   for the owner. The video on video days is not ingested either.
 
+  **The explanation cut, decided in the fourth set and implemented in `b2b67cd` and `62d0ba7`.**
+  The reference is the 144 good rows stored from the API, 2026-05-09 to 2026-09-29, extracted
+  earlier on 2026-11-26 from a copy of that morning's 10:07 backup. The rows show that the API kept
+  every labelled section after the text, `Sky Surprise:`, `Explore the Universe:`, `Open Science:`
+  and the site move notice among them, and nothing from the line that opens with `Tomorrow's
+  picture` on. In the 2026 feed that line appears 128 times, 127 as `Tomorrow's picture` and once
+  as `Tomorrow's APOD` on 2026-07-22, and it always opens a line, after `<br>` or `<p>`. It is bold
+  in 127 of them but not on 2026-10-06, so the rule is a line that opens with either mark, not a
+  bold label. Every tag that is not inline now ends a line, and the explanation ends before that
+  line.
+
+  The match against the reference, run with the committed Rust code over the 144 days:
+  - equal as stored: 40.
+  - equal apart from whitespace: 66. NASA's migrated text has a space after some links, such as
+    `dark</a> , smooth` and `rich star field</a> s`, which the API's text did not have.
+  - equal apart from quotes and dashes: 4. Curly quotes on 2026-05-13, 2026-05-14 and 2026-06-03,
+    and an en dash on 2026-05-20, where the feed has straight ones and a hyphen.
+  - other: 34.
+
+  Two checks over all 144 rule out the cut as a cause of the other 34. No run of 25 stored
+  characters appears in what the rule removes, so it never cuts too early. No kept text holds a
+  next day line, so it never cuts too late. The first check, the count of 130 of the 144 ending on
+  the same 20 characters as the stored text, and the differences listed below come from a Python
+  prototype of the same rule. The class counts above, the second check and the list of 11 endings
+  missing from the kept text come from the committed Rust code, and the two agree on every class
+  and every day. Each of the 34 has a source difference, with its first point of difference:
+  - NASA edited words in the text later: 2026-06-12 (the stone circle sentence), 07-03
+    (`resulted`), 07-18 (`in the region`), 07-24 (`naked eye`), 07-29 (`Perseids`), 07-30
+    (`image of`), 08-01 (`As it shares`), 08-06 (`energy and magnetic`), 08-09 (`northeastern`),
+    08-21 (`around and reaches`), 08-22 (`can be revealed`), 09-03 (`lives`), 09-16 (`the
+    Hubble-only`), 09-17 (`pillar`), 09-24 (`Charioteer`), 09-27 (`featured before image`).
+  - NASA revised the text and says so in the feed, `Note: The text of this APOD has been revised.`:
+    2026-07-15 (`a gigantic jet`) and 2026-08-05 (a sentence removed).
+  - The API's text lost its first letter: 2026-08-10 (`ch of these pairs`) and 2026-08-29
+    (`clipses tend`). Each also has a section the API had and the feed lacks, `Explore the
+    Universe` at the end of 2026-08-10 and `Growing Gallery: Lunar Eclipse of 2026 August 28` on
+    2026-08-29.
+  - A section the API had is absent from the feed: 2026-07-26 (`Explore the Universe`), 07-28
+    and 08-02 (`Sky Surprise`), 08-04 (`Open Science`), 08-23 and 08-24 (the site move notice).
+  - A section reworded in the feed: 2026-08-03 (`(after 1995)` to `(>1995)`), 08-12 (the eclipse
+    line to `NASA Stream:`), 08-30 (`APOD is Moving`), 09-07 (`APOD's main site`), 09-23 (the
+    submission email notice).
+  - A section NASA added after the API fetched the day, before the next day line, kept as the API
+    kept sections: 2026-08-16 (`Growing Gallery`), 09-06 and 09-09 (the site move notice).
+
+  For the 11 days whose stored ending is missing from the feed's kept text, the ending is missing
+  from the whole feed item too. Over all 330 items the rule removes text from 128: 127 starting at
+  `Tomorrow's picture` and 1 at `Tomorrow's APOD`. On 2026-04-04 it removes the teaser and the
+  whole page footer after it, from the navigation bar to `Michigan Tech. U.`, and the kept text
+  ends on the explanation's last sentence, `immersed in a faint band of zodiacal light.)`. The
+  other 202 items lose nothing. The spaces the feed adds after links are kept as NASA serves them.
+
+  Tests. `apod-feed-reference-days.xml` holds 11 feed items unedited, and
+  `apod-api-explanations.json` the API's explanation for 8 of them exactly as stored, both scanned
+  for dashes and the banned name before they were added. Five days, one per kind of tail, equal the
+  API's text exactly: 2026-07-22 (`Tomorrow's APOD`), 07-23 and 07-27 (`Tomorrow's picture` with
+  and without a space inside the bold), and 08-11 and 08-13 (the same after a kept section). Three
+  more: 2026-05-09 with no tail, compared without whitespace; 2026-07-29 with a line break inside
+  the text, compared by its last sentence; and 2026-08-16 with a section added later. Three feed
+  only days cover the other forms of the line: 2026-10-06 (not bold), 2026-04-04 (the footer) and
+  2026-03-23 (after two breaks). Two unit tests cover the line rule itself and each kind of block
+  tag that opens a line.
+
+  **The backfill of 2026-09-30 to 2026-10-27, in `b2b67cd`.** `Store::backfill_apod_gap` writes
+  only records dated in that range, each through `insert_apod`. It records
+  `2026-11-26-apod-backfill-2026-09-30-to-2026-10-27` in `schema_migrations` in the same
+  transaction, and only when all 28 days were present and written. Otherwise it rolls everything
+  back and records nothing. The APOD poller checks that record before each poll, fetches the
+  `?year=2026` feed only while it is missing, and logs the dates replaced at INFO. Five store tests:
+  the 28 days, exactly the range replaced with the days either side ignored, a single run, a
+  missing day writing nothing, and a rejected day rolling back every write before a retry applies.
+  The poller step itself, with its fetch and log lines, is not tested.
+
+  Run with the committed code over the `?year=2026` feed against an in memory store holding
+  2026-09-29 and the 58 chrome rows, it replaced 28 rows and changed nothing else, and a second run
+  returned `AlreadyApplied`. The dates and the titles they receive: 2026-09-30 Arp 78: Peculiar
+  Galaxy in Aries, 10-01 Harvest Moon with Erupting Mount Etna, 10-02 The Complete Sharpless
+  Catalog: 313 Nebulas, 10-03 Selfie at Vera Rubin Ridge, 10-04 Supernumerary Rainbows over New
+  Jersey, 10-05 M104: The Sombrero Galaxy's Tidal Streams, 10-06 A Complete Auroral Oval from
+  SMILE, 10-07 Supernova Remnant Pa 30, 10-08 The Saturn System Smörgåsbord, 10-09 Stickney Crater,
+  10-10 Lunar Farside, 10-11 Ice Fishing for Cosmic Neutrinos, 10-12 Jupiter and the Moons, 10-13
+  Desert Stairway to Heaven, 10-14 Mars and the Beehive Under an Aurora, 10-15 The Milky Way over
+  Manhattan, 10-16 Chasing the International Space Station, 10-17 3D 67P, 10-18 Sonified: Eagle
+  Nebula Pillars, 10-19 Treble Clef: Unusual X-ray Hot Radio Source, 10-20 An Anticrepuscular
+  Rainbow Fan, 10-21 New Ghosts Revealed in Cassiopeia, 10-22 The First Green Star, WD J1330+6435,
+  10-23 Andromeda in Southern Spring, 10-24 Rosetta's Selfie, 10-25 Dark Matter in a Simulated
+  Universe, 10-26 M42: The Great Nebula in Orion, 10-27 Noctilucent Clouds over Sweden. Production
+  is confirmed only after the deploy, from the INFO line and the rows.
+
+  **Mutation round, 2026-11-26, in temporary worktrees at `62d0ba7`.** 17 mutants, all killed by
+  the test aimed at each. In the cut: no cut, `the_explanation_ends_where_the_api_ended_it`.
+  Either mark dropped, the same test. The mark matched anywhere in a line, leading space not
+  skipped, or the marked line kept, `only_a_line_that_opens_with_the_mark_ends_the_text`. An
+  opening or a closing block tag read as a space, `the_mark_after_any_block_tag_opens_a_line`.
+  That test was added in `62d0ba7`, because no earlier test had the line after a closing tag. In
+  the backfill: the range not applied, or its first or last day excluded,
+  `the_backfill_replaces_exactly_the_gap`. Recorded under another id, the same test. The run state
+  not checked, `the_backfill_runs_once`. The last gap day dropped,
+  `the_gap_is_the_28_days_from_2026_09_30_to_2026_10_27`. Missing days ignored,
+  `a_missing_day_writes_nothing_and_records_nothing`. A rejection committed or ignored,
+  `a_rejected_day_rolls_back_every_write_and_a_retry_applies`. Those last three first showed as
+  survivors, because the script's test name filter did not select their tests. Rerun with the
+  filter fixed, each was killed by its test and by no other.
+
 - **AUD-075** The people in space list counts two entries that are not people. Found by the owner
   2026-11-26, verified the same day.
 
