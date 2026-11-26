@@ -122,6 +122,8 @@ mod tests {
             url: "https://apod.nasa.gov/apod/image/2609/Shrimp_Pawel_960.jpg".into(),
             media_type: "image".into(),
             hdurl: Some("https://apod.nasa.gov/apod/image/2609/Shrimp_Pawel_2048.jpg".into()),
+            credit: None,
+            copyright: None,
         }
     }
 
@@ -160,6 +162,8 @@ mod tests {
             url: LOGO.into(),
             media_type: "image".into(),
             hdurl: Some(LOGO.into()),
+            credit: None,
+            copyright: None,
         };
         assert_eq!(check(&a), Err(ApodReject::ChromeImage("url")));
     }

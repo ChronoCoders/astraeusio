@@ -1,4 +1,4 @@
-use duckdb::{Connection, params};
+use duckdb::{Connection, OptionalExt, params};
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -77,7 +77,9 @@ CREATE TABLE IF NOT EXISTS apod (
     url         TEXT   NOT NULL,
     media_type  TEXT   NOT NULL,
     hdurl       TEXT,
-    fetched_at  BIGINT NOT NULL
+    fetched_at  BIGINT NOT NULL,
+    credit      TEXT,
+    copyright   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS neo (
@@ -1211,12 +1213,33 @@ impl Store {
             "ALTER TABLE solar_wind ADD COLUMN active BOOLEAN",
             "ALTER TABLE imf ADD COLUMN source TEXT",
             "ALTER TABLE imf ADD COLUMN active BOOLEAN",
+            // NULL on every row written from the APOD API, which sent no credit.
+            "ALTER TABLE apod ADD COLUMN credit TEXT",
+            "ALTER TABLE apod ADD COLUMN copyright TEXT",
         ] {
             if let Err(e) = conn.execute_batch(sql) {
                 let msg = e.to_string().to_lowercase();
                 if !msg.contains("already exists") && !msg.contains("duplicate") {
                     return Err(DbError::Duckdb(e));
                 }
+            }
+        }
+        // "already exists" is tolerated above, so a column of the right name
+        // and the wrong type would pass it. The APOD credit columns are checked
+        // by type, and a mismatch stops startup.
+        for column in ["credit", "copyright"] {
+            let found: Option<String> = conn
+                .query_row(
+                    "SELECT data_type FROM information_schema.columns \
+                     WHERE table_name = 'apod' AND column_name = ?",
+                    params![column],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            if found.as_deref() != Some("VARCHAR") {
+                return Err(DbError::Migration(format!(
+                    "apod.{column} is {found:?}, expected VARCHAR"
+                )));
             }
         }
 
@@ -1956,14 +1979,16 @@ impl Store {
             return Ok(ApodWrite::Rejected(reason));
         }
         self.conn.execute(
-            "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, credit, copyright, fetched_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT (date) DO UPDATE SET
                  title       = excluded.title,
                  explanation = excluded.explanation,
                  url         = excluded.url,
                  media_type  = excluded.media_type,
                  hdurl       = excluded.hdurl,
+                 credit      = excluded.credit,
+                 copyright   = excluded.copyright,
                  fetched_at  = excluded.fetched_at",
             params![
                 a.date,
@@ -1972,6 +1997,8 @@ impl Store {
                 a.url,
                 a.media_type,
                 a.hdurl,
+                a.credit,
+                a.copyright,
                 now()
             ],
         )?;
@@ -2869,30 +2896,42 @@ impl Store {
         }
     }
 
+    /// The newest stored day that `apod_check::check` accepts.
+    ///
+    /// Rows written before the check existed are still stored, 58 of them site
+    /// chrome (AUD-074), so a row is served only after it passes the same
+    /// check every write passes. Nothing else reads `apod` rows for display.
     pub fn get_apod_latest(&self) -> Result<serde_json::Value, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT date, title, explanation, url, media_type, hdurl FROM apod \
-             ORDER BY date DESC LIMIT 1",
+            "SELECT date, title, explanation, url, media_type, hdurl, credit, copyright \
+             FROM apod ORDER BY date DESC",
         )?;
         let mut rows = stmt.query([])?;
-        if let Some(row) = rows.next()? {
-            let date: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let explanation: String = row.get(2)?;
-            let url: String = row.get(3)?;
-            let media_type: String = row.get(4)?;
-            let hdurl: Option<String> = row.get(5)?;
-            Ok(serde_json::json!({
-                "date":        date,
-                "title":       title,
-                "explanation": explanation,
-                "url":         url,
-                "media_type":  media_type,
-                "hdurl":       hdurl,
-            }))
-        } else {
-            Ok(serde_json::Value::Null)
+        while let Some(row) = rows.next()? {
+            let a = Apod {
+                date: row.get(0)?,
+                title: row.get(1)?,
+                explanation: row.get(2)?,
+                url: row.get(3)?,
+                media_type: row.get(4)?,
+                hdurl: row.get(5)?,
+                credit: row.get(6)?,
+                copyright: row.get(7)?,
+            };
+            if crate::apod_check::check(&a).is_ok() {
+                return Ok(serde_json::json!({
+                    "date":        a.date,
+                    "title":       a.title,
+                    "explanation": a.explanation,
+                    "url":         a.url,
+                    "media_type":  a.media_type,
+                    "hdurl":       a.hdurl,
+                    "credit":      a.credit,
+                    "copyright":   a.copyright,
+                }));
+            }
         }
+        Ok(serde_json::Value::Null)
     }
 
     pub fn get_epic_latest(&self) -> Result<serde_json::Value, DbError> {
@@ -7374,6 +7413,8 @@ mod tests {
             url: "https://example.invalid/a.jpg".into(),
             media_type: "image".into(),
             hdurl: None,
+            credit: Some("A. Photographer".into()),
+            copyright: Some("A. Photographer".into()),
         }
     }
 
@@ -7391,16 +7432,28 @@ mod tests {
             url: logo.into(),
             media_type: "image".into(),
             hdurl: Some(logo.into()),
+            credit: None,
+            copyright: None,
         }
     }
 
-    type ApodRow = (String, String, String, String, Option<String>, i64);
+    type ApodRow = (
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+    );
 
     fn apod_rows(store: &Store) -> Vec<ApodRow> {
         let mut stmt = store
             .conn
             .prepare(
-                "SELECT title, explanation, url, media_type, hdurl, fetched_at FROM apod ORDER BY date",
+                "SELECT title, explanation, url, media_type, hdurl, credit, copyright, fetched_at \
+                 FROM apod ORDER BY date",
             )
             .unwrap();
         stmt.query_map([], |r| {
@@ -7411,6 +7464,8 @@ mod tests {
                 r.get(3)?,
                 r.get(4)?,
                 r.get(5)?,
+                r.get(6)?,
+                r.get(7)?,
             ))
         })
         .unwrap()
@@ -7464,6 +7519,8 @@ mod tests {
             url: "https://example.invalid/corrected.mp4".into(),
             media_type: "video".into(),
             hdurl: Some("https://example.invalid/corrected_hd.jpg".into()),
+            credit: Some("B. Photographer".into()),
+            copyright: None,
             ..test_apod("2026-11-26")
         };
 
@@ -7471,12 +7528,143 @@ mod tests {
 
         let rows = apod_rows(&store);
         assert_eq!(rows.len(), 1);
-        let (title, explanation, url, media_type, hdurl, _) = &rows[0];
+        let (title, explanation, url, media_type, hdurl, credit, copyright, _) = &rows[0];
         assert_eq!(title, &corrected.title);
         assert_eq!(explanation, &corrected.explanation);
         assert_eq!(url, &corrected.url);
         assert_eq!(media_type, &corrected.media_type);
         assert_eq!(hdurl, &corrected.hdurl);
+        assert_eq!(credit, &corrected.credit);
+        // A copyright NASA removes is removed here too, not kept from before.
+        assert_eq!(copyright, &None);
+    }
+
+    /// Stores a row the way the APOD API path did before the check existed,
+    /// which `insert_apod` would now refuse.
+    fn store_unchecked(store: &Store, a: &crate::nasa::Apod) {
+        store
+            .conn
+            .execute(
+                "INSERT INTO apod (date, title, explanation, url, media_type, hdurl, fetched_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                params![
+                    a.date,
+                    a.title,
+                    a.explanation,
+                    a.url,
+                    a.media_type,
+                    a.hdurl,
+                    now()
+                ],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn the_read_path_skips_a_newer_broken_row_for_an_older_good_one() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-09-29")).unwrap();
+        store_unchecked(&store, &chrome_apod("2026-11-26"));
+        store_unchecked(&store, &chrome_apod("2026-11-25"));
+
+        let served = store.get_apod_latest().unwrap();
+
+        assert_eq!(served["date"], "2026-09-29");
+        assert_eq!(served["title"], "Test Nebula");
+        assert_eq!(served["credit"], "A. Photographer");
+        assert_eq!(served["copyright"], "A. Photographer");
+    }
+
+    #[test]
+    fn the_read_path_serves_the_newest_good_row_when_it_is_newest() {
+        let store = mem_store();
+        store.insert_apod(&test_apod("2026-11-25")).unwrap();
+        store
+            .insert_apod(&crate::nasa::Apod {
+                title: "Newer Nebula".into(),
+                ..test_apod("2026-11-26")
+            })
+            .unwrap();
+
+        assert_eq!(store.get_apod_latest().unwrap()["title"], "Newer Nebula");
+    }
+
+    #[test]
+    fn the_read_path_serves_nothing_when_every_stored_row_is_broken() {
+        let store = mem_store();
+        store_unchecked(&store, &chrome_apod("2026-11-26"));
+
+        assert!(store.get_apod_latest().unwrap().is_null());
+    }
+
+    fn legacy_apod_db(name: &str, ddl: &str) -> (std::path::PathBuf, String) {
+        let dir = std::env::temp_dir().join(format!("{name}-{}-{}", std::process::id(), now()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("legacy.duckdb").to_string_lossy().to_string();
+        Connection::open(&path)
+            .expect("open")
+            .execute_batch(ddl)
+            .expect("seed");
+        (dir, path)
+    }
+
+    /// A store from before the credit columns: the rows are kept, and the two
+    /// new columns arrive empty, because the API never sent a credit.
+    #[test]
+    fn an_apod_table_without_the_credit_columns_gains_them_and_keeps_its_rows() {
+        let (dir, path) = legacy_apod_db(
+            "apod-credit-migration",
+            "CREATE TABLE apod (
+                 date TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL,
+                 explanation TEXT NOT NULL, url TEXT NOT NULL,
+                 media_type TEXT NOT NULL, hdurl TEXT, fetched_at BIGINT NOT NULL
+             );
+             INSERT INTO apod VALUES ('2026-09-29', 'Sh2-188', 'x', 'u', 'image', NULL, 1);",
+        );
+
+        let store = Store::open(&path, TEST_JWT_SECRET).expect("open through the migration");
+        let row: (String, Option<String>, Option<String>) = store
+            .conn
+            .query_row("SELECT title, credit, copyright FROM apod", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .unwrap();
+        assert_eq!(row, ("Sh2-188".into(), None, None));
+
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// "already exists" is accepted by the column migrations, so a credit or
+    /// copyright column of the wrong type would pass them. Startup must stop.
+    #[test]
+    fn a_credit_column_of_the_wrong_type_stops_startup() {
+        for (column, types) in [
+            ("credit", "credit BIGINT, copyright TEXT"),
+            ("copyright", "credit TEXT, copyright BIGINT"),
+        ] {
+            let (dir, path) = legacy_apod_db(
+                &format!("apod-{column}-wrong-type"),
+                &format!(
+                    "CREATE TABLE apod (
+                         date TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL,
+                         explanation TEXT NOT NULL, url TEXT NOT NULL,
+                         media_type TEXT NOT NULL, hdurl TEXT, fetched_at BIGINT NOT NULL,
+                         {types}
+                     );"
+                ),
+            );
+
+            let err = Store::open(&path, TEST_JWT_SECRET)
+                .err()
+                .expect("a wrong column type must refuse to open");
+            assert!(
+                matches!(&err, DbError::Migration(m) if m.contains(&format!("apod.{column} "))),
+                "{column}: {err}"
+            );
+
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 
     fn test_epic(identifier: &str) -> crate::nasa::EpicImage {

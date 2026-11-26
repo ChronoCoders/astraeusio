@@ -119,7 +119,10 @@
   },
   "apod": {
     "title": "Günün Astronomi Fotoğrafı",
-    "viewMedia": "Medyayı görüntüle ↗"
+    "viewMedia": "Medyayı görüntüle ↗",
+    "credit": "Görsel",
+    "copyright": "Telif hakkı",
+    "creditAndCopyright": "Görsel ve telif hakkı"
   },
   "epic": {
     "title": "EPIC - Çok Renkli Dünya Görüntüleme",

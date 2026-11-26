@@ -129,6 +129,8 @@ impl Classify for crate::nasa::NasaError {
             crate::nasa::NasaError::Request(e) => class_of(e),
             // A missing NASA_API_KEY is not going to appear on attempt two.
             crate::nasa::NasaError::Env(_) => Class::Permanent,
+            // The feed arrived and is not XML; the next poll asks again.
+            crate::nasa::NasaError::Feed(_) => Class::Permanent,
         }
     }
 }

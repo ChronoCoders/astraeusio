@@ -577,9 +577,11 @@ async fn poll_apod(
 ) {
     tokio::time::sleep(Duration::from_secs(init_delay_secs)).await;
     loop {
-        if let Some(apod) = retry::run(&policy, || nasa::fetch_apod(&client)).await {
-            info!("poller/apod: {}", apod.date);
-            writer.fire(WriteCmd::Apod(apod));
+        if let Some(feed) = retry::run(&policy, || nasa::fetch_apod(&client)).await {
+            log_poll("poller/apod", "records", feed.outcome);
+            for apod in feed.items {
+                writer.fire(WriteCmd::Apod(apod));
+            }
         }
         tokio::time::sleep(policy.budget).await;
     }

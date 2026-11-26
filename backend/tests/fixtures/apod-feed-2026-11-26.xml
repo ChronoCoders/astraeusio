@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:apod="https://science.nasa.gov/apod/">
+<channel>
+	<title>APOD Basic</title>
+	<description>APOD Basic markup feed.</description>
+	<link>https://science.nasa.gov/</link>
+	<atom:link href="https://science.nasa.gov/feed/apod-basic/" rel="self" type="application/rss+xml" />
+	<language>en-us</language>
+	<item>
+		<title>Eye in the Sky: The Milky Way over Lençóis</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/</guid>
+		<pubDate>Thu, 26 Nov 2026 05:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&#038;h=2276&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261126</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.instagram.com/igneis.nightscapes/">Ignacio Fernández</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.instagram.com/igneis.nightscapes/">Ignacio Fernández</a>]]></apod:copyright>
+		<apod:alt>A nocturnal landscape shows the bright arch of the Milky Way over a dark lagoon surrounded by white sand dunes in Lençóis Maranhenses, Brazil.</apod:alt>
+		<apod:primary_image_alt>A nocturnal landscape shows the bright arch of the Milky Way over a dark lagoon surrounded by white sand dunes in Lençóis Maranhenses, Brazil.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> <a href="https://www.phrases.org.uk/meanings/beauty-is-in-the-eye-of-the-beholder.html">Beauty is in the eye of the beholder.</a> And there is much to behold in today's <a href="https://www.instagram.com/p/Df2wxeQD--8/?img_index=1">featured image</a>. The Milky Way shines bright in the sky of <a href="https://wikitravel.org/en/Brazil">Brazil</a>, over the <a href="https://www.youtube.com/watch?v=7Ikc0bRgwHw">white sand dunes and dark lagoons</a> of <a href="https://science.nasa.gov/earth/earth-observatory/the-paradox-of-lencois-maranhenses-national-park/">Lençóis Maranhenses National Park</a>. We can see different parts of  the <a href="https://science.nasa.gov/universe/galaxies/">Milky Way</a> as it  apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a <a href="https://science.nasa.gov/learn/basics-of-space-flight/chapter2-1/">latitude</a> of approximately 2º south. It shows some prominent Milky Way features, such as dark <a href="https://en.wikipedia.org/wiki/Dust_lane">dust lanes</a> and colorful <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">nebulas</a>. But does the Galaxy really appear <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/">arched like a rainbow</a> in the sky? No, this is an <a href="https://www.instagram.com/p/DMD62WQow9I/">artifact</a> of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a <a href="https://science.nasa.gov/image-article/apod-2026-april-19-eye-on-the-milky-way/">cosmic eye</a>, half in space and half on the ground. Is this <a href="https://www.youtube.com/watch?v=56hqrlQxMMI&amp;list=RD56hqrlQxMMI">eye in the sky</a> looking back at you?<br><br><strong>Tomorrow's picture:</strong> what's next?]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> <a href="https://www.phrases.org.uk/meanings/beauty-is-in-the-eye-of-the-beholder.html">Beauty is in the eye of the beholder.</a> And there is much to behold in today's <a href="https://www.instagram.com/p/Df2wxeQD--8/?img_index=1">featured image</a>. The Milky Way shines bright in the sky of <a href="https://wikitravel.org/en/Brazil">Brazil</a>, over the <a href="https://www.youtube.com/watch?v=7Ikc0bRgwHw">white sand dunes and dark lagoons</a> of <a href="https://science.nasa.gov/earth/earth-observatory/the-paradox-of-lencois-maranhenses-national-park/">Lençóis Maranhenses National Park</a>. We can see different parts of  the <a href="https://science.nasa.gov/universe/galaxies/">Milky Way</a> as it  apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a <a href="https://science.nasa.gov/learn/basics-of-space-flight/chapter2-1/">latitude</a> of approximately 2º south. It shows some prominent Milky Way features, such as dark <a href="https://en.wikipedia.org/wiki/Dust_lane">dust lanes</a> and colorful <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">nebulas</a>. But does the Galaxy really appear <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/">arched like a rainbow</a> in the sky? No, this is an <a href="https://www.instagram.com/p/DMD62WQow9I/">artifact</a> of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a <a href="https://science.nasa.gov/image-article/apod-2026-april-19-eye-on-the-milky-way/">cosmic eye</a>, half in space and half on the ground. Is this <a href="https://www.youtube.com/watch?v=56hqrlQxMMI&amp;list=RD56hqrlQxMMI">eye in the sky</a> looking back at you?<br><br><strong>Tomorrow's picture:</strong> what's next?]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 November 26 - Eye in the Sky: The Milky Way over Lençóis</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Cecilia Chirenti">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Beauty is in the eye of the beholder. And there is much to behold in today&#039;s featured image. The Milky Way shines bright in the sky of Brazil, over the white sand dunes and dark lagoons of Lençóis Maranhenses National Park. We can see different parts of  the Milky Way as it  apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a latitude of approximately 2º south. It shows some prominent Milky Way features, such as dark dust lanes and colorful nebulas. But does the Galaxy really appear arched like a rainbow in the sky? No, this is an artifact of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a cosmic eye, half in space and half on the ground. Is this eye in the sky looking back at you?Tomorrow&#039;s picture: what&#039;s next?">
+<!-- -->
+<meta name="keywords" content="eye in the sky: the milky way over lençóis">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Eye in the Sky: The Milky Way over Lençóis">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&#038;h=2276&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&#038;h=2276&#038;fit=clip">
+<meta property="og:image:alt" content="A nocturnal landscape shows the bright arch of the Milky Way over a dark lagoon surrounded by white sand dunes in Lençóis Maranhenses, Brazil.">
+<meta property="article:published_time" content="2026-11-26T00:05:00-05:00">
+<meta property="article:modified_time" content="2026-11-25T16:00:38-05:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Eye in the Sky: The Milky Way over Lençóis">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg?w=2576&#038;h=2276&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 November 26<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/Milky_Way_Lencois.jpg" alt="A nocturnal landscape shows the bright arch of the Milky Way over a dark lagoon surrounded by white sand dunes in Lençóis Maranhenses, Brazil."></a>
+</center>
+
+<center>
+<b> Eye in the Sky: The Milky Way over Lençóis </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.instagram.com/igneis.nightscapes/">Ignacio Fernández</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> <a href="https://www.phrases.org.uk/meanings/beauty-is-in-the-eye-of-the-beholder.html">Beauty is in the eye of the beholder.</a> And there is much to behold in today's <a href="https://www.instagram.com/p/Df2wxeQD--8/?img_index=1">featured image</a>. The Milky Way shines bright in the sky of <a href="https://wikitravel.org/en/Brazil">Brazil</a>, over the <a href="https://www.youtube.com/watch?v=7Ikc0bRgwHw">white sand dunes and dark lagoons</a> of <a href="https://science.nasa.gov/earth/earth-observatory/the-paradox-of-lencois-maranhenses-national-park/">Lençóis Maranhenses National Park</a>. We can see different parts of  the <a href="https://science.nasa.gov/universe/galaxies/">Milky Way</a> as it  apparently rotates in the sky every night and throughout the year. This composite image was taken later in the night in July from a <a href="https://science.nasa.gov/learn/basics-of-space-flight/chapter2-1/">latitude</a> of approximately 2º south. It shows some prominent Milky Way features, such as dark <a href="https://en.wikipedia.org/wiki/Dust_lane">dust lanes</a> and colorful <a href="https://science.nasa.gov/universe/stories/quick-reads/decoding-nebulae/">nebulas</a>. But does the Galaxy really appear <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-16-milky-way-over-yellowstone/">arched like a rainbow</a> in the sky? No, this is an <a href="https://www.instagram.com/p/DMD62WQow9I/">artifact</a> of a picture taken with a wide-angle lens. As the Galaxy was artfully framed by the photographer, it matches the contour of the dark lagoon creating the illusion of a <a href="https://science.nasa.gov/image-article/apod-2026-april-19-eye-on-the-milky-way/">cosmic eye</a>, half in space and half on the ground. Is this <a href="https://www.youtube.com/watch?v=56hqrlQxMMI&amp;list=RD56hqrlQxMMI">eye in the sky</a> looking back at you?<br><br><strong>Tomorrow's picture:</strong> what's next?
+<p> <center>
+
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261126">Discuss</a>
+| &gt;
+
+<hr><p>
+<b> Authors & editors: </b>
+Cecilia Chirenti, Robert Nemiroff, Jerry Bonnell, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>SPHEREx Seeing Through Dust</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/</guid>
+		<pubDate>Wed, 25 Nov 2026 05:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&#038;h=2040&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261125</apod:discussion>
+		<apod:credit><![CDATA[Credit: NASA/JPL-Caltech SPHEREx; data from NASA/IPAC IRSA. Processing: The Bright Nobles (Muhammet Mücahit Soylu, Serdar Aydın, Furkan Küpeli), ChronosphereX (chronospherex.com).]]></apod:credit>
+		<apod:copyright><![CDATA[Credit: NASA/JPL-Caltech SPHEREx; data from NASA/IPAC IRSA. Processing: The Bright Nobles (Muhammet Mücahit Soylu, Serdar Aydın, Furkan Küpeli), ChronosphereX (chronospherex.com).]]></apod:copyright>
+		<apod:alt>The video captures the plane of the Milky Way where the plane runs through the horizontal center. There is a bright bulge at the center where a bunch of stars are clustered. Stars dot the sky above and below the plane. The video cycles through the different colors that SPHEREx captures. Some colors show that the starlight near the Milky Way center is mostly blocked by dust along the plane. Other colors are able to travel through the dust and reach SPHEREx, giving a clearer view of the brighter Milky Way center.</apod:alt>
+		<apod:primary_image_alt>The video captures the plane of the Milky Way where the plane runs through the horizontal center. There is a bright bulge at the center where a bunch of stars are clustered. Stars dot the sky above and below the plane. The video cycles through the different colors that SPHEREx captures. Some colors show that the starlight near the Milky Way center is mostly blocked by dust along the plane. Other colors are able to travel through the dust and reach SPHEREx, giving a clearer view of the brighter Milky Way center.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> What is blocking the center of the Milky Way? During its <a href="https://spaceplace.nasa.gov/galaxies-age/en/">13 billion years</a>, our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, <a href="https://science.nasa.gov/universe/stories/quick-reads/be-glad-you-dont-have-to-dust-in-space/">cosmic dust</a> is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements <a href="https://www.thesciencewriter.org/small-things-stories/cosmic-cycle-of-dust">released into space</a> when a <a href="https://science.nasa.gov/universe/stories/quick-reads/the-lives-times-and-deaths-of-stars/">star dies</a>. Today’s video shows <a href="https://science.nasa.gov/ems/07_infraredwaves/">infrared</a> light from the Milky Way’s center gathered by NASA’s <a href="https://science.nasa.gov/mission/spherex/">SPHEREx</a> satellite. Each <a href="https://science.nasa.gov/ems/04_energytoimage/">false color</a> in the video corresponds to the infrared color associated with the <a href="https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/wavelengths/">wavelength</a> shown in the top left. In the near-infrared, like 1.2 <a href="https://pa.msu.edu/machine-shop/mils-vs-microns.aspx">microns</a>, light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by <a href="https://science.nasa.gov/image-article/apod-2026-may-20-the-dark-wolf-nebula/">clouds of dust</a>. In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, <a href="https://gml.noaa.gov/grad/about/redsky/">why sunsets are red</a>!<br><br><strong>Tomorrow's picture:</strong> a sandy view of the Milky Way]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> What is blocking the center of the Milky Way? During its <a href="https://spaceplace.nasa.gov/galaxies-age/en/">13 billion years</a>, our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, <a href="https://science.nasa.gov/universe/stories/quick-reads/be-glad-you-dont-have-to-dust-in-space/">cosmic dust</a> is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements <a href="https://www.thesciencewriter.org/small-things-stories/cosmic-cycle-of-dust">released into space</a> when a <a href="https://science.nasa.gov/universe/stories/quick-reads/the-lives-times-and-deaths-of-stars/">star dies</a>. Today’s video shows <a href="https://science.nasa.gov/ems/07_infraredwaves/">infrared</a> light from the Milky Way’s center gathered by NASA’s <a href="https://science.nasa.gov/mission/spherex/">SPHEREx</a> satellite. Each <a href="https://science.nasa.gov/ems/04_energytoimage/">false color</a> in the video corresponds to the infrared color associated with the <a href="https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/wavelengths/">wavelength</a> shown in the top left. In the near-infrared, like 1.2 <a href="https://pa.msu.edu/machine-shop/mils-vs-microns.aspx">microns</a>, light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by <a href="https://science.nasa.gov/image-article/apod-2026-may-20-the-dark-wolf-nebula/">clouds of dust</a>. In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, <a href="https://gml.noaa.gov/grad/about/redsky/">why sunsets are red</a>!<br><br><strong>Tomorrow's picture:</strong> a sandy view of the Milky Way]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 November 25 - SPHEREx Seeing Through Dust</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: What is blocking the center of the Milky Way? During its 13 billion years, our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, cosmic dust is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements released into space when a star dies. Today’s video shows infrared light from the Milky Way’s center gathered by NASA’s SPHEREx satellite. Each false color in the video corresponds to the infrared color associated with the wavelength shown in the top left. In the near-infrared, like 1.2 microns, light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by clouds of dust. In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, why sunsets are red!Tomorrow&#039;s picture: a sandy view of the Milky Way">
+<!-- -->
+<meta name="keywords" content="spherex seeing through dust">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SPHEREx Seeing Through Dust">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-november-25-spherex-seeing-through-dust/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&#038;h=2040&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&#038;h=2040&#038;fit=clip">
+<meta property="og:image:alt" content="A plane of dust clouds blocks light across the horizontal center of the image. Above and below are speckled with many stars.">
+<meta property="article:published_time" content="2026-11-25T00:05:00-05:00">
+<meta property="article:modified_time" content="2026-11-24T14:57:14-05:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SPHEREx Seeing Through Dust">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/spherex_1.2micron.png?w=3274&#038;h=2040&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 November 25<br>
+
+<video controls title="">
+<source src="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/galaksi_merkezi_spherex.mp4" type="video/mp4">
+</video>
+</center>
+
+<center>
+<b> SPHEREx Seeing Through Dust </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+Credit: NASA/JPL-Caltech SPHEREx; data from NASA/IPAC IRSA. Processing: The Bright Nobles (Muhammet Mücahit Soylu, Serdar Aydın, Furkan Küpeli), ChronosphereX (chronospherex.com).
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> What is blocking the center of the Milky Way? During its <a href="https://spaceplace.nasa.gov/galaxies-age/en/">13 billion years</a>, our Milky Way has collected a lot of dust. In contrast to the skin cells, dirt, pollen, and other debris that make up the dust behind your couch, <a href="https://science.nasa.gov/universe/stories/quick-reads/be-glad-you-dont-have-to-dust-in-space/">cosmic dust</a> is hundreds of times smaller and made of tiny compounds of oxygen, carbon, and other elements <a href="https://www.thesciencewriter.org/small-things-stories/cosmic-cycle-of-dust">released into space</a> when a <a href="https://science.nasa.gov/universe/stories/quick-reads/the-lives-times-and-deaths-of-stars/">star dies</a>. Today’s video shows <a href="https://science.nasa.gov/ems/07_infraredwaves/">infrared</a> light from the Milky Way’s center gathered by NASA’s <a href="https://science.nasa.gov/mission/spherex/">SPHEREx</a> satellite. Each <a href="https://science.nasa.gov/ems/04_energytoimage/">false color</a> in the video corresponds to the infrared color associated with the <a href="https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/wavelengths/">wavelength</a> shown in the top left. In the near-infrared, like 1.2 <a href="https://pa.msu.edu/machine-shop/mils-vs-microns.aspx">microns</a>, light gets absorbed and scatters off of dust particles. SPHEREx then sees the Galactic Center almost entirely blocked by <a href="https://science.nasa.gov/image-article/apod-2026-may-20-the-dark-wolf-nebula/">clouds of dust</a>. In the mid-infrared, though, light is able to pierce through the dust and reach SPHEREx. This is similar to, but not exactly, <a href="https://gml.noaa.gov/grad/about/redsky/">why sunsets are red</a>!<br><br><strong>Tomorrow's picture:</strong> a sandy view of the Milky Way
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/">APOD: 2026 November 26 &#8211; Eye in the Sky: The Milky Way over Lençóis</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-november-24-galaxies-battle-in-the-ngc-7771-group/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261125">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-november-26-eye-in-the-sky-the-milky-way-over-lencois/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Keighley Rockcliffe, Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Major Fireball Meteor</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-november-8-major-fireball-meteor/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-november-8-major-fireball-meteor/</guid>
+		<pubDate>Sun, 08 Nov 2026 05:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-november-8-major-fireball-meteor/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg/jcr:content/renditions/cq5dam.thumbnail.48.48.png</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261108</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://www.instagram.com/olliemtaylor/">Ollie Taylor</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://www.instagram.com/olliemtaylor/">Ollie Taylor</a>]]></apod:copyright>
+		<apod:alt>A mountainous landscape with snow and trees is seen  below a starry sky. A pink band is visible on the horizon.  Coming down from the sky is a bright meteor trail. Just above the meteor are the stars of the Big Dipper.  Please see the explanation for more detailed information.</apod:alt>
+		<apod:primary_image_alt>A mountainous landscape with snow and trees is seen  below a starry sky. A pink band is visible on the horizon.  Coming down from the sky is a bright meteor trail. Just above the meteor are the stars of the Big Dipper.  Please see the explanation for more detailed information.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> <a href="https://science.nasa.gov/image-article/apod-2010-july-22-the-meteor-of-1860/">The sky glows</a> with soft pinkish colors of fading twilight in this serendipitous mountaintop vista. Taken in subfreezing temperatures, the <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">thoughtfully composed photo</a> shows snowy, rugged peaks seen from a mountain pass on 2017 November 14. Below lies the village of <a href="https://youtu.be/bVNV2-wma5E">La Villa, Alta Badia</a> in <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>'s <a href="https://science.nasa.gov/image-article/apod-2024-november-6-comet-tsuchinshan-atlas-over-the-dolomites/">Dolomite Alps</a>. Above the nestled village lights, the <a href="https://science.nasa.gov/asset/hubble/constellation-ursa-major/">constellation Ursa Major</a> hangs over the northern horizon. But most <a href="https://unsplash.com/photos/white-and-gray-long-fur-cat-AGehl6k8xVo">stunning</a> is the intense <a href="https://cneos.jpl.nasa.gov/fireballs/intro.html">fireball</a> meteor. It was <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">captured</a> during the camera's exposure by chance as it flashed east to west across the northern horizon, under Ursa Major's familiar <a href="https://science.nasa.gov/image-article/apod-2013-april-21-the-big-dipper/">Big Dipper</a> <a href="https://science.nasa.gov/solar-system/what-are-asterisms/">asterism</a>. Sightings of <a href="https://www.amsmeteors.org/2017/11/four-major-fireballs-within-ten-hours/">this major fireball meteor</a> were widely reported in European skies, making it one of the most reported fireball events ever for planet Earth's <a href="https://www.amsmeteors.org/">American Meteor Society</a> and the <a href="https://www.imo.net/">International Meteor Organization</a>. The meteor's measured track over <a href="https://en.wikipedia.org/wiki/Germany">Germany</a> is consistent with its origin near the active <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">radiant</a> of November's Northern <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">Taurid Meteor Shower</a>, a shower associated with dust from <a href="https://science.nasa.gov/image-article/apod-2003-december-23-comet-encke-returns/">Encke's comet</a>.<br><br><strong>Tomorrow's picture:</strong> witch sky?]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> <a href="https://science.nasa.gov/image-article/apod-2010-july-22-the-meteor-of-1860/">The sky glows</a> with soft pinkish colors of fading twilight in this serendipitous mountaintop vista. Taken in subfreezing temperatures, the <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">thoughtfully composed photo</a> shows snowy, rugged peaks seen from a mountain pass on 2017 November 14. Below lies the village of <a href="https://youtu.be/bVNV2-wma5E">La Villa, Alta Badia</a> in <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>'s <a href="https://science.nasa.gov/image-article/apod-2024-november-6-comet-tsuchinshan-atlas-over-the-dolomites/">Dolomite Alps</a>. Above the nestled village lights, the <a href="https://science.nasa.gov/asset/hubble/constellation-ursa-major/">constellation Ursa Major</a> hangs over the northern horizon. But most <a href="https://unsplash.com/photos/white-and-gray-long-fur-cat-AGehl6k8xVo">stunning</a> is the intense <a href="https://cneos.jpl.nasa.gov/fireballs/intro.html">fireball</a> meteor. It was <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">captured</a> during the camera's exposure by chance as it flashed east to west across the northern horizon, under Ursa Major's familiar <a href="https://science.nasa.gov/image-article/apod-2013-april-21-the-big-dipper/">Big Dipper</a> <a href="https://science.nasa.gov/solar-system/what-are-asterisms/">asterism</a>. Sightings of <a href="https://www.amsmeteors.org/2017/11/four-major-fireballs-within-ten-hours/">this major fireball meteor</a> were widely reported in European skies, making it one of the most reported fireball events ever for planet Earth's <a href="https://www.amsmeteors.org/">American Meteor Society</a> and the <a href="https://www.imo.net/">International Meteor Organization</a>. The meteor's measured track over <a href="https://en.wikipedia.org/wiki/Germany">Germany</a> is consistent with its origin near the active <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">radiant</a> of November's Northern <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">Taurid Meteor Shower</a>, a shower associated with dust from <a href="https://science.nasa.gov/image-article/apod-2003-december-23-comet-encke-returns/">Encke's comet</a>.<br><br><strong>Tomorrow's picture:</strong> witch sky?]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 November 8 - Major Fireball Meteor</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-november-8-major-fireball-meteor/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: The sky glows with soft pinkish colors of fading twilight in this serendipitous mountaintop vista. Taken in subfreezing temperatures, the thoughtfully composed photo shows snowy, rugged peaks seen from a mountain pass on 2017 November 14. Below lies the village of La Villa, Alta Badia in Italy&#039;s Dolomite Alps. Above the nestled village lights, the constellation Ursa Major hangs over the northern horizon. But most stunning is the intense fireball meteor. It was captured during the camera&#039;s exposure by chance as it flashed east to west across the northern horizon, under Ursa Major&#039;s familiar Big Dipper asterism. Sightings of this major fireball meteor were widely reported in European skies, making it one of the most reported fireball events ever for planet Earth&#039;s American Meteor Society and the International Meteor Organization. The meteor&#039;s measured track over Germany is consistent with its origin near the active radiant of November&#039;s Northern Taurid Meteor Shower, a shower associated with dust from Encke&#039;s comet.Tomorrow&#039;s picture: witch sky?">
+<!-- -->
+<meta name="keywords" content="major fireball meteor">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Major Fireball Meteor">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-november-8-major-fireball-meteor/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg/jcr:content/renditions/cq5dam.thumbnail.48.48.png">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg/jcr:content/renditions/cq5dam.thumbnail.48.48.png">
+<meta property="og:image:alt" content="A mountainous landscape with snow and trees is seen  below a starry sky. A pink band is visible on the horizon.  Coming down from the sky is a bright meteor trail. Just above the meteor are the stars of the Big Dipper.  Please see the explanation for more detailed information.">
+<meta property="article:published_time" content="2026-11-08T00:05:00-05:00">
+<meta property="article:modified_time" content="2026-11-04T10:32:05-05:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Major Fireball Meteor">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg/jcr:content/renditions/cq5dam.thumbnail.48.48.png">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 November 8<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/meteor2017_Taylor_1200.jpg" alt="A mountainous landscape with snow and trees is seen  below a starry sky. A pink band is visible on the horizon.  Coming down from the sky is a bright meteor trail. Just above the meteor are the stars of the Big Dipper.  Please see the explanation for more detailed information."></a>
+</center>
+
+<center>
+<b> Major Fireball Meteor </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://www.instagram.com/olliemtaylor/">Ollie Taylor</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> <a href="https://science.nasa.gov/image-article/apod-2010-july-22-the-meteor-of-1860/">The sky glows</a> with soft pinkish colors of fading twilight in this serendipitous mountaintop vista. Taken in subfreezing temperatures, the <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">thoughtfully composed photo</a> shows snowy, rugged peaks seen from a mountain pass on 2017 November 14. Below lies the village of <a href="https://youtu.be/bVNV2-wma5E">La Villa, Alta Badia</a> in <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>'s <a href="https://science.nasa.gov/image-article/apod-2024-november-6-comet-tsuchinshan-atlas-over-the-dolomites/">Dolomite Alps</a>. Above the nestled village lights, the <a href="https://science.nasa.gov/asset/hubble/constellation-ursa-major/">constellation Ursa Major</a> hangs over the northern horizon. But most <a href="https://unsplash.com/photos/white-and-gray-long-fur-cat-AGehl6k8xVo">stunning</a> is the intense <a href="https://cneos.jpl.nasa.gov/fireballs/intro.html">fireball</a> meteor. It was <a href="https://www.esa.int/ESA_Multimedia/Images/2017/11/Autumn_fireball">captured</a> during the camera's exposure by chance as it flashed east to west across the northern horizon, under Ursa Major's familiar <a href="https://science.nasa.gov/image-article/apod-2013-april-21-the-big-dipper/">Big Dipper</a> <a href="https://science.nasa.gov/solar-system/what-are-asterisms/">asterism</a>. Sightings of <a href="https://www.amsmeteors.org/2017/11/four-major-fireballs-within-ten-hours/">this major fireball meteor</a> were widely reported in European skies, making it one of the most reported fireball events ever for planet Earth's <a href="https://www.amsmeteors.org/">American Meteor Society</a> and the <a href="https://www.imo.net/">International Meteor Organization</a>. The meteor's measured track over <a href="https://en.wikipedia.org/wiki/Germany">Germany</a> is consistent with its origin near the active <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">radiant</a> of November's Northern <a href="https://science.nasa.gov/image-article/apod-2025-august-12-perseids-from-perseus/">Taurid Meteor Shower</a>, a shower associated with dust from <a href="https://science.nasa.gov/image-article/apod-2003-december-23-comet-encke-returns/">Encke's comet</a>.<br><br><strong>Tomorrow's picture:</strong> witch sky?
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-november-9-rigel-and-the-witch-head-nebula/">APOD: 2026 November 9 &#8211; Rigel and the Witch Head Nebula</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-november-7-de-gerlache-kocher-massif/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261108">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-november-9-rigel-and-the-witch-head-nebula/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Colors of the Moon</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-november-1-colors-of-the-moon/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-november-1-colors-of-the-moon/</guid>
+		<pubDate>Sun, 01 Nov 2026 04:05:00 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-november-1-colors-of-the-moon/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg?w=960&#038;h=991&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261101</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://greenflash.photo/about-me/">Marcella Giulia Pace</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://greenflash.photo/about-me/">Marcella Giulia Pace</a>]]></apod:copyright>
+		<apod:alt>Different colored images of the Moon are arranged in a spiral pattern.</apod:alt>
+		<apod:primary_image_alt>Different colored images of the Moon are arranged in a spiral pattern.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> What color is the Moon? It depends on the night -- and the time. Outside of the <a href="https://science.nasa.gov/earth/earth-atmosphere/earths-atmosphere-a-multi-layered-cake/">Earth's atmosphere</a>, the <a href="https://www.universetoday.com/articles/moon-albedo">dark Moon</a>, which shines by reflected sunlight, appears a <a href="https://science.nasa.gov/image-article/apod-2003-november-9-apollo-17-lunarscape-a-magnificent-desolation/">magnificent</a>ly brown-tinged gray. The <a href="https://greenflash.photo/portfolio/colors-of-the-moon/">featured image</a> highlights a collection of apparent colors of the full moon on Earth, documented by one astrophotographer over 10 years from <a href="https://youtu.be/G0EUqGhYZ6Y">different locations</a> across <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>. A <a href="https://science.nasa.gov/image-article/apod-2022-november-11-blood-moon-ice-giant/">red</a>- or <a href="https://science.nasa.gov/image-article/apod-2026-january-20-io-in-true-color/">yellow</a>-colored moon usually indicates a moon seen <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-1-buck-moon-and-belt-of-venus/">near the horizon</a>. There, some of the blue light has been scattered away by a long path through the <a href="https://www.nasa.gov/general/what-is-earths-atmosphere/">Earth's atmosphere</a>, sometimes laden with fine dust. A <a href="https://www.loc.gov/everyday-mysteries/categories/astronomy/item/what-is-a-blue-moon-is-it-ever-really-blue/">blue-colored moon</a> is more rare and can indicate an atmosphere carrying larger <a href="https://science.nasa.gov/earth/earth-observatory/a-dusty-journey-146122/">dust particles</a>. What created the purple moon is <a href="https://cdn.akc.org/content/hero/bulldog_rib_bone_hero.jpg">unclear</a> -- it may be a combination of several effects. The last image captures the total <a href="https://science.nasa.gov/image-article/apod-2026-march-7-two-eclipses-of-saros-133/">lunar eclipse</a> of 2018 July -- where the moon, in <a href="https://science.nasa.gov/image-article/apod-2026-august-25-earths-shadow-visualized-with-lunar-eclipses/">Earth's shadow</a>, appeared a faint red -- due to light <a href="https://en.wikipedia.org/wiki/Refraction">refracted</a> through air around the Earth. <a href="https://asterisk.apod.com/discuss_apod.php?date=261101">Have you</a> ever seen an unusually colorful Moon?<br><br><strong>Tomorrow's picture: </strong><a href="https://apod.com/fap/ap261102.html">open space</a>]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> What color is the Moon? It depends on the night -- and the time. Outside of the <a href="https://science.nasa.gov/earth/earth-atmosphere/earths-atmosphere-a-multi-layered-cake/">Earth's atmosphere</a>, the <a href="https://www.universetoday.com/articles/moon-albedo">dark Moon</a>, which shines by reflected sunlight, appears a <a href="https://science.nasa.gov/image-article/apod-2003-november-9-apollo-17-lunarscape-a-magnificent-desolation/">magnificent</a>ly brown-tinged gray. The <a href="https://greenflash.photo/portfolio/colors-of-the-moon/">featured image</a> highlights a collection of apparent colors of the full moon on Earth, documented by one astrophotographer over 10 years from <a href="https://youtu.be/G0EUqGhYZ6Y">different locations</a> across <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>. A <a href="https://science.nasa.gov/image-article/apod-2022-november-11-blood-moon-ice-giant/">red</a>- or <a href="https://science.nasa.gov/image-article/apod-2026-january-20-io-in-true-color/">yellow</a>-colored moon usually indicates a moon seen <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-1-buck-moon-and-belt-of-venus/">near the horizon</a>. There, some of the blue light has been scattered away by a long path through the <a href="https://www.nasa.gov/general/what-is-earths-atmosphere/">Earth's atmosphere</a>, sometimes laden with fine dust. A <a href="https://www.loc.gov/everyday-mysteries/categories/astronomy/item/what-is-a-blue-moon-is-it-ever-really-blue/">blue-colored moon</a> is more rare and can indicate an atmosphere carrying larger <a href="https://science.nasa.gov/earth/earth-observatory/a-dusty-journey-146122/">dust particles</a>. What created the purple moon is <a href="https://cdn.akc.org/content/hero/bulldog_rib_bone_hero.jpg">unclear</a> -- it may be a combination of several effects. The last image captures the total <a href="https://science.nasa.gov/image-article/apod-2026-march-7-two-eclipses-of-saros-133/">lunar eclipse</a> of 2018 July -- where the moon, in <a href="https://science.nasa.gov/image-article/apod-2026-august-25-earths-shadow-visualized-with-lunar-eclipses/">Earth's shadow</a>, appeared a faint red -- due to light <a href="https://en.wikipedia.org/wiki/Refraction">refracted</a> through air around the Earth. <a href="https://asterisk.apod.com/discuss_apod.php?date=261101">Have you</a> ever seen an unusually colorful Moon?<br><br><strong>Tomorrow's picture: </strong><a href="https://apod.com/fap/ap261102.html">open space</a>]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 November 1 - Colors of the Moon</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-november-1-colors-of-the-moon/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: What color is the Moon? It depends on the night -- and the time. Outside of the Earth&#039;s atmosphere, the dark Moon, which shines by reflected sunlight, appears a magnificently brown-tinged gray. The featured image highlights a collection of apparent colors of the full moon on Earth, documented by one astrophotographer over 10 years from different locations across Italy. A red- or yellow-colored moon usually indicates a moon seen near the horizon. There, some of the blue light has been scattered away by a long path through the Earth&#039;s atmosphere, sometimes laden with fine dust. A blue-colored moon is more rare and can indicate an atmosphere carrying larger dust particles. What created the purple moon is unclear -- it may be a combination of several effects. The last image captures the total lunar eclipse of 2018 July -- where the moon, in Earth&#039;s shadow, appeared a faint red -- due to light refracted through air around the Earth. Have you ever seen an unusually colorful Moon?Tomorrow&#039;s picture: open space">
+<!-- -->
+<meta name="keywords" content="colors of the moon">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Colors of the Moon">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-november-1-colors-of-the-moon/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg?w=960&#038;h=991&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg?w=960&#038;h=991&#038;fit=clip">
+<meta property="og:image:alt" content="Different colored images of the Moon are arranged in a spiral pattern.">
+<meta property="article:published_time" content="2026-11-01T00:05:00-04:00">
+<meta property="article:modified_time" content="2026-10-31T10:41:44-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Colors of the Moon">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg?w=960&#038;h=991&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 November 1<br>
+
+<a href="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg">
+<IMG SRC="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2026/november/MoonColors_Pace_960.jpg" alt="Different colored images of the Moon are arranged in a spiral pattern."></a>
+</center>
+
+<center>
+<b> Colors of the Moon </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://greenflash.photo/about-me/">Marcella Giulia Pace</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> What color is the Moon? It depends on the night -- and the time. Outside of the <a href="https://science.nasa.gov/earth/earth-atmosphere/earths-atmosphere-a-multi-layered-cake/">Earth's atmosphere</a>, the <a href="https://www.universetoday.com/articles/moon-albedo">dark Moon</a>, which shines by reflected sunlight, appears a <a href="https://science.nasa.gov/image-article/apod-2003-november-9-apollo-17-lunarscape-a-magnificent-desolation/">magnificent</a>ly brown-tinged gray. The <a href="https://greenflash.photo/portfolio/colors-of-the-moon/">featured image</a> highlights a collection of apparent colors of the full moon on Earth, documented by one astrophotographer over 10 years from <a href="https://youtu.be/G0EUqGhYZ6Y">different locations</a> across <a href="https://en.wikipedia.org/wiki/Italy">Italy</a>. A <a href="https://science.nasa.gov/image-article/apod-2022-november-11-blood-moon-ice-giant/">red</a>- or <a href="https://science.nasa.gov/image-article/apod-2026-january-20-io-in-true-color/">yellow</a>-colored moon usually indicates a moon seen <a href="https://science.nasa.gov/image-article/apod/apod-2026-august-1-buck-moon-and-belt-of-venus/">near the horizon</a>. There, some of the blue light has been scattered away by a long path through the <a href="https://www.nasa.gov/general/what-is-earths-atmosphere/">Earth's atmosphere</a>, sometimes laden with fine dust. A <a href="https://www.loc.gov/everyday-mysteries/categories/astronomy/item/what-is-a-blue-moon-is-it-ever-really-blue/">blue-colored moon</a> is more rare and can indicate an atmosphere carrying larger <a href="https://science.nasa.gov/earth/earth-observatory/a-dusty-journey-146122/">dust particles</a>. What created the purple moon is <a href="https://cdn.akc.org/content/hero/bulldog_rib_bone_hero.jpg">unclear</a> -- it may be a combination of several effects. The last image captures the total <a href="https://science.nasa.gov/image-article/apod-2026-march-7-two-eclipses-of-saros-133/">lunar eclipse</a> of 2018 July -- where the moon, in <a href="https://science.nasa.gov/image-article/apod-2026-august-25-earths-shadow-visualized-with-lunar-eclipses/">Earth's shadow</a>, appeared a faint red -- due to light <a href="https://en.wikipedia.org/wiki/Refraction">refracted</a> through air around the Earth. <a href="https://asterisk.apod.com/discuss_apod.php?date=261101">Have you</a> ever seen an unusually colorful Moon?<br><br><strong>Tomorrow's picture: </strong><a href="https://apod.com/fap/ap261102.html">open space</a>
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod-2026-november-2-a-long-cloud-on-mars/">APOD: 2026 November 2 &#8211; A Long Cloud on Mars</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-october-31-night-on-a-spooky-planet/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261101">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod-2026-november-2-a-long-cloud-on-mars/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+	<item>
+		<title>Dark Matter in a Simulated Universe</title>
+		<link>https://science.nasa.gov/image-article/apod-2026-october-25-dark-matter-in-a-simulated-universe/</link>
+		<guid isPermaLink="true">https://science.nasa.gov/image-article/apod-2026-october-25-dark-matter-in-a-simulated-universe/</guid>
+		<pubDate>Sun, 25 Oct 2026 08:19:48 +0000</pubDate>
+		<apod:url>https://science.nasa.gov/image-article/apod-2026-october-25-dark-matter-in-a-simulated-universe/</apod:url>
+		<apod:hdurl>https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&#038;h=900&#038;fit=clip</apod:hdurl>
+		<apod:discussion>https://asterisk.apod.com/discuss_apod.php?date=261025</apod:discussion>
+		<apod:credit><![CDATA[<a href="https://kipac.stanford.edu/people/tom-abel" target="_blank" rel="noreferrer noopener">Tom Abel</a> &amp; <a href="https://www.slac.stanford.edu/~kaehler/" target="_blank" rel="noreferrer noopener">Ralf Kaehler</a> (<a href="https://kipac.stanford.edu/" target="_blank" rel="noreferrer noopener">KIPAC</a> , <a href="https://www6.slac.stanford.edu/" target="_blank" rel="noreferrer noopener">SLAC</a>), <a href="https://www.amnh.org/" target="_blank" rel="noreferrer noopener">AMNH</a>]]></apod:credit>
+		<apod:copyright><![CDATA[<a href="https://kipac.stanford.edu/people/tom-abel" target="_blank" rel="noreferrer noopener">Tom Abel</a> &amp; <a href="https://www.slac.stanford.edu/~kaehler/" target="_blank" rel="noreferrer noopener">Ralf Kaehler</a> (<a href="https://kipac.stanford.edu/" target="_blank" rel="noreferrer noopener">KIPAC</a> , <a href="https://www6.slac.stanford.edu/" target="_blank" rel="noreferrer noopener">SLAC</a>), <a href="https://www.amnh.org/" target="_blank" rel="noreferrer noopener">AMNH</a>]]></apod:copyright>
+		<apod:alt>The picture shows a computer simulation of the matter distribution in our universe with dark matter shown in a dark color on a light background. Please see the explanation for more detailed information.</apod:alt>
+		<apod:primary_image_alt>The picture shows a computer simulation of the matter distribution in our universe with dark matter shown in a dark color on a light background. Please see the explanation for more detailed information.</apod:primary_image_alt>
+		<apod:explanation><![CDATA[<strong>Explanation:</strong> Is our universe haunted? It might look that way on this <a href="https://spaceplace.nasa.gov/dark-matter/">dark matter</a> map. The gravity of unseen <a href="https://chandra.harvard.edu/xray_astro/dark_matter/">dark matter</a> is the leading explanation for why <a href="https://ed.ted.com/lessons/dark-matter-how-does-it-explain-a-star-s-speed-don-lincoln">galaxies rotate so fast</a>, why <a href="https://medium.com/starts-with-a-bang/galaxy-clusters-prove-dark-matters-existence-fd962c979458">galaxies orbit clusters so fast</a>, why gravitational lenses so strongly deflect light, and how <a href="https://science.nasa.gov/image-article/apod-2014-may-12-illustris-simulation-of-the-universe/">visible matter</a> is distributed. The featured image from the <a href="https://www.amnh.org/">American Museum of Natural History</a>'s <a href="https://www.amnh.org/research/hayden-planetarium">Hayden Planetarium</a> Space Show, Dark Universe, highlights one example of how pervasive dark matter might haunt our universe. In this frame from a <a href="https://www.youtube.com/watch?v=zEEg1XkbXDo">detailed computer simulation</a>, complex filaments of dark matter, shown in black, are strewn <a href="https://science.nasa.gov/image-article/apod-2011-october-3-dark-matter-movie-from-the-bolshoi-simulation/">about the universe</a> like <a href="https://www.badspiderbites.com/giant-spider-web/">spider webs</a>, while the relatively rare clumps of familiar <a href="https://en.wikipedia.org/wiki/Baryon">baryon</a>ic matter are colored orange. These simulations are good statistical matches to astronomical observations. In what is perhaps a <a href="https://unsplash.com/photos/brown-scottish-fold-in-brown-thick-pile-blanket-NodtnCsLdTE">scarier</a> turn of events, <a href="https://science.nasa.gov/dark-matter/">dark matter</a> -- although quite strange and in an <a href="https://home.cern/science/physics/dark-matter">unknown form</a> -- is no longer thought to be the strangest source of <a href="https://ui.adsabs.harvard.edu/abs/2008AmJPh..76..265N/abstract">gravity in the universe</a>. That honor now falls to <a href="https://science.nasa.gov/dark-energy/">dark energy</a>, a more uniform source of <a href="http://www.preposterousuniverse.com/blog/2013/11/16/why-does-dark-energy-make-the-universe-accelerate/">repulsive gravity</a> that seems to now dominate the <a href="https://science.nasa.gov/image-article/apod-2015-may-31-supernova-1994d-and-the-unexpected-universe/">expansion</a> of the entire <a href="https://science.nasa.gov/apod/the-nature-of-the-universe-great-debate-in-1998-program/">universe</a>.<br><br><strong>Tomorrow's picture:</strong> Orion the Great]]></apod:explanation>
+		<description><![CDATA[<strong>Explanation:</strong> Is our universe haunted? It might look that way on this <a href="https://spaceplace.nasa.gov/dark-matter/">dark matter</a> map. The gravity of unseen <a href="https://chandra.harvard.edu/xray_astro/dark_matter/">dark matter</a> is the leading explanation for why <a href="https://ed.ted.com/lessons/dark-matter-how-does-it-explain-a-star-s-speed-don-lincoln">galaxies rotate so fast</a>, why <a href="https://medium.com/starts-with-a-bang/galaxy-clusters-prove-dark-matters-existence-fd962c979458">galaxies orbit clusters so fast</a>, why gravitational lenses so strongly deflect light, and how <a href="https://science.nasa.gov/image-article/apod-2014-may-12-illustris-simulation-of-the-universe/">visible matter</a> is distributed. The featured image from the <a href="https://www.amnh.org/">American Museum of Natural History</a>'s <a href="https://www.amnh.org/research/hayden-planetarium">Hayden Planetarium</a> Space Show, Dark Universe, highlights one example of how pervasive dark matter might haunt our universe. In this frame from a <a href="https://www.youtube.com/watch?v=zEEg1XkbXDo">detailed computer simulation</a>, complex filaments of dark matter, shown in black, are strewn <a href="https://science.nasa.gov/image-article/apod-2011-october-3-dark-matter-movie-from-the-bolshoi-simulation/">about the universe</a> like <a href="https://www.badspiderbites.com/giant-spider-web/">spider webs</a>, while the relatively rare clumps of familiar <a href="https://en.wikipedia.org/wiki/Baryon">baryon</a>ic matter are colored orange. These simulations are good statistical matches to astronomical observations. In what is perhaps a <a href="https://unsplash.com/photos/brown-scottish-fold-in-brown-thick-pile-blanket-NodtnCsLdTE">scarier</a> turn of events, <a href="https://science.nasa.gov/dark-matter/">dark matter</a> -- although quite strange and in an <a href="https://home.cern/science/physics/dark-matter">unknown form</a> -- is no longer thought to be the strangest source of <a href="https://ui.adsabs.harvard.edu/abs/2008AmJPh..76..265N/abstract">gravity in the universe</a>. That honor now falls to <a href="https://science.nasa.gov/dark-energy/">dark energy</a>, a more uniform source of <a href="http://www.preposterousuniverse.com/blog/2013/11/16/why-does-dark-energy-make-the-universe-accelerate/">repulsive gravity</a> that seems to now dominate the <a href="https://science.nasa.gov/image-article/apod-2015-may-31-supernova-1994d-and-the-unexpected-universe/">expansion</a> of the entire <a href="https://science.nasa.gov/apod/the-nature-of-the-universe-great-debate-in-1998-program/">universe</a>.<br><br><strong>Tomorrow's picture:</strong> Orion the Great]]></description>
+		<content:encoded><![CDATA[<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title> APOD: 2026 October 25 - Dark Matter in a Simulated Universe</title>
+<link rel="canonical" href="https://science.nasa.gov/image-article/apod-2026-october-25-dark-matter-in-a-simulated-universe/">
+<!-- gsfc meta tags -->
+<meta name="orgcode" content="661">
+<meta name="rno" content="Dana Bolles">
+<meta name="content-owner" content="Robert Nemiroff">
+<meta name="webmaster" content="Stephen.F.Fantasia.1">
+<meta name="description" content="Explanation: Is our universe haunted? It might look that way on this dark matter map. The gravity of unseen dark matter is the leading explanation for why galaxies rotate so fast, why galaxies orbit clusters so fast, why gravitational lenses so strongly deflect light, and how visible matter is distributed. The featured image from the American Museum of Natural History&#039;s Hayden Planetarium Space Show, Dark Universe, highlights one example of how pervasive dark matter might haunt our universe. In this frame from a detailed computer simulation, complex filaments of dark matter, shown in black, are strewn about the universe like spider webs, while the relatively rare clumps of familiar baryonic matter are colored orange. These simulations are good statistical matches to astronomical observations. In what is perhaps a scarier turn of events, dark matter -- although quite strange and in an unknown form -- is no longer thought to be the strangest source of gravity in the universe. That honor now falls to dark energy, a more uniform source of repulsive gravity that seems to now dominate the expansion of the entire universe.Tomorrow&#039;s picture: Orion the Great">
+<!-- -->
+<meta name="keywords" content="dark matter in a simulated universe">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Dark Matter in a Simulated Universe">
+<meta property="og:url" content="https://science.nasa.gov/image-article/apod-2026-october-25-dark-matter-in-a-simulated-universe/">
+<meta property="og:site_name" content="NASA Science">
+<meta property="og:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&#038;h=900&#038;fit=clip">
+<meta property="og:image:secure_url" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&#038;h=900&#038;fit=clip">
+<meta property="og:image:alt" content="The picture shows a computer simulation of the matter distribution in our universe with dark matter shown in a dark color on a light background. Please see the explanation for more detailed information.">
+<meta property="article:published_time" content="2026-10-25T04:19:48-04:00">
+<meta property="article:modified_time" content="2026-10-25T04:19:53-04:00">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dark Matter in a Simulated Universe">
+<meta name="twitter:site" content="@NASA">
+<meta name="twitter:creator" content="@NASA">
+<meta name="twitter:image" content="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg?w=1200&#038;h=900&#038;fit=clip">
+</head>
+<body BGCOLOR="#F4F4FF" text="#000000" link="#0000FF" vlink="#7F0F9F"
+alink="#FF0000">
+
+<center>
+<h1> Astronomy Picture of the Day </h1>
+<p>
+
+<a href="https://science.nasa.gov/apod/archive/">Discover the cosmos!</a>
+Each day a different image or photograph of our fascinating universe is
+featured, along with a brief explanation written by a professional astronomer.
+<p>
+
+2026 October 25<br>
+
+<a href="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg">
+<IMG SRC="https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2021/october/DarkMatter_KipacAmnh_1200.jpg" alt="The picture shows a computer simulation of the matter distribution in our universe with dark matter shown in a dark color on a light background. Please see the explanation for more detailed information."></a>
+</center>
+
+<center>
+<b> Dark Matter in a Simulated Universe </b> <br>
+
+<b>Image Credit &
+<a href="https://science.nasa.gov/apod/about-apod/">Copyright</a>:</b>
+
+<a href="https://kipac.stanford.edu/people/tom-abel" target="_blank" rel="noreferrer noopener">Tom Abel</a> &amp; <a href="https://www.slac.stanford.edu/~kaehler/" target="_blank" rel="noreferrer noopener">Ralf Kaehler</a> (<a href="https://kipac.stanford.edu/" target="_blank" rel="noreferrer noopener">KIPAC</a> , <a href="https://www6.slac.stanford.edu/" target="_blank" rel="noreferrer noopener">SLAC</a>), <a href="https://www.amnh.org/" target="_blank" rel="noreferrer noopener">AMNH</a>
+</center>
+
+<p>
+
+<b> Explanation: </b>
+
+<strong>Explanation:</strong> Is our universe haunted? It might look that way on this <a href="https://spaceplace.nasa.gov/dark-matter/">dark matter</a> map. The gravity of unseen <a href="https://chandra.harvard.edu/xray_astro/dark_matter/">dark matter</a> is the leading explanation for why <a href="https://ed.ted.com/lessons/dark-matter-how-does-it-explain-a-star-s-speed-don-lincoln">galaxies rotate so fast</a>, why <a href="https://medium.com/starts-with-a-bang/galaxy-clusters-prove-dark-matters-existence-fd962c979458">galaxies orbit clusters so fast</a>, why gravitational lenses so strongly deflect light, and how <a href="https://science.nasa.gov/image-article/apod-2014-may-12-illustris-simulation-of-the-universe/">visible matter</a> is distributed. The featured image from the <a href="https://www.amnh.org/">American Museum of Natural History</a>'s <a href="https://www.amnh.org/research/hayden-planetarium">Hayden Planetarium</a> Space Show, Dark Universe, highlights one example of how pervasive dark matter might haunt our universe. In this frame from a <a href="https://www.youtube.com/watch?v=zEEg1XkbXDo">detailed computer simulation</a>, complex filaments of dark matter, shown in black, are strewn <a href="https://science.nasa.gov/image-article/apod-2011-october-3-dark-matter-movie-from-the-bolshoi-simulation/">about the universe</a> like <a href="https://www.badspiderbites.com/giant-spider-web/">spider webs</a>, while the relatively rare clumps of familiar <a href="https://en.wikipedia.org/wiki/Baryon">baryon</a>ic matter are colored orange. These simulations are good statistical matches to astronomical observations. In what is perhaps a <a href="https://unsplash.com/photos/brown-scottish-fold-in-brown-thick-pile-blanket-NodtnCsLdTE">scarier</a> turn of events, <a href="https://science.nasa.gov/dark-matter/">dark matter</a> -- although quite strange and in an <a href="https://home.cern/science/physics/dark-matter">unknown form</a> -- is no longer thought to be the strangest source of <a href="https://ui.adsabs.harvard.edu/abs/2008AmJPh..76..265N/abstract">gravity in the universe</a>. That honor now falls to <a href="https://science.nasa.gov/dark-energy/">dark energy</a>, a more uniform source of <a href="http://www.preposterousuniverse.com/blog/2013/11/16/why-does-dark-energy-make-the-universe-accelerate/">repulsive gravity</a> that seems to now dominate the <a href="https://science.nasa.gov/image-article/apod-2015-may-31-supernova-1994d-and-the-unexpected-universe/">expansion</a> of the entire <a href="https://science.nasa.gov/apod/the-nature-of-the-universe-great-debate-in-1998-program/">universe</a>.<br><br><strong>Tomorrow's picture:</strong> Orion the Great
+<p> <center>
+
+<b> Tomorrow's picture: </b><a href="https://science.nasa.gov/image-article/apod/2026-october-26-m42-the-great-nebula-in-orion/">APOD: 2026 October 26 &#8211; M42: The Great Nebula in Orion</a>
+
+<p> <hr>
+<a href="https://science.nasa.gov/image-article/apod-2026-october-24-rosettas-selfie/">&lt;</a>
+| <a href="https://science.nasa.gov/apod/archive/">Archive</a>
+| <a href="https://science.nasa.gov/apod/archive/">Index</a>
+| <a href="https://science.nasa.gov/apod/archive/">Search</a>
+| <a href="https://science.nasa.gov/apod/calendar/">Calendar</a>
+| <a href="/feed/apod-basic/">RSS</a>
+| <a href="https://science.nasa.gov/apod/education-links/">Education</a>
+| <a href="https://science.nasa.gov/apod/about-apod/">About APOD</a>
+| <a href="https://asterisk.apod.com/discuss_apod.php?date=261025">Discuss</a>
+| <a href="https://science.nasa.gov/image-article/apod/2026-october-26-m42-the-great-nebula-in-orion/">&gt;</a>
+
+<hr><p>
+<b> Authors & editors: </b>
+Robert Nemiroff, Jerry Bonnell, Cecilia Chirenti, Keighley Rockcliffe<br>
+<b>NASA Official: </b> Dana Bolles<a href="https://science.nasa.gov/apod/about-apod/">Specific rights apply</a>.<br>
+<a href="http://www.nasa.gov/about/highlights/HP_Privacy.html">NASA Web
+Privacy Policy and Important Notices</a><br>
+<b>A service of:</b>
+<a href="http://astrophysics.gsfc.nasa.gov/">ASD</a> at
+<a href="http://www.nasa.gov/">NASA</a> /
+<a href="http://www.nasa.gov/centers/goddard/">GSFC</a>
+<br><b>&</b> <a href="http://www.mtu.edu/">Michigan Tech. U.</a><br>
+</center>
+</body>
+</html>]]></content:encoded>
+	</item>
+</channel>
+</rss>

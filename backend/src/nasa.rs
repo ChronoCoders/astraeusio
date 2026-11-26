@@ -1,7 +1,9 @@
+use crate::fetch::Fetched;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::warn;
 
 #[derive(Error, Debug)]
 pub enum NasaError {
@@ -9,6 +11,8 @@ pub enum NasaError {
     Request(#[from] reqwest::Error),
     #[error("missing env var: {0}")]
     Env(#[from] std::env::VarError),
+    #[error("apod feed: {0}")]
+    Feed(#[from] crate::apod_feed::FeedError),
 }
 
 /// api.nasa.gov accepts the key as a query parameter or as this header.
@@ -28,7 +32,9 @@ fn api_key() -> Result<String, NasaError> {
 
 // ── APOD ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize, Deserialize)]
+/// One APOD day as stored. Built by `apod_feed` from NASA's feed, where
+/// explanation, credit and copyright arrive as HTML and leave as plain text.
+#[derive(Debug, Clone)]
 pub struct Apod {
     pub date: String,
     pub title: String,
@@ -36,18 +42,32 @@ pub struct Apod {
     pub url: String,
     pub media_type: String,
     pub hdurl: Option<String>,
+    pub credit: Option<String>,
+    pub copyright: Option<String>,
 }
 
-pub async fn fetch_apod(client: &Client) -> Result<Apod, NasaError> {
-    let key = api_key()?;
-    Ok(client
-        .get("https://api.nasa.gov/planetary/apod")
-        .header(API_KEY_HEADER, key)
+/// Every item of the APOD feed. An item that cannot be read is logged with its
+/// position and reason and left out, and the outcome counts it.
+pub async fn fetch_apod(client: &Client) -> Result<Fetched<Apod>, NasaError> {
+    let body = client
+        .get(crate::apod_feed::FEED_URL)
         .send()
         .await?
         .error_for_status()?
-        .json::<Apod>()
-        .await?)
+        .text()
+        .await?;
+    let entries = crate::apod_feed::parse(&body)?;
+    let received = entries.len();
+    let records = entries
+        .into_iter()
+        .enumerate()
+        .filter_map(|(item, entry)| {
+            entry
+                .map_err(|reason| warn!(source = "poller/apod", item, %reason, "apod: feed item skipped"))
+                .ok()
+        })
+        .collect();
+    Ok(Fetched::lossy(records, received))
 }
 
 // ── NeoWs ─────────────────────────────────────────────────────────────────────

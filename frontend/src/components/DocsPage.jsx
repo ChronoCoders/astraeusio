@@ -438,12 +438,14 @@ curl -H "Authorization: Bearer eyJhbGci..." \\
             method="GET" path="/api/apod"
             desc={t('docs.epApod')}
             response={`{
-  "date":        "2026-05-02",
-  "title":       "The Pillars of Creation",
+  "date":        "2026-11-26",
+  "title":       "Eye in the Sky: The Milky Way over Lençóis",
   "explanation": "...",
-  "url":         "https://apod.nasa.gov/apod/image/...",
-  "hdurl":       "https://apod.nasa.gov/apod/image/...",
-  "media_type":  "image"
+  "url":         "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/...",
+  "hdurl":       "https://assets.science.nasa.gov/dynamicimage/assets/science/cds/apod/apod/...",
+  "media_type":  "image",
+  "credit":      "Ignacio Fernández",
+  "copyright":   "Ignacio Fernández"
 }`}
           />
 

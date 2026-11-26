@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { apodCreditLines } from '../lib/apodCredit'
 
 export default function ApodCard({ data }) {
   const { t } = useTranslation()
@@ -56,6 +57,10 @@ export default function ApodCard({ data }) {
           <span className="text-zinc-400 text-xs">{t('apod.viewMedia')}</span>
         </a>
       )}
+
+      {apodCreditLines(data.credit, data.copyright).map(({ label, text }) => (
+        <p key={label} className="text-zinc-500 text-xs -mt-1">{t(label)}: {text}</p>
+      ))}
 
       <h3 className="text-zinc-100 font-medium text-sm">{data.title}</h3>
       <p className="text-zinc-400 text-xs leading-relaxed line-clamp-4">{data.explanation}</p>

@@ -119,7 +119,10 @@
   },
   "apod": {
     "title": "Astronomy Picture of the Day",
-    "viewMedia": "View media ↗"
+    "viewMedia": "View media ↗",
+    "credit": "Image credit",
+    "copyright": "Copyright",
+    "creditAndCopyright": "Image credit and copyright"
   },
   "epic": {
     "title": "EPIC - Earth Polychromatic Imaging",
