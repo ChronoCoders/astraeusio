@@ -2568,6 +2568,14 @@ next to the next instance of it.
   Order: this record, then 1, 2, 3 and 4. The gate runs through `gate.sh` after each change. Push
   when done, no deploy, and report whether anything in the round changes the shipped image.
 
+  **5. The security.txt contact.** Decided later the same day. `Contact` in
+  `frontend/public/.well-known/security.txt` is `mailto:hello@astraeusio.com`, so the public file
+  does not tie this project to another domain. The owner confirms that the address receives mail.
+  The change ships in the first deploy from WSL, which starts with a fresh backup through
+  `backup.sh`. After it, the origin must answer `/.well-known/security.txt` with 200 and
+  `Content-Type: text/plain; charset=utf-8`, the CDN is purged, and the same URL is checked through
+  Cloudflare. The Windows checkout is deleted only if this deploy succeeds.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
