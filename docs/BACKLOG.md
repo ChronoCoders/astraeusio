@@ -3077,6 +3077,33 @@ next to the next instance of it.
   round names the assertion that kills each mutant. The gate runs after each change, then push and
   report, and no deploy until the owner says.
 
+- No ID. **Decisions of 2026-11-26, the fourth set.** Taken by the owner after the feed round
+  report, implemented under AUD-074.
+
+  **1. Where the explanation ends.** The cut is not guessed from the feed's labels. The 144 good
+  rows stored from the old API are the reference; they run from 2026-05-09 to 2026-09-29, not from
+  2026-01-01 as the decision first said, and the 2026 feed covers the same days. The cut is derived
+  so that, after the same plain text normalisation, the feed's explanation for each of those days
+  equals the stored one. The match count is reported, with every day that does not match and its
+  first point of difference. The rule is accepted only if it matches all 144, or each mismatch is
+  explained by a real difference between the two sources and not by the rule. A rule tuned to pass
+  a list of exceptions is not accepted. The same rule runs over every 2026 item, and what it
+  removes is reported as counts per trailing label, plus the 2026-04-04 footer. Nothing that is
+  part of the explanation may be cut. The reference comparison becomes a test over fixtures that
+  cover each kind of tail found and the hardest days to cut, and a mutation round names the killing
+  assertion for each mutant.
+
+  **2. The 28 rows from 2026-09-30 to 2026-10-27.** Approved as proposed: a one time backfill from
+  the feed with `?year=2026`, limited to exactly those dates, recorded in `schema_migrations` so a
+  redeploy never repeats it, written through `insert_apod` and the validator. Each date replaced is
+  reported. Rows outside that range are not touched.
+
+  **3.** The scratch build directory of the mutation runs may be removed. Free space is reported
+  after.
+
+  The gate runs after each change, then push and report, and no deploy until the owner says. Then
+  AUD-075.
+
 ## History
 
 - No ID. **The audit's stated baseline sha does not exist in this repository.**
