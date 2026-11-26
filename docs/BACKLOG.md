@@ -1741,6 +1741,19 @@ repeated here.
   shown in a scratch clone with no venv, where removing the check turned the message back into a bare
   `No such file or directory`.
 
+  The closure's other half, the `CLOSED` declaration in `backend/tests/backlog_structure.rs`, was
+  mutation tested on 2026-11-26 in a temporary worktree at `a97a35a`, one mutant at a time. The
+  unmutated tree passes. Each mutant failed `every_closure_is_declared_and_written_in_the_one_form` at
+  the assertion written for it. A closure marker for `AUD-071`, which `CLOSED` does not declare, failed
+  on `marked closed in docs/BACKLOG.md but not declared here`. A second `AUD-070` marker failed on `a
+  closure marker appears more than once`. A `CLOSED` entry for `AUD-071` with no marker failed on
+  `declared closed but not marked that way`, and so did the `AUD-070` entry with its date moved to
+  2026-11-24. Removing `AUD-070` from `FINDINGS` failed on `closed findings missing from FINDINGS`, and
+  also failed `every_declared_finding_still_has_a_bullet`, which is right because it is an undeclared
+  finding as well. A parser that matches no marker failed on the floor, `found 0 closure markers`.
+  Those assertions run in sequence, so each mutant reaching its own assertion shows that the earlier
+  ones passed it and none masked it.
+
 - **AUD-066** The `frontend test` gate step stopped running when Node moved to 24. Measured
   2026-11-24.
 
